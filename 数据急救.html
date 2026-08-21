@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据急救工具</title>
+<style>
+  :root{--brand:#2563eb;--ok:#16a34a;--err:#dc2626;--warn:#ca8a04;--bg:#f8fafc;--card:#fff;--line:#e2e8f0;}
+  body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);margin:0;padding:20px;line-height:1.6;}
+  .wrap{max-width:800px;margin:0 auto;}
+  h1{font-size:22px;color:#1e293b;margin-bottom:6px;}
+  .sub{color:#64748b;font-size:13px;margin-bottom:20px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,.04);}
+  h2{font-size:16px;color:#334155;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .btn{background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer;}
+  .btn:hover{opacity:.92;}
+  .btn2{background:#f1f5f9;color:#334155;border:1px solid var(--line);}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
+  th{color:#64748b;font-weight:600;width:30%;}
+  td{word-break:break-all;font-family:monospace;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;}
+  .tag-ok{background:#dcfce7;color:var(--ok);}
+  .tag-err{background:#fee2e2;color:var(--err);}
+  .tag-warn{background:#fef9c3;color:var(--warn);}
+  .log{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:260px;overflow:auto;margin-top:12px;}
+  .empty{color:#94a3b8;font-style:italic;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🚑 数据急救工具</h1>
+  <div class="sub">用于排查本地数据、云端数据、恢复备份。请用<b>同一个浏览器/同一个打开方式</b>运行此页。</div>
+
+  <div class="card">
+    <h2>① 当前浏览器 localStorage 内容</h2>
+    <div id="lsInfo"></div>
+    <table id="lsTable"><tr><td class="empty">点击上方按钮扫描</td></tr></table>
+  </div>
+
+  <div class="card">
+    <h2>② 云端 Supabase 连接测试</h2>
+    <div id="cfgInfo"></div>
+    <div class="row">
+      <button class="btn" id="testBtn">测试云端连接</button>
+      <button class="btn btn2" id="pullDbBtn">从云端拉取物料库</button>
+      <button class="btn btn2" id="pullAllBtn">拉取全部云端数据</button>
+    </div>
+    <div id="cloudResult" class="log" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h2>③ 导入备份恢复</h2>
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">如果你之前导出过 .json 备份文件，选下面导入，可恢复到当前浏览器。</p>
+    <label class="btn" style="display:inline-block;cursor:pointer;">
+      选择备份文件 (.json)
+      <input type="file" id="bkFile" accept=".json" hidden>
+    </label>
+    <div id="bkResult" style="margin-top:10px;font-size:13px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>④ 手动写入云端数据（急救用）</h2>
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">如果云端有数据但本地没有，拉取后会自动写入本地。拉取成功请刷新原系统页面。</p>
+    <button class="btn btn2" id="refreshBtn">刷新本页重新扫描</button>
+  </div>
+</div>
+
+<script src="cloud-config.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+function log(id,msg){ const el=$(id); el.style.display='block'; el.textContent+=(el.textContent?'\n':'')+msg; }
+function tag(cls,txt){ return `<span class="tag tag-${cls}">${txt}</span>`; }
+
+// 1. 扫描 localStorage
+function scanLocal(){
+  const info=$('lsInfo');
+  const tbl=$('lsTable');
+  const keys=[];
+  for(let i=0;i<localStorage.length;i++) keys.push(localStorage.key(i));
+  info.innerHTML=`共 ${keys.length} 个 key | 当前域名/路径：${location.origin||'file:'} ${location.pathname}`;
+  if(!keys.length){ tbl.innerHTML='<tr><td class="empty">localStorage 为空</td></tr>'; return; }
+  keys.sort();
+  let html='<tr><th>Key</th><th>大小</th><th>内容预览</th></tr>';
+  keys.forEach(k=>{
+    const v=localStorage.getItem(k);
+    const len=v.length;
+    let preview=v.slice(0,120).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if(v.length>120) preview+='…';
+    let mark='';
+    if(k==='shipping_db_v1') mark=tag('warn','物料库');
+    if(k==='shipping_rec_v1') mark=tag('warn','发布记录');
+    if(k==='shipping_schedule_v1') mark=tag('warn','排产表');
+    if(k==='shipping_makers_v1') mark=tag('warn','制单人');
+    html+=`<tr><td>${k} ${mark}</td><td>${len} 字符</td><td>${preview}</td></tr>`;
+  });
+  tbl.innerHTML=html;
+}
+scanLocal();
+
+// 2. 配置信息
+const cfg=window.CLOUD_CONFIG||{};
+$('cfgInfo').innerHTML=(cfg.url&&cfg.key&&cfg.url.indexOf('YOUR-')===-1)
+  ? `已读取配置：<br>URL: ${cfg.url}<br>Key 前缀: ${cfg.key.slice(0,16)}… ${tag('ok','配置正常')}`
+  : `配置异常：${tag('err','未填写真实 url/key')}，请检查 cloud-config.js。当前 url=${cfg.url||'(空)'}`;
+
+// 3. 测试连接 + 拉取
+async function fetchCloud(key,action){
+  if(!cfg.url||!cfg.key||cfg.url.indexOf('YOUR-')>-1){ log('cloudResult','❌ 未配置云端'); return null; }
+  let url=cfg.url.replace(/\/rest\/v1\/?$/,'');
+  const api=`${url}/rest/v1/app_data?key=eq.${encodeURIComponent(key)}&select=value,updated_at`;
+  log('cloudResult',`→ ${action}: GET ${key}`);
+  try{
+    const r=await fetch(api,{headers:{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key,'Accept':'application/vnd.pgrst.object+json'}});
+    const txt=await r.text();
+    log('cloudResult',`← HTTP ${r.status} | ${txt.length} 字符`);
+    if(r.status===200){
+      try{
+        const obj=JSON.parse(txt);
+        if(obj && obj.value!=null){
+          let v=obj.value;
+          if(typeof v==='string'){ try{v=JSON.parse(v);}catch(e){} }
+          log('cloudResult',`✅ ${key} 云端有数据，updated_at=${obj.updated_at||'unknown'}`);
+          return v;
+        }else{
+          log('cloudResult',`⚠️ ${key} 云端返回空对象`);
+          return null;
+        }
+      }catch(e){ log('cloudResult','解析失败：'+e.message); return null; }
+    }else if(r.status===406){
+      log('cloudResult','⚠️ 406：请检查 supabase-schema.sql 是否已执行、表结构是否正确');
+      return null;
+    }else{
+      log('cloudResult','❌ 请求失败：'+txt.slice(0,200));
+      return null;
+    }
+  }catch(e){ log('cloudResult','❌ 网络/CORS 错误：'+e.message); return null; }
+}
+
+$('testBtn').onclick=async()=>{ $('cloudResult').textContent=''; await fetchCloud('shipping_db_v1','测试连接'); };
+
+$('pullDbBtn').onclick=async()=>{
+  $('cloudResult').textContent='';
+  const v=await fetchCloud('shipping_db_v1','拉取物料库');
+  if(v!=null){
+    localStorage.setItem('shipping_db_v1', JSON.stringify(v));
+    log('cloudResult','✅ 已写入本地 shipping_db_v1，请刷新原系统页面。');
+    scanLocal();
+  }
+};
+
+$('pullAllBtn').onclick=async()=>{
+  $('cloudResult').textContent='';
+  const keys=['shipping_db_v1','shipping_rec_v1','shipping_schedule_v1','shipping_makers_v1'];
+  let ok=0;
+  for(const k of keys){
+    const v=await fetchCloud(k,'拉取 '+k);
+    if(v!=null){ localStorage.setItem(k, JSON.stringify(v)); ok++; }
+  }
+  log('cloudResult',`✅ 共恢复 ${ok}/${keys.length} 项到本地，请刷新原系统页面。`);
+  scanLocal();
+};
+
+// 4. 导入备份
+$('bkFile').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const obj=JSON.parse(r.result);
+      let n=0;
+      for(const k in obj){ if(k==='__meta') continue; localStorage.setItem(k, obj[k]); n++; }
+      $('bkResult').innerHTML=`${tag('ok','成功')} 导入 ${n} 项数据，请刷新原系统页面。`;
+      scanLocal();
+    }catch(err){ $('bkResult').innerHTML=`${tag('err','失败')} 文件格式错误：${err.message}`; }
+  };
+  r.readAsText(f);
+};
+
+$('refreshBtn').onclick=()=>location.reload();
+</script>
+</body>
+</html>

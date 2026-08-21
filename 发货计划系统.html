@@ -517,7 +517,6 @@ if(window.CloudSync){
     CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); refreshMakerList(); renderRecords(); }).then(()=>{
       CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
     });
-    CloudSync.startAutoPull(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); refreshMakerList(); renderRecords(); });
   } else { CloudSync.setStatus('未配置云端','off'); }
 }
 </script>
