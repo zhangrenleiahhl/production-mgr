@@ -71,8 +71,38 @@ window.CloudSync = (function () {
     if (after) after();
   }
 
+  // 自动轮询拉取：间隔拉取云端，若与本地不同则写回并触发重渲染（实现手机端免手动刷新）
+  let autoPullTimer = null, autoPullState = null;
+  async function pullAndApply(key) {
+    const v = await pull(key);
+    if (v === null) return false;
+    const cloudStr = (typeof v === "string") ? v : JSON.stringify(v);
+    const localStr = localStorage.getItem(key) || "null";
+    if (cloudStr !== localStr) { localStorage.setItem(key, cloudStr); return true; }
+    return false;
+  }
+  function startAutoPull(keys, render, intervalMs) {
+    if (!ready) return;
+    autoPullState = { keys: keys, render: render, interval: intervalMs || 6000 };
+    if (autoPullTimer) clearInterval(autoPullTimer);
+    autoPullTimer = setInterval(async () => {
+      // 用户正在输入框里打字则跳过本轮，避免覆盖未保存的编辑
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      if (document.hidden) return;
+      let changed = false;
+      for (const k of autoPullState.keys) {
+        try { if (await pullAndApply(k)) changed = true; } catch (e) { /* ignore */ }
+      }
+      if (changed) {
+        setStatus("已同步 ☁", "ok");
+        if (autoPullState.render) autoPullState.render();
+      }
+    }, autoPullState.interval);
+  }
+
   return {
     init, ready: () => ready, configured,
-    pull, push, autoPush, pullAll, bindStatus, setStatus
+    pull, push, autoPush, pullAll, startAutoPull, bindStatus, setStatus
   };
 })();
