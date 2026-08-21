@@ -345,7 +345,21 @@ function addRow(data={}){
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
   tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); };
-  tr.querySelectorAll("input").forEach(inp=>inp.addEventListener("input", recalc));
+  tr.querySelectorAll("input").forEach(inp=>{
+    if(inp.dataset.f==="box"){
+      inp.addEventListener("input", ()=>{
+        if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
+        else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
+        recalc();
+      });
+    } else {
+      inp.addEventListener("input", recalc);
+    }
+  });
+  // 载入已有箱数时标记为手填值，避免被自动计算覆盖
+  if(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!==''){
+    const bi=tr.querySelector('[data-f="box"]'); if(bi) bi.dataset.manual="1";
+  }
   tr.querySelectorAll("textarea").forEach(ta=>{
     ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); });
   });
@@ -397,7 +411,10 @@ function recalc(){
     const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
     const ton=qty*unit/1000;
     tr.querySelector('[data-c="ton"]').innerHTML='<span class="calc-box">'+ton.toFixed(1)+'</span>';
-    const box=parseFloat(tr.querySelector('[data-f="box"]').value)||0;
+    const boxInput=tr.querySelector('[data-f="box"]');
+    const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
+    if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";   // 自动带出（除非手填）
+    const box=parseFloat(boxInput.value)||0;
     sq+=qty; st+=ton; sb+=box;
   });
   $("sumQty").innerHTML='<span class="calc-box">'+sq+'</span>'; $("sumTon").innerHTML='<span class="calc-box">'+st.toFixed(1)+'</span>'; $("sumBox").innerHTML='<span class="calc-box">'+((sb>0)?sb:'/')+'</span>';
