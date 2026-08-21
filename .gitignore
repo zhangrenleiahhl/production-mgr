@@ -1,0 +1,5 @@
+# 开发版（Electron/Vite 项目），不部署到 GitHub Pages
+agent-web/
+node_modules/
+.env
+.env.example
