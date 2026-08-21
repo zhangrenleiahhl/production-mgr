@@ -548,12 +548,52 @@ function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelec
 $("exportImg").onclick=async ()=>{
   if(!$("tbody").children.length){ toast("暂无数据"); return; }
   toast("正在准备导出…");
+  let wrapper=null;
   try{
     if(!window.html2canvas){ await loadScript("html2canvas.min.js"); }
-    const canvas=await html2canvas($("doc"),{scale:1.6,backgroundColor:"#fff",useCORS:true});
+    fitTextareas(); // 确保 textarea 高度已按内容展开
+
+    const src=$("doc");
+    const rect=src.getBoundingClientRect();
+    wrapper=document.createElement("div");
+    wrapper.style.cssText="position:fixed;left:-9999px;top:0;width:"+rect.width+"px;z-index:-1;overflow:visible;";
+    document.body.appendChild(wrapper);
+    const clone=src.cloneNode(true);
+    wrapper.appendChild(clone);
+
+    // 隐藏操作列（导出图片不需要删除按钮）
+    clone.querySelectorAll(".col-act").forEach(el=>el.style.display="none");
+
+    // 把表单控件替换为纯文本 div，避免 html2canvas 对 input/textarea 高度/换行计算不准导致截断
+    const commonTextStyle="box-sizing:border-box;display:flex;align-items:center;justify-content:center;text-align:center;background:#fff;border:1px solid #c7d2e6;border-radius:5px;font-weight:600;color:#1e293b;line-height:18px;padding:6px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;";
+    const textareaStyle="box-sizing:border-box;display:block;text-align:center;background:#fff;border:1px solid #c7d2e6;border-radius:5px;font-weight:600;color:#1e293b;line-height:18px;padding:6px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;";
+
+    const origInputs=[...src.querySelectorAll("input")];
+    [...clone.querySelectorAll("input")].forEach((inp,i)=>{
+      const orig=origInputs[i]; if(!orig) return;
+      const div=document.createElement("div");
+      div.textContent=orig.value;
+      div.style.cssText=commonTextStyle+"width:100%;min-height:"+orig.offsetHeight+"px;height:auto;";
+      inp.parentNode.replaceChild(div, inp);
+    });
+
+    const origTextareas=[...src.querySelectorAll("textarea")];
+    [...clone.querySelectorAll("textarea")].forEach((ta,i)=>{
+      const orig=origTextareas[i]; if(!orig) return;
+      const div=document.createElement("div");
+      div.textContent=orig.value;
+      div.style.cssText=textareaStyle+"width:100%;min-height:"+orig.offsetHeight+"px;height:auto;";
+      ta.parentNode.replaceChild(div, ta);
+    });
+
+    const canvas=await html2canvas(clone,{scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0});
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
     toast("图片已导出（未存档）");
-  }catch(e){ toast("导出失败："+e.message); }
+  }catch(e){
+    toast("导出失败："+e.message); console.error(e);
+  }finally{
+    if(wrapper && wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+  }
 };
 
 // ===================== 其它按钮 =====================
