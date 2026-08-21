@@ -87,14 +87,16 @@
   .tbl tr:hover td{background:#eef3ff;}
   .tbl tr.group-end td{border-bottom:none;}
   .col-idx{width:4%;color:var(--muted);}
-  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:12%;}   /* 客户 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:22%;}   /* 型号 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:10%;}   /* 发货数量 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:9%;}    /* 吨位 */
-  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:9%;}    /* 交货单 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:9%;}  /* 箱数 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:16%;} /* 备注 */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 操作 */
+  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:10%;}   /* 发货日期 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:11%;}   /* 客户 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:9%;}    /* 发货数量 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 吨位 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 交货单 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:8%;}  /* 箱数 */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:15%;} /* 备注 */
+  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
+  .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
   .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
   .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{height:auto;min-height:100%;}
@@ -162,13 +164,13 @@
       </div>
       <table class="tbl" id="tbl">
         <thead><tr>
-          <th class="col-idx">#</th><th>客户</th><th style="display:none">物料编码</th><th>型号</th>
+          <th class="col-idx">#</th><th>发货日期</th><th>客户</th><th style="display:none">物料编码</th><th>型号</th>
           <th>发货数量</th><th style="display:none">单重(kg)</th><th>吨位(t)</th><th style="display:none">一箱多少件</th>
           <th>交货单</th><th>箱数</th><th>备注</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
-          <td colspan="4" style="text-align:right">合计</td>
+          <td colspan="5" style="text-align:right">合计</td>
           <td class="calc num-cell" id="sumQty"><span class="calc-box">0</span></td>
           <td style="display:none"></td>
           <td class="calc num-cell" id="sumTon"><span class="calc-box">0.0</span></td>
@@ -326,6 +328,7 @@ function addRow(data={}){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
   tr.innerHTML=`
     <td class="col-idx num-cell">${idx}</td>
+    <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
     <td style="display:none"><input data-f="code" value="${esc(data.code)}" placeholder="/"></td>
     <td><input data-f="model" value="${esc(data.model)}" placeholder="/" autocomplete="off"></td>
@@ -398,6 +401,7 @@ function recalc(){
 function collectRows(){
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
   return [...$("tbody").children].map(tr=>({
+    shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
     customer:f(tr.querySelector('[data-f="customer"]').value),
     code:f(tr.querySelector('[data-f="code"]').value),
     model:f(tr.querySelector('[data-f="model"]').value),
@@ -467,9 +471,9 @@ function renderRecords(){
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["客户","型号","发货数量","交货单","箱数","备注"];
+  const head=["发货日期","客户","型号","发货数量","交货单","箱数","备注"];
   const lines=[head.join(",")];
-  rows.forEach(r=>lines.push([r.customer,r.model,r.qty,r.delivery,r.box,r.remark].map(csvCell).join(",")));
+  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.delivery,r.box,r.remark].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
 }
 function exportRowsCsv(rows, name){
