@@ -72,20 +72,22 @@
   .doc-head .meta span{background:rgba(255,255,255,.18);padding:3px 10px;border-radius:20px;}
   .doc-head .meta #docDate{background:#ffd43b;color:#1e3a8a;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.12);}
   .tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
-  .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:6px 4px;text-align:center;border:none;border-bottom:1px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
-  .tbl td{padding:6px 4px;border:none;text-align:center;vertical-align:middle;min-height:44px;}
-  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:linear-gradient(180deg,#eef3fb 0%,#ffffff 100%);box-shadow:inset 0 2px 5px rgba(15,23,42,.10),0 1px 0 #fff;width:100%;min-height:34px;padding:0 6px;text-align:center;border-radius:8px;font-size:12.5px;font-weight:600;color:#1e293b;line-height:18px;outline:none;transition:.18s;box-sizing:border-box;}
+  .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:6px 4px;text-align:center;border:1px solid #dfe4ec;border-bottom:2px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
+  .tbl td{padding:6px 4px;border:1px solid #dfe4ec;text-align:center;vertical-align:middle;min-height:44px;}
+  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;min-height:34px;padding:0 6px;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;line-height:18px;outline:none;transition:.18s;box-sizing:border-box;}
   .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:6px 6px;white-space:pre-wrap;word-break:break-word;}
   .tbl td input[data-f="model"]{text-align:center;}
-  .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:linear-gradient(180deg,#ffffff 0%,#eef3ff 100%);box-shadow:inset 0 1px 3px rgba(15,23,42,.06),0 0 0 3px rgba(91,124,250,.20),0 3px 10px rgba(91,124,250,.30);}
+  .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:#f5f8ff;box-shadow:0 0 0 2px rgba(91,124,250,.25);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
   .tbl td.calc{padding:4px 2px;text-align:center;vertical-align:middle;}
-  .calc-box{display:inline-flex;align-items:center;justify-content:center;border:1px solid #c7d2e6;background:linear-gradient(180deg,#eef3fb 0%,#ffffff 100%);box-shadow:inset 0 2px 5px rgba(15,23,42,.10),0 1px 0 #fff;border-radius:8px;width:100%;height:34px;font-size:12.5px;font-weight:600;color:#1e293b;box-sizing:border-box;}
-  .tbl tbody tr{border-bottom:none;}
+  .tbl tr.subtotal td{background:#f3f7ff;border-top:2px solid #cbd5e1;font-weight:700;color:#1e3a8a;padding:5px 6px;font-size:12px;}
+  .tbl tr.subtotal .sub-label{text-align:left;padding-left:10px;}
+  .tbl tr.subtotal .sub-ton{text-align:center;color:var(--brand);}
+  .tbl tbody tr{border-bottom:1px solid #dfe4ec;}
   .tbl tbody tr:nth-child(even){background:#fafbff;}
   .tbl tr:hover td{background:#eef3ff;}
-  .tbl tr.group-end td{border-bottom:none;}
+  .tbl tr.group-end td{border-bottom:2px solid #cbd5e1;}
   .col-idx{width:4%;color:var(--muted);}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
@@ -107,7 +109,7 @@
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
   .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:15px;line-height:1;width:24px;height:24px;border-radius:7px;transition:.15s;}
   .del-x:hover{background:#fdecea;}
-  .tbl tfoot td{font-weight:800;color:#1e3a8a;background:linear-gradient(90deg,#eef2ff,#e7ecff);border:none;border-top:1px solid #cbd5e1;padding:9px 6px;font-size:12.5px;}
+  .tbl tfoot td{font-weight:800;color:#1e3a8a;background:#eef2ff;border:1px solid #dfe4ec;border-top:2px solid #cbd5e1;padding:9px 6px;font-size:12.5px;}
   .num-cell{font-variant-numeric:tabular-nums;}
   .doc-foot{padding:12px 22px;font-size:12px;color:#8a94a8;background:#fbfcfe;border-top:1px dashed #e3e8f2;}
   .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;}
@@ -146,7 +148,6 @@
   <div class="topbar">
     <div class="field"><label class="req">发货日期</label><input type="date" id="shipDate"></div>
     <div class="field"><label>计划单号</label><input type="text" id="planNo" placeholder="自动生成" style="width:160px"></div>
-    <div class="field"><label>制单人</label><input type="text" id="maker" placeholder="姓名" style="width:120px" list="makerList" autocomplete="off"><datalist id="makerList"></datalist></div>
     <div class="spacer"></div>
     <button class="btn btn-line" id="addRow">＋ 添加一行</button>
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
@@ -161,7 +162,7 @@
       <div class="doc-head">
         <div class="t">发货计划单</div>
         <div class="meta">
-          <span id="docDate">发货日期：-</span> ｜ <span id="docNo">单号：-</span> ｜ <span id="docMaker">制单：-</span>
+          <span id="docDate">发货日期：-</span> ｜ <span id="docNo">单号：-</span>
         </div>
       </div>
       <table class="tbl" id="tbl">
@@ -173,12 +174,12 @@
         <tbody id="tbody"></tbody>
         <tfoot><tr>
           <td colspan="5" style="text-align:right">合计</td>
-          <td class="calc num-cell" id="sumQty"><span class="calc-box">0</span></td>
+          <td class="num-cell" id="sumQty">0</td>
           <td class="hide-col"></td>
-          <td class="calc num-cell" id="sumTon"><span class="calc-box">0.0</span></td>
+          <td class="num-cell" id="sumTon">0.0</td>
           <td class="hide-col"></td>
           <td></td>
-          <td class="calc num-cell" id="sumBox"><span class="calc-box">/</span></td>
+          <td class="num-cell" id="sumBox">/</td>
           <td></td>
           <td></td>
         </tr></tfoot>
@@ -206,18 +207,6 @@ const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&
 // ===================== 物料库（与物料数据库页共享 localStorage） =====================
 let DB = loadDB();
 function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }catch(e){ return []; } }
-const MAKER_KEY="shipping_maker_history";
-function loadMakers(){ try{ return JSON.parse(localStorage.getItem(MAKER_KEY))||[]; }catch(e){ return []; } }
-function saveMaker(name){
-  name=(name||"").trim(); if(!name) return;
-  const list=loadMakers().filter(m=>m!==name); list.unshift(name); if(list.length>10) list.pop();
-  localStorage.setItem(MAKER_KEY,JSON.stringify(list)); refreshMakerList();
-  if(window.CloudSync) CloudSync.autoPush(MAKER_KEY);
-}
-function refreshMakerList(){
-  const dl=$("makerList"); if(!dl) return; dl.innerHTML="";
-  loadMakers().forEach(m=>{ const o=document.createElement("option"); o.value=m; dl.appendChild(o); });
-}
 function updateDbStatus(){
   const el=$("dbStatus");
   if(!el) return;
@@ -328,8 +317,9 @@ $("planNo").value=genPlanNo();
 
 function addRow(data={}){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
-  const _q=parseFloat(data.qty), _p=parseFloat(data.perbox);
+  const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
   const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
+  const tonVal=(data.ton!==undefined&&data.ton!==null&&data.ton!=='/'&&String(data.ton).trim()!=='')?data.ton:((_q>0&&_u>0)?(_q*_u/1000).toFixed(1):'');
   tr.innerHTML=`
     <td class="col-idx num-cell">${idx}</td>
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
@@ -338,7 +328,7 @@ function addRow(data={}){
     <td><input data-f="model" value="${esc(data.model)}" placeholder="/" autocomplete="off"></td>
     <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
     <td class="hide-col"><input data-f="unit" type="number" min="0" step="0.0001" value="${esc(data.unit)}" placeholder="/"></td>
-    <td class="calc num-cell" data-c="ton"><span class="calc-box">0.0</span></td>
+    <td class="num-cell"><input data-f="ton" type="number" min="0" step="0.0001" value="${esc(tonVal)}" placeholder="/"></td>
     <td class="hide-col"><input data-f="perbox" type="number" min="1" value="${esc(data.perbox)}" placeholder="/"></td>
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
@@ -346,7 +336,7 @@ function addRow(data={}){
     <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
   tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); };
   tr.querySelectorAll("input").forEach(inp=>{
-    if(inp.dataset.f==="box"){
+    if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
         else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
@@ -356,10 +346,12 @@ function addRow(data={}){
       inp.addEventListener("input", recalc);
     }
   });
-  // 载入已有箱数时标记为手填值，避免被自动计算覆盖
-  if(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!==''){
-    const bi=tr.querySelector('[data-f="box"]'); if(bi) bi.dataset.manual="1";
-  }
+  // 载入已有箱数/吨位时标记为手填值，避免被自动计算覆盖
+  ["box","ton"].forEach(k=>{
+    if(data[k]!==undefined&&data[k]!==null&&data[k]!=='/'&&String(data[k]).trim()!==''){
+      const inp=tr.querySelector(`[data-f="${k}"]`); if(inp) inp.dataset.manual="1";
+    }
+  });
   tr.querySelectorAll("textarea").forEach(ta=>{
     ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); });
   });
@@ -372,10 +364,16 @@ function addRow(data={}){
   });
   tb.appendChild(tr); reindex(); recalc(); fitTextareas();
 }
-function reindex(){ [...$("tbody").children].forEach((tr,i)=>tr.querySelector(".col-idx").textContent=i+1); $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells(); }
+function reindex(){
+  [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
+  [...$("tbody").children].forEach((tr,i)=>tr.querySelector(".col-idx").textContent=i+1);
+  $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells();
+}
 function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(34,ta.scrollHeight)+"px"; }
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 function mergeCustomerCells(){
+  // 先移除旧的小计行，再按客户分组重建
+  [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
   const rows=[...$("tbody").children];
   rows.forEach(tr=>{
     tr.classList.remove("group-end");
@@ -399,6 +397,16 @@ function mergeCustomerCells(){
       }
     }
     rows[j-1].classList.add("group-end");
+    // 每个客户下面加「吨位合计」小计行（吨位取当前各格实际值累加）
+    if(cust){
+      let subTon=0;
+      for(let k=i;k<j;k++){ subTon+=parseFloat(rows[k].querySelector('[data-f="ton"]')?.value)||0; }
+      const sub=document.createElement("tr"); sub.className="subtotal";
+      sub.innerHTML='<td colspan="7" class="sub-label">「'+esc(cust)+'」吨位合计</td>'+
+        '<td class="sub-ton">'+(subTon?subTon.toFixed(1):"/")+'</td>'+
+        '<td colspan="5"></td>';
+      rows[j-1].after(sub);
+    }
     i=j;
   }
   fitTextareas();
@@ -406,22 +414,30 @@ function mergeCustomerCells(){
 function recalc(){
   let sq=0,st=0,sb=0;
   [...$("tbody").children].forEach(tr=>{
+    if(tr.classList.contains("subtotal")) return;   // 跳过客户小计行
     const qty=parseFloat(tr.querySelector('[data-f="qty"]').value)||0;
     const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
     const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
-    const ton=qty*unit/1000;
-    tr.querySelector('[data-c="ton"]').innerHTML='<span class="calc-box">'+ton.toFixed(1)+'</span>';
+    // 吨位：自动带出（数量×单重/1000），除非手填
+    const tonInput=tr.querySelector('[data-f="ton"]');
+    const autoTon=(qty>0&&unit>0)?qty*unit/1000:0;
+    if(tonInput.dataset.manual!=="1") tonInput.value=autoTon>0?autoTon.toFixed(1):"";
+    const ton=parseFloat(tonInput.value)||0;
+    // 箱数：自动带出（数量÷每箱件数），除非手填
     const boxInput=tr.querySelector('[data-f="box"]');
     const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
-    if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";   // 自动带出（除非手填）
+    if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";
     const box=parseFloat(boxInput.value)||0;
     sq+=qty; st+=ton; sb+=box;
   });
-  $("sumQty").innerHTML='<span class="calc-box">'+sq+'</span>'; $("sumTon").innerHTML='<span class="calc-box">'+st.toFixed(1)+'</span>'; $("sumBox").innerHTML='<span class="calc-box">'+((sb>0)?sb:'/')+'</span>';
+  $("sumQty").textContent=sq;
+  $("sumTon").textContent=st.toFixed(1);
+  $("sumBox").textContent=(sb>0)?sb:"/";
+  mergeCustomerCells();
 }
 function collectRows(){
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
-  return [...$("tbody").children].map(tr=>({
+  return [...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal")).map(tr=>({
     shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
     customer:f(tr.querySelector('[data-f="customer"]').value),
     code:f(tr.querySelector('[data-f="code"]').value),
@@ -429,7 +445,7 @@ function collectRows(){
     qty:f(tr.querySelector('[data-f="qty"]').value),
     unit:f(tr.querySelector('[data-f="unit"]').value),
     perbox:f(tr.querySelector('[data-f="perbox"]').value),
-    ton:parseFloat(tr.querySelector('[data-c="ton"]').textContent)||0,
+    ton:f(tr.querySelector('[data-f="ton"]').value),
     box:f(tr.querySelector('[data-f="box"]').value),
     delivery:f(tr.querySelector('[data-f="delivery"]').value),
     remark:f(tr.querySelector('[data-f="remark"]').value)
@@ -438,11 +454,9 @@ function collectRows(){
 function syncDocHead(){
   $("docDate").textContent="发货日期："+($("shipDate").value||"/");
   $("docNo").textContent="单号："+($("planNo").value||"/");
-  $("docMaker").textContent="制单："+($("maker").value.trim()||"/");
 }
 $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); });
 $("planNo").addEventListener("input",syncDocHead);
-$("maker").addEventListener("input",syncDocHead);
 
 // ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
@@ -452,10 +466,10 @@ function publish(){
   if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
 
   // 仅存档文本数据（不截图、不下载图片）
-  const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,maker:$("maker").value,
+  const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent};
-  saveRec(rec); renderRecords(); saveMaker($("maker").value);
+  saveRec(rec); renderRecords();
   toast("已发布存档 ✓（单号 "+rec.no+"）");
   $("planNo").value=genPlanNo(); syncDocHead();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
@@ -475,7 +489,7 @@ function renderRecords(){
   list.forEach(rec=>{
     const div=document.createElement("div"); div.className="rec";
     div.innerHTML=`
-      <div class="info"><b>${rec.no}</b><br>日期：${rec.date} ｜ 制单：${rec.maker||"/"}<br>
+      <div class="info"><b>${rec.no}</b><br>日期：${rec.date}${rec.maker?' ｜ 制单：'+rec.maker:''}<br>
         共 ${rec.rows.length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ ${rec.sumBox}箱<br>发布：${rec.publishedAt}</div>
       <div class="acts">
         <button class="btn btn-line" data-act="csv">导出CSV</button>
@@ -492,9 +506,9 @@ function renderRecords(){
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["发货日期","客户","型号","发货数量","交货单","箱数","备注"];
+  const head=["发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注"];
   const lines=[head.join(",")];
-  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.delivery,r.box,r.remark].map(csvCell).join(",")));
+  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.ton,r.delivery,r.box,r.remark].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
 }
 function exportRowsCsv(rows, name){
@@ -521,10 +535,8 @@ $("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清
 $("publish").onclick=publish;
 
 // ===================== 启动 =====================
-$("maker").value="张仁磊";
 syncDocHead();
 updateDbStatus();
-refreshMakerList();
 if(!DB.length) toast("提示：物料库为空，请先到「物料数据库」页导入");
 addRow(); addRow();
 renderRecords();
@@ -532,14 +544,14 @@ renderRecords();
 // ===================== 云端同步 =====================
 if(window.CloudSync){
   CloudSync.init();
-  const CLOUD_KEYS=[LS_DB, LS_REC, MAKER_KEY];
+  const CLOUD_KEYS=[LS_DB, LS_REC];
   const nav=document.querySelector('.nav');
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
   const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
   if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); refreshMakerList(); renderRecords(); }); }
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }); }
   if(CloudSync.ready()){
-    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); refreshMakerList(); renderRecords(); }).then(()=>{
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }).then(()=>{
       CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
     });
   } else { CloudSync.setStatus('未配置云端','off'); }
