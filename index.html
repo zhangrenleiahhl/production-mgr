@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生产管理客户端</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --brand:#2563eb; --brand-d:#1e4fb0; --line:#e3e8ef; --txt:#1f2733; --muted:#7a8699; --soft:#eef4ff;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;overflow:hidden;}
+  .appbar{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 4px 14px rgba(31,45,77,.05);position:relative;}
+  .logo{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;}
+  .logo .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-left:6px;}
+  .tab{border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;background:var(--soft);color:var(--brand);transition:.15s;}
+  .tab:hover{background:#dfeaff;}
+  .tab.active{background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.28);}
+  .btn{border:1px solid var(--line);border-radius:9px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--txt);transition:.15s;}
+  .btn:hover{background:#f3f6fb;}
+  .btn-primary{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .btn-primary:hover{background:var(--brand-d);}
+  .spacer{flex:1;}
+  .hint{font-size:12px;color:var(--muted);}
+  .frame{flex:1 1 auto;width:100%;border:none;background:#fff;display:block;}
+  .toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
+  .toast.show{opacity:1;}
+  /* 备份面板 */
+  .bpanel{position:absolute;right:16px;top:54px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(20,40,80,.18);padding:12px;width:230px;z-index:120;display:none;}
+  .bpanel.show{display:block;}
+  .bpanel .ttl{font-size:12px;color:var(--muted);margin-bottom:8px;}
+  .brow{margin-bottom:8px;}
+  .bbtn{display:block;width:100%;text-align:center;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--brand);transition:.15s;}
+  .bbtn:hover{background:var(--soft);}
+  .brow.toggle{font-size:13px;color:var(--txt);display:flex;align-items:center;gap:6px;}
+  .brow.info{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;}
+</style>
+</head>
+<body>
+  <div class="appbar">
+    <div class="logo"><span class="dot"></span>生产管理客户端</div>
+    <div class="tabs">
+      <button class="tab active" data-page="发货计划系统.html">📋 发货计划</button>
+      <button class="tab" data-page="排产计划表.html">📅 排产计划表</button>
+      <button class="tab" data-page="物料数据库.html">📦 物料数据库</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="backupBtn">💾 数据备份</button>
+    <div class="hint">数据存本机，建议定期导出备份</div>
+    <div class="bpanel" id="bpanel">
+      <div class="ttl">数据备份与恢复</div>
+      <div class="brow"><button class="bbtn" id="expBtn">⬇ 导出备份文件</button></div>
+      <div class="brow"><label class="bbtn">⬆ 导入备份恢复<input type="file" id="impFile" accept=".json" hidden></label></div>
+      <div class="brow toggle"><input type="checkbox" id="autoChk"><label for="autoChk">发布时自动备份</label></div>
+      <div class="brow info" id="lastBk">尚未导出过备份</div>
+    </div>
+  </div>
+  <iframe id="frame" class="frame" src="发货计划系统.html"></iframe>
+  <div class="toast" id="toast"></div>
+
+<script>
+  const frame=document.getElementById("frame");
+  const tabs=document.querySelectorAll(".tab");
+  const $=id=>document.getElementById(id);
+  function switchTo(page){
+    frame.src=page;
+    tabs.forEach(t=>t.classList.toggle("active",t.dataset.page===page));
+    try{localStorage.setItem("last_client_tab",page);}catch(e){}
+  }
+  tabs.forEach(t=>t.addEventListener("click",()=>switchTo(t.dataset.page)));
+  try{
+    const last=localStorage.getItem("last_client_tab");
+    if(last && [...tabs].some(t=>t.dataset.page===last)) switchTo(last);
+  }catch(e){}
+
+  // ===== 备份 / 恢复 =====
+  function gatherData(){
+    const data={};
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k && (k.startsWith("shipping_")||k==="last_client_tab"||k==="maker_history"||k==="auto_backup")) data[k]=localStorage.getItem(k);
+    }
+    return data;
+  }
+  function ts(){const d=new Date();const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;}
+  function downloadBackup(){
+    const data=gatherData();
+    data.__meta={app:"生产管理客户端",exported:new Date().toISOString()};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`生产管理备份_${ts()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+    const now=new Date().toLocaleString();
+    try{localStorage.setItem("last_backup",now);}catch(e){}
+    $("lastBk").textContent="上次备份："+now;
+    toast("已导出备份文件");
+  }
+  function importBackup(file){
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const obj=JSON.parse(r.result);
+        let n=0;
+        for(const k in obj){ if(k==="__meta")continue; try{localStorage.setItem(k,obj[k]);n++;}catch(e){} }
+        toast("已恢复 "+n+" 项数据，正在刷新…");
+        setTimeout(()=>{try{frame.contentWindow.location.reload();}catch(e){frame.src=frame.src;}},500);
+      }catch(e){ toast("备份文件格式错误"); }
+    };
+    r.readAsText(file);
+  }
+  $("expBtn").onclick=()=>{downloadBackup();$("bpanel").classList.remove("show");};
+  $("impFile").onchange=e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); $("bpanel").classList.remove("show"); e.target.value=""; };
+  $("backupBtn").onclick=()=>$("bpanel").classList.toggle("show");
+  document.addEventListener("click",e=>{ if(!$("bpanel").contains(e.target)&&e.target!==$("backupBtn")) $("bpanel").classList.remove("show"); });
+  // 自动备份开关
+  const autoChk=$("autoChk");
+  autoChk.checked=localStorage.getItem("auto_backup")==="1";
+  autoChk.onchange=()=>localStorage.setItem("auto_backup",autoChk.checked?"1":"0");
+  if(localStorage.getItem("last_backup")) $("lastBk").textContent="上次备份："+localStorage.getItem("last_backup");
+
+  // 子页面跳转同步 + 隐藏自带导航 + 挂载自动备份钩子
+  frame.addEventListener("load",()=>{
+    try{
+      const src=frame.contentWindow.location.pathname.split("/").pop();
+      if(src && [...tabs].some(t=>t.dataset.page===src)) switchTo(src);
+      const nav=frame.contentDocument.querySelector(".nav");
+      if(nav) nav.style.display="none";
+      const bar=frame.contentDocument.querySelector(".appbar");
+      if(bar) bar.style.display="none";
+      // 发布时自动备份：在子页面挂载钩子
+      if(localStorage.getItem("auto_backup")==="1") frame.contentWindow.__clientBackup=downloadBackup;
+      else frame.contentWindow.__clientBackup=null;
+    }catch(e){}
+  });
+
+  function toast(msg){const el=$("toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),1800);}
+</script>
+</body>
+</html>

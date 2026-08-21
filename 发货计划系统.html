@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发货计划系统</title>
+<script src="html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud-config.js"></script>
+<script src="cloud-sync.js"></script>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
+    --muted:#7a8699; --brand:#2563eb; --brand-d:#1e4fb0;
+    --red:#d92d20; --green:#15803d; --soft:#eef4ff;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
+    background:var(--bg);color:var(--txt);font-size:14px;}
+  .wrap{max-width:1320px;margin:0 auto;padding:18px 14px 60px;}
+  h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  h1 .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px;}
+  .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
+  .nav-link:hover{background:var(--soft);color:var(--brand);}
+  .nav-link.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 4px 12px rgba(37,99,235,.28);}
+  /* ===== 云端同步状态 + 手机自适应 ===== */
+  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;}
+  .cloud-pill.ok{background:#e7f8ee;color:#15803d;border-color:#bbe7c9;}
+  .cloud-pill.err{background:#fdecea;color:#d92d20;border-color:#f3c7c2;}
+  .cloud-pill.sync{background:#eef4ff;color:#2563eb;border-color:#c5d8ff;}
+  .cloud-pill.off{background:#f1f5f9;color:#94a3b8;}
+  @media (max-width:820px){
+    .wrap{padding:10px 8px 56px;}
+    h1{font-size:18px;}
+    .topbar{gap:10px;}
+    .field{width:100%;}
+    .nav{gap:6px;}
+    .doc{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .tbl{min-width:760px;}
+    .tbl td input,.tbl td textarea{font-size:14px;}
+    .card{padding:12px;}
+  }
+  .topbar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin-bottom:18px;box-shadow:0 8px 24px rgba(31,45,77,.05);}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field label{font-size:12px;color:var(--muted);}
+  .field input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;outline:none;background:#fff;}
+  .field input:focus{border-color:var(--brand);}
+  .spacer{flex:1;}
+  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-weight:600;transition:.15s;}
+  .btn-primary{background:var(--brand);color:#fff;}
+  .btn-primary:hover{background:var(--brand-d);}
+  .btn-ghost{background:var(--soft);color:var(--brand);}
+  .btn-ghost:hover{background:#dfeaff;}
+  .btn-line{background:#fff;color:var(--txt);border:1px solid var(--line);}
+  .btn-line:hover{background:#f3f6fb;}
+  .btn-danger{background:#fff;color:var(--red);border:1px solid #f3c7c2;}
+  .btn-danger:hover{background:#fdecea;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;box-shadow:0 8px 24px rgba(31,45,77,.05);}
+  .card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .card h2 .tag{font-size:11px;background:var(--soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600;}
+  .hint{font-size:12px;color:var(--muted);}
+  /* ===== 发货计划单（美化） ===== */
+  .doc{border:1px solid #e6e9f2;border-radius:14px;overflow:visible;background:#fff;box-shadow:0 12px 32px rgba(31,45,77,.07);width:100%;max-width:100%;}
+  .doc-head{padding:16px 18px;border:none;background:linear-gradient(120deg,#3b5bdb 0%,#5b7cfa 55%,#4263eb 100%);color:#fff;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;}
+  .doc-head .t{font-size:18px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
+  .doc-head .t::before{content:"";width:8px;height:22px;border-radius:3px;background:#ffd43b;display:inline-block;}
+  .doc-head .t::after{content:"SHIPPING PLAN";font-size:10px;font-weight:600;letter-spacing:1.5px;color:rgba(255,255,255,.55);margin-left:8px;}
+  .doc-head .meta{font-size:12px;color:rgba(255,255,255,.92);display:flex;gap:8px;flex-wrap:wrap;}
+  .doc-head .meta span{background:rgba(255,255,255,.18);padding:3px 10px;border-radius:20px;}
+  .doc-head .meta #docDate{background:#ffd43b;color:#1e3a8a;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.12);}
+  .tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
+  .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:6px 4px;text-align:center;border:none;border-bottom:1px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
+  .tbl td{padding:6px 4px;border:none;text-align:center;vertical-align:middle;min-height:44px;}
+  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:linear-gradient(180deg,#eef3fb 0%,#ffffff 100%);box-shadow:inset 0 2px 5px rgba(15,23,42,.10),0 1px 0 #fff;width:100%;min-height:34px;padding:0 6px;text-align:center;border-radius:8px;font-size:12.5px;font-weight:600;color:#1e293b;line-height:18px;outline:none;transition:.18s;box-sizing:border-box;}
+  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:6px 6px;white-space:pre-wrap;word-break:break-word;}
+  .tbl td input[data-f="model"]{text-align:center;}
+  .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:linear-gradient(180deg,#ffffff 0%,#eef3ff 100%);box-shadow:inset 0 1px 3px rgba(15,23,42,.06),0 0 0 3px rgba(91,124,250,.20),0 3px 10px rgba(91,124,250,.30);}
+  @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
+  .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
+  .tbl td.calc{padding:4px 2px;text-align:center;vertical-align:middle;}
+  .calc-box{display:inline-flex;align-items:center;justify-content:center;border:1px solid #c7d2e6;background:linear-gradient(180deg,#eef3fb 0%,#ffffff 100%);box-shadow:inset 0 2px 5px rgba(15,23,42,.10),0 1px 0 #fff;border-radius:8px;width:100%;height:34px;font-size:12.5px;font-weight:600;color:#1e293b;box-sizing:border-box;}
+  .tbl tbody tr{border-bottom:none;}
+  .tbl tbody tr:nth-child(even){background:#fafbff;}
+  .tbl tr:hover td{background:#eef3ff;}
+  .tbl tr.group-end td{border-bottom:none;}
+  .col-idx{width:4%;color:var(--muted);}
+  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:12%;}   /* 客户 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:22%;}   /* 型号 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:10%;}   /* 发货数量 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:9%;}    /* 吨位 */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:9%;}    /* 交货单 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:9%;}  /* 箱数 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:16%;} /* 备注 */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 操作 */
+  .col-customer,.col-remark{text-align:center;vertical-align:middle;}
+  .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{height:auto;min-height:100%;}
+  .col-act{width:5%;}
+  input[data-f="qty"]{min-width:0;}
+  .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
+  .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:15px;line-height:1;width:24px;height:24px;border-radius:7px;transition:.15s;}
+  .del-x:hover{background:#fdecea;}
+  .tbl tfoot td{font-weight:800;color:#1e3a8a;background:linear-gradient(90deg,#eef2ff,#e7ecff);border:none;border-top:1px solid #cbd5e1;padding:9px 6px;font-size:12.5px;}
+  .num-cell{font-variant-numeric:tabular-nums;}
+  .doc-foot{padding:12px 22px;font-size:12px;color:#8a94a8;background:#fbfcfe;border-top:1px dashed #e3e8f2;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;}
+  .records{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+  .rec{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;}
+  .rec .info{padding:11px 13px;font-size:12px;color:var(--muted);line-height:1.7;}
+  .rec .info b{color:var(--txt);font-size:13px;}
+  .rec .acts{display:flex;gap:8px;padding:0 12px 12px;}
+  .rec .acts .btn{flex:1;padding:7px 0;font-size:12px;}
+  .empty{color:var(--muted);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
+  .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
+  .toast.show{opacity:1;}
+  .req::after{content:"*";color:var(--red);margin-left:2px;}
+  .ac{position:fixed;z-index:200;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(20,40,80,.18);max-height:300px;overflow-y:auto;}
+  .ac-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f4f9;font-size:13px;}
+  .ac-item:last-child{border-bottom:none;}
+  .ac-item.active,.ac-item:hover{background:var(--soft);}
+  .ac-model{font-weight:700;}
+  .ac-code{color:var(--brand);font-size:12px;}
+  .ac-meta{color:var(--muted);font-size:12px;display:block;margin-top:2px;}
+  @media(max-width:600px){.tbl{font-size:12px}.doc-head .t{font-size:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot"></span>发货计划系统</h1>
+  <div class="sub">做计划时只需填<b>型号 + 发货数量</b>，其余信息从「物料数据库」自动带出。</div>
+
+  <nav class="nav">
+    <a href="发货计划系统.html" class="nav-link active">📋 发货计划</a>
+    <a href="排产计划表.html" class="nav-link" target="_blank">📅 排产计划表</a>
+    <a href="物料数据库.html" class="nav-link" target="_blank">📦 物料数据库</a>
+    <span id="dbStatus" style="margin-left:6px;align-self:center;color:var(--muted);font-size:13px"></span>
+  </nav>
+
+  <div class="topbar">
+    <div class="field"><label class="req">发货日期</label><input type="date" id="shipDate"></div>
+    <div class="field"><label>计划单号</label><input type="text" id="planNo" placeholder="自动生成" style="width:160px"></div>
+    <div class="field"><label>制单人</label><input type="text" id="maker" placeholder="姓名" style="width:120px" list="makerList" autocomplete="off"><datalist id="makerList"></datalist></div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" id="openDb">📦 物料数据库</button>
+    <button class="btn btn-ghost" id="openSch">📅 排产计划表</button>
+    <button class="btn btn-line" id="addRow">＋ 添加一行</button>
+    <button class="btn btn-line" id="exportCsv">导出 CSV</button>
+    <button class="btn btn-line" id="exportImg">导出图片</button>
+    <button class="btn btn-line" id="clearAll">清空</button>
+    <button class="btn btn-primary" id="publish">发布</button>
+  </div>
+
+  <div class="card">
+    <h2>发货明细 <span class="tag" id="rowCount">0 行</span></h2>
+    <div class="doc" id="doc">
+      <div class="doc-head">
+        <div class="t">发货计划单</div>
+        <div class="meta">
+          <span id="docDate">发货日期：-</span> ｜ <span id="docNo">单号：-</span> ｜ <span id="docMaker">制单：-</span>
+        </div>
+      </div>
+      <table class="tbl" id="tbl">
+        <thead><tr>
+          <th class="col-idx">#</th><th>客户</th><th style="display:none">物料编码</th><th>型号</th>
+          <th>发货数量</th><th style="display:none">单重(kg)</th><th>吨位(t)</th><th style="display:none">一箱多少件</th>
+          <th>交货单</th><th>箱数</th><th>备注</th><th class="col-act">操作</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+        <tfoot><tr>
+          <td colspan="4" style="text-align:right">合计</td>
+          <td class="calc num-cell" id="sumQty"><span class="calc-box">0</span></td>
+          <td style="display:none"></td>
+          <td class="calc num-cell" id="sumTon"><span class="calc-box">0.0</span></td>
+          <td style="display:none"></td>
+          <td></td>
+          <td class="calc num-cell" id="sumBox"><span class="calc-box">/</span></td>
+          <td></td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+      <div class="doc-foot" id="docFoot">共 0 行 ｜ 发布时间：-</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>发布记录 <span class="tag" id="recCount">0 条</span>
+      <span class="hint">（发布时仅存档文本数据，不自动截图）</span></h2>
+    <div class="records" id="records"></div>
+    <div class="empty" id="recEmpty">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LS_DB = "shipping_db_v1";
+const LS_REC = "shipping_plans_v1";
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+
+// ===================== 物料库（与物料数据库页共享 localStorage） =====================
+let DB = loadDB();
+function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }catch(e){ return []; } }
+const MAKER_KEY="shipping_maker_history";
+function loadMakers(){ try{ return JSON.parse(localStorage.getItem(MAKER_KEY))||[]; }catch(e){ return []; } }
+function saveMaker(name){
+  name=(name||"").trim(); if(!name) return;
+  const list=loadMakers().filter(m=>m!==name); list.unshift(name); if(list.length>10) list.pop();
+  localStorage.setItem(MAKER_KEY,JSON.stringify(list)); refreshMakerList();
+  if(window.CloudSync) CloudSync.autoPush(MAKER_KEY);
+}
+function refreshMakerList(){
+  const dl=$("makerList"); if(!dl) return; dl.innerHTML="";
+  loadMakers().forEach(m=>{ const o=document.createElement("option"); o.value=m; dl.appendChild(o); });
+}
+function updateDbStatus(){
+  const el=$("dbStatus");
+  if(!el) return;
+  if(!DB.length) el.innerHTML="（物料库为空，<a href=\"物料数据库.html\" target=\"_blank\" style=\"color:var(--brand)\">去导入</a>）";
+  else el.textContent="（物料库共 "+DB.length+" 条）";
+}
+// 从物料库页面切回时刷新，保证待选最新
+window.addEventListener("focus", ()=>{
+  if(window.CloudSync && CloudSync.ready()){
+    CloudSync.pull(LS_DB).then(v=>{ if(v!==null){ localStorage.setItem(LS_DB, JSON.stringify(v)); DB=loadDB(); updateDbStatus(); } });
+  } else { DB = loadDB(); updateDbStatus(); }
+});
+
+// ===================== 型号模糊待选（自动带出） =====================
+let acEl=null, acList=[], acActive=-1, acRow=null;
+function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1; }
+function matchDB(q){
+  q=q.trim().toLowerCase();
+  return DB.filter(r => !q ||
+    (r.model||"").toLowerCase().includes(q) ||
+    (r.code||"").toLowerCase().includes(q) ||
+    (r.customer||"").toLowerCase().includes(q)).slice(0,8);
+}
+// 某型号（或编码）在物料库里对应的不同客户集合（用于提示多客户）
+function customersForModel(model, code){
+  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
+  const set=new Set();
+  DB.forEach(r=>{
+    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
+    if((mk && m===mk) || (ck && c===ck)){ const cu=(r.customer||"").trim(); if(cu) set.add(cu); }
+  });
+  return [...set];
+}
+function showAC(input, row){
+  acRow=row; closeAC();
+  if(!DB.length){
+    acEl=document.createElement("div"); acEl.className="ac";
+    acEl.innerHTML=`<div class="ac-item" style="color:var(--muted)">物料库为空，请先导入或打开「物料数据库」添加</div>`;
+    document.body.appendChild(acEl);
+    const rect=input.getBoundingClientRect();
+    acEl.style.left=rect.left+"px"; acEl.style.top=rect.bottom+4+"px"; acEl.style.width=Math.max(rect.width,340)+"px";
+    return;
+  }
+  acList=matchDB(input.value);
+  if(!acList.length){
+    acEl=document.createElement("div"); acEl.className="ac";
+    acEl.innerHTML=`<div class="ac-item" style="color:var(--muted)">无匹配物料：${esc(input.value)}</div>`;
+    document.body.appendChild(acEl);
+    const rect=input.getBoundingClientRect();
+    acEl.style.left=rect.left+"px"; acEl.style.top=rect.bottom+4+"px"; acEl.style.width=Math.max(rect.width,340)+"px";
+    return;
+  }
+  acEl=document.createElement("div"); acEl.className="ac";
+  acList.forEach((r,idx)=>{
+    const it=document.createElement("div"); it.className="ac-item"+(idx===0?" active":"");
+    it.innerHTML=`<span class="ac-model">${esc(r.model||"-")}</span> <span class="ac-code">${esc(r.code||"")}</span>`+
+      `<span class="ac-meta">${esc(r.customer||"")} ｜ ${esc(r.unit)||""}kg/件 ｜ ${esc(r.perbox)||""}件/箱</span>`;
+    it.addEventListener("mousedown", e=>{ e.preventDefault(); applyDb(row, r); closeAC(); });
+    acEl.appendChild(it);
+  });
+  document.body.appendChild(acEl);
+  acActive=0;
+  const rect=input.getBoundingClientRect();
+  acEl.style.left=rect.left+"px"; acEl.style.top=rect.bottom+4+"px"; acEl.style.width=Math.max(rect.width,340)+"px";
+}
+function applyDb(row, r){
+  row.querySelector('[data-f="model"]').value=r.model||"";
+  row.querySelector('[data-f="code"]').value=r.code||"";
+  row.querySelector('[data-f="unit"]').value=r.unit||"";
+  row.querySelector('[data-f="perbox"]').value=r.perbox||"";
+  // 避免物料库中客户与型号相同（常见导入错位）时把型号填进客户列
+  row.querySelector('[data-f="customer"]').value=(r.customer && r.customer!==r.model)?r.customer:"";
+  row.querySelector('[data-f="remark"]').value=r.remark||"";
+  recalc(); mergeCustomerCells(); fitTextareas(); toast("已带出："+(r.model||r.code));
+  // 一个型号发多个客户：带出后提示用户确认/修改
+  const cs=customersForModel(r.model, r.code);
+  if(cs.length>1){
+    const inp=row.querySelector('[data-f="customer"]');
+    toast("⚠ 型号 "+(r.model||r.code)+" 发往 "+cs.length+" 个客户，已带出「"+(r.customer||"")+"」；如需修改请在客户列直接调整");
+    inp.classList.add("flash"); setTimeout(()=>inp.classList.remove("flash"), 2600);
+  }
+  // 自动聚焦到发货数量，避免光标跳到客户列
+  setTimeout(()=>{ const q=row.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
+}
+function autoResizeTa(ta){ fitTextarea(ta); }
+function moveAC(d){
+  if(!acEl) return;
+  const items=acEl.querySelectorAll(".ac-item");
+  acActive=(acActive+d+items.length)%items.length;
+  items.forEach((it,i)=>it.classList.toggle("active", i===acActive));
+  items[acActive].scrollIntoView({block:"nearest"});
+}
+document.addEventListener("click", e=>{ if(acEl && !acEl.contains(e.target)) closeAC(); });
+document.addEventListener("keydown", e=>{
+  if(!acEl) return;
+  if(e.key==="ArrowDown"){ e.preventDefault(); moveAC(1); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); moveAC(-1); }
+  else if(e.key==="Enter"){ e.preventDefault(); if(acActive>=0) applyDb(acRow, acList[acActive]); closeAC(); }
+  else if(e.key==="Tab"){ e.preventDefault(); if(acActive>=0) applyDb(acRow, acList[acActive]); closeAC(); }
+  else if(e.key==="Escape"){ closeAC(); }
+});
+
+// ===================== 发货计划单 =====================
+function todayStr(){ const d=new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+$("shipDate").value=todayStr();
+function genPlanNo(){ const d=$("shipDate").value||todayStr(); const p=s=>String(s).padStart(2,"0"); const ymd=d.split("-"); return "FH"+ymd[0]+p(+ymd[1])+p(+ymd[2])+"-"+String(Math.floor(Math.random()*9000)+1000); }
+$("planNo").value=genPlanNo();
+
+function addRow(data={}){
+  const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
+  tr.innerHTML=`
+    <td class="col-idx num-cell">${idx}</td>
+    <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
+    <td style="display:none"><input data-f="code" value="${esc(data.code)}" placeholder="/"></td>
+    <td><input data-f="model" value="${esc(data.model)}" placeholder="/" autocomplete="off"></td>
+    <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
+    <td style="display:none"><input data-f="unit" type="number" min="0" step="0.0001" value="${esc(data.unit)}" placeholder="/"></td>
+    <td class="calc num-cell" data-c="ton"><span class="calc-box">0.0</span></td>
+    <td style="display:none"><input data-f="perbox" type="number" min="1" value="${esc(data.perbox)}" placeholder="/"></td>
+    <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
+    <td class="calc num-cell" data-c="box"><span class="calc-box">/</span></td>
+    <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
+    <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
+  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); };
+  tr.querySelectorAll("input").forEach(inp=>inp.addEventListener("input", recalc));
+  tr.querySelectorAll("textarea").forEach(ta=>{
+    ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); });
+  });
+  tr.querySelector('[data-f="customer"]').addEventListener("input", mergeCustomerCells);
+  tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
+  ["model","code"].forEach(k=>{
+    const inp=tr.querySelector(`[data-f="${k}"]`);
+    inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr); });
+    inp.addEventListener("input", ()=>showAC(inp, tr));
+  });
+  tb.appendChild(tr); reindex(); recalc(); fitTextareas();
+}
+function reindex(){ [...$("tbody").children].forEach((tr,i)=>tr.querySelector(".col-idx").textContent=i+1); $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells(); }
+function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(34,ta.scrollHeight)+"px"; }
+function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
+function mergeCustomerCells(){
+  const rows=[...$("tbody").children];
+  rows.forEach(tr=>{
+    tr.classList.remove("group-end");
+    const c=tr.querySelector(".col-customer"), r=tr.querySelector(".col-remark");
+    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); }
+    if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); }
+  });
+  let i=0;
+  while(i<rows.length){
+    const cust=rows[i].querySelector('[data-f="customer"]')?.value.trim()||"";
+    let j=i+1;
+    while(j<rows.length && (rows[j].querySelector('[data-f="customer"]')?.value.trim()||"")===cust) j++;
+    const len=j-i;
+    if(len>1 && cust){
+      const c=rows[i].querySelector(".col-customer"), r=rows[i].querySelector(".col-remark");
+      if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
+      if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
+      for(let k=i+1;k<j;k++){
+        const c2=rows[k].querySelector(".col-customer"), r2=rows[k].querySelector(".col-remark");
+        if(c2) c2.style.display="none"; if(r2) r2.style.display="none";
+      }
+    }
+    rows[j-1].classList.add("group-end");
+    i=j;
+  }
+  fitTextareas();
+}
+function recalc(){
+  let sq=0,st=0,sb=0;
+  [...$("tbody").children].forEach(tr=>{
+    const qty=parseFloat(tr.querySelector('[data-f="qty"]').value)||0;
+    const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
+    const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
+    const ton=qty*unit/1000; const box=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
+    tr.querySelector('[data-c="ton"]').innerHTML='<span class="calc-box">'+ton.toFixed(1)+'</span>';
+    tr.querySelector('[data-c="box"]').innerHTML='<span class="calc-box">'+((box>0)?box:'/')+'</span>';
+    sq+=qty; st+=ton; sb+=box;
+  });
+  $("sumQty").innerHTML='<span class="calc-box">'+sq+'</span>'; $("sumTon").innerHTML='<span class="calc-box">'+st.toFixed(1)+'</span>'; $("sumBox").innerHTML='<span class="calc-box">'+((sb>0)?sb:'/')+'</span>';
+}
+function collectRows(){
+  const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
+  return [...$("tbody").children].map(tr=>({
+    customer:f(tr.querySelector('[data-f="customer"]').value),
+    code:f(tr.querySelector('[data-f="code"]').value),
+    model:f(tr.querySelector('[data-f="model"]').value),
+    qty:f(tr.querySelector('[data-f="qty"]').value),
+    unit:f(tr.querySelector('[data-f="unit"]').value),
+    perbox:f(tr.querySelector('[data-f="perbox"]').value),
+    ton:parseFloat(tr.querySelector('[data-c="ton"]').textContent)||0,
+    box:(()=>{ const q=parseFloat(tr.querySelector('[data-f="qty"]').value)||0; const p=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0; return (q>0&&p>0)?Math.ceil(q/p):'/'; })(),
+    delivery:f(tr.querySelector('[data-f="delivery"]').value),
+    remark:f(tr.querySelector('[data-f="remark"]').value)
+  }));
+}
+function syncDocHead(){
+  $("docDate").textContent="发货日期："+($("shipDate").value||"/");
+  $("docNo").textContent="单号："+($("planNo").value||"/");
+  $("docMaker").textContent="制单："+($("maker").value.trim()||"/");
+}
+$("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); });
+$("planNo").addEventListener("input",syncDocHead);
+$("maker").addEventListener("input",syncDocHead);
+
+// ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+function publish(){
+  const rows=collectRows();
+  if(!rows.length){ toast("请先添加发货明细"); return; }
+  if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
+
+  // 仅存档文本数据（不截图、不下载图片）
+  const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,maker:$("maker").value,
+    publishedAt:new Date().toLocaleString("zh-CN"),rows,
+    sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent};
+  saveRec(rec); renderRecords(); saveMaker($("maker").value);
+  toast("已发布存档 ✓（单号 "+rec.no+"）");
+  $("planNo").value=genPlanNo(); syncDocHead();
+  try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
+}
+function saveRec(rec){
+  let list=loadRec(); list.unshift(rec);
+  if(list.length>200) list=list.slice(0,200);   // 文本数据体积小，可保留更多
+  try{ localStorage.setItem(LS_REC, JSON.stringify(list)); }
+  catch(e){ localStorage.setItem(LS_REC, JSON.stringify(list.slice(0,50))); toast("存储空间不足，仅保留最近 50 条"); }
+  if(window.CloudSync) CloudSync.autoPush(LS_REC);
+}
+function loadRec(){ try{ return JSON.parse(localStorage.getItem(LS_REC))||[]; }catch(e){ return []; } }
+function renderRecords(){
+  const list=loadRec(); $("recCount").textContent=list.length+" 条";
+  const box=$("records"); box.innerHTML="";
+  $("recEmpty").style.display=list.length?"none":"block";
+  list.forEach(rec=>{
+    const div=document.createElement("div"); div.className="rec";
+    div.innerHTML=`
+      <div class="info"><b>${rec.no}</b><br>日期：${rec.date} ｜ 制单：${rec.maker||"/"}<br>
+        共 ${rec.rows.length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ ${rec.sumBox}箱<br>发布：${rec.publishedAt}</div>
+      <div class="acts">
+        <button class="btn btn-line" data-act="csv">导出CSV</button>
+        <button class="btn btn-danger" data-act="del">删除</button>
+      </div>`;
+    div.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows, rec.no);
+    div.querySelector('[data-act="del"]').onclick=()=>{
+      if(confirm("确认删除该发布记录？")){ localStorage.setItem(LS_REC, JSON.stringify(loadRec().filter(r=>r.id!==rec.id))); renderRecords(); if(window.CloudSync) CloudSync.autoPush(LS_REC); }
+    };
+    box.appendChild(div);
+  });
+}
+
+// ===================== 导出 =====================
+function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function rowsToCsv(rows){ 
+  const head=["客户","型号","发货数量","交货单","箱数","备注"];
+  const lines=[head.join(",")];
+  rows.forEach(r=>lines.push([r.customer,r.model,r.qty,r.delivery,r.box,r.remark].map(csvCell).join(",")));
+  return "﻿"+lines.join("\n");
+}
+function exportRowsCsv(rows, name){
+  const blob=new Blob([rowsToCsv(rows)],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`发货计划_${name}.csv`; a.click();
+}
+$("exportCsv").onclick=()=>{ const rows=collectRows(); if(!rows.length){ toast("暂无数据可导出"); return; } exportRowsCsv(rows, $("planNo").value); };
+// 导出图片（手动，仅下载不存档，不占内存）
+$("exportImg").onclick=async ()=>{
+  if(!$("tbody").children.length){ toast("暂无数据"); return; }
+  try{
+    const canvas=await html2canvas($("doc"),{scale:1.6,backgroundColor:"#fff",useCORS:true});
+    const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
+    toast("图片已导出（未存档）");
+  }catch(e){ toast("导出失败："+e.message); }
+};
+
+// ===================== 其它按钮 =====================
+$("openDb").onclick=()=>window.open("物料数据库.html","_blank");
+$("openSch").onclick=()=>window.open("排产计划表.html","_blank");
+$("addRow").onclick=()=>addRow();
+$("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; reindex(); recalc(); };
+$("publish").onclick=publish;
+
+// ===================== 启动 =====================
+$("maker").value="张仁磊";
+syncDocHead();
+updateDbStatus();
+refreshMakerList();
+if(!DB.length) toast("提示：物料库为空，请先到「物料数据库」页导入");
+addRow(); addRow();
+renderRecords();
+
+// ===================== 云端同步 =====================
+if(window.CloudSync){
+  CloudSync.init();
+  const CLOUD_KEYS=[LS_DB, LS_REC, MAKER_KEY];
+  const nav=document.querySelector('.nav');
+  const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
+  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
+  if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); refreshMakerList(); renderRecords(); }); }
+  if(CloudSync.ready()){
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); refreshMakerList(); renderRecords(); }).then(()=>{
+      CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
+    });
+  } else { CloudSync.setStatus('未配置云端','off'); }
+}
+</script>
+</body>
+</html>

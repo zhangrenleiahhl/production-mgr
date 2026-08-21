@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物料主数据库</title>
+<script src="xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud-config.js"></script>
+<script src="cloud-sync.js"></script>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
+    --muted:#7a8699; --brand:#2563eb; --brand-d:#1e4fb0;
+    --red:#d92d20; --soft:#eef4ff;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--txt);font-size:14px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px;}
+  h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  h1 .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px;}
+  .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
+  .nav-link:hover{background:var(--soft);color:var(--brand);}
+  .nav-link.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 4px 12px rgba(37,99,235,.28);}
+  /* ===== 云端同步状态 + 手机自适应 ===== */
+  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;}
+  .cloud-pill.ok{background:#e7f8ee;color:#15803d;border-color:#bbe7c9;}
+  .cloud-pill.err{background:#fdecea;color:#d92d20;border-color:#f3c7c2;}
+  .cloud-pill.sync{background:#eef4ff;color:#2563eb;border-color:#c5d8ff;}
+  .cloud-pill.off{background:#f1f5f9;color:#94a3b8;}
+  @media (max-width:820px){
+    .wrap{padding:12px 8px 56px;}
+    h1{font-size:18px;}
+    .nav{gap:6px;}
+    .card{padding:12px;}
+    .doc{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .tbl{min-width:680px;}
+    .toolbar{gap:8px;}
+    .toolbar .btn{font-size:13px;padding:8px 12px;}
+  }
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px;}
+  .card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .card h2 .tag{font-size:11px;background:var(--soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600;}
+  .hint{font-size:12px;color:var(--muted);}
+  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-weight:600;transition:.15s;}
+  .btn-primary{background:var(--brand);color:#fff;} .btn-primary:hover{background:var(--brand-d);}
+  .btn-ghost{background:var(--soft);color:var(--brand);} .btn-ghost:hover{background:#dfeaff;}
+  .btn-line{background:#fff;color:var(--txt);border:1px solid var(--line);} .btn-line:hover{background:#f3f6fb;}
+  .btn-danger{background:#fff;color:var(--red);border:1px solid #f3c7c2;} .btn-danger:hover{background:#fdecea;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;}
+  .doc{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;}
+  .doc-scroll{max-height:480px;overflow:auto;}
+  .tbl{width:100%;border-collapse:collapse;font-size:13px;}
+  .tbl thead th{background:#f3f6fb;color:#44506a;font-weight:600;padding:10px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;}
+  .tbl td{padding:6px 6px;border-bottom:1px solid #eef1f6;text-align:center;vertical-align:middle;}
+  .tbl td input{border:1px solid transparent;background:transparent;width:100%;padding:6px 6px;text-align:center;border-radius:6px;font-size:13px;outline:none;}
+  .tbl td input:focus{border-color:var(--brand);background:#fafcff;}
+  .tbl tr:hover td{background:#fafcff;}
+  .col-act{width:46px;}
+  .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:16px;line-height:1;}
+  .empty{color:var(--muted);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
+  .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot"></span>物料主数据库</h1>
+  <div class="sub">维护物料主数据，供发货计划页「输入型号自动带出」，与发货计划系统共享同一浏览器存储。</div>
+
+  <nav class="nav">
+    <a href="发货计划系统.html" class="nav-link" target="_blank">📋 发货计划</a>
+    <a href="排产计划表.html" class="nav-link" target="_blank">📅 排产计划表</a>
+    <a href="物料数据库.html" class="nav-link active">📦 物料数据库</a>
+  </nav>
+
+  <div class="card">
+    <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
+      <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 备注；按型号或编码匹配）</span></h2>
+    <div class="toolbar">
+      <input type="file" id="dbFile" accept=".csv,.xlsx,.xls" hidden>
+      <button class="btn btn-primary" id="importDb">导入表格</button>
+      <button class="btn btn-ghost" id="addDbRow">＋ 新增物料</button>
+      <button class="btn btn-line" id="exportDb">导出数据库</button>
+      <button class="btn btn-line" id="tplDb">下载模板</button>
+      <button class="btn btn-line" id="sampleDb">载入示例</button>
+      <button class="btn btn-danger" id="clearDb">清空</button>
+    </div>
+    <div class="doc doc-scroll">
+      <table class="tbl" id="dbTbl">
+        <thead><tr>
+          <th>物料编码</th><th>型号</th><th>单重(kg)</th><th>一箱多少件</th><th>客户</th><th>备注</th><th class="col-act">操作</th>
+        </tr></thead>
+        <tbody id="dbBody"></tbody>
+      </table>
+      <div class="empty" id="dbEmpty">数据库为空。可点「导入表格」或「载入示例」开始。</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LS_DB = "shipping_db_v1";
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+
+let DB = loadDB();
+function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }catch(e){ return []; } }
+function saveDB(){ try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); }catch(e){ toast("数据库保存失败：存储空间不足"); } if(window.CloudSync) CloudSync.autoPush(LS_DB); }
+
+function renderDB(){
+  const tb=$("dbBody"); tb.innerHTML="";
+  $("dbEmpty").style.display = DB.length ? "none" : "block";
+  $("dbCount").textContent = DB.length + " 条";
+  DB.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td><input data-k="code" value="${esc(r.code)}" placeholder="物料编码"></td>
+      <td><input data-k="model" value="${esc(r.model)}" placeholder="型号"></td>
+      <td><input data-k="unit" type="number" min="0" step="0.0001" value="${esc(r.unit)}" placeholder="kg"></td>
+      <td><input data-k="perbox" type="number" min="1" value="${esc(r.perbox)}" placeholder="件/箱"></td>
+      <td><input data-k="customer" value="${esc(r.customer)}" placeholder="客户"></td>
+      <td><input data-k="remark" value="${esc(r.remark)}" placeholder="备注"></td>
+      <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
+    tr.querySelectorAll("input").forEach(inp=>inp.addEventListener("input", ()=>{ DB[i][inp.dataset.k]=inp.value.trim(); saveDB(); }));
+    tr.querySelector(".del-x").onclick=()=>{ DB.splice(i,1); saveDB(); renderDB(); };
+    tb.appendChild(tr);
+  });
+}
+function addDbRow(){
+  DB.unshift({code:"",model:"",unit:"",perbox:"",customer:"",remark:""});
+  saveDB(); renderDB();
+  const first=$("dbBody").querySelector('input[data-k="model"]'); if(first) first.focus();
+}
+function pick(obj, names){ for(const n of names){ if(obj[n]!==undefined && obj[n]!=="") return String(obj[n]).trim(); } return ""; }
+function mergeDbRows(rows){
+  let added=0, updated=0;
+  rows.forEach(raw=>{
+    const code=pick(raw,["物料编码","物料代码","编码","code","sku","SKU","物料号"]);
+    const model=pick(raw,["型号","规格","model","spec","MODEL"]);
+    if(!code && !model) return;
+    const unit=pick(raw,["单重","单重(kg)","重量","unit","Unit","kg/件","净重"]);
+    const perbox=pick(raw,["一箱多少件","每箱件数","装箱数","每箱数量","perbox","PerBox","箱规"]);
+    const customer=pick(raw,["客户","customer","Customer","购货方"]);
+    const remark=pick(raw,["备注","remark","Remark","说明","描述"]);
+    const idx=DB.findIndex(d =>
+      (
+        (model && d.model && d.model===model && (!code || !d.code || d.code===code)) ||
+        (code && d.code && d.code===code && (!model || !d.model || d.model===model))
+      ) && (!customer || !d.customer || d.customer===customer));
+    if(idx>=0){
+      const t=DB[idx];
+      t.code=code||t.code; t.model=model||t.model;
+      if(unit) t.unit=unit; if(perbox) t.perbox=perbox;
+      if(customer) t.customer=customer; if(remark) t.remark=remark;
+      updated++;
+    }else{ DB.push({code,model,unit,perbox,customer,remark}); added++; }
+  });
+  saveDB(); renderDB(); toast(`导入完成：新增 ${added} 条，更新 ${updated} 条`);
+}
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  const rows=[]; let row=[], cur="", q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=c; }
+    else{ if(c==='"') q=true; else if(c===","){ row.push(cur); cur=""; }
+      else if(c==="\n"){ row.push(cur); rows.push(row); row=[]; cur=""; }
+      else if(c==="\r"){} else cur+=c; }
+  }
+  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
+  if(!rows.length) return [];
+  const head=rows[0].map(h=>h.trim());
+  return rows.slice(1).map(r=>{ const o={}; head.forEach((h,j)=>o[h]=r[j]!==undefined?r[j]:""); return o; });
+}
+
+$("importDb").onclick=()=>$("dbFile").click();
+$("dbFile").onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      let rows;
+      if(/\.csv$/i.test(file.name)) rows=parseCSV(ev.target.result);
+      else{ const wb=XLSX.read(ev.target.result,{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]]; rows=XLSX.utils.sheet_to_json(ws,{defval:""}); }
+      if(!rows.length){ toast("未解析到数据"); return; }
+      mergeDbRows(rows);
+    }catch(err){ toast("导入失败："+err.message); }
+    finally{ e.target.value=""; }
+  };
+  if(/\.csv$/i.test(file.name)) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+};
+$("exportDb").onclick=()=>{
+  if(!DB.length){ toast("数据库为空"); return; }
+  const head=["物料编码","型号","单重(kg)","一箱多少件","客户","备注"];
+  const lines=[head.join(",")];
+  DB.forEach(r=>lines.push([r.code,r.model,r.unit,r.perbox,r.customer,r.remark].map(csvCell).join(",")));
+  const blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="物料主数据库.csv"; a.click();
+};
+$("tplDb").onclick=()=>{
+  const aoa=[["物料编码","型号","单重(kg)","一箱多少件","客户","备注"]];
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:14},{wch:16},{wch:12},{wch:12},{wch:14},{wch:18}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "物料库模板");
+  XLSX.writeFile(wb, "物料库导入模板.xlsx");
+  toast("模板已下载：物料库导入模板.xlsx");
+};
+$("sampleDb").onclick=()=>mergeDbRows([
+  {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",remark:"标准件"},
+  {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",remark:"加急"},
+  {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",remark:""},
+  {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",remark:"易碎"}
+]);
+$("clearDb").onclick=()=>{ if(!DB.length) return; if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; saveDB(); renderDB(); };
+$("addDbRow").onclick=addDbRow;
+
+function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t);   t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+
+renderDB();
+
+// ===================== 云端同步 =====================
+if(window.CloudSync){
+  CloudSync.init();
+  const CLOUD_KEYS=[LS_DB];
+  const nav=document.querySelector('.nav');
+  const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
+  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
+  if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }); }
+  if(CloudSync.ready()){
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }).then(()=>{
+      CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
+    });
+  } else { CloudSync.setStatus('未配置云端','off'); }
+}
+</script>
+</body>
+</html>
