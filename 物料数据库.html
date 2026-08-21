@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>物料主数据库</title>
-<script src="xlsx.full.min.js"></script>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
@@ -177,15 +176,16 @@ function parseCSV(text){
   return rows.slice(1).map(r=>{ const o={}; head.forEach((h,j)=>o[h]=r[j]!==undefined?r[j]:""); return o; });
 }
 
+function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+src+'"]')){res();return;} const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("加载失败")); document.head.appendChild(s); }); }
 $("importDb").onclick=()=>$("dbFile").click();
 $("dbFile").onchange=e=>{
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
-  reader.onload=ev=>{
+  reader.onload=async ev=>{
     try{
       let rows;
       if(/\.csv$/i.test(file.name)) rows=parseCSV(ev.target.result);
-      else{ const wb=XLSX.read(ev.target.result,{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]]; rows=XLSX.utils.sheet_to_json(ws,{defval:""}); }
+      else{ if(!window.XLSX){ await loadScript("xlsx.full.min.js"); } const wb=XLSX.read(ev.target.result,{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]]; rows=XLSX.utils.sheet_to_json(ws,{defval:""}); }
       if(!rows.length){ toast("未解析到数据"); return; }
       mergeDbRows(rows);
     }catch(err){ toast("导入失败："+err.message); }
@@ -201,7 +201,8 @@ $("exportDb").onclick=()=>{
   const blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="物料主数据库.csv"; a.click();
 };
-$("tplDb").onclick=()=>{
+$("tplDb").onclick=async ()=>{
+  if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
   const aoa=[["物料编码","型号","单重(kg)","一箱多少件","客户","备注"]];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"]=[{wch:14},{wch:16},{wch:12},{wch:12},{wch:14},{wch:18}];

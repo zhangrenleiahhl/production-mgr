@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>排产计划表</title>
-<script src="html2canvas.min.js"></script>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
@@ -374,9 +373,12 @@ $("loadDb").onclick=()=>{
   render(); saveSch(); toast("已导入 "+DB.length+" 条物料");
 };
 $("exportCsv").onclick=exportCsv;
+function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+src+'"]')){res();return;} const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("加载失败")); document.head.appendChild(s); }); }
 $("exportImg").onclick=async()=>{
   if(!rows.length){toast("暂无数据"); return;}
+  toast("正在准备导出…");
   try{
+    if(!window.html2canvas){ await loadScript("html2canvas.min.js"); }
     const canvas=await html2canvas($("tableWrap"),{scale:1.5,backgroundColor:"#fff",useCORS:true});
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download="排产计划表_"+startDay+".png"; a.click();
     toast("图片已导出");

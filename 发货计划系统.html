@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>发货计划系统</title>
-<script src="html2canvas.min.js"></script>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
@@ -481,9 +480,12 @@ function exportRowsCsv(rows, name){
 }
 $("exportCsv").onclick=()=>{ const rows=collectRows(); if(!rows.length){ toast("暂无数据可导出"); return; } exportRowsCsv(rows, $("planNo").value); };
 // 导出图片（手动，仅下载不存档，不占内存）
+function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+src+'"]')){res();return;} const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("加载失败")); document.head.appendChild(s); }); }
 $("exportImg").onclick=async ()=>{
   if(!$("tbody").children.length){ toast("暂无数据"); return; }
+  toast("正在准备导出…");
   try{
+    if(!window.html2canvas){ await loadScript("html2canvas.min.js"); }
     const canvas=await html2canvas($("doc"),{scale:1.6,backgroundColor:"#fff",useCORS:true});
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
     toast("图片已导出（未存档）");
