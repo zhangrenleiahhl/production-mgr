@@ -144,8 +144,6 @@
     <div class="field"><label>计划单号</label><input type="text" id="planNo" placeholder="自动生成" style="width:160px"></div>
     <div class="field"><label>制单人</label><input type="text" id="maker" placeholder="姓名" style="width:120px" list="makerList" autocomplete="off"><datalist id="makerList"></datalist></div>
     <div class="spacer"></div>
-    <button class="btn btn-ghost" id="openDb">📦 物料数据库</button>
-    <button class="btn btn-ghost" id="openSch">📅 排产计划表</button>
     <button class="btn btn-line" id="addRow">＋ 添加一行</button>
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
     <button class="btn btn-line" id="exportImg">导出图片</button>
@@ -493,8 +491,6 @@ $("exportImg").onclick=async ()=>{
 };
 
 // ===================== 其它按钮 =====================
-$("openDb").onclick=()=>window.open("物料数据库.html","_blank");
-$("openSch").onclick=()=>window.open("排产计划表.html","_blank");
 $("addRow").onclick=()=>addRow();
 $("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; reindex(); recalc(); };
 $("publish").onclick=publish;
