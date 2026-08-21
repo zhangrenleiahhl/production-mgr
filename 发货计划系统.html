@@ -201,6 +201,7 @@
 <script>
 const LS_DB = "shipping_db_v1";
 const LS_REC = "shipping_plans_v1";
+const LS_DRAFT = "shipping_draft_v1";   // 未发布明细自动草稿，刷新/重开不丢
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
 
@@ -334,16 +335,16 @@ function addRow(data={}){
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
-  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); };
+  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
     if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
         else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
-        recalc();
+        recalc(); saveDraft();
       });
     } else {
-      inp.addEventListener("input", recalc);
+      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
   });
   // 载入已有箱数/吨位时标记为手填值，避免被自动计算覆盖
@@ -353,7 +354,7 @@ function addRow(data={}){
     }
   });
   tr.querySelectorAll("textarea").forEach(ta=>{
-    ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); });
+    ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); saveDraft(); });
   });
   tr.querySelector('[data-f="customer"]').addEventListener("input", mergeCustomerCells);
   tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
@@ -455,8 +456,33 @@ function syncDocHead(){
   $("docDate").textContent="发货日期："+($("shipDate").value||"/");
   $("docNo").textContent="单号："+($("planNo").value||"/");
 }
-$("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); });
-$("planNo").addEventListener("input",syncDocHead);
+// ===================== 草稿自动保存（刷新/重开页面不丢未发布数据） =====================
+function saveDraft(){
+  try{
+    const rows=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal")).map(tr=>{
+      const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
+      return {
+        shipdate:tr.querySelector('[data-f="shipdate"]').value,
+        customer:tr.querySelector('[data-f="customer"]').value,
+        code:tr.querySelector('[data-f="code"]').value,
+        model:tr.querySelector('[data-f="model"]').value,
+        qty:tr.querySelector('[data-f="qty"]').value,
+        unit:tr.querySelector('[data-f="unit"]').value,
+        perbox:tr.querySelector('[data-f="perbox"]').value,
+        ton:tonI.value, tonManual:(tonI.dataset.manual==="1"),
+        delivery:tr.querySelector('[data-f="delivery"]').value,
+        box:boxI.value, boxManual:(boxI.dataset.manual==="1"),
+        remark:tr.querySelector('[data-f="remark"]').value
+      };
+    });
+    if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
+    localStorage.setItem(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows}));
+  }catch(e){}
+}
+function loadDraft(){ try{ return JSON.parse(localStorage.getItem(LS_DRAFT))||null; }catch(e){ return null; } }
+function clearDraft(){ try{ localStorage.removeItem(LS_DRAFT); }catch(e){} }
+$("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); saveDraft(); });
+$("planNo").addEventListener("input",()=>{ syncDocHead(); saveDraft(); });
 
 // ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
@@ -472,6 +498,7 @@ function publish(){
   saveRec(rec); renderRecords();
   toast("已发布存档 ✓（单号 "+rec.no+"）");
   $("planNo").value=genPlanNo(); syncDocHead();
+  saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
 }
 function saveRec(rec){
@@ -530,15 +557,23 @@ $("exportImg").onclick=async ()=>{
 };
 
 // ===================== 其它按钮 =====================
-$("addRow").onclick=()=>addRow();
-$("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; reindex(); recalc(); };
+$("addRow").onclick=()=>{ addRow(); saveDraft(); };
+$("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); };
 $("publish").onclick=publish;
 
 // ===================== 启动 =====================
 syncDocHead();
 updateDbStatus();
 if(!DB.length) toast("提示：物料库为空，请先到「物料数据库」页导入");
-addRow(); addRow();
+const _draft=loadDraft();
+if(_draft && (_draft.rows.length || _draft.date)){
+  if(_draft.date) $("shipDate").value=_draft.date;
+  $("planNo").value=_draft.no||genPlanNo();
+  _draft.rows.forEach(r=>addRow(r));
+  syncDocHead();
+}else{
+  addRow(); addRow();
+}
 renderRecords();
 
 // ===================== 云端同步 =====================
