@@ -564,16 +564,15 @@ $("exportImg").onclick=async ()=>{
     // 隐藏操作列（导出图片不需要删除按钮）
     clone.querySelectorAll(".col-act").forEach(el=>el.style.display="none");
 
-    // 把表单控件替换为纯文本 div，避免 html2canvas 对 input/textarea 高度/换行计算不准导致截断
-    const commonTextStyle="box-sizing:border-box;display:flex;align-items:center;justify-content:center;text-align:center;background:#fff;border:1px solid #c7d2e6;border-radius:5px;font-weight:600;color:#1e293b;line-height:18px;padding:6px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;";
-    const textareaStyle="box-sizing:border-box;display:block;text-align:center;background:#fff;border:1px solid #c7d2e6;border-radius:5px;font-weight:600;color:#1e293b;line-height:18px;padding:6px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;";
+    // 把表单控件替换为紧凑的纯文本 div，让高度随内容自然撑开，避免继承被 fitTextarea 撑大的高度
+    const cellText="box-sizing:border-box;width:100%;min-height:28px;height:auto;display:block;text-align:center;background:#fff;border:1px solid #c7d2e6;border-radius:4px;font-weight:600;color:#1e293b;font-size:12.5px;line-height:1.4;padding:3px 6px;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;";
 
     const origInputs=[...src.querySelectorAll("input")];
     [...clone.querySelectorAll("input")].forEach((inp,i)=>{
       const orig=origInputs[i]; if(!orig) return;
       const div=document.createElement("div");
       div.textContent=orig.value;
-      div.style.cssText=commonTextStyle+"width:100%;min-height:"+orig.offsetHeight+"px;height:auto;";
+      div.style.cssText=cellText;
       inp.parentNode.replaceChild(div, inp);
     });
 
@@ -582,7 +581,7 @@ $("exportImg").onclick=async ()=>{
       const orig=origTextareas[i]; if(!orig) return;
       const div=document.createElement("div");
       div.textContent=orig.value;
-      div.style.cssText=textareaStyle+"width:100%;min-height:"+orig.offsetHeight+"px;height:auto;";
+      div.style.cssText=cellText;
       ta.parentNode.replaceChild(div, ta);
     });
 
