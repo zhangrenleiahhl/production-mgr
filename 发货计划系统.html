@@ -328,6 +328,8 @@ $("planNo").value=genPlanNo();
 
 function addRow(data={}){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
+  const _q=parseFloat(data.qty), _p=parseFloat(data.perbox);
+  const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
   tr.innerHTML=`
     <td class="col-idx num-cell">${idx}</td>
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
@@ -339,7 +341,7 @@ function addRow(data={}){
     <td class="calc num-cell" data-c="ton"><span class="calc-box">0.0</span></td>
     <td class="hide-col"><input data-f="perbox" type="number" min="1" value="${esc(data.perbox)}" placeholder="/"></td>
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
-    <td class="calc num-cell" data-c="box"><span class="calc-box">/</span></td>
+    <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
   tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); };
@@ -393,9 +395,9 @@ function recalc(){
     const qty=parseFloat(tr.querySelector('[data-f="qty"]').value)||0;
     const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
     const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
-    const ton=qty*unit/1000; const box=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
+    const ton=qty*unit/1000;
     tr.querySelector('[data-c="ton"]').innerHTML='<span class="calc-box">'+ton.toFixed(1)+'</span>';
-    tr.querySelector('[data-c="box"]').innerHTML='<span class="calc-box">'+((box>0)?box:'/')+'</span>';
+    const box=parseFloat(tr.querySelector('[data-f="box"]').value)||0;
     sq+=qty; st+=ton; sb+=box;
   });
   $("sumQty").innerHTML='<span class="calc-box">'+sq+'</span>'; $("sumTon").innerHTML='<span class="calc-box">'+st.toFixed(1)+'</span>'; $("sumBox").innerHTML='<span class="calc-box">'+((sb>0)?sb:'/')+'</span>';
@@ -411,7 +413,7 @@ function collectRows(){
     unit:f(tr.querySelector('[data-f="unit"]').value),
     perbox:f(tr.querySelector('[data-f="perbox"]').value),
     ton:parseFloat(tr.querySelector('[data-c="ton"]').textContent)||0,
-    box:(()=>{ const q=parseFloat(tr.querySelector('[data-f="qty"]').value)||0; const p=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0; return (q>0&&p>0)?Math.ceil(q/p):'/'; })(),
+    box:f(tr.querySelector('[data-f="box"]').value),
     delivery:f(tr.querySelector('[data-f="delivery"]').value),
     remark:f(tr.querySelector('[data-f="remark"]').value)
   }));
