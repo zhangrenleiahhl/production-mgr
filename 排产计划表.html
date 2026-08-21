@@ -67,10 +67,9 @@
   .sch-table th.fixed.head,.sch-table td.fixed.head{z-index:4;background:#f8fafc;}
   /* 左侧各列宽度 */
   .sch-table .col-code{width:130px;min-width:130px;}
-  .sch-table .col-name{width:180px;min-width:180px;}
-  .sch-table .col-spec{width:120px;min-width:120px;}
-  .sch-table .col-num{width:72px;min-width:72px;}
-  .sch-table .col-status{width:84px;min-width:84px;}
+  .sch-table .col-model{width:160px;min-width:160px;}
+  .sch-table .col-num{width:84px;min-width:84px;}
+  .sch-table .col-after{width:100px;min-width:100px;}
   /* 日期列 */
   .sch-table .col-day{width:54px;min-width:54px;}
   .sch-table th.col-day{white-space:nowrap;}
@@ -126,6 +125,9 @@
     <button class="btn btn-ghost" id="back">← 发货计划</button>
     <button class="btn btn-line" id="addRow">＋ 添加行</button>
     <button class="btn btn-line" id="loadDb">从物料库导入</button>
+    <button class="btn btn-line" id="importSch">导入表格</button>
+    <input type="file" id="importFile" accept=".xlsx,.csv" hidden>
+    <button class="btn btn-line" id="tplSch">下载模板</button>
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
     <button class="btn btn-line" id="exportImg">导出图片</button>
     <button class="btn btn-primary" id="save">保存</button>
@@ -142,24 +144,20 @@
 <div class="toast" id="toast"></div>
 
 <!-- 添加行弹窗 -->
-<div class="modal" id="rowModal">
+  <div class="modal" id="rowModal">
   <div class="modal-box">
     <h3>添加计划行</h3>
     <div class="modal-row">
       <input id="mCode" placeholder="物料编码">
-      <input id="mName" placeholder="物料描述">
+      <input id="mModel" placeholder="型号">
     </div>
     <div class="modal-row">
-      <input id="mSpec" placeholder="规格">
-      <input id="mStock" placeholder="总库存" type="number">
+      <input id="mSapStock" placeholder="SAP库存" type="number">
+      <input id="mSouth" placeholder="南区" type="number">
     </div>
     <div class="modal-row">
-      <input id="mSap" placeholder="SAP需求" type="number">
-      <input id="mInStock" placeholder="在库" type="number">
-    </div>
-    <div class="modal-row">
-      <input id="mFollowUp" placeholder="后序">
-      <input id="mReserve" placeholder="备货" type="number">
+      <input id="mWarehouse" placeholder="立库" type="number">
+      <input id="mAfterProcess" placeholder="后处理">
     </div>
     <div style="font-size:12px;color:var(--muted)">从物料库搜索：</div>
     <input id="mSearch" placeholder="输入型号/编码/客户搜索物料库" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;">
@@ -184,7 +182,14 @@ function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMo
 function formatDate(d){return (d.getMonth()+1)+"月"+d.getDate()+"日";}
 function weekNum(d){const oneJan=new Date(d.getFullYear(),0,1);const dayOfYear=Math.floor((d-oneJan)/86400000)+1;return Math.ceil(dayOfYear/7);}
 function loadDB(){try{return JSON.parse(localStorage.getItem(LS_DB))||[];}catch(e){return [];}}
-function loadSch(){try{const s=JSON.parse(localStorage.getItem(LS_SCH))||{};rows=s.rows||[];startDay=s.startDay||todayStr();dayCnt=s.dayCnt||30;}catch(e){rows=[];startDay=todayStr();dayCnt=30;}}
+function migrateRow(r){
+  if(r.name!==undefined && !r.model) r.model=r.name;
+  if(!r.sapStock && (r.sap||r.stock)) r.sapStock=r.sap||r.stock;
+  if(!r.south && r.inStock) r.south=r.inStock;
+  if(!r.warehouse && r.reserve) r.warehouse=r.reserve;
+  if(!r.afterProcess && (r.spec||r.followUp)) r.afterProcess=[r.spec,r.followUp].filter(Boolean).join(" | ");
+}
+function loadSch(){try{const s=JSON.parse(localStorage.getItem(LS_SCH))||{};rows=s.rows||[];startDay=s.startDay||todayStr();dayCnt=s.dayCnt||30;}catch(e){rows=[];startDay=todayStr();dayCnt=30;} rows.forEach(migrateRow);}
 function saveSch(){localStorage.setItem(LS_SCH,JSON.stringify({rows,startDay,dayCnt,updatedAt:new Date().toLocaleString("zh-CN")})); if(window.CloudSync) CloudSync.autoPush(LS_SCH);}
 
 function buildDays(){
@@ -200,7 +205,7 @@ function renderHeader(){
   const thead=document.createElement("thead");
   // 第一层：左侧固定列标题 + 日期（按周分组）
   const tr1=document.createElement("tr");
-  const fixedCols=[{cls:"col-code",txt:"物料编码"},{cls:"col-name",txt:"物料描述"},{cls:"col-spec",txt:"规格"},{cls:"col-num",txt:"总库存"},{cls:"col-num",txt:"SAP需求"},{cls:"col-num",txt:"在库"},{cls:"col-status",txt:"后序"},{cls:"col-num",txt:"备货"},{cls:"col-status",txt:"状态"}];
+  const fixedCols=[{cls:"col-code",txt:"物料编码"},{cls:"col-model",txt:"型号"},{cls:"col-num",txt:"SAP库存"},{cls:"col-num",txt:"南区"},{cls:"col-num",txt:"立库"},{cls:"col-after",txt:"后处理"}];
   fixedCols.forEach((c,idx)=>{
     const th=document.createElement("th"); th.className=(idx===0?"fixed head ":"fixed head ")+c.cls; th.textContent=c.txt; tr1.appendChild(th);
   });
@@ -252,19 +257,14 @@ function renderBody(){
   rows.forEach((row,ri)=>{
     const tr=document.createElement("tr");
     // 固定列
-    const fixedKeys=["code","name","spec","stock","sap","inStock","followUp","reserve"];
-    const fixedCls=["col-code","col-name","col-spec","col-num","col-num","col-num","col-status","col-num"];
+    const fixedKeys=["code","model","sapStock","south","warehouse","afterProcess"];
+    const fixedCls=["col-code","col-model","col-num","col-num","col-num","col-after"];
     fixedKeys.forEach((k,i)=>{
       const td=document.createElement("td"); td.className="fixed "+fixedCls[i];
       const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[k]||""; inp.dataset.r=ri; inp.dataset.k=k;
       inp.addEventListener("change",e=>{row[k]=e.target.value; saveSch();});
       td.appendChild(inp); tr.appendChild(td);
     });
-    // 状态列（整行状态）
-    const tdSt=document.createElement("td"); tdSt.className="fixed col-status day-cell "+statusClass(row.status);
-    tdSt.textContent=statusText(row.status); tdSt.dataset.r=ri; tdSt.dataset.day="_status";
-    tdSt.addEventListener("click",()=>{row.status=nextStatus(row.status); tdSt.className="fixed col-status day-cell "+statusClass(row.status); tdSt.textContent=statusText(row.status); saveSch();});
-    tr.appendChild(tdSt);
     // 日期列
     days.forEach(day=>{
       const cell=(row.days&&row.days[day.date])||{qty:"",status:"normal"};
@@ -308,15 +308,15 @@ function render(){
 
 // 弹窗
 function openModal(){$("rowModal").classList.add("show"); $("mSearch").focus();}
-function closeModal(){$("rowModal").classList.remove("show"); ["mCode","mName","mSpec","mStock","mSap","mInStock","mFollowUp","mReserve","mSearch"].forEach(id=>$(id).value=""); $("modalAc").innerHTML="";}
+function closeModal(){$("rowModal").classList.remove("show"); ["mCode","mModel","mSapStock","mSouth","mWarehouse","mAfterProcess","mSearch"].forEach(id=>$(id).value=""); $("modalAc").innerHTML="";}
 function confirmRow(){
   const r={
-    code:$("mCode").value.trim(),name:$("mName").value.trim(),spec:$("mSpec").value.trim(),
-    stock:$("mStock").value.trim(),sap:$("mSap").value.trim(),inStock:$("mInStock").value.trim(),
-    followUp:$("mFollowUp").value.trim(),reserve:$("mReserve").value.trim(),
+    code:$("mCode").value.trim(),model:$("mModel").value.trim(),
+    sapStock:$("mSapStock").value.trim(),south:$("mSouth").value.trim(),
+    warehouse:$("mWarehouse").value.trim(),afterProcess:$("mAfterProcess").value.trim(),
     status:"normal",days:{}
   };
-  if(!r.code && !r.name){toast("请至少填写物料编码或描述"); return;}
+  if(!r.code && !r.model){toast("请至少填写物料编码或型号"); return;}
   rows.push(r); render(); saveSch(); closeModal(); toast("已添加");
 }
 
@@ -330,8 +330,8 @@ $("mSearch").addEventListener("input",e=>{
     const div=document.createElement("div"); div.className="modal-ac-item";
     div.innerHTML=`<b>${esc(r.code||r.model||"-")}</b> ${esc(r.model||"")} <span style="color:var(--muted)">${esc(r.customer||"")}</span>`;
     div.onclick=()=>{
-      $("mCode").value=r.code||""; $("mName").value=r.model||""; $("mSpec").value=r.unit?r.unit+"kg/件":"";
-      $("mStock").value=""; $("mSap").value=""; $("mInStock").value=""; $("mFollowUp").value=r.customer||""; $("mReserve").value="";
+      $("mCode").value=r.code||""; $("mModel").value=r.model||"";
+      $("mSapStock").value=""; $("mSouth").value=""; $("mWarehouse").value=""; $("mAfterProcess").value=r.remark||"";
       box.innerHTML="";
     };
     box.appendChild(div);
@@ -343,10 +343,10 @@ function toast(msg){const t=$("toast"); t.textContent=msg; t.classList.add("show
 // 导出CSV
 function exportCsv(){
   if(!rows.length){toast("暂无数据"); return;}
-  const heads=["物料编码","物料描述","规格","总库存","SAP需求","在库","后序","备货","状态"].concat(days.map(d=>d.label));
+  const heads=["物料编码","型号","SAP库存","南区","立库","后处理"].concat(days.map(d=>d.label));
   const lines=[heads.join(",")];
   rows.forEach(r=>{
-    const base=[r.code,r.name,r.spec,r.stock,r.sap,r.inStock,r.followUp,r.reserve,statusText(r.status)];
+    const base=[r.code,r.model,r.sapStock,r.south,r.warehouse,r.afterProcess];
     const dayVals=days.map(d=>{const c=(r.days&&r.days[d.date])||{}; return c.qty||"";});
     lines.push(base.concat(dayVals).map(v=>{v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(","));
   });
@@ -365,12 +365,13 @@ $("back").onclick=()=>location.href="发货计划系统.html";
 $("loadDb").onclick=()=>{
   const DB=loadDB();
   if(!DB.length){toast("物料库为空"); return;}
+  let n=0;
   DB.forEach(r=>{
-    if(!rows.find(x=>x.code===r.code && x.name===r.model)){
-      rows.push({code:r.code||"",name:r.model||"",spec:(r.unit?r.unit+"kg/件":""),stock:"",sap:"",inStock:"",followUp:r.customer||"",reserve:"",status:"normal",days:{}});
+    if(!rows.find(x=>x.code===r.code && x.model===r.model)){
+      rows.push({code:r.code||"",model:r.model||"",sapStock:"",south:"",warehouse:"",afterProcess:r.remark||"",status:"normal",days:{}}); n++;
     }
   });
-  render(); saveSch(); toast("已导入 "+DB.length+" 条物料");
+  render(); saveSch(); toast("已导入 "+n+" 条物料");
 };
 $("exportCsv").onclick=exportCsv;
 function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+src+'"]')){res();return;} const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("加载失败")); document.head.appendChild(s); }); }
@@ -383,6 +384,87 @@ $("exportImg").onclick=async()=>{
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download="排产计划表_"+startDay+".png"; a.click();
     toast("图片已导出");
   }catch(e){toast("导出失败："+e.message);}
+};
+
+function parseCSV(text){
+  const lines=[]; let cur="", inQ=false, row=[];
+  for(let i=0;i<text.length;i++){
+    const ch=text[i], next=text[i+1];
+    if(inQ){
+      if(ch==='"' && next==='"'){cur+='"'; i++;}
+      else if(ch==='"'){inQ=false;}
+      else{cur+=ch;}
+    }else{
+      if(ch==='"'){inQ=true;}
+      else if(ch===','){row.push(cur); cur="";}
+      else if(ch==='\n' || (ch==='\r' && next==='\n')){row.push(cur); lines.push(row); row=[]; cur=""; if(ch==='\r') i++;}
+      else if(ch==='\r'){row.push(cur); lines.push(row); row=[]; cur="";}
+      else{cur+=ch;}
+    }
+  }
+  row.push(cur); lines.push(row);
+  return lines.filter(r=>r.length>1 || r[0]!=="");
+}
+function normHeader(h){
+  h=String(h||"").trim();
+  if(h.includes("物料编码"))return "code";
+  if(h.includes("型号"))return "model";
+  if(h.includes("SAP库存")||h.includes("SAP"))return "sapStock";
+  if(h.includes("南区"))return "south";
+  if(h.includes("立库"))return "warehouse";
+  if(h.includes("后处理"))return "afterProcess";
+  return "";
+}
+function rowsFromSheet(sheet){
+  if(!sheet.length)return [];
+  const headers=sheet[0].map(normHeader);
+  const out=[];
+  for(let i=1;i<sheet.length;i++){
+    const r=sheet[i]; if(!r.some(v=>String(v).trim()))continue;
+    const o={status:"normal",days:{}};
+    headers.forEach((h,idx)=>{ if(h) o[h]=r[idx]; });
+    out.push(o);
+  }
+  return out;
+}
+function importRows(list){
+  if(!list.length){toast("未解析到数据"); return;}
+  let n=0;
+  list.forEach(r=>{
+    const key=(r.code||"")+"|"+(r.model||"");
+    if(!rows.find(x=>(x.code||"")+"|"+(x.model||"")===key)){ rows.push(r); n++; }
+  });
+  render(); saveSch(); toast("已导入 "+n+" 行");
+}
+$("importSch").onclick=()=>$("importFile").click();
+$("importFile").onchange=async e=>{
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    try{
+      let list;
+      if(/\.csv$/i.test(file.name)){
+        list=rowsFromSheet(parseCSV(ev.target.result));
+      }else{
+        if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
+        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        list=rowsFromSheet(XLSX.utils.sheet_to_json(ws,{defval:"",header:1}));
+      }
+      importRows(list);
+    }catch(err){ toast("导入失败："+err.message); }
+    finally{ e.target.value=""; }
+  };
+  if(/\.csv$/i.test(file.name)) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+};
+$("tplSch").onclick=async ()=>{
+  if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
+  const aoa=[["物料编码","型号","SAP库存","南区","立库","后处理"]];
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:14},{wch:16},{wch:12},{wch:12},{wch:12},{wch:14}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "排产计划模板");
+  XLSX.writeFile(wb, "排产计划导入模板.xlsx");
 };
 
 // 启动
