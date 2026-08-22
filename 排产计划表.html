@@ -70,6 +70,11 @@
   .sch-table .col-model{width:160px;min-width:160px;}
   .sch-table .col-num{width:84px;min-width:84px;}
   .sch-table .col-after{width:100px;min-width:100px;}
+  /* 右侧成品列 */
+  .sch-table .col-pstock{width:90px;min-width:90px;}
+  .sch-table .col-pcode{width:110px;min-width:110px;}
+  .sch-table .col-pmodel{width:180px;min-width:180px;}
+  .sch-table .bg-blue{background:#e6f4ff!important;}
   /* 日期列 */
   .sch-table .col-day{width:54px;min-width:54px;}
   .sch-table th.col-day{white-space:nowrap;}
@@ -147,19 +152,29 @@
   <div class="modal" id="rowModal">
   <div class="modal-box">
     <h3>添加计划行</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">上级物料（半成品/毛坯）</div>
     <div class="modal-row">
       <input id="mCode" placeholder="物料编码">
-      <input id="mModel" placeholder="型号">
+      <input id="mModel" placeholder="物料描述">
     </div>
     <div class="modal-row">
-      <input id="mSapStock" placeholder="SAP库存" type="number">
+      <input id="mSapStock" placeholder="SAP库" type="number">
       <input id="mSouth" placeholder="南区" type="number">
     </div>
     <div class="modal-row">
       <input id="mWarehouse" placeholder="立库" type="number">
       <input id="mAfterProcess" placeholder="后处理">
     </div>
-    <div style="font-size:12px;color:var(--muted)">从物料库搜索：</div>
+    <div style="font-size:12px;color:var(--muted);margin:10px 0 6px;border-top:1px dashed var(--line);padding-top:10px">成品信息（多个上级可对应同一成品）</div>
+    <div class="modal-row">
+      <input id="mPCode" placeholder="成品料号">
+      <input id="mPStock" placeholder="成品库存" type="number">
+    </div>
+    <div class="modal-row">
+      <input id="mPSapStock" placeholder="成品SAP库" type="number">
+      <input id="mPModel" placeholder="成品物料描述">
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:10px">从物料库搜索：</div>
     <input id="mSearch" placeholder="输入型号/编码/客户搜索物料库" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;">
     <div class="modal-ac" id="modalAc"></div>
     <div class="modal-btns">
@@ -203,13 +218,13 @@ function buildDays(){
 
 function renderHeader(){
   const thead=document.createElement("thead");
-  // 第一层：左侧固定列标题 + 日期（按周分组）
+  const leftCols=[{cls:"col-code",txt:"物料编码"},{cls:"col-model",txt:"物料描述"},{cls:"col-num",txt:"SAP库"},{cls:"col-num",txt:"南区"},{cls:"col-num",txt:"立库"},{cls:"col-after",txt:"后处理"}];
+  const rightCols=[{cls:"col-num",txt:"SAP库"},{cls:"col-pstock bg-blue",txt:"成品库存"},{cls:"col-pcode",txt:"成品料号"},{cls:"col-pmodel",txt:"成品物料描述"}];
+  // 第一层：左侧固定列 + 日期（按周分组）+ 右侧成品列
   const tr1=document.createElement("tr");
-  const fixedCols=[{cls:"col-code",txt:"物料编码"},{cls:"col-model",txt:"型号"},{cls:"col-num",txt:"SAP库存"},{cls:"col-num",txt:"南区"},{cls:"col-num",txt:"立库"},{cls:"col-after",txt:"后处理"}];
-  fixedCols.forEach((c,idx)=>{
+  leftCols.forEach((c,idx)=>{
     const th=document.createElement("th"); th.className=(idx===0?"fixed head ":"fixed head ")+c.cls; th.textContent=c.txt; tr1.appendChild(th);
   });
-  // 按周合并日期
   let lastWeek=null, span=0, firstTh=null;
   days.forEach((day,i)=>{
     if(day.week!==lastWeek){
@@ -219,11 +234,15 @@ function renderHeader(){
     }else{span++;}
   });
   if(firstTh){firstTh.colSpan=span; firstTh.textContent=lastWeek+"周";}
+  // 右侧成品列（占满两层）
+  rightCols.forEach(c=>{
+    const th=document.createElement("th"); th.className=c.cls; th.textContent=c.txt; th.rowSpan=2; tr1.appendChild(th);
+  });
   thead.appendChild(tr1);
 
   // 第二层：每日
   const tr2=document.createElement("tr");
-  fixedCols.forEach((c,idx)=>{
+  leftCols.forEach((c,idx)=>{
     const th=document.createElement("th"); th.className=(idx===0?"fixed head ":"fixed head ")+c.cls; th.textContent=""; tr2.appendChild(th);
   });
   days.forEach(day=>{
@@ -254,38 +273,69 @@ function statusText(status){
 
 function renderBody(){
   const tbody=document.createElement("tbody");
-  rows.forEach((row,ri)=>{
-    const tr=document.createElement("tr");
-    // 固定列
-    const fixedKeys=["code","model","sapStock","south","warehouse","afterProcess"];
-    const fixedCls=["col-code","col-model","col-num","col-num","col-num","col-after"];
-    fixedKeys.forEach((k,i)=>{
-      const td=document.createElement("td"); td.className="fixed "+fixedCls[i];
-      const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[k]||""; inp.dataset.r=ri; inp.dataset.k=k;
-      inp.addEventListener("change",e=>{row[k]=e.target.value; saveSch();});
-      td.appendChild(inp); tr.appendChild(td);
-    });
-    // 日期列
-    days.forEach(day=>{
-      const cell=(row.days&&row.days[day.date])||{qty:"",status:"normal"};
-      const td=document.createElement("td"); td.className="col-day day-cell "+statusClass(cell.status);
-      const inp=document.createElement("input"); inp.className="cell-input"; inp.value=cell.qty||""; inp.dataset.r=ri; inp.dataset.date=day.date;
-      inp.addEventListener("change",e=>{
-        if(!row.days)row.days={};
-        row.days[day.date]={qty:e.target.value,status:cell.status};
-        saveSch();
-      });
-      td.appendChild(inp);
-      td.addEventListener("click",e=>{if(e.target.tagName!=="INPUT"){toggleStatus(ri,day.date,td,inp);}});
-      tr.appendChild(td);
-    });
-    // 删除
-    const tdDel=document.createElement("td"); tdDel.className="col-day"; tdDel.style.position="sticky"; tdDel.style.right="0"; tdDel.style.zIndex="1"; tdDel.style.background="#fff";
-    const del=document.createElement("button"); del.className="del-x"; del.textContent="✕"; del.title="删除";
-    del.onclick=()=>{rows.splice(ri,1); render(); saveSch();};
-    tdDel.appendChild(del); tr.appendChild(tdDel);
-    tbody.appendChild(tr);
+  // 按成品料号分组排序，相同成品连续显示
+  const order=[...rows.entries()].sort((a,b)=>{
+    const pa=(a[1].pCode||"").toString(), pb=(b[1].pCode||"").toString();
+    if(pa<pb) return -1; if(pa>pb) return 1;
+    return a[0]-b[0];
   });
+  let i=0;
+  while(i<order.length){
+    let j=i+1;
+    const pKey=(order[i][1].pCode||"").toString();
+    while(j<order.length && (order[j][1].pCode||"").toString()===pKey) j++;
+    const groupSize=j-i;
+    for(let k=i;k<j;k++){
+      const [ri,row]=order[k];
+      const tr=document.createElement("tr");
+      // 左侧上级物料固定列
+      const leftKeys=["code","model","sapStock","south","warehouse","afterProcess"];
+      const leftCls=["col-code","col-model","col-num","col-num","col-num","col-after"];
+      leftKeys.forEach((key,idx)=>{
+        const td=document.createElement("td"); td.className="fixed "+leftCls[idx];
+        const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[key]||""; inp.dataset.r=ri; inp.dataset.k=key;
+        inp.addEventListener("change",e=>{row[key]=e.target.value; saveSch();});
+        td.appendChild(inp); tr.appendChild(td);
+      });
+      // 日期列
+      days.forEach(day=>{
+        const cell=(row.days&&row.days[day.date])||{qty:"",status:"normal"};
+        const td=document.createElement("td"); td.className="col-day day-cell "+statusClass(cell.status);
+        const inp=document.createElement("input"); inp.className="cell-input"; inp.value=cell.qty||""; inp.dataset.r=ri; inp.dataset.date=day.date;
+        inp.addEventListener("change",e=>{
+          if(!row.days)row.days={};
+          row.days[day.date]={qty:e.target.value,status:cell.status};
+          saveSch();
+        });
+        td.appendChild(inp);
+        td.addEventListener("click",e=>{if(e.target.tagName!=="INPUT"){toggleStatus(ri,day.date,td,inp);}});
+        tr.appendChild(td);
+      });
+      // 右侧成品列，仅在组内第一行显示并合并
+      if(k===i){
+        const rightKeys=["pSapStock","pStock","pCode","pModel"];
+        const rightCls=["col-num","col-pstock bg-blue","col-pcode","col-pmodel"];
+        rightKeys.forEach((key,idx)=>{
+          const td=document.createElement("td"); td.className=rightCls[idx]; td.rowSpan=groupSize;
+          const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[key]||""; inp.dataset.r=ri; inp.dataset.k=key;
+          inp.addEventListener("change",e=>{
+            const val=e.target.value;
+            // 同一成品所有行同步更新
+            for(let t=i;t<j;t++){ order[t][1][key]=val; }
+            saveSch(); render();
+          });
+          td.appendChild(inp); tr.appendChild(td);
+        });
+      }
+      // 删除当前上级物料行
+      const tdDel=document.createElement("td"); tdDel.className="col-day"; tdDel.style.position="sticky"; tdDel.style.right="0"; tdDel.style.zIndex="1"; tdDel.style.background="#fff";
+      const del=document.createElement("button"); del.className="del-x"; del.textContent="✕"; del.title="删除";
+      del.onclick=()=>{rows.splice(ri,1); render(); saveSch();};
+      tdDel.appendChild(del); tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+    }
+    i=j;
+  }
   $("rowCount").textContent=rows.length+" 行";
   return tbody;
 }
@@ -308,15 +358,17 @@ function render(){
 
 // 弹窗
 function openModal(){$("rowModal").classList.add("show"); $("mSearch").focus();}
-function closeModal(){$("rowModal").classList.remove("show"); ["mCode","mModel","mSapStock","mSouth","mWarehouse","mAfterProcess","mSearch"].forEach(id=>$(id).value=""); $("modalAc").innerHTML="";}
+function closeModal(){$("rowModal").classList.remove("show"); ["mCode","mModel","mSapStock","mSouth","mWarehouse","mAfterProcess","mPCode","mPStock","mPSapStock","mPModel","mSearch"].forEach(id=>$(id).value=""); $("modalAc").innerHTML="";}
 function confirmRow(){
   const r={
     code:$("mCode").value.trim(),model:$("mModel").value.trim(),
     sapStock:$("mSapStock").value.trim(),south:$("mSouth").value.trim(),
     warehouse:$("mWarehouse").value.trim(),afterProcess:$("mAfterProcess").value.trim(),
+    pCode:$("mPCode").value.trim(),pStock:$("mPStock").value.trim(),
+    pSapStock:$("mPSapStock").value.trim(),pModel:$("mPModel").value.trim(),
     status:"normal",days:{}
   };
-  if(!r.code && !r.model){toast("请至少填写物料编码或型号"); return;}
+  if(!r.code && !r.model){toast("请至少填写物料编码或物料描述"); return;}
   rows.push(r); render(); saveSch(); closeModal(); toast("已添加");
 }
 
@@ -343,10 +395,10 @@ function toast(msg){const t=$("toast"); t.textContent=msg; t.classList.add("show
 // 导出CSV
 function exportCsv(){
   if(!rows.length){toast("暂无数据"); return;}
-  const heads=["物料编码","型号","SAP库存","南区","立库","后处理"].concat(days.map(d=>d.label));
+  const heads=["物料编码","物料描述","SAP库","南区","立库","后处理","成品SAP库","成品库存","成品料号","成品物料描述"].concat(days.map(d=>d.label));
   const lines=[heads.join(",")];
   rows.forEach(r=>{
-    const base=[r.code,r.model,r.sapStock,r.south,r.warehouse,r.afterProcess];
+    const base=[r.code,r.model,r.sapStock,r.south,r.warehouse,r.afterProcess,r.pSapStock,r.pStock,r.pCode,r.pModel];
     const dayVals=days.map(d=>{const c=(r.days&&r.days[d.date])||{}; return c.qty||"";});
     lines.push(base.concat(dayVals).map(v=>{v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(","));
   });
@@ -368,7 +420,7 @@ $("loadDb").onclick=()=>{
   let n=0;
   DB.forEach(r=>{
     if(!rows.find(x=>x.code===r.code && x.model===r.model)){
-      rows.push({code:r.code||"",model:r.model||"",sapStock:"",south:"",warehouse:"",afterProcess:r.remark||"",status:"normal",days:{}}); n++;
+      rows.push({code:r.code||"",model:r.model||"",sapStock:"",south:"",warehouse:"",afterProcess:r.remark||"",pCode:"",pStock:"",pSapStock:"",pModel:"",status:"normal",days:{}}); n++;
     }
   });
   render(); saveSch(); toast("已导入 "+n+" 条物料");
@@ -407,12 +459,17 @@ function parseCSV(text){
 }
 function normHeader(h){
   h=String(h||"").trim();
-  if(h.includes("物料编码"))return "code";
-  if(h.includes("型号"))return "model";
-  if(h.includes("SAP库存")||h.includes("SAP"))return "sapStock";
+  if(h.includes("物料编码") && !h.includes("成品"))return "code";
+  if(h.includes("物料描述") && !h.includes("成品"))return "model";
+  if((h.includes("SAP库")||h.includes("SAP库存")) && !h.includes("成品"))return "sapStock";
   if(h.includes("南区"))return "south";
   if(h.includes("立库"))return "warehouse";
   if(h.includes("后处理"))return "afterProcess";
+  if(h.includes("成品SAP库")||(h.includes("SAP库")&&h.includes("成品")))return "pSapStock";
+  if(h.includes("成品库存"))return "pStock";
+  if(h.includes("成品料号"))return "pCode";
+  if(h.includes("成品物料描述")||(h.includes("物料描述")&&h.includes("成品")))return "pModel";
+  if(h.includes("型号") && !h.includes("成品"))return "model";
   return "";
 }
 function rowsFromSheet(sheet){
@@ -459,9 +516,9 @@ $("importFile").onchange=async e=>{
 };
 $("tplSch").onclick=async ()=>{
   if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
-  const aoa=[["物料编码","型号","SAP库存","南区","立库","后处理"]];
+  const aoa=[["物料编码","物料描述","SAP库","南区","立库","后处理","成品SAP库","成品库存","成品料号","成品物料描述"]];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:14},{wch:16},{wch:12},{wch:12},{wch:12},{wch:14}];
+  ws["!cols"]=[{wch:14},{wch:20},{wch:10},{wch:10},{wch:10},{wch:14},{wch:12},{wch:12},{wch:14},{wch:22}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "排产计划模板");
   XLSX.writeFile(wb, "排产计划导入模板.xlsx");
