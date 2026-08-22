@@ -104,8 +104,8 @@
   .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
   .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
-  .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;}
-  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:absolute;inset:0;height:100%;width:100%;padding:8px 4px;margin:0;}
+  .col-customer.merged-cell,.col-remark.merged-cell{position:relative;display:flex;align-items:center;justify-content:center;padding:0!important;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:calc(100% - 8px);min-height:0;padding:6px 4px;margin:0;}
   .col-act{width:5%;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
@@ -556,8 +556,24 @@ $("exportImg").onclick=async ()=>{
     const canvas=await html2canvas($("doc"),{
       scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0,
       onclone:(doc)=>{
-        // 导出图片时只隐藏操作列（删除按钮不需要出现）
+        // 导出图片时隐藏操作列
         doc.querySelectorAll("#doc .col-act").forEach(el=>el.style.display="none");
+        // 只保留与顶部“发货日期”同一天的行，其他日期不截入图片
+        const shipDate = doc.querySelector("#shipDate")?.value || doc.querySelector("#docDate")?.textContent?.replace(/^发货日期：/,"") || "";
+        if(!shipDate) return;
+        const rows = doc.querySelectorAll("#tbody tr");
+        let groupVisible = false;
+        rows.forEach(tr=>{
+          if(tr.classList.contains("subtotal")){
+            tr.style.display = groupVisible ? "" : "none";
+            groupVisible = false;
+          }else{
+            const d = tr.querySelector('input[data-f="shipdate"]')?.value || "";
+            const visible = d === shipDate;
+            tr.style.display = visible ? "" : "none";
+            if(visible) groupVisible = true;
+          }
+        });
       }
     });
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
