@@ -548,50 +548,65 @@ function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelec
 $("exportImg").onclick=async ()=>{
   if(!$("tbody").children.length){ toast("暂无数据"); return; }
   toast("正在准备导出…");
-  const replaced=[];   // {div, orig, td} 用于 finally 恢复
-  const hidden=[];     // {el, prev} 用于恢复操作列
   try{
     if(!window.html2canvas){ await loadScript("html2canvas.min.js"); }
+    fitTextareas();
 
-    // 隐藏操作列
-    document.querySelectorAll("#doc .col-act").forEach(el=>{
-      hidden.push({el, prev:el.style.display});
-      el.style.display="none";
-    });
-
-    // 直接在原 DOM 上替换 input/textarea → 紧凑文本 div
-    // 关键：显式 height + line-height 居中（不依赖 height:auto，html2canvas 对 auto+min-height 渲染不可靠）
-    document.querySelectorAll("#doc input, #doc textarea").forEach(el=>{
+    // 在原 DOM 上收集每个输入格的真实尺寸（合并单元格需用 td 高度）
+    const cells=[...document.querySelectorAll("#doc input, #doc textarea")].map(el=>{
       const td=el.parentElement;
-      const value=(el.value||"").trim();
-      const lineCount=(value.match(/\n/g)||[]).length+1;
-      const isSingleLine=lineCount===1 && value.length<=24;
-
-      const div=document.createElement("div");
-      div.innerHTML=esc(value).replace(/\n/g,"<br>");
-
-      // 单行 30px（line-height 24 居中），多行按行数自适应但不超过 80px
-      const h=isSingleLine?30:Math.min(80, lineCount*18+10);
-      const common="box-sizing:border-box;width:100%;background:#fff;border:1px solid #c7d2e6;border-radius:4px;font-weight:600;color:#1e293b;font-size:12.5px;padding:3px 6px;white-space:pre-wrap;word-break:break-word;overflow:hidden;font-family:inherit;text-align:center;display:flex;align-items:center;justify-content:center;";
-      div.style.cssText=common+"height:"+h+"px;line-height:"+(isSingleLine?"24px":"1.4")+";";
-
-      td.replaceChild(div, el);
-      replaced.push({div, orig:el, td});
+      const st=getComputedStyle(el);
+      return {
+        value:el.value||"",
+        isMerged:td.classList.contains("merged-cell"),
+        tdHeight:td.offsetHeight,
+        tdWidth:td.clientWidth,
+        font:st.font,
+        padTop:parseInt(st.paddingTop,10)||4,
+        padBot:parseInt(st.paddingBottom,10)||4
+      };
     });
 
-    // 强制 reflow
-    void $("doc").offsetHeight;
+    const canvas=await html2canvas($("doc"),{
+      scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0,
+      onclone:(doc)=>{
+        // 隐藏操作列
+        doc.querySelectorAll("#doc .col-act").forEach(el=>el.style.display="none");
 
-    const canvas=await html2canvas($("doc"),{scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0});
+        // 在克隆文档里把 input/textarea 替换为实测高度的文本 div
+        [...doc.querySelectorAll("#doc input, #doc textarea")].forEach((el,idx)=>{
+          const info=cells[idx]; if(!info) return;
+          const td=el.parentElement;
+          const div=doc.createElement("div");
+          div.innerHTML=esc(info.value).replace(/\n/g,"<br>");
+
+          let h;
+          if(info.isMerged){
+            // 合并单元格：填满整个 td，避免只占顶部一小截
+            h=info.tdHeight;
+          }else{
+            // 非合并单元格：用测量 div 算出内容在目标宽度下的真实高度
+            const m=doc.createElement("div");
+            m.style.cssText="position:fixed;left:-9999px;top:-9999px;width:"+info.tdWidth+"px;box-sizing:border-box;border:1px solid #c7d2e6;border-radius:4px;padding:"+info.padTop+"px 6px "+info.padBot+"px;font:"+info.font+";font-weight:600;color:#1e293b;line-height:1.5;text-align:center;white-space:pre-wrap;word-break:break-word;overflow:visible;";
+            m.innerHTML=div.innerHTML;
+            doc.documentElement.appendChild(m);
+            h=Math.max(m.offsetHeight, 28);
+            doc.documentElement.removeChild(m);
+          }
+
+          // 合并单元格用 flex 垂直居中；非合并用 block 自然撑满
+          const layout=info.isMerged?"display:flex;align-items:center;justify-content:center;":"display:block;";
+          div.style.cssText="box-sizing:border-box;width:100%;height:"+h+"px;background:#fff;border:1px solid #c7d2e6;border-radius:4px;font-weight:600;color:#1e293b;font:"+info.font+";line-height:1.5;padding:"+info.padTop+"px 6px "+info.padBot+"px;text-align:center;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;"+layout;
+
+          td.replaceChild(div, el);
+        });
+      }
+    });
+
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
     toast("图片已导出（未存档）");
   }catch(e){
     toast("导出失败："+e.message); console.error(e);
-  }finally{
-    // 恢复所有 input/textarea
-    replaced.forEach(({div, orig, td})=>{ if(td.contains(div)) td.replaceChild(orig, div); });
-    // 恢复操作列
-    hidden.forEach(({el, prev})=>{ el.style.display=prev; });
   }
 };
 
