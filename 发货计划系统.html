@@ -74,9 +74,9 @@
   .tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
   .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:6px 4px;text-align:center;border:1px solid #dfe4ec;border-bottom:2px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
   .tbl td{padding:6px 4px;border:1px solid #dfe4ec;text-align:center;vertical-align:middle;min-height:44px;}
-  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;}
-  .tbl td input{height:34px;line-height:32px;padding:0 6px;}
-  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;min-height:34px;padding:6px 6px;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
+  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;min-height:34px;line-height:1.35;}
+  .tbl td input{padding:7px 6px;}
+  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:8px 6px;white-space:pre-wrap;word-break:break-word;}
   .tbl td input[data-f="model"]{text-align:center;}
   .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:#f5f8ff;box-shadow:0 0 0 2px rgba(91,124,250,.25);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
@@ -105,7 +105,7 @@
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
   .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
   .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;}
-  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:absolute;top:6px;left:4px;right:4px;bottom:6px;height:auto;width:auto;min-height:0;margin:0;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:absolute;inset:0;height:100%;width:100%;padding:8px 4px;margin:0;}
   .col-act{width:5%;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
