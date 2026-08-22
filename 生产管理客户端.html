@@ -65,7 +65,9 @@
   const tabs=document.querySelectorAll(".tab");
   const $=id=>document.getElementById(id);
   function switchTo(page){
-    frame.src=page;
+    // 加时间戳防止 iframe 缓存旧页面
+    const sep=page.includes("?")?"&":"?";
+    frame.src=page+sep+"_t="+Date.now();
     tabs.forEach(t=>t.classList.toggle("active",t.dataset.page===page));
     try{localStorage.setItem("last_client_tab",page);}catch(e){}
   }
