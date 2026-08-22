@@ -74,8 +74,9 @@
   .tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
   .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:6px 4px;text-align:center;border:1px solid #dfe4ec;border-bottom:2px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
   .tbl td{padding:6px 4px;border:1px solid #dfe4ec;text-align:center;vertical-align:middle;min-height:44px;}
-  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;min-height:34px;padding:0 6px;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;line-height:18px;outline:none;transition:.18s;box-sizing:border-box;}
-  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:6px 6px;white-space:pre-wrap;word-break:break-word;}
+  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;}
+  .tbl td input{height:34px;line-height:32px;padding:0 6px;}
+  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;min-height:34px;padding:6px 6px;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
   .tbl td input[data-f="model"]{text-align:center;}
   .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:#f5f8ff;box-shadow:0 0 0 2px rgba(91,124,250,.25);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
@@ -103,7 +104,8 @@
   .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
   .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
-  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{height:auto;min-height:100%;}
+  .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:absolute;top:6px;left:4px;right:4px;bottom:6px;height:auto;width:auto;min-height:0;margin:0;}
   .col-act{width:5%;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
@@ -551,58 +553,13 @@ $("exportImg").onclick=async ()=>{
   try{
     if(!window.html2canvas){ await loadScript("html2canvas.min.js"); }
     fitTextareas();
-
-    // 在原 DOM 上收集每个输入格的真实尺寸（合并单元格需用 td 高度）
-    const cells=[...document.querySelectorAll("#doc input, #doc textarea")].map(el=>{
-      const td=el.parentElement;
-      const st=getComputedStyle(el);
-      return {
-        value:el.value||"",
-        isMerged:td.classList.contains("merged-cell"),
-        tdHeight:td.offsetHeight,
-        tdWidth:td.clientWidth,
-        font:st.font,
-        padTop:parseInt(st.paddingTop,10)||4,
-        padBot:parseInt(st.paddingBottom,10)||4
-      };
-    });
-
     const canvas=await html2canvas($("doc"),{
       scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0,
       onclone:(doc)=>{
-        // 隐藏操作列
+        // 导出图片时只隐藏操作列（删除按钮不需要出现）
         doc.querySelectorAll("#doc .col-act").forEach(el=>el.style.display="none");
-
-        // 在克隆文档里把 input/textarea 替换为实测高度的文本 div
-        [...doc.querySelectorAll("#doc input, #doc textarea")].forEach((el,idx)=>{
-          const info=cells[idx]; if(!info) return;
-          const td=el.parentElement;
-          const div=doc.createElement("div");
-          div.innerHTML=esc(info.value).replace(/\n/g,"<br>");
-
-          let h;
-          if(info.isMerged){
-            // 合并单元格：填满整个 td，避免只占顶部一小截
-            h=info.tdHeight;
-          }else{
-            // 非合并单元格：用测量 div 算出内容在目标宽度下的真实高度
-            const m=doc.createElement("div");
-            m.style.cssText="position:fixed;left:-9999px;top:-9999px;width:"+info.tdWidth+"px;box-sizing:border-box;border:1px solid #c7d2e6;border-radius:4px;padding:"+info.padTop+"px 6px "+info.padBot+"px;font:"+info.font+";font-weight:600;color:#1e293b;line-height:1.5;text-align:center;white-space:pre-wrap;word-break:break-word;overflow:visible;";
-            m.innerHTML=div.innerHTML;
-            doc.documentElement.appendChild(m);
-            h=Math.max(m.offsetHeight, 28);
-            doc.documentElement.removeChild(m);
-          }
-
-          // 合并单元格用 flex 垂直居中；非合并用 block 自然撑满
-          const layout=info.isMerged?"display:flex;align-items:center;justify-content:center;":"display:block;";
-          div.style.cssText="box-sizing:border-box;width:100%;height:"+h+"px;background:#fff;border:1px solid #c7d2e6;border-radius:4px;font-weight:600;color:#1e293b;font:"+info.font+";line-height:1.5;padding:"+info.padTop+"px 6px "+info.padBot+"px;text-align:center;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;"+layout;
-
-          td.replaceChild(div, el);
-        });
       }
     });
-
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
     toast("图片已导出（未存档）");
   }catch(e){
