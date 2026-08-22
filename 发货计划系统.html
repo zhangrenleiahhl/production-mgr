@@ -77,7 +77,7 @@
   .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;min-height:34px;line-height:1.35;}
   .tbl td input{padding:7px 6px;}
   .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:8px 6px;white-space:pre-wrap;word-break:break-word;}
-  .tbl td input[data-f="model"]{text-align:center;}
+  .tbl td textarea[data-f="model"]{text-align:center;}
   .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:#f5f8ff;box-shadow:0 0 0 2px rgba(91,124,250,.25);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
@@ -328,7 +328,7 @@ function addRow(data={}){
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
     <td class="hide-col"><input data-f="code" value="${esc(data.code)}" placeholder="/"></td>
-    <td><input data-f="model" value="${esc(data.model)}" placeholder="/" autocomplete="off"></td>
+    <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
     <td class="hide-col"><input data-f="unit" type="number" min="0" step="0.0001" value="${esc(data.unit)}" placeholder="/"></td>
     <td class="num-cell"><input data-f="ton" type="number" min="0" step="0.0001" value="${esc(tonVal)}" placeholder="/"></td>
