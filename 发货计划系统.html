@@ -548,50 +548,50 @@ function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelec
 $("exportImg").onclick=async ()=>{
   if(!$("tbody").children.length){ toast("暂无数据"); return; }
   toast("正在准备导出…");
-  let wrapper=null;
+  const replaced=[];   // {div, orig, td} 用于 finally 恢复
+  const hidden=[];     // {el, prev} 用于恢复操作列
   try{
     if(!window.html2canvas){ await loadScript("html2canvas.min.js"); }
-    fitTextareas(); // 确保 textarea 高度已按内容展开
 
-    const src=$("doc");
-    const rect=src.getBoundingClientRect();
-    wrapper=document.createElement("div");
-    wrapper.style.cssText="position:fixed;left:-9999px;top:0;width:"+rect.width+"px;z-index:-1;overflow:visible;";
-    document.body.appendChild(wrapper);
-    const clone=src.cloneNode(true);
-    wrapper.appendChild(clone);
-
-    // 隐藏操作列（导出图片不需要删除按钮）
-    clone.querySelectorAll(".col-act").forEach(el=>el.style.display="none");
-
-    // 把表单控件替换为紧凑的纯文本 div，让高度随内容自然撑开，避免继承被 fitTextarea 撑大的高度
-    const cellText="box-sizing:border-box;width:100%;min-height:28px;height:auto;display:block;text-align:center;background:#fff;border:1px solid #c7d2e6;border-radius:4px;font-weight:600;color:#1e293b;font-size:12.5px;line-height:1.4;padding:3px 6px;white-space:pre-wrap;word-break:break-word;overflow:visible;font-family:inherit;";
-
-    const origInputs=[...src.querySelectorAll("input")];
-    [...clone.querySelectorAll("input")].forEach((inp,i)=>{
-      const orig=origInputs[i]; if(!orig) return;
-      const div=document.createElement("div");
-      div.textContent=orig.value;
-      div.style.cssText=cellText;
-      inp.parentNode.replaceChild(div, inp);
+    // 隐藏操作列
+    document.querySelectorAll("#doc .col-act").forEach(el=>{
+      hidden.push({el, prev:el.style.display});
+      el.style.display="none";
     });
 
-    const origTextareas=[...src.querySelectorAll("textarea")];
-    [...clone.querySelectorAll("textarea")].forEach((ta,i)=>{
-      const orig=origTextareas[i]; if(!orig) return;
+    // 直接在原 DOM 上替换 input/textarea → 紧凑文本 div
+    // 关键：显式 height + line-height 居中（不依赖 height:auto，html2canvas 对 auto+min-height 渲染不可靠）
+    document.querySelectorAll("#doc input, #doc textarea").forEach(el=>{
+      const td=el.parentElement;
+      const value=(el.value||"").trim();
+      const lineCount=(value.match(/\n/g)||[]).length+1;
+      const isSingleLine=lineCount===1 && value.length<=24;
+
       const div=document.createElement("div");
-      div.textContent=orig.value;
-      div.style.cssText=cellText;
-      ta.parentNode.replaceChild(div, ta);
+      div.innerHTML=esc(value).replace(/\n/g,"<br>");
+
+      // 单行 30px（line-height 24 居中），多行按行数自适应但不超过 80px
+      const h=isSingleLine?30:Math.min(80, lineCount*18+10);
+      const common="box-sizing:border-box;width:100%;background:#fff;border:1px solid #c7d2e6;border-radius:4px;font-weight:600;color:#1e293b;font-size:12.5px;padding:3px 6px;white-space:pre-wrap;word-break:break-word;overflow:hidden;font-family:inherit;text-align:center;display:flex;align-items:center;justify-content:center;";
+      div.style.cssText=common+"height:"+h+"px;line-height:"+(isSingleLine?"24px":"1.4")+";";
+
+      td.replaceChild(div, el);
+      replaced.push({div, orig:el, td});
     });
 
-    const canvas=await html2canvas(clone,{scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0});
+    // 强制 reflow
+    void $("doc").offsetHeight;
+
+    const canvas=await html2canvas($("doc"),{scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0});
     const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
     toast("图片已导出（未存档）");
   }catch(e){
     toast("导出失败："+e.message); console.error(e);
   }finally{
-    if(wrapper && wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+    // 恢复所有 input/textarea
+    replaced.forEach(({div, orig, td})=>{ if(td.contains(div)) td.replaceChild(orig, div); });
+    // 恢复操作列
+    hidden.forEach(({el, prev})=>{ el.style.display=prev; });
   }
 };
 
