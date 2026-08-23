@@ -465,7 +465,7 @@ function foldByDate(){
     if(!sd) return;
 
     let collapsed=state[g.date];
-    if(collapsed===undefined) collapsed=(g.date!==today);
+    if(collapsed===undefined) collapsed=!(g.date>today);  // 当天及之前的日期默认折叠，明天及以后默认展开
     else collapsed=!!collapsed;
 
     const btn=document.createElement("button");
