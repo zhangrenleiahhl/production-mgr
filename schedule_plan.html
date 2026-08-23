@@ -145,6 +145,7 @@
     <button class="btn btn-line" id="tplInv" title="下载库存导入模板">库存模板</button>
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
     <button class="btn btn-line" id="exportImg">导出图片</button>
+    <button class="btn btn-danger" id="clearAll">清空</button>
     <button class="btn btn-primary" id="save">保存</button>
   </div>
 
@@ -304,7 +305,7 @@ function renderBody(){
       leftKeys.forEach((key,idx)=>{
         const td=document.createElement("td"); td.className="fixed "+leftCls[idx];
         const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[key]||""; inp.dataset.r=ri; inp.dataset.k=key;
-        inp.addEventListener("change",e=>{row[key]=e.target.value; saveSch();});
+        inp.addEventListener("input",e=>{row[key]=e.target.value; saveSch();});
         td.appendChild(inp); tr.appendChild(td);
       });
       // 日期列
@@ -312,7 +313,7 @@ function renderBody(){
         const cell=(row.days&&row.days[day.date])||{qty:"",status:"normal"};
         const td=document.createElement("td"); td.className="col-day day-cell "+statusClass(cell.status);
         const inp=document.createElement("input"); inp.className="cell-input"; inp.value=cell.qty||""; inp.dataset.r=ri; inp.dataset.date=day.date;
-        inp.addEventListener("change",e=>{
+        inp.addEventListener("input",e=>{
           if(!row.days)row.days={};
           row.days[day.date]={qty:e.target.value,status:cell.status};
           saveSch();
@@ -328,6 +329,11 @@ function renderBody(){
         rightKeys.forEach((key,idx)=>{
           const td=document.createElement("td"); td.className=rightCls[idx]; td.rowSpan=groupSize;
           const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[key]||""; inp.dataset.r=ri; inp.dataset.k=key;
+          inp.addEventListener("input",e=>{
+            const val=e.target.value;
+            for(let t=i;t<j;t++){ order[t][1][key]=val; }
+            saveSch();
+          });
           inp.addEventListener("change",e=>{
             const val=e.target.value;
             // 同一成品所有行同步更新
@@ -427,12 +433,21 @@ function exportCsv(){
 }
 
 // 事件
-$("startDate").addEventListener("change",e=>{startDay=e.target.value; render(); saveSch();});
-$("dayCount").addEventListener("change",e=>{dayCnt=Math.max(7,Math.min(90,parseInt(e.target.value)||30)); render(); saveSch();});
+$("startDate").addEventListener("input",e=>{startDay=e.target.value; render(); saveSch();});
+$("dayCount").addEventListener("input",e=>{dayCnt=Math.max(7,Math.min(90,parseInt(e.target.value)||30)); render(); saveSch();});
 $("addRow").onclick=openModal;
 $("cancelRow").onclick=closeModal;
 $("confirmRow").onclick=confirmRow;
 $("save").onclick=()=>{saveSch(); toast("已保存");};
+$("clearAll").onclick=()=>{
+  if(!confirm("确定清空排产计划表所有数据？此操作不可恢复。")) return;
+  rows=[]; startDay=todayStr(); dayCnt=30;
+  localStorage.removeItem(LS_SCH);
+  if(window.CloudSync) CloudSync.autoPush(LS_SCH);
+  $("startDate").value=startDay; $("dayCount").value=dayCnt;
+  render();
+  toast("已清空排产计划表");
+};
 $("back").onclick=()=>location.href="发货计划系统.html";
 $("loadDb").onclick=()=>{
   const DB=loadDB();
