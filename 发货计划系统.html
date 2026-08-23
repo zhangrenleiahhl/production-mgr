@@ -111,6 +111,10 @@
   .tbl td.col-shipdate .fold-btn:hover{background:#c7d2fe;}
   .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:20px;}
   .tbl tr.date-fold-hidden{display:none;}
+  .tbl tr.date-fold-placeholder{height:28px;background:#f8fafc;}
+  .tbl tr.date-fold-placeholder td{padding:3px 8px;text-align:left;border:1px dashed #cbd5e1;background:#f8fafc;}
+  .date-fold-placeholder-btn{border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:600;}
+  .date-fold-placeholder-btn:hover{background:#c7d2fe;}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
   .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
   .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;vertical-align:middle;}
@@ -436,7 +440,8 @@ function getShowFolded(){ try{ return localStorage.getItem(SHOW_FOLDED_KEY)==="1
 function setShowFolded(show){ try{ localStorage.setItem(SHOW_FOLDED_KEY, show?"1":"0"); }catch(e){} }
 
 function foldByDate(){
-  // 清理旧的折叠标记与按钮
+  // 清理旧的折叠标记、按钮与占位行
+  [...$("tbody").querySelectorAll("tr.date-fold-placeholder")].forEach(tr=>tr.remove());
   [...$("tbody").children].forEach(tr=>{
     tr.classList.remove("date-fold-hidden");
     const sd=tr.querySelector(".col-shipdate");
@@ -484,8 +489,14 @@ function foldByDate(){
           // 保留第一行作为折叠控制，方便单独展开
           for(let k=1;k<g.rows.length;k++) g.rows[k].classList.add("date-fold-hidden");
         }else{
-          // 截图模式：折叠的日期整组彻底隐藏
+          // 截图模式：折叠的日期整组隐藏，但插一个极窄占位行留小按钮，方便单独展开
           g.rows.forEach(tr=>tr.classList.add("date-fold-hidden"));
+          const placeholder=document.createElement("tr");
+          placeholder.className="date-fold-placeholder";
+          placeholder.dataset.foldDate=g.date;
+          placeholder.innerHTML=`<td colspan="13"><button type="button" class="fold-placeholder-btn" title="展开 ${esc(g.date)} 的折叠计划">▶ ${esc(g.date)} 已折叠</button></td>`;
+          placeholder.querySelector("button").onclick=()=>{ setFoldState(g.date,0); foldByDate(); fitTextareas(); };
+          g.rows[0].before(placeholder);
         }
       }
     });
