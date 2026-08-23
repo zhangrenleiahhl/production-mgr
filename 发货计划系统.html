@@ -102,13 +102,13 @@
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:10%;}   /* 发货日期 */
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:11%;}   /* 客户 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:20%;}   /* 型号 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:9%;}    /* 发货数量 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:8%;}    /* 吨位 */
-  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 交货单 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 箱数 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:12%;} /* 备注 */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:12%;} /* 物料编码 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:12%;}   /* 物料编码 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:9%;}    /* 发货数量 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 吨位 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 交货单 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:8%;}  /* 箱数 */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:12%;} /* 备注 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
   .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;}
   .tbl td.col-shipdate{position:relative;padding:0 2px;vertical-align:middle;}
@@ -187,20 +187,19 @@
       </div>
       <table class="tbl" id="tbl">
         <thead><tr>
-          <th class="col-idx">#</th><th>发货日期</th><th>客户</th><th>型号</th>
+          <th class="col-idx">#</th><th>发货日期</th><th>客户</th><th>物料编码</th><th>型号</th>
           <th>发货数量</th><th class="hide-col">单重(kg)</th><th>吨位(t)</th><th class="hide-col">一箱多少件</th>
-          <th>交货单</th><th>箱数</th><th>备注</th><th>物料编码</th><th class="col-act">操作</th>
+          <th>交货单</th><th>箱数</th><th>备注</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
-          <td colspan="4" style="text-align:right">合计</td>
+          <td colspan="5" style="text-align:right">合计</td>
           <td class="num-cell" id="sumQty">0</td>
           <td class="hide-col"></td>
           <td class="num-cell" id="sumTon">0.0</td>
           <td class="hide-col"></td>
           <td></td>
           <td class="num-cell" id="sumBox">/</td>
-          <td></td>
           <td></td>
           <td></td>
         </tr></tfoot>
@@ -346,6 +345,7 @@ function addRow(data={}){
     <td class="col-idx num-cell">${idx}</td>
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
+    <td><input data-f="code" value="${esc(data.code)}" placeholder="/"></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
     <td class="hide-col"><input data-f="unit" type="number" min="0" step="0.0001" value="${esc(data.unit)}" placeholder="/"></td>
@@ -354,7 +354,6 @@ function addRow(data={}){
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
-    <td><input data-f="code" value="${esc(data.code)}" placeholder="/"></td>
     <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
   tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
@@ -427,9 +426,9 @@ function mergeCustomerCells(){
       let subTon=0;
       for(let k=i;k<j;k++){ subTon+=parseFloat(rows[k].querySelector('[data-f="ton"]')?.value)||0; }
       const sub=document.createElement("tr"); sub.className="subtotal";
-      sub.innerHTML='<td colspan="6" class="sub-label">「'+esc(cust)+'」吨位合计</td>'+
+      sub.innerHTML='<td colspan="7" class="sub-label">「'+esc(cust)+'」吨位合计</td>'+
         '<td class="sub-ton">'+(subTon?subTon.toFixed(1):"/")+'</td>'+
-        '<td colspan="6"></td>';
+        '<td colspan="5"></td>';
       rows[j-1].after(sub);
     }
     i=j;
