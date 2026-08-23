@@ -336,6 +336,7 @@ document.addEventListener("keydown", e=>{
 
 // ===================== 发货计划单 =====================
 function todayStr(){ const d=new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function realTodayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 $("shipDate").value=todayStr();
 function genPlanNo(){ const d=$("shipDate").value||todayStr(); const p=s=>String(s).padStart(2,"0"); const ymd=d.split("-"); return "FH"+ymd[0]+p(+ymd[1])+p(+ymd[2])+"-"+String(Math.floor(Math.random()*9000)+1000); }
 $("planNo").value=genPlanNo();
@@ -728,7 +729,10 @@ updateDbStatus();
 if(!DB.length) toast("提示：物料库为空，请先到「物料数据库」页导入");
 const _draft=loadDraft();
 if(_draft && (_draft.rows.length || _draft.date)){
-  if(_draft.date) $("shipDate").value=_draft.date;
+  if(_draft.date){
+    // 草稿日期如果是当天或更早，默认改为当天+1天（计划明天及以后的 shipment）
+    $("shipDate").value = (_draft.date <= realTodayStr()) ? todayStr() : _draft.date;
+  }
   $("planNo").value=_draft.no||genPlanNo();
   _draft.rows.forEach(r=>addRow(r));
   syncDocHead();
