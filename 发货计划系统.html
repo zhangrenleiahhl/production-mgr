@@ -85,7 +85,7 @@
   .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;min-height:34px;line-height:1.35;}
   .tbl td input{padding:7px 6px;}
   .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:8px 6px;white-space:pre-wrap;word-break:break-word;}
-  .tbl td textarea[data-f="model"]{text-align:center;}
+  .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"]{text-align:center;}
   .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:#f5f8ff;box-shadow:0 0 0 2px rgba(91,124,250,.25);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
@@ -100,9 +100,9 @@
   .col-idx{width:4%;color:var(--muted);}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
-  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:16%;}   /* 发货日期 */
+  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:12%;}   /* 发货日期 */
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:11%;}   /* 客户 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:6%;}    /* 物料编码 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 物料编码 */
   .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:9%;}    /* 发货数量 */
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 吨位 */
@@ -345,7 +345,7 @@ function addRow(data={}){
     <td class="col-idx num-cell">${idx}</td>
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
-    <td><input data-f="code" value="${esc(data.code)}" placeholder="/"></td>
+    <td><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
     <td class="hide-col"><input data-f="unit" type="number" min="0" step="0.0001" value="${esc(data.unit)}" placeholder="/"></td>
