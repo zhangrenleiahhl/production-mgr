@@ -10,7 +10,6 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
     --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
@@ -49,6 +48,7 @@
   .field input,.field select{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;outline:none;background:#fff;}
   .field input:focus,.field select:focus{border-color:var(--brand);}
   .spacer{flex:1;}
+  .imp-label{font-size:12px;color:var(--muted);font-weight:600;align-self:center;}
   .btn{border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600;transition:.15s;}
   .btn-primary{background:var(--brand);color:#fff;}
   .btn-primary:hover{background:var(--brand-d);}
@@ -118,12 +118,12 @@
 </head>
 <body>
 <div class="wrap">
-  <h1><span class="dot"></span>排产计划表 [V2]</h1>
+  <h1><span class="dot"></span>排产计划表</h1>
   <div class="sub">左侧为物料信息，右侧按天展开；点击单元格可填数量，点击色块可切换状态。</div>
 
   <nav class="nav">
     <a href="发货计划系统.html" class="nav-link" target="_blank">📋 发货计划</a>
-    <a href="排产计划表.html" class="nav-link active">📅 排产计划表</a>
+    <a href="schedule_plan.html" class="nav-link active">📅 排产计划表</a>
     <a href="物料数据库.html" class="nav-link" target="_blank">📦 物料数据库</a>
   </nav>
 
@@ -136,7 +136,13 @@
     <button class="btn btn-line" id="loadDb">从物料库导入</button>
     <button class="btn btn-line" id="importSch">导入表格</button>
     <input type="file" id="importFile" accept=".xlsx,.csv" hidden>
-    <button class="btn btn-line" id="tplSch">下载模板</button>
+    <span class="imp-label">库存导入：</span>
+    <button class="btn btn-line" id="impSap" title="按物料编码批量回填 SAP库">导入SAP库</button>
+    <button class="btn btn-line" id="impSouth" title="按物料编码批量回填 南区">导入南区</button>
+    <button class="btn btn-line" id="impWh" title="按物料编码批量回填 立库">导入立库</button>
+    <button class="btn btn-line" id="impAfter" title="按物料编码批量回填 后处理">导入后处理</button>
+    <input type="file" id="invFile" accept=".xlsx,.csv" hidden>
+    <button class="btn btn-line" id="tplInv" title="下载库存导入模板">库存模板</button>
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
     <button class="btn btn-line" id="exportImg">导出图片</button>
     <button class="btn btn-primary" id="save">保存</button>
@@ -298,7 +304,7 @@ function renderBody(){
       leftKeys.forEach((key,idx)=>{
         const td=document.createElement("td"); td.className="fixed "+leftCls[idx];
         const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[key]||""; inp.dataset.r=ri; inp.dataset.k=key;
-        inp.addEventListener("change",e=>{row[key]=e.target.value; saveSch();});
+        inp.addEventListener("input",e=>{row[key]=e.target.value; saveSch();});
         td.appendChild(inp); tr.appendChild(td);
       });
       // 日期列
@@ -306,7 +312,7 @@ function renderBody(){
         const cell=(row.days&&row.days[day.date])||{qty:"",status:"normal"};
         const td=document.createElement("td"); td.className="col-day day-cell "+statusClass(cell.status);
         const inp=document.createElement("input"); inp.className="cell-input"; inp.value=cell.qty||""; inp.dataset.r=ri; inp.dataset.date=day.date;
-        inp.addEventListener("change",e=>{
+        inp.addEventListener("input",e=>{
           if(!row.days)row.days={};
           row.days[day.date]={qty:e.target.value,status:cell.status};
           saveSch();
@@ -322,6 +328,11 @@ function renderBody(){
         rightKeys.forEach((key,idx)=>{
           const td=document.createElement("td"); td.className=rightCls[idx]; td.rowSpan=groupSize;
           const inp=document.createElement("input"); inp.className="cell-input"; inp.value=row[key]||""; inp.dataset.r=ri; inp.dataset.k=key;
+          inp.addEventListener("input",e=>{
+            const val=e.target.value;
+            for(let t=i;t<j;t++){ order[t][1][key]=val; }
+            saveSch();
+          });
           inp.addEventListener("change",e=>{
             const val=e.target.value;
             // 同一成品所有行同步更新
@@ -358,6 +369,16 @@ function render(){
   const tbl=$("schTable"); tbl.innerHTML="";
   tbl.appendChild(renderHeader());
   tbl.appendChild(renderBody());
+  // 调试：确认表头是否包含右侧成品列
+  const thTexts=[...tbl.querySelectorAll("thead th")].map(th=>th.textContent).join(",");
+  console.log("[render] thead ths:", thTexts);
+  if(!thTexts.includes("成品库存")){
+    alert("表头缺少成品列，尝试修复…");
+    const thead=tbl.querySelector("thead");
+    const rightCols=[{cls:"col-num",txt:"SAP库"},{cls:"col-pstock bg-blue",txt:"成品库存"},{cls:"col-pcode",txt:"成品料号"},{cls:"col-pmodel",txt:"成品物料描述"}];
+    const tr1=thead.querySelector("tr");
+    rightCols.forEach(c=>{const th=document.createElement("th"); th.className=c.cls; th.textContent=c.txt; th.rowSpan=2; tr1.appendChild(th);});
+  }
 }
 
 // 弹窗
@@ -411,8 +432,8 @@ function exportCsv(){
 }
 
 // 事件
-$("startDate").addEventListener("change",e=>{startDay=e.target.value; render(); saveSch();});
-$("dayCount").addEventListener("change",e=>{dayCnt=Math.max(7,Math.min(90,parseInt(e.target.value)||30)); render(); saveSch();});
+$("startDate").addEventListener("input",e=>{startDay=e.target.value; render(); saveSch();});
+$("dayCount").addEventListener("input",e=>{dayCnt=Math.max(7,Math.min(90,parseInt(e.target.value)||30)); render(); saveSch();});
 $("addRow").onclick=openModal;
 $("cancelRow").onclick=closeModal;
 $("confirmRow").onclick=confirmRow;
@@ -526,6 +547,81 @@ $("tplSch").onclick=async ()=>{
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "排产计划模板");
   XLSX.writeFile(wb, "排产计划导入模板.xlsx");
+};
+
+// ===================== 各库库存导入（按物料编码匹配回填） =====================
+// 各库存列对应的数据字段
+const INV_COLS={
+  sapStock:"SAP库",
+  south:"南区",
+  warehouse:"立库",
+  afterProcess:"后处理"
+};
+let invTarget=null; // 当前正在导入的目标字段
+function startInvImport(colKey){ if(!rows.length){toast("请先添加物料行"); return;} invTarget=colKey; $("invFile").click(); }
+
+// 把表格解析为 [{code,model,value}]；value 列优先取与列名匹配的表头，否则取第一个非编码/描述列
+function rowsFromInventory(sheet, targetName){
+  if(!sheet || !sheet.length) return [];
+  const headers=sheet[0].map(h=>String(h==null?"":h).trim());
+  const ci=headers.findIndex(h=>h.includes("物料编码") && !h.includes("成品"));
+  const mi=headers.findIndex(h=>h.includes("物料描述")||h.includes("型号"));
+  let vi=headers.findIndex(h=>h.includes(targetName));
+  if(vi<0) vi=headers.findIndex((h,idx)=> idx!==ci && idx!==mi);
+  if(vi<0) vi = ci>=0 ? ci+1 : (mi>=0 ? mi+1 : 1);
+  const out=[];
+  for(let i=1;i<sheet.length;i++){
+    const r=sheet[i]; if(!r || !r.length) continue;
+    const code=ci>=0?String(r[ci]==null?"":r[ci]).trim():"";
+    const model=mi>=0?String(r[mi]==null?"":r[mi]).trim():"";
+    if(!code && !model) continue;
+    const value=String(r[vi]==null?"":r[vi]).trim();
+    out.push({code,model,value});
+  }
+  return out;
+}
+$("impSap").onclick=()=>startInvImport("sapStock");
+$("impSouth").onclick=()=>startInvImport("south");
+$("impWh").onclick=()=>startInvImport("warehouse");
+$("impAfter").onclick=()=>startInvImport("afterProcess");
+$("invFile").onchange=async e=>{
+  const file=e.target.files[0]; const key=invTarget; invTarget=null;
+  if(!file || !key) return;
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    try{
+      let sheet;
+      if(/\.csv$/i.test(file.name)){
+        sheet=parseCSV(ev.target.result);
+      }else{
+        if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
+        const wb=XLSX.read(ev.target.result,{type:"array"});
+        sheet=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:"",header:1});
+      }
+      const list=rowsFromInventory(sheet, INV_COLS[key]);
+      if(!list.length){ toast("未解析到数据"); return; }
+      let n=0;
+      list.forEach(it=>{
+        let row=rows.find(r=>(r.code||"")===(it.code||""));
+        if(!row && it.model) row=rows.find(r=>(r.model||"")===(it.model||"") && !r.code);
+        if(row){ row[key]=it.value; n++; }
+      });
+      render(); saveSch();
+      toast("已导入 "+n+" 条到「"+INV_COLS[key]+"」");
+    }catch(err){ toast("导入失败："+err.message); }
+    finally{ e.target.value=""; }
+  };
+  if(/\.csv$/i.test(file.name)) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+};
+// 库存导入模板（物料编码 + 库存两列）
+$("tplInv").onclick=async ()=>{
+  if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
+  const aoa=[["物料编码","物料描述","库存"]];
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:14},{wch:20},{wch:12}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "库存导入模板");
+  XLSX.writeFile(wb, "库存导入模板.xlsx");
 };
 
 // 启动
