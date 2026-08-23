@@ -10,7 +10,6 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
     --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
@@ -118,12 +117,12 @@
 </head>
 <body>
 <div class="wrap">
-  <h1><span class="dot"></span>排产计划表 [V2]</h1>
+  <h1><span class="dot"></span>排产计划表</h1>
   <div class="sub">左侧为物料信息，右侧按天展开；点击单元格可填数量，点击色块可切换状态。</div>
 
   <nav class="nav">
     <a href="发货计划系统.html" class="nav-link" target="_blank">📋 发货计划</a>
-    <a href="排产计划表.html" class="nav-link active">📅 排产计划表</a>
+    <a href="schedule_plan.html" class="nav-link active">📅 排产计划表</a>
     <a href="物料数据库.html" class="nav-link" target="_blank">📦 物料数据库</a>
   </nav>
 
@@ -358,6 +357,16 @@ function render(){
   const tbl=$("schTable"); tbl.innerHTML="";
   tbl.appendChild(renderHeader());
   tbl.appendChild(renderBody());
+  // 调试：确认表头是否包含右侧成品列
+  const thTexts=[...tbl.querySelectorAll("thead th")].map(th=>th.textContent).join(",");
+  console.log("[render] thead ths:", thTexts);
+  if(!thTexts.includes("成品库存")){
+    alert("表头缺少成品列，尝试修复…");
+    const thead=tbl.querySelector("thead");
+    const rightCols=[{cls:"col-num",txt:"SAP库"},{cls:"col-pstock bg-blue",txt:"成品库存"},{cls:"col-pcode",txt:"成品料号"},{cls:"col-pmodel",txt:"成品物料描述"}];
+    const tr1=thead.querySelector("tr");
+    rightCols.forEach(c=>{const th=document.createElement("th"); th.className=c.cls; th.textContent=c.txt; th.rowSpan=2; tr1.appendChild(th);});
+  }
 }
 
 // 弹窗
