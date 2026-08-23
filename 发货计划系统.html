@@ -106,6 +106,11 @@
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:15%;} /* 备注 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
   .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;}
+  .tbl td.col-shipdate{position:relative;padding:0 2px;vertical-align:middle;}
+  .tbl td.col-shipdate .fold-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:18px;height:18px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;cursor:pointer;font-size:10px;line-height:18px;text-align:center;z-index:1;}
+  .tbl td.col-shipdate .fold-btn:hover{background:#c7d2fe;}
+  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:20px;}
+  .tbl tr.date-fold-hidden{display:none;}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
   .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
   .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;vertical-align:middle;}
@@ -349,6 +354,9 @@ function addRow(data={}){
         else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
         recalc(); saveDraft();
       });
+    } else if(inp.dataset.f==="shipdate"){
+      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
+      inp.addEventListener("change", ()=>{ foldByDate(); saveDraft(); });
     } else {
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
@@ -417,7 +425,69 @@ function mergeCustomerCells(){
     i=j;
   }
   fitTextareas();
+  foldByDate();
 }
+
+const FOLD_STATE_KEY="shipping_fold_dates_v1";
+function getFoldState(){ try{ return JSON.parse(localStorage.getItem(FOLD_STATE_KEY))||{}; }catch(e){ return {}; } }
+function setFoldState(date,collapsed){ const s=getFoldState(); s[date]=collapsed?1:0; localStorage.setItem(FOLD_STATE_KEY,JSON.stringify(s)); }
+
+function foldByDate(){
+  // 清理旧的折叠标记与按钮
+  [...$("tbody").children].forEach(tr=>{
+    tr.classList.remove("date-fold-hidden");
+    const sd=tr.querySelector(".col-shipdate");
+    if(sd){
+      sd.classList.remove("date-expanded","date-collapsed");
+      const btn=sd.querySelector(".fold-btn");
+      if(btn) btn.remove();
+      sd.style.display=""; sd.rowSpan=1;
+    }
+  });
+
+  const rows=[...$("tbody").children];
+  const groups=[];
+  let cur=null;
+  rows.forEach(tr=>{
+    if(tr.classList.contains("subtotal")){ if(cur) cur.rows.push(tr); return; }
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    if(!cur||cur.date!==d){ cur={date:d, rows:[tr]}; groups.push(cur); }
+    else cur.rows.push(tr);
+  });
+
+  const today=$("shipDate").value||todayStr();
+  const state=getFoldState();
+
+  groups.forEach(g=>{
+    if(!g.rows.length) return;
+    const first=g.rows[0];
+    const sd=first.querySelector(".col-shipdate");
+    if(!sd) return;
+
+    let collapsed=state[g.date];
+    if(collapsed===undefined) collapsed=(g.date!==today);
+    else collapsed=!!collapsed;
+
+    const btn=document.createElement("button");
+    btn.type="button"; btn.className="fold-btn";
+    btn.textContent=collapsed?"▶":"▼"; btn.title=collapsed?"展开":"折叠";
+    btn.onclick=(e)=>{ e.stopPropagation(); toggleDateFold(g.date); };
+    sd.insertBefore(btn, sd.firstChild);
+    sd.classList.add(collapsed?"date-collapsed":"date-expanded");
+
+    if(collapsed){
+      for(let k=1;k<g.rows.length;k++) g.rows[k].classList.add("date-fold-hidden");
+    }
+  });
+}
+
+function toggleDateFold(date){
+  const state=getFoldState();
+  setFoldState(date, state[date]?0:1);
+  foldByDate();
+  fitTextareas();
+}
+
 function recalc(){
   let sq=0,st=0,sb=0;
   [...$("tbody").children].forEach(tr=>{
@@ -487,7 +557,7 @@ function saveDraft(){
 }
 function loadDraft(){ try{ return JSON.parse(localStorage.getItem(LS_DRAFT))||null; }catch(e){ return null; } }
 function clearDraft(){ try{ localStorage.removeItem(LS_DRAFT); }catch(e){} }
-$("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); saveDraft(); });
+$("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); saveDraft(); foldByDate(); });
 $("planNo").addEventListener("input",()=>{ syncDocHead(); saveDraft(); });
 
 // ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
