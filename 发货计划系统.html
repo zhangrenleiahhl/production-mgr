@@ -110,7 +110,7 @@
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:8%;}  /* 箱数 */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:12%;} /* 备注 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
-  .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;}
+  .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;text-align:left;padding-left:6px;}
   .tbl td.col-shipdate{position:relative;padding:0 2px;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:18px;height:18px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;cursor:pointer;font-size:10px;line-height:18px;text-align:center;z-index:1;}
   .tbl td.col-shipdate .fold-btn:hover{background:#c7d2fe;}
@@ -365,7 +365,7 @@ function addRow(data={}){
       });
     } else if(inp.dataset.f==="shipdate"){
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
-      inp.addEventListener("change", ()=>{ foldByDate(); saveDraft(); });
+      inp.addEventListener("change", ()=>{ reindex(); foldByDate(); saveDraft(); });
     } else {
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
@@ -390,7 +390,13 @@ function addRow(data={}){
 }
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
-  [...$("tbody").children].forEach((tr,i)=>tr.querySelector(".col-idx").textContent=i+1);
+  let idx=0, lastDate="";
+  [...$("tbody").children].forEach(tr=>{
+    const date=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    if(date!==lastDate){ lastDate=date; idx=0; }
+    idx++;
+    tr.querySelector(".col-idx").textContent=idx;
+  });
   $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells();
 }
 function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(34,ta.scrollHeight)+"px"; }
