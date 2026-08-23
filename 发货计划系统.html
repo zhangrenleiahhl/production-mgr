@@ -504,7 +504,17 @@ function foldByDate(){
   const fd=$("foldedDates");
   fd.innerHTML="";
   if(!showFolded && foldedDates.length){
-    foldedDates.forEach(d=>{
+    const past=foldedDates.filter(d=>d<=today);
+    const future=foldedDates.filter(d=>d>today);
+    if(past.length){
+      const b=document.createElement("button");
+      b.type="button"; b.className="folded-date-btn";
+      b.textContent="▶ 当天之前已折叠";
+      b.title="展开 "+past.join("、");
+      b.onclick=()=>{ past.forEach(d=>setFoldState(d,0)); foldByDate(); fitTextareas(); };
+      fd.appendChild(b);
+    }
+    future.forEach(d=>{
       const b=document.createElement("button");
       b.type="button"; b.className="folded-date-btn";
       b.textContent="▶ "+esc(d)+" 已折叠";
