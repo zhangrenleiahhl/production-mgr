@@ -167,6 +167,7 @@
   <div class="topbar">
     <button class="btn btn-line" id="addRow">＋ 添加一行</button>
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
+    <button class="btn btn-line" id="sortRows">按客户日期排序</button>
     <button class="btn btn-line" id="toggleFolded">显示折叠日期</button>
     <button class="btn btn-line" id="clearAll">清空</button>
     <button class="btn btn-primary" id="publish">发布</button>
@@ -406,7 +407,7 @@ function reindex(){
 function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(34,ta.scrollHeight)+"px"; }
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 function mergeCustomerCells(){
-  // 先移除旧的小计行，再按客户分组重建
+  // 先移除旧的小计行，再按「客户+发货日期」分组重建
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
   const rows=[...$("tbody").children];
   rows.forEach(tr=>{
@@ -418,8 +419,15 @@ function mergeCustomerCells(){
   let i=0;
   while(i<rows.length){
     const cust=rows[i].querySelector('[data-f="customer"]')?.value.trim()||"";
+    const date=rows[i].querySelector('[data-f="shipdate"]')?.value||"";
+    const key=cust+"|"+date;
     let j=i+1;
-    while(j<rows.length && (rows[j].querySelector('[data-f="customer"]')?.value.trim()||"")===cust) j++;
+    while(j<rows.length){
+      const cust2=rows[j].querySelector('[data-f="customer"]')?.value.trim()||"";
+      const date2=rows[j].querySelector('[data-f="shipdate"]')?.value||"";
+      if((cust2+"|"+date2)!==key) break;
+      j++;
+    }
     const len=j-i;
     if(len>1 && cust){
       const c=rows[i].querySelector(".col-customer"), r=rows[i].querySelector(".col-remark");
@@ -431,12 +439,13 @@ function mergeCustomerCells(){
       }
     }
     rows[j-1].classList.add("group-end");
-    // 每个客户下面加「吨位合计」小计行（吨位取当前各格实际值累加）
+    // 每个「客户+日期」组下面加「吨位合计」小计行
     if(cust){
       let subTon=0;
       for(let k=i;k<j;k++){ subTon+=parseFloat(rows[k].querySelector('[data-f="ton"]')?.value)||0; }
+      const label=date?`「${esc(cust)}」${date} 吨位合计`:`「${esc(cust)}」吨位合计`;
       const sub=document.createElement("tr"); sub.className="subtotal";
-      sub.innerHTML='<td colspan="7" class="sub-label">「'+esc(cust)+'」吨位合计</td>'+
+      sub.innerHTML='<td colspan="7" class="sub-label">'+label+'</td>'+
         '<td class="sub-ton">'+(subTon?subTon.toFixed(1):"/")+'</td>'+
         '<td colspan="5"></td>';
       rows[j-1].after(sub);
@@ -677,8 +686,27 @@ function exportRowsCsv(rows, name){
 }
 $("exportCsv").onclick=()=>{ const rows=collectRows(); if(!rows.length){ toast("暂无数据可导出"); return; } exportRowsCsv(rows, $("planNo").value); };
 
+// ===================== 按客户+日期排序（让相同组合相邻，便于合并） =====================
+function sortRowsByCustomerDate(){
+  const tb=$("tbody");
+  const rows=[...tb.children].filter(tr=>!tr.classList.contains("subtotal"));
+  if(rows.length<=1) return;
+  rows.sort((a,b)=>{
+    const ca=(a.querySelector('[data-f="customer"]')?.value.trim()||"").toLowerCase();
+    const cb=(b.querySelector('[data-f="customer"]')?.value.trim()||"").toLowerCase();
+    if(ca!==cb) return ca.localeCompare(cb, "zh-CN");
+    const da=a.querySelector('[data-f="shipdate"]')?.value||"";
+    const db=b.querySelector('[data-f="shipdate"]')?.value||"";
+    return da.localeCompare(db);
+  });
+  rows.forEach(tr=>tb.appendChild(tr));   // 重新按排序后顺序挂载
+  reindex(); recalc(); saveDraft();
+  toast("已按客户 + 发货日期排序");
+}
+
 // ===================== 其它按钮 =====================
 $("addRow").onclick=()=>{ addRow(); saveDraft(); };
+$("sortRows").onclick=sortRowsByCustomerDate;
 $("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); };
 $("publish").onclick=publish;
 
