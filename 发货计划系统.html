@@ -129,6 +129,8 @@
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
   .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:15px;line-height:1;width:24px;height:24px;border-radius:7px;transition:.15s;}
   .del-x:hover{background:#fdecea;}
+  .ins-x{border:none;background:#fff;color:var(--brand);cursor:pointer;font-size:15px;line-height:1;width:24px;height:24px;border-radius:7px;transition:.15s;}
+  .ins-x:hover{background:#eef4ff;}
   .tbl tfoot td{font-weight:800;color:#1e3a8a;background:#eef2ff;border:1px solid #dfe4ec;border-top:2px solid #cbd5e1;padding:9px 6px;font-size:12.5px;}
   .num-cell{font-variant-numeric:tabular-nums;}
   .doc-foot{padding:12px 22px;font-size:12px;color:#8a94a8;background:#fbfcfe;border-top:1px dashed #e3e8f2;}
@@ -341,7 +343,7 @@ $("shipDate").value=todayStr();
 function genPlanNo(){ const d=$("shipDate").value||todayStr(); const p=s=>String(s).padStart(2,"0"); const ymd=d.split("-"); return "FH"+ymd[0]+p(+ymd[1])+p(+ymd[2])+"-"+String(Math.floor(Math.random()*9000)+1000); }
 $("planNo").value=genPlanNo();
 
-function addRow(data={}){
+function addRow(data={}, refRow=null){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
   const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
@@ -359,8 +361,9 @@ function addRow(data={}){
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
-    <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
+    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button></td>`;
   tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); };
+  tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
     if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
       inp.addEventListener("input", ()=>{
@@ -391,7 +394,9 @@ function addRow(data={}){
     inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr); });
     inp.addEventListener("input", ()=>showAC(inp, tr));
   });
-  tb.appendChild(tr); reindex(); recalc(); fitTextareas();
+  if(refRow && refRow.parentNode===tb) refRow.after(tr);
+  else tb.appendChild(tr);
+  reindex(); recalc(); fitTextareas();
 }
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
