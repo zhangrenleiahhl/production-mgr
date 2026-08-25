@@ -179,6 +179,7 @@
     <button class="btn btn-line" id="sortRows">按客户日期排序</button>
     <button class="btn btn-line" id="toggleFolded">显示折叠日期</button>
     <button class="btn btn-line" id="checkNextDay">勾选次日发货</button>
+    <button class="btn btn-line" id="checkSameDate">勾选同日期</button>
     <button class="btn btn-line" id="clearAll">清空</button>
     <span id="selCount" class="hint">已选 0 行</span>
     <button class="btn btn-primary" id="publish">发布</button>
@@ -777,6 +778,20 @@ $("checkNextDay").onclick=()=>{
   });
   updateSelCount();
   toast(n? ("已勾选 "+n+" 行次日("+nd+")发货") : "没有次日("+nd+")发货行");
+};
+$("checkSameDate").onclick=()=>{
+  const rows=[...$("tbody").children];
+  const checked=rows.filter(tr=>tr.querySelector(".row-check")?.checked);
+  let target=checked.length ? checked[0].querySelector('[data-f="shipdate"]')?.value : $("shipDate").value;
+  if(!target){ toast("请先勾选一行或设置发货日期"); return; }
+  let n=0;
+  rows.forEach(tr=>{
+    const x=tr.querySelector(".row-check"); if(!x) return;
+    const sd=tr.querySelector('[data-f="shipdate"]')?.value;
+    x.checked=(sd===target); if(sd===target) n++;
+  });
+  updateSelCount();
+  toast(n? ("已勾选 "+n+" 行 "+target+" 发货") : "没有 "+target+" 的发货行");
 };
 
 function updateFoldedButton(){
