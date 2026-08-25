@@ -98,19 +98,22 @@
   .tbl tr:hover td{background:#eef3ff;}
   .tbl tr.group-end td{border-bottom:2px solid #cbd5e1;}
   .col-idx{width:3%;color:var(--muted);}
+  .col-check{width:3%;text-align:center;vertical-align:middle;}
+  .col-check input,.row-check{width:15px;height:15px;cursor:pointer;accent-color:#5b7cfa;}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
-  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:10%;}   /* 发货日期 */
-  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:9%;}    /* 客户 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 物料编码 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:15%;}   /* 型号 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:8%;}    /* 发货数量 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:8%;}    /* 吨位 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 交货单 */
-  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 箱数 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:10%;} /* 备注 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:7%;}  /* 客户吨位合计 */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:4%;}  /* 操作 */
+  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:3%;}    /* 勾选 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:10%;}   /* 发货日期 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:9%;}    /* 客户 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:10%;}   /* 物料编码 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:14%;}   /* 型号 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:8%;}    /* 发货数量 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:7%;}    /* 吨位 */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 交货单 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 箱数 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:10%;} /* 备注 */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:7%;}  /* 客户吨位合计 */
+  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:3%;}  /* 操作 */
   .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;text-align:left;padding-left:2px;font-size:12px;}
   .tbl td.col-shipdate{position:relative;padding:0 1px;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:3px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;}
@@ -127,7 +130,7 @@
   .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:calc(100% - 4px);min-height:0;padding:4px 2px;margin:0 auto;display:block;}
   .col-subton{color:#2563eb;font-weight:700;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border:1px solid #93c5fd;border-radius:5px;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;}
-  .col-act{width:4%;white-space:nowrap;}
+  .col-act{width:3%;white-space:nowrap;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
   .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:13px;line-height:1;width:20px;height:20px;border-radius:5px;transition:.15s;padding:0;}
@@ -195,13 +198,13 @@
       </div>
       <table class="tbl" id="tbl">
         <thead><tr>
-          <th class="col-idx">#</th><th>发货日期</th><th>客户</th><th>物料编码</th><th>型号</th>
+          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>物料编码</th><th>型号</th>
           <th>发货数量</th><th>吨位(t)</th>
           <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位合计</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
-          <td colspan="5" style="text-align:right">合计</td>
+          <td colspan="6" style="text-align:right">合计</td>
           <td class="num-cell" id="sumQty">0</td>
           <td class="num-cell" id="sumTon">0.0</td>
           <td></td>
@@ -352,6 +355,7 @@ function addRow(data={}, refRow=null){
   const tonVal=(data.ton!==undefined&&data.ton!==null&&data.ton!=='/'&&String(data.ton).trim()!=='')?data.ton:((_q>0&&_u>0)?(_q*_u/1000).toFixed(1):'');
   tr.innerHTML=`
     <td class="col-idx num-cell">${idx}</td>
+    <td class="col-check"><input type="checkbox" class="row-check"></td>
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
     <td><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
@@ -363,7 +367,9 @@ function addRow(data={}, refRow=null){
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-subton num-cell"></td>
     <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
-  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); };
+  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); updateCheckAll(); };
+  const rc=tr.querySelector(".row-check");
+  if(rc) rc.addEventListener("change", updateCheckAll);
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
     if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
@@ -397,7 +403,7 @@ function addRow(data={}, refRow=null){
   });
   if(refRow && refRow.parentNode===tb) refRow.after(tr);
   else tb.appendChild(tr);
-  reindex(); recalc(); fitTextareas();
+  reindex(); recalc(); fitTextareas(); updateCheckAll();
 }
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
@@ -635,19 +641,44 @@ $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=ge
 // ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
 function publish(){
-  const rows=collectRows();
-  if(!rows.length){ toast("请先添加发货明细"); return; }
+  const allTrs=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal"));
+  if(!allTrs.length){ toast("请先添加发货明细"); return; }
+  // 发布前必须勾选确认：仅发布已勾选的行
+  const checkedTrs=allTrs.filter(tr=>tr.querySelector(".row-check")?.checked);
+  if(!checkedTrs.length){ toast("发布前请先勾选要发布的行（✓ 列）"); return; }
+  const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
+  const rows=checkedTrs.map(tr=>({
+    shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
+    customer:f(tr.querySelector('[data-f="customer"]').value),
+    code:f(tr.querySelector('[data-f="code"]').value),
+    model:f(tr.querySelector('[data-f="model"]').value),
+    qty:f(tr.querySelector('[data-f="qty"]').value),
+    unit:f(tr.querySelector('[data-f="unit"]').value),
+    perbox:f(tr.querySelector('[data-f="perbox"]').value),
+    ton:f(tr.querySelector('[data-f="ton"]').value),
+    box:f(tr.querySelector('[data-f="box"]').value),
+    delivery:f(tr.querySelector('[data-f="delivery"]').value),
+    remark:f(tr.querySelector('[data-f="remark"]').value)
+  }));
   if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
+  if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
 
   // 仅存档文本数据（不截图、不下载图片）
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent};
   saveRec(rec); renderRecords();
-  toast("已发布存档 ✓（单号 "+rec.no+"）");
+  toast("已发布存档 ✓（单号 "+rec.no+" · 共 "+rows.length+" 行）");
   $("planNo").value=genPlanNo(); syncDocHead();
   saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
+}
+function updateCheckAll(){
+  const boxes=[...$("tbody").querySelectorAll(".row-check")];
+  const checked=boxes.filter(b=>b.checked).length;
+  const all=$("checkAll");
+  all.checked = boxes.length>0 && checked===boxes.length;
+  all.indeterminate = checked>0 && checked<boxes.length;
 }
 function saveRec(rec){
   let list=loadRec(); list.unshift(rec);
@@ -713,7 +744,8 @@ function sortRowsByCustomerDate(){
 // ===================== 其它按钮 =====================
 $("addRow").onclick=()=>{ addRow(); saveDraft(); };
 $("sortRows").onclick=sortRowsByCustomerDate;
-$("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); };
+$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").querySelectorAll(".row-check")].forEach(b=>b.checked=v); };
+$("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); updateCheckAll(); };
 $("publish").onclick=publish;
 
 function updateFoldedButton(){
