@@ -105,12 +105,12 @@
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 物料编码 */
   .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:15%;}   /* 型号 */
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:8%;}    /* 发货数量 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:7%;}    /* 吨位 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:7%;}  /* 交货单 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:7%;}  /* 箱数 */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:10%;} /* 备注 */
-  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:7%;}  /* 客户吨位合计 */
-  .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:4%;}  /* 操作 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:8%;}    /* 吨位 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 交货单 */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 箱数 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:10%;} /* 备注 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:7%;}  /* 客户吨位合计 */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:4%;}  /* 操作 */
   .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;text-align:left;padding-left:2px;font-size:12px;}
   .tbl td.col-shipdate{position:relative;padding:0 1px;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:3px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;}
@@ -196,16 +196,14 @@
       <table class="tbl" id="tbl">
         <thead><tr>
           <th class="col-idx">#</th><th>发货日期</th><th>客户</th><th>物料编码</th><th>型号</th>
-          <th>发货数量</th><th class="hide-col">单重(kg)</th><th>吨位(t)</th><th class="hide-col">一箱多少件</th>
+          <th>发货数量</th><th>吨位(t)</th>
           <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位合计</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
           <td colspan="5" style="text-align:right">合计</td>
           <td class="num-cell" id="sumQty">0</td>
-          <td class="hide-col"></td>
           <td class="num-cell" id="sumTon">0.0</td>
-          <td class="hide-col"></td>
           <td></td>
           <td class="num-cell" id="sumBox">/</td>
           <td></td>
@@ -359,14 +357,12 @@ function addRow(data={}, refRow=null){
     <td><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
-    <td class="hide-col"><input data-f="unit" type="number" min="0" step="0.0001" value="${esc(data.unit)}" placeholder="/"></td>
     <td class="num-cell"><input data-f="ton" type="number" min="0" step="0.0001" value="${esc(tonVal)}" placeholder="/"></td>
-    <td class="hide-col"><input data-f="perbox" type="number" min="1" value="${esc(data.perbox)}" placeholder="/"></td>
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-subton num-cell"></td>
-    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button></td>`;
+    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); };
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
