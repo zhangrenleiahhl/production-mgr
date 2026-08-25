@@ -20,12 +20,12 @@
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
     background:var(--bg);color:var(--txt);font-size:14px;}
-  .wrap{max-width:1320px;margin:0 auto;padding:14px 14px 60px;}
-  h1{font-size:20px;margin:0 0 3px;display:flex;align-items:center;gap:10px;}
-  h1 .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:10px;}
-  .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
-  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
+  .wrap{max-width:1320px;margin:0 auto;padding:10px 10px 50px;}
+  h1{font-size:18px;margin:0 0 2px;display:flex;align-items:center;gap:8px;}
+  h1 .dot{width:8px;height:18px;background:var(--brand);border-radius:3px;display:inline-block;}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:8px;}
+  .nav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
   .nav-link:hover{background:var(--soft);color:var(--brand);}
   .nav-link.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 4px 12px rgba(37,99,235,.28);}
   /* ===== 云端同步状态 + 手机自适应 ===== */
@@ -45,15 +45,15 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:12px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;
+  .topbar{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end;
     background:var(--card);border:1px solid var(--line);border-radius:10px;
-    padding:12px 14px;margin-bottom:12px;box-shadow:0 6px 18px rgba(31,45,77,.05);}
-  .field{display:flex;flex-direction:column;gap:4px;}
-  .field label{font-size:12px;color:var(--muted);}
-  .field input{border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:14px;outline:none;background:#fff;}
+    padding:8px 10px;margin-bottom:10px;box-shadow:0 6px 18px rgba(31,45,77,.05);}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:11px;color:var(--muted);}
+  .field input{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;outline:none;background:#fff;}
   .field input:focus{border-color:var(--brand);}
   .spacer{flex:1;}
-  .btn{border:none;border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer;font-weight:600;transition:.15s;}
+  .btn{border:none;border-radius:6px;padding:6px 11px;font-size:12px;cursor:pointer;font-weight:600;transition:.15s;}
   .btn-primary{background:var(--brand);color:#fff;}
   .btn-primary:hover{background:var(--brand-d);}
   .btn-ghost{background:var(--soft);color:var(--brand);}
@@ -62,79 +62,79 @@
   .btn-line:hover{background:#f3f6fb;}
   .btn-danger{background:#fff;color:var(--red);border:1px solid #f3c7c2;}
   .btn-danger:hover{background:#fdecea;}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 6px 18px rgba(31,45,77,.05);}
-  .card h2{font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .card h2 .tag{font-size:11px;background:var(--soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600;}
-  .folded-dates{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;box-shadow:0 6px 18px rgba(31,45,77,.05);}
+  .card h2{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .card h2 .tag{font-size:10px;background:var(--soft);color:var(--brand);padding:2px 6px;border-radius:20px;font-weight:600;}
+  .folded-dates{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:auto;}
   .folded-dates:empty{display:none;}
-  .folded-date-btn{border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap;}
+  .folded-date-btn{border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap;}
   .folded-date-btn:hover{background:#c7d2fe;}
-  .hint{font-size:12px;color:var(--muted);}
+  .hint{font-size:11px;color:var(--muted);}
   /* ===== 发货计划单（美化） ===== */
-  .doc{border:1px solid #e6e9f2;border-radius:14px;overflow:visible;background:#fff;box-shadow:0 12px 32px rgba(31,45,77,.07);width:100%;max-width:100%;}
-  .doc-head{padding:12px 14px;border:none;background:linear-gradient(120deg,#3b5bdb 0%,#5b7cfa 55%,#4263eb 100%);color:#fff;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;}
-  .doc-head .t{font-size:17px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
-  .doc-head .t::before{content:"";width:8px;height:22px;border-radius:3px;background:#ffd43b;display:inline-block;}
-  .doc-head .t::after{content:"SHIPPING PLAN";font-size:10px;font-weight:600;letter-spacing:1.5px;color:rgba(255,255,255,.55);margin-left:8px;}
-  .doc-head .meta{font-size:12px;color:rgba(255,255,255,.92);display:flex;gap:8px;flex-wrap:wrap;}
-  .doc-head .meta span{background:rgba(255,255,255,.18);padding:3px 10px;border-radius:20px;}
+  .doc{border:1px solid #e6e9f2;border-radius:12px;overflow:visible;background:#fff;box-shadow:0 12px 32px rgba(31,45,77,.07);width:100%;max-width:100%;}
+  .doc-head{padding:10px 12px;border:none;background:linear-gradient(120deg,#3b5bdb 0%,#5b7cfa 55%,#4263eb 100%);color:#fff;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px;}
+  .doc-head .t{font-size:15px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:8px;}
+  .doc-head .t::before{content:"";width:7px;height:18px;border-radius:3px;background:#ffd43b;display:inline-block;}
+  .doc-head .t::after{content:"SHIPPING PLAN";font-size:9px;font-weight:600;letter-spacing:1.2px;color:rgba(255,255,255,.55);margin-left:6px;}
+  .doc-head .meta{font-size:11px;color:rgba(255,255,255,.92);display:flex;gap:6px;flex-wrap:wrap;}
+  .doc-head .meta span{background:rgba(255,255,255,.18);padding:2px 8px;border-radius:20px;}
   .doc-head .meta #docDate{background:#ffd43b;color:#1e3a8a;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.12);}
-  .tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
-  .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:6px 4px;text-align:center;border:1px solid #dfe4ec;border-bottom:2px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
-  .tbl td{padding:6px 4px;border:1px solid #dfe4ec;text-align:center;vertical-align:middle;min-height:44px;}
-  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;min-height:34px;line-height:1.35;}
-  .tbl td input{padding:7px 6px;}
-  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:8px 6px;white-space:pre-wrap;word-break:break-word;}
+  .tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+  .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:4px 2px;text-align:center;border:1px solid #dfe4ec;border-bottom:2px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
+  .tbl td{padding:3px 2px;border:1px solid #dfe4ec;text-align:center;vertical-align:middle;min-height:32px;}
+  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:4px;font-size:12px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;min-height:26px;line-height:1.25;}
+  .tbl td input{padding:4px 2px;}
+  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:5px 2px;white-space:pre-wrap;word-break:break-word;}
   .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"]{text-align:center;}
   .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:#f5f8ff;box-shadow:0 0 0 2px rgba(91,124,250,.25);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
   .tbl td.calc{padding:4px 2px;text-align:center;vertical-align:middle;}
-  .tbl tr.subtotal td{background:#f3f7ff;border-top:2px solid #cbd5e1;font-weight:700;color:#1e3a8a;padding:5px 6px;font-size:12px;}
-  .tbl tr.subtotal .sub-label{text-align:left;padding-left:10px;}
+  .tbl tr.subtotal td{background:#f3f7ff;border-top:2px solid #cbd5e1;font-weight:700;color:#1e3a8a;padding:3px 4px;font-size:11px;}
+  .tbl tr.subtotal .sub-label{text-align:left;padding-left:8px;}
   .tbl tr.subtotal .sub-ton{text-align:center;color:var(--brand);}
   .tbl tbody tr{border-bottom:1px solid #dfe4ec;}
   .tbl tbody tr:nth-child(even){background:#fafbff;}
   .tbl tr:hover td{background:#eef3ff;}
   .tbl tr.group-end td{border-bottom:2px solid #cbd5e1;}
-  .col-idx{width:4%;color:var(--muted);}
+  .col-idx{width:3%;color:var(--muted);}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
-  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:12%;}   /* 发货日期 */
-  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:11%;}   /* 客户 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 物料编码 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:9%;}    /* 发货数量 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 吨位 */
+  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:8%;}    /* 发货日期 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:10%;}   /* 客户 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:11%;}   /* 物料编码 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:18%;}   /* 型号 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:8%;}    /* 发货数量 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:7%;}    /* 吨位 */
   .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 交货单 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:8%;}  /* 箱数 */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:12%;} /* 备注 */
-  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
-  .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;text-align:left;padding-left:6px;}
-  .tbl td.col-shipdate{position:relative;padding:0 2px;vertical-align:middle;}
-  .tbl td.col-shipdate .fold-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:18px;height:18px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;cursor:pointer;font-size:10px;line-height:18px;text-align:center;z-index:1;}
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:7%;}  /* 箱数 */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:10%;} /* 备注 */
+  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:4%;}  /* 操作 */
+  .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;text-align:left;padding-left:2px;font-size:11px;}
+  .tbl td.col-shipdate{position:relative;padding:0 1px;vertical-align:middle;}
+  .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:3px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;}
   .tbl td.col-shipdate .fold-btn:hover{background:#c7d2fe;}
-  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:20px;}
+  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:16px;}
   .tbl tr.date-fold-hidden{display:none;}
-  .tbl tr.date-fold-placeholder{height:28px;background:#f8fafc;}
-  .tbl tr.date-fold-placeholder td{padding:3px 8px;text-align:left;border:1px dashed #cbd5e1;background:#f8fafc;}
-  .date-fold-placeholder-btn{border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:600;}
+  .tbl tr.date-fold-placeholder{height:24px;background:#f8fafc;}
+  .tbl tr.date-fold-placeholder td{padding:2px 6px;text-align:left;border:1px dashed #cbd5e1;background:#f8fafc;}
+  .date-fold-placeholder-btn{border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:600;}
   .date-fold-placeholder-btn:hover{background:#c7d2fe;}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
-  .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
+  .col-customer textarea,.col-remark textarea{min-height:26px;height:26px;display:block;margin:0 auto;}
   .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;vertical-align:middle;}
-  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:calc(100% - 8px);min-height:0;padding:6px 4px;margin:0 auto;display:block;}
-  .col-act{width:5%;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:calc(100% - 4px);min-height:0;padding:4px 2px;margin:0 auto;display:block;}
+  .col-act{width:4%;white-space:nowrap;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
-  .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:15px;line-height:1;width:24px;height:24px;border-radius:7px;transition:.15s;}
+  .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:13px;line-height:1;width:20px;height:20px;border-radius:5px;transition:.15s;padding:0;}
   .del-x:hover{background:#fdecea;}
-  .ins-x{border:none;background:#fff;color:var(--brand);cursor:pointer;font-size:15px;line-height:1;width:24px;height:24px;border-radius:7px;transition:.15s;}
+  .ins-x{border:none;background:#fff;color:var(--brand);cursor:pointer;font-size:13px;line-height:1;width:20px;height:20px;border-radius:5px;transition:.15s;padding:0;}
   .ins-x:hover{background:#eef4ff;}
-  .tbl tfoot td{font-weight:800;color:#1e3a8a;background:#eef2ff;border:1px solid #dfe4ec;border-top:2px solid #cbd5e1;padding:9px 6px;font-size:12.5px;}
+  .tbl tfoot td{font-weight:800;color:#1e3a8a;background:#eef2ff;border:1px solid #dfe4ec;border-top:2px solid #cbd5e1;padding:6px 4px;font-size:12px;}
   .num-cell{font-variant-numeric:tabular-nums;}
-  .doc-foot{padding:12px 22px;font-size:12px;color:#8a94a8;background:#fbfcfe;border-top:1px dashed #e3e8f2;}
-  .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;}
+  .doc-foot{padding:8px 14px;font-size:12px;color:#8a94a8;background:#fbfcfe;border-top:1px dashed #e3e8f2;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;}
   .records{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
   .rec{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;}
   .rec .info{padding:11px 13px;font-size:12px;color:var(--muted);line-height:1.7;}
