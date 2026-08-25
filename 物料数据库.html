@@ -76,7 +76,7 @@
 
   <div class="card">
     <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
-      <span class="hint">（字段：物料编码 / 型号 / 一箱多少件 / 客户 / 备注；按型号或编码匹配）</span></h2>
+      <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 备注；按型号或编码匹配）</span></h2>
     <div class="toolbar">
       <input type="file" id="dbFile" accept=".csv,.xlsx,.xls" hidden>
       <button class="btn btn-primary" id="importDb">导入表格</button>
@@ -89,7 +89,7 @@
     <div class="doc doc-scroll">
       <table class="tbl" id="dbTbl">
         <thead><tr>
-          <th>物料编码</th><th>型号</th><th>一箱多少件</th><th>客户</th><th>备注</th><th class="col-act">操作</th>
+          <th>物料编码</th><th>型号</th><th>单重(kg)</th><th>一箱多少件</th><th>客户</th><th>备注</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="dbBody"></tbody>
       </table>
@@ -118,6 +118,7 @@ function renderDB(){
     tr.innerHTML=`
       <td><input data-k="code" value="${esc(r.code)}" placeholder="物料编码"></td>
       <td><input data-k="model" value="${esc(r.model)}" placeholder="型号"></td>
+      <td><input data-k="unit" type="number" min="0" step="0.0001" value="${esc(r.unit)}" placeholder="kg"></td>
       <td><input data-k="perbox" type="number" min="1" value="${esc(r.perbox)}" placeholder="件/箱"></td>
       <td><input data-k="customer" value="${esc(r.customer)}" placeholder="客户"></td>
       <td><input data-k="remark" value="${esc(r.remark)}" placeholder="备注"></td>
@@ -128,7 +129,7 @@ function renderDB(){
   });
 }
 function addDbRow(){
-  DB.unshift({code:"",model:"",perbox:"",customer:"",remark:""});
+  DB.unshift({code:"",model:"",unit:"",perbox:"",customer:"",remark:""});
   saveDB(); renderDB();
   const first=$("dbBody").querySelector('input[data-k="model"]'); if(first) first.focus();
 }
@@ -193,27 +194,27 @@ $("dbFile").onchange=e=>{
 };
 $("exportDb").onclick=()=>{
   if(!DB.length){ toast("数据库为空"); return; }
-  const head=["物料编码","型号","一箱多少件","客户","备注"];
+  const head=["物料编码","型号","单重(kg)","一箱多少件","客户","备注"];
   const lines=[head.join(",")];
-  DB.forEach(r=>lines.push([r.code,r.model,r.perbox,r.customer,r.remark].map(csvCell).join(",")));
+  DB.forEach(r=>lines.push([r.code,r.model,r.unit,r.perbox,r.customer,r.remark].map(csvCell).join(",")));
   const blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="物料主数据库.csv"; a.click();
 };
 $("tplDb").onclick=async ()=>{
   if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
-  const aoa=[["物料编码","型号","一箱多少件","客户","备注"]];
+  const aoa=[["物料编码","型号","单重(kg)","一箱多少件","客户","备注"]];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:14},{wch:16},{wch:12},{wch:12},{wch:14},{wch:18}];
+  ws["!cols"]=[{wch:14},{wch:16},{wch:10},{wch:12},{wch:12},{wch:14},{wch:18}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "物料库模板");
   XLSX.writeFile(wb, "物料库导入模板.xlsx");
   toast("模板已下载：物料库导入模板.xlsx");
 };
 $("sampleDb").onclick=()=>mergeDbRows([
-  {code:"M1001",model:"AX-200",perbox:"20",customer:"华东机电",remark:"标准件"},
-  {code:"M1002",model:"BX-350",perbox:"30",customer:"华南汽配",remark:"加急"},
-  {code:"M1003",model:"CX-500",perbox:"10",customer:"北方重工",remark:""},
-  {code:"M1004",model:"DX-120",perbox:"50",customer:"西部材料",remark:"易碎"}
+  {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",remark:"标准件"},
+  {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",remark:"加急"},
+  {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",remark:""},
+  {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",remark:"易碎"}
 ]);
 $("clearDb").onclick=()=>{ if(!DB.length) return; if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; saveDB(); renderDB(); };
 $("addDbRow").onclick=addDbRow;
