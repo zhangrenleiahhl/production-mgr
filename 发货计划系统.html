@@ -421,10 +421,12 @@ function mergeCustomerCells(){
   const rows=[...$("tbody").children];
   rows.forEach(tr=>{
     tr.classList.remove("group-end");
-    [".col-customer",".col-remark",".col-subton"].forEach(sel=>{
+    [".col-customer",".col-remark"].forEach(sel=>{
       const c=tr.querySelector(sel);
-      if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.textContent=""; }
+      if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); }
     });
+    const sub=tr.querySelector(".col-subton");
+    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; }
   });
   let i=0;
   while(i<rows.length){
