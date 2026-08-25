@@ -474,6 +474,8 @@ function getFoldState(){ try{ return JSON.parse(localStorage.getItem(FOLD_STATE_
 function setFoldState(date,collapsed){ const s=getFoldState(); s[date]=collapsed?1:0; localStorage.setItem(FOLD_STATE_KEY,JSON.stringify(s)); }
 function getShowFolded(){ try{ return localStorage.getItem(SHOW_FOLDED_KEY)==="1"; }catch(e){ return false; } }
 function setShowFolded(show){ try{ localStorage.setItem(SHOW_FOLDED_KEY, show?"1":"0"); }catch(e){} }
+// 折叠隐藏某行时同步取消其勾选，确保折叠日期不会被全选/发布带入
+function hideFoldedRow(tr){ tr.classList.add("date-fold-hidden"); const b=tr.querySelector(".row-check"); if(b) b.checked=false; }
 
 function foldByDate(){
   // 清理旧的折叠标记与按钮
@@ -524,10 +526,10 @@ function foldByDate(){
       foldedDates.push(g.date);
       if(showFolded){
         // 保留第一行作为折叠控制，方便单独展开
-        for(let k=1;k<g.rows.length;k++) g.rows[k].classList.add("date-fold-hidden");
+        for(let k=1;k<g.rows.length;k++) hideFoldedRow(g.rows[k]);
       }else{
         // 截图模式：折叠的日期整组隐藏，入口改到「发货明细」标题处
-        g.rows.forEach(tr=>tr.classList.add("date-fold-hidden"));
+        g.rows.forEach(tr=>hideFoldedRow(tr));
       }
     }
   });
@@ -559,6 +561,7 @@ function foldByDate(){
   // 行数只统计可见行
   const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")).length;
   $("rowCount").textContent=visible+" 行";
+  updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
 }
 
 function toggleDateFold(date){
@@ -674,7 +677,8 @@ function publish(){
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
 }
 function updateCheckAll(){
-  const boxes=[...$("tbody").querySelectorAll(".row-check")];
+  // 仅统计可见行（排除被折叠隐藏的日期行），否则折叠行永远不勾选会让表头全选框恒为半选
+  const boxes=[...$("tbody").querySelectorAll(".row-check")].filter(b=>!b.closest("tr").classList.contains("date-fold-hidden"));
   const checked=boxes.filter(b=>b.checked).length;
   const all=$("checkAll");
   all.checked = boxes.length>0 && checked===boxes.length;
@@ -744,7 +748,7 @@ function sortRowsByCustomerDate(){
 // ===================== 其它按钮 =====================
 $("addRow").onclick=()=>{ addRow(); saveDraft(); };
 $("sortRows").onclick=sortRowsByCustomerDate;
-$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").querySelectorAll(".row-check")].forEach(b=>b.checked=v); };
+$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); };
 $("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); updateCheckAll(); };
 $("publish").onclick=publish;
 
