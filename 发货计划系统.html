@@ -103,7 +103,7 @@
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:10%;}   /* 发货日期 */
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:9%;}    /* 客户 */
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 物料编码 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:15%;}   /* 型号 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:13%;}   /* 型号 */
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:8%;}    /* 发货数量 */
   .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:8%;}    /* 吨位 */
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 交货单 */
@@ -128,6 +128,10 @@
   .col-subton{color:#2563eb;font-weight:700;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);text-align:center;vertical-align:middle;border:1px solid #93c5fd;border-radius:4px;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;}
   .col-act{width:4%;white-space:nowrap;}
+  .col-check{width:3%;text-align:center;vertical-align:middle;}
+  .col-check input{width:16px;height:16px;cursor:pointer;accent-color:var(--brand);}
+  .col-check input:checked{box-shadow:0 0 0 2px #dbeafe;}
+  #selCount{font-size:12px;color:var(--brand);font-weight:600;white-space:nowrap;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
   .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:13px;line-height:1;width:20px;height:20px;border-radius:5px;transition:.15s;padding:0;}
@@ -174,7 +178,9 @@
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
     <button class="btn btn-line" id="sortRows">按客户日期排序</button>
     <button class="btn btn-line" id="toggleFolded">显示折叠日期</button>
+    <button class="btn btn-line" id="checkNextDay">勾选次日发货</button>
     <button class="btn btn-line" id="clearAll">清空</button>
+    <span id="selCount" class="hint">已选 0 行</span>
     <button class="btn btn-primary" id="publish">发布</button>
     <button class="btn btn-line" id="exportBackup">导出备份</button>
     <button class="btn btn-line" id="importBackup">导入备份</button>
@@ -208,6 +214,7 @@
           <td class="num-cell" id="sumBox">/</td>
           <td></td>
           <td class="num-cell" id="sumSubTon">0.0</td>
+          <td></td>
           <td></td>
         </tr></tfoot>
       </table>
@@ -362,8 +369,9 @@ function addRow(data={}, refRow=null){
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-subton num-cell"></td>
-    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
-  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); };
+    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td><td class="col-check"><input type="checkbox" class="row-check" title="勾选发布"></td>`;
+  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); updateSelCount(); saveDraft(); };
+  tr.querySelector(".row-check")?.addEventListener("change", updateSelCount);
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
     if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
@@ -635,17 +643,56 @@ $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=ge
 
 // ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+// ===================== 勾选发布：仅发布「次日发货如期」的勾选行 =====================
+function tomorrowStr(){
+  const d=new Date(); d.setDate(d.getDate()+1);
+  const p=s=>String(s).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+}
+function collectOne(tr){
+  const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
+  return {
+    shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
+    customer:f(tr.querySelector('[data-f="customer"]').value),
+    code:f(tr.querySelector('[data-f="code"]').value),
+    model:f(tr.querySelector('[data-f="model"]').value),
+    qty:f(tr.querySelector('[data-f="qty"]').value),
+    unit:f(tr.querySelector('[data-f="unit"]').value),
+    perbox:f(tr.querySelector('[data-f="perbox"]').value),
+    ton:f(tr.querySelector('[data-f="ton"]').value),
+    box:f(tr.querySelector('[data-f="box"]').value),
+    delivery:f(tr.querySelector('[data-f="delivery"]').value),
+    remark:f(tr.querySelector('[data-f="remark"]').value)
+  };
+}
+function sumOf(rows,key){
+  let s=0; rows.forEach(r=>{ const v=parseFloat(r[key]); if(!isNaN(v)) s+=v; });
+  return key==="ton"? s.toFixed(1) : (s? String(s):"/");
+}
+function updateSelCount(){
+  const n=[...$("tbody").children].filter(tr=>tr.querySelector(".row-check")?.checked).length;
+  const el=$("selCount"); if(el) el.textContent="已选 "+n+" 行";
+}
 function publish(){
-  const rows=collectRows();
-  if(!rows.length){ toast("请先添加发货明细"); return; }
-  if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
+  const nextDay=tomorrowStr();
+  const checked=[...$("tbody").children]
+    .filter(tr=>tr.querySelector(".row-check")?.checked)
+    .map(collectOne);
+  if(!checked.length){ toast("请先勾选要发布的行"); return; }
+  // 仅发布「次日发货如期」的行（发货日期 == 明天）
+  const nextRows=checked.filter(r=>r.shipdate===nextDay);
+  const skipped=checked.length-nextRows.length;
+  if(!nextRows.length){ toast("勾选的行中没有「次日("+nextDay+")发货」信息"); return; }
+  if(nextRows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
 
-  // 仅存档文本数据（不截图、不下载图片）
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
-    publishedAt:new Date().toLocaleString("zh-CN"),rows,
-    sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent};
+    scope:"次日发货("+nextDay+")",
+    publishedAt:new Date().toLocaleString("zh-CN"),rows:nextRows,
+    sumQty:sumOf(nextRows,"qty"),sumTon:sumOf(nextRows,"ton"),sumBox:sumOf(nextRows,"box")};
   saveRec(rec); renderRecords();
-  toast("已发布存档 ✓（单号 "+rec.no+"）");
+  let msg="已发布 ✓（单号 "+rec.no+"）共 "+nextRows.length+" 行次日发货";
+  if(skipped) msg+="，跳过 "+skipped+" 行非次日";
+  toast(msg);
   $("planNo").value=genPlanNo(); syncDocHead();
   saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
@@ -716,6 +763,21 @@ $("addRow").onclick=()=>{ addRow(); saveDraft(); };
 $("sortRows").onclick=sortRowsByCustomerDate;
 $("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); };
 $("publish").onclick=publish;
+$("checkAll").onchange=()=>{
+  const cb=$("checkAll").checked;
+  [...$("tbody").children].forEach(tr=>{ const x=tr.querySelector(".row-check"); if(x) x.checked=cb; });
+  updateSelCount();
+};
+$("checkNextDay").onclick=()=>{
+  const nd=tomorrowStr(); let n=0;
+  [...$("tbody").children].forEach(tr=>{
+    const x=tr.querySelector(".row-check"); if(!x) return;
+    const sd=tr.querySelector('[data-f="shipdate"]')?.value;
+    x.checked=(sd===nd); if(sd===nd) n++;
+  });
+  updateSelCount();
+  toast(n? ("已勾选 "+n+" 行次日("+nd+")发货") : "没有次日("+nd+")发货行");
+};
 
 function updateFoldedButton(){
   const show=getShowFolded();
@@ -774,6 +836,7 @@ if(_draft && (_draft.rows.length || _draft.date)){
   addRow(); addRow();
 }
 renderRecords();
+updateSelCount();
 
 // ===================== 云端同步 =====================
 if(window.CloudSync){
