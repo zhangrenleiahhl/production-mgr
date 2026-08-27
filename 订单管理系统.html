@@ -187,8 +187,11 @@
     <button class="btn btn-line" id="importBackupBtn">⬆ 导入备份</button>
     <button class="btn btn-line" id="downloadTplBtn">⬇ 下载模版</button>
     <button class="btn btn-line" id="importTplBtn">📥 导入物料模版</button>
+    <button class="btn btn-line" id="downloadInvTplBtn">⬇ 库存模版</button>
+    <button class="btn btn-line" id="importInvBtn">📥 库存导入</button>
     <input type="file" id="importFile" class="hidden-file" accept=".json">
     <input type="file" id="importTplFile" class="hidden-file" accept=".csv,.txt,text/csv,text/plain">
+    <input type="file" id="importInvFile" class="hidden-file" accept=".csv,.txt,text/csv,text/plain">
     <span class="spacer"></span>
     <div class="field"><label>起始周</label>
       <select id="startWeek">
@@ -1033,6 +1036,132 @@
       }catch(e){ toast("物料模版解析失败："+e.message); }
     };
   }
+  // ============================================================
+  // 下载库存模版（仅物料编码 + 6 个库位列；用于「库存导入」专项导入）
+  // ============================================================
+  function downloadInvTemplate(){
+    const header=["物料编码","SAP库","南区库","立库","后处理","SAP库存","成品库存"];
+    const example=["1000000000786","913","174","0","0","840","840"];
+    const esc = v => {
+      const s = String(v==null?"":v);
+      return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+    };
+    const lines=[
+      header.map(esc).join(","),
+      example.map(esc).join(",")
+    ];
+    // UTF-8 BOM 避免 Excel 直接打开时乱码
+    const blob = new Blob(["﻿"+lines.join("\n")], {type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a");
+    a.download=`库存模版_${tsStr()}.csv`;
+    a.href=URL.createObjectURL(blob);
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),500);
+    toast("库存模版已下载，填写后点「📥 库存导入」");
+  }
+
+  // 库存字段集（限定 6 列，避免整托/descA/其他字段污染）
+  const INV_FIELDS = ["sapK","nanQ","liK","houC","sapZ","chengP"];
+  const INV_HEADER_ALIAS = {
+    codeA:["物料编码","物料号","物料编码1","物料编号","主物料编码","编码","编码1","产品编码","物料编码(主)","物料编码（主）"],
+    sapK:["SAP库","sap库","SAP在库","SAP在库量","库1","SAP库存数"],
+    nanQ:["南区库","南区","南区库存","南区库存在库"],
+    liK:["立库","立库库存","立库在库","立体库"],
+    houC:["后处理","后处理库存","后处理在库","后处理库"],
+    sapZ:["SAP库存","sap章存","SAP章存","章存","SAP总库存"],
+    chengP:["成品库存","成品","成品库","成品在库","产成品库存"]
+  };
+
+  // 把【库存模版】表头映射到内部字段（只识别 codeA + 6 库存，绝不污染其他字段）
+  function buildInvHeaderMap(headerRow){
+    const map={};
+    // —— 第一轮:精确匹配 ——
+    headerRow.forEach((h,idx)=>{
+      const k=String(h||"").trim();
+      for(const fld in INV_HEADER_ALIAS){
+        // 必须用 !== undefined（索引 0 是合法,不能用 truthy 判断）
+        if(map[fld]!==undefined) continue;
+        if(INV_HEADER_ALIAS[fld].some(a=>a===k)){
+          map[fld]=idx; break;
+        }
+      }
+    });
+    // —— 第二轮:子串兜底(规则严格化) ——
+    headerRow.forEach((h,idx)=>{
+      const k=String(h||"").trim();
+      if(!k) return;
+      for(const fld in INV_HEADER_ALIAS){
+        if(map[fld]!==undefined) continue;
+        const hit = INV_HEADER_ALIAS[fld].some(a=>{
+          if(!a || a.length<2) return false;
+          if(Math.abs(k.length - a.length) > 4) return false;
+          return k.includes(a);
+        });
+        if(hit) { map[fld]=idx; break; }
+      }
+    });
+    return map;
+  }
+
+  // ============================================================
+  // 库存导入:按物料编码对 6 个库位分别自动求和,再覆盖式写入 ROWS
+  // ============================================================
+  function importInventory(file){
+    const r=new FileReader();
+    r.readAsArrayBuffer(file);
+    r.onload=()=>{
+      try{
+        // 复用已踩过 GBK / UTF-16 坑的解码器
+        const text = smartDecode(r.result);
+        const grid = parseCSV(text);
+        if(grid.length<2){ toast("库存模版至少需要表头 + 1 行数据"); return; }
+        const hdrMap = buildInvHeaderMap(grid[0]);
+        if(hdrMap.codeA === undefined){
+          const actualHdr = grid[0].map(h=>String(h||"").trim()).filter(Boolean).join(" / ");
+          toast("未识别到「物料编码」列\n你的表头："+actualHdr);
+          return;
+        }
+        const codeIdx = hdrMap.codeA;
+        // 第一步:按物料编码分组,对 6 个库位分别 SUM
+        const data = grid.slice(1);
+        const grouped = new Map();
+        data.forEach(vals=>{
+          const code = String(vals[codeIdx]||"").trim();
+          if(!code) return;  // 跳过完全空白的行
+          if(!grouped.has(code)) grouped.set(code, {sum:{}, rows:0});
+          const g = grouped.get(code);
+          g.rows++;
+          INV_FIELDS.forEach(k=>{
+            const idx = hdrMap[k];
+            if(idx===undefined) return;  // CSV 里没有该库位列则不动
+            const v = safeNum(vals[idx]);
+            g.sum[k] = (g.sum[k]||0) + v;
+          });
+        });
+        // 第二步:按物料编码去 ROWS 找行,覆盖式写入;未命中计入 skipped
+        let updated=0, updatedStores=0, skipped=0;
+        grouped.forEach((g, code)=>{
+          // 单 codeA 精确匹配(库存导入只认主行编码,不引入整托/desc 兼容分支,降低歧义)
+          const idx = ROWS.findIndex(r=>String(r.codeA||"").trim()===code);
+          if(idx<0){ skipped++; return; }
+          INV_FIELDS.forEach(k=>{
+            if(g.sum[k]!==undefined){
+              ROWS[idx][k] = String(g.sum[k]);  // 覆盖:用户已确认覆盖式求和
+              updatedStores++;
+            }
+          });
+          updated++;
+        });
+        save();
+        renderRows();
+        applyForm();
+        const stockTip = updatedStores?` · 写入 ${updatedStores} 个库位`:"";  // 0 时不展示避免迷惑
+        const skippedTip = skipped?` · 跳过 ${skipped} 个未匹配物料编码`:"";
+        toast(`库存导入完成 · 更新 ${updated} 个物料编码${stockTip}${skippedTip}`);
+      }catch(e){ toast("库存模版解析失败："+e.message); }
+    };
+  }
+
   // ⚠️ 之前这里有 r.readAsText(file, "UTF-8"); 是死代码（已在上面 readAsArrayBuffer 之后调用，FileReader 一次性）
   // 已删除（v16 清理）
   function tsStr(){
@@ -1073,6 +1202,10 @@
     $("downloadTplBtn").onclick = downloadTemplate;
     $("importTplBtn").onclick = ()=>$("importTplFile").click();
     $("importTplFile").onchange = e=>{ if(e.target.files[0]) importTemplate(e.target.files[0]); e.target.value=""; };
+    // 库存导入（专项:仅 6 个库位列,按物料编码自动求和后覆盖写入）
+    $("downloadInvTplBtn").onclick = downloadInvTemplate;
+    $("importInvBtn").onclick = ()=>$("importInvFile").click();
+    $("importInvFile").onchange = e=>{ if(e.target.files[0]) importInventory(e.target.files[0]); e.target.value=""; };
     $("applyOpt").onclick = ()=>{
       FORM.startOffset = parseInt($("startWeek").value||"0",10);
       FORM.weekCount   = parseInt($("weekCount").value||"3",10);
