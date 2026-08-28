@@ -58,7 +58,7 @@
   .kpi-value{font-size:22px;font-weight:800;color:var(--txt);line-height:1.1;font-variant-numeric:tabular-nums;}
   .kpi-unit{font-size:12px;color:var(--muted-2);font-weight:500;margin-left:3px;}
   /* ===== 云端同步状态 + 手机自适应 ===== */
-  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:600;background:#f8fafc;color:#64748b;border:1px solid var(--line);white-space:nowrap;transition:.2s var(--ease);}
+  .cloud-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;font-size:10.5px;font-weight:600;background:#f8fafc;color:#64748b;border:1px solid var(--line);white-space:nowrap;transition:.2s var(--ease);flex-shrink:0;}
   .cloud-pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px rgba(100,116,139,.12);}
   .cloud-pill.ok{background:var(--green-bg);color:#059669;border-color:#a7f3d0;}
   .cloud-pill.err{background:var(--red-bg);color:#dc2626;border-color:#fecaca;}
@@ -80,22 +80,22 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:16px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  .topbar{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;
     background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
-    padding:12px 16px;margin-bottom:18px;box-shadow:var(--sh-md);}
-  .filter-group{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--line-2);border-radius:999px;padding:4px 8px;}
-  .filter-group input{border:1px solid transparent;border-radius:999px;padding:5px 10px;font-size:12px;outline:none;width:86px;background:#fff;transition:.18s var(--ease);color:var(--txt-2);}
+    padding:10px 14px;margin-bottom:18px;box-shadow:var(--sh-md);overflow-x:auto;}
+  .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:var(--line-2);border-radius:999px;padding:3px 8px;}
+  .filter-group input{border:1px solid transparent;border-radius:999px;padding:4px 8px;font-size:11.5px;outline:none;width:72px;background:#fff;transition:.18s var(--ease);color:var(--txt-2);}
   .filter-group input:focus{border-color:var(--soft-line);box-shadow:0 0 0 3px rgba(99,102,241,.12);}
-  .filter-label{align-self:center;font-size:11.5px;font-weight:700;color:var(--muted);padding:0 2px 0 4px;}
-  .filter-group .hint{font-size:11.5px;color:var(--muted);font-weight:600;}
+  .filter-label{align-self:center;font-size:11px;font-weight:700;color:var(--muted);padding:0 1px 0 3px;white-space:nowrap;}
+  .filter-group .hint{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;}
   .field{display:flex;flex-direction:column;gap:3px;}
   .field label{font-size:11.5px;color:var(--muted);font-weight:700;letter-spacing:.2px;}
   .field input{border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 10px;font-size:12.5px;outline:none;background:#fff;transition:.18s var(--ease);color:var(--txt);}
-  .field-inline{flex-direction:row;align-items:center;gap:6px;}
-  .field-inline input{width:130px;}
+  .field-inline{flex-direction:row;align-items:center;gap:5px;}
+  .field-inline input{width:112px;padding:5px 8px;font-size:12px;}
   .field input:focus{border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(99,102,241,.15);}
   .spacer{flex:1;}
-  .btn{border:none;border-radius:10px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;transition:.18s var(--ease);letter-spacing:.2px;display:inline-flex;align-items:center;justify-content:center;gap:4px;}
+  .btn{border:none;border-radius:10px;padding:5px 10px;font-size:11.5px;cursor:pointer;font-weight:600;transition:.18s var(--ease);letter-spacing:.2px;display:inline-flex;align-items:center;justify-content:center;gap:3px;flex-shrink:0;}
   .btn:active{transform:translateY(1px);}
   .btn-primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 6px 18px rgba(99,102,241,.32);}
   .btn-primary:hover{background:linear-gradient(135deg,#4f46e5,#7c3aed);box-shadow:0 8px 22px rgba(99,102,241,.42);}
@@ -250,7 +250,7 @@
       <button class="btn btn-ghost" id="clearFilter" title="清除筛选">清除</button>
       <span class="hint" id="filterCount"></span>
     </div>
-    <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:12px;margin-right:2px"></span>
+    <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0;"></span>
     <div class="field field-inline"><label class="req">日期</label><input type="date" id="shipDate"></div>
     <input type="hidden" id="planNo">
   </div>
@@ -936,7 +936,7 @@ if(window.CloudSync){
   const CLOUD_KEYS=[LS_DB, LS_REC];
   const nav=document.querySelector('.topbar');
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
-  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
+  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 同步'; btn.title='拉取最新';
   if(nav){ const dbStatus=nav.querySelector('#dbStatus'); const anchor=dbStatus?dbStatus.nextSibling:null; nav.insertBefore(pill, anchor); nav.insertBefore(btn, pill.nextSibling); CloudSync.bindStatus(pill);
     btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }); }
   if(CloudSync.ready()){
