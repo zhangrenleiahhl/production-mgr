@@ -33,14 +33,14 @@
   .wrap{max-width:1320px;margin:0 auto;padding:22px 28px 56px;}
   h1{font-size:20px;margin:0 0 4px;display:flex;align-items:center;gap:10px;letter-spacing:.2px;}
   h1 .dot{width:9px;height:20px;background:linear-gradient(180deg,#3b82f6,#2563eb);border-radius:4px;display:inline-block;box-shadow:0 2px 6px rgba(37,99,235,.4);}
-  .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:10px;}
   .sub b{color:var(--brand-d);}
   .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
   .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 15px;border-radius:12px;font-size:12.5px;font-weight:600;text-decoration:none;background:rgba(255,255,255,.7);border:1px solid var(--line);color:var(--muted);transition:.2s var(--ease);backdrop-filter:blur(6px);}
   .nav-link:hover{background:#fff;color:var(--brand);border-color:var(--soft-line);transform:translateY(-1px);box-shadow:var(--sh-sm);}
   .nav-link.active{background:linear-gradient(180deg,#3b82f6,#2563eb);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(37,99,235,.35);}
   /* ===== 云端同步状态 + 手机自适应 ===== */
-  .cloud-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;transition:.2s var(--ease);}
+  .cloud-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;transition:.2s var(--ease);}
   .cloud-pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px rgba(100,116,139,.15);}
   .cloud-pill.ok{background:var(--green-bg);color:#15803d;border-color:#bbe7c9;}
   .cloud-pill.err{background:var(--red-bg);color:var(--red);border-color:#f6c9cf;}
@@ -57,20 +57,22 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:12px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  .topbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
     background:rgba(255,255,255,.75);border:1px solid var(--line);border-radius:var(--radius);
-    padding:12px 14px;margin-bottom:12px;box-shadow:var(--sh-md);backdrop-filter:blur(8px);}
-  .filter-group{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .filter-group input{border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px;outline:none;width:92px;background:#fff;transition:.18s var(--ease);}
+    padding:8px 12px;margin-bottom:10px;box-shadow:var(--sh-md);backdrop-filter:blur(8px);}
+  .filter-group{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  .filter-group input{border:1px solid var(--line);border-radius:5px;padding:3px 5px;font-size:11.5px;outline:none;width:72px;background:#fff;transition:.18s var(--ease);}
   .filter-group input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(59,130,246,.12);}
-  .filter-label{align-self:center;font-size:12px;font-weight:600;color:var(--muted);padding-right:2px;}
+  .filter-label{align-self:center;font-size:11px;font-weight:600;color:var(--muted);padding-right:2px;}
   .filter-group .hint{font-size:11px;color:var(--muted);}
-  .field{display:flex;flex-direction:column;gap:4px;}
-  .field label{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.2px;}
-  .field input{border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 11px;font-size:13px;outline:none;background:#fff;transition:.18s var(--ease);color:var(--txt);}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.2px;}
+  .field input{border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px 8px;font-size:12.5px;outline:none;background:#fff;transition:.18s var(--ease);color:var(--txt);}
+  .field-inline{flex-direction:row;align-items:center;gap:5px;}
+  .field-inline input{width:122px;}
   .field input:focus{border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(59,130,246,.15);}
   .spacer{flex:1;}
-  .btn{border:none;border-radius:var(--radius-sm);padding:8px 15px;font-size:12.5px;cursor:pointer;font-weight:600;transition:.18s var(--ease);letter-spacing:.2px;}
+  .btn{border:none;border-radius:var(--radius-sm);padding:5px 10px;font-size:11.5px;cursor:pointer;font-weight:600;transition:.18s var(--ease);letter-spacing:.2px;}
   .btn:active{transform:translateY(1px);}
   .btn-primary{background:linear-gradient(180deg,#3b82f6,#2563eb);color:#fff;box-shadow:0 6px 16px rgba(37,99,235,.32);}
   .btn-primary:hover{background:linear-gradient(180deg,#2f6fe0,#1d4ed8);box-shadow:0 8px 20px rgba(37,99,235,.4);}
@@ -196,13 +198,13 @@
   <div class="sub">做计划时只需填<b>型号 + 发货数量</b>，其余信息从「物料数据库」自动带出。</div>
 
   <div class="topbar">
-    <button class="btn btn-line" id="addRow">＋ 添加一行</button>
-    <button class="btn btn-line" id="exportCsv">导出 CSV</button>
-    <button class="btn btn-line" id="toggleFolded">显示折叠日期</button>
-    <button class="btn btn-line" id="clearAll">清空</button>
-    <button class="btn btn-primary" id="publish">发布</button>
-    <button class="btn btn-line" id="exportBackup">导出备份</button>
-    <button class="btn btn-line" id="importBackup">导入备份</button>
+    <button class="btn btn-line" id="addRow" title="添加一行">＋ 添加</button>
+    <button class="btn btn-line" id="exportCsv" title="导出 CSV">CSV</button>
+    <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期">折叠</button>
+    <button class="btn btn-line" id="clearAll" title="清空">清空</button>
+    <button class="btn btn-primary" id="publish" title="发布">发布</button>
+    <button class="btn btn-line" id="exportBackup" title="导出备份">导出</button>
+    <button class="btn btn-line" id="importBackup" title="导入备份">导入</button>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none">
     <div class="spacer"></div>
     <div class="filter-group">
@@ -210,11 +212,11 @@
       <input type="text" id="filterCustomer" placeholder="客户">
       <input type="text" id="filterModel" placeholder="型号">
       <input type="date" id="filterDate" placeholder="日期">
-      <button class="btn btn-ghost" id="clearFilter">清除</button>
+      <button class="btn btn-ghost" id="clearFilter" title="清除筛选">清除</button>
       <span class="hint" id="filterCount"></span>
     </div>
-    <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:13px;margin-right:4px"></span>
-    <div class="field"><label class="req">发货日期</label><input type="date" id="shipDate"></div>
+    <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:12px;margin-right:2px"></span>
+    <div class="field field-inline"><label class="req">日期</label><input type="date" id="shipDate"></div>
     <input type="hidden" id="planNo">
   </div>
 
@@ -273,8 +275,8 @@ function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }c
 function updateDbStatus(){
   const el=$("dbStatus");
   if(!el) return;
-  if(!DB.length) el.innerHTML="（物料库为空，<a href=\"物料数据库.html\" target=\"_blank\" style=\"color:var(--brand)\">去导入</a>）";
-  else el.textContent="（物料库共 "+DB.length+" 条）";
+  if(!DB.length) el.innerHTML="库空，<a href=\"物料数据库.html\" target=\"_blank\" style=\"color:var(--brand)\">去导入</a>";
+  else el.textContent="库 "+DB.length+" 条";
 }
 // 从物料库页面切回时刷新，保证待选最新
 window.addEventListener("focus", ()=>{
