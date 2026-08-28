@@ -48,6 +48,13 @@
   .topbar{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end;
     background:var(--card);border:1px solid var(--line);border-radius:10px;
     padding:8px 10px;margin-bottom:10px;box-shadow:0 6px 18px rgba(31,45,77,.05);}
+  .filterbar{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end;
+    background:#f8fafc;border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;margin-bottom:10px;}
+  .filterbar .field{flex:1;min-width:120px;max-width:200px;}
+  .filterbar .field input{font-size:12px;padding:5px 8px;}
+  .filter-label{align-self:center;font-size:12px;font-weight:600;color:var(--muted);padding-right:4px;}
+  .filterbar .hint{align-self:center;margin-left:auto;font-size:11px;}
   .field{display:flex;flex-direction:column;gap:3px;}
   .field label{font-size:11px;color:var(--muted);}
   .field input{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;outline:none;background:#fff;}
@@ -106,20 +113,21 @@
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:10%;}   /* 发货日期 */
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:9%;}    /* 客户 */
   .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:10%;}   /* 物料编码 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:14%;}   /* 型号 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:13%;}   /* 型号 */
   .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:8%;}    /* 发货数量 */
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:7%;}    /* 吨位 */
   .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 交货单 */
   .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 箱数 */
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:10%;} /* 备注 */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:7%;}  /* 客户吨位合计 */
-  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:3%;}  /* 操作 */
+  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:4%;}  /* 操作 */
   .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;text-align:left;padding-left:2px;font-size:12px;}
   .tbl td.col-shipdate{position:relative;padding:0 1px;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:3px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;}
   .tbl td.col-shipdate .fold-btn:hover{background:#c7d2fe;}
   .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:14px;}
   .tbl tr.date-fold-hidden{display:none;}
+  .tbl tr.filter-hidden{display:none;}
   .tbl tr.date-fold-placeholder{height:24px;background:#f8fafc;}
   .tbl tr.date-fold-placeholder td{padding:2px 6px;text-align:left;border:1px dashed #cbd5e1;background:#f8fafc;}
   .date-fold-placeholder-btn{border:none;background:#e0e7ff;color:#4f46e5;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:600;}
@@ -130,13 +138,16 @@
   .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:calc(100% - 4px);min-height:0;padding:4px 2px;margin:0 auto;display:block;}
   .col-subton{color:#2563eb;font-weight:700;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border:1px solid #93c5fd;border-radius:5px;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;}
-  .col-act{width:3%;white-space:nowrap;}
+  .col-act{width:4%;white-space:nowrap;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
   .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:13px;line-height:1;width:20px;height:20px;border-radius:5px;transition:.15s;padding:0;}
   .del-x:hover{background:#fdecea;}
-  .ins-x{border:none;background:#fff;color:var(--brand);cursor:pointer;font-size:13px;line-height:1;width:20px;height:20px;border-radius:5px;transition:.15s;padding:0;}
+  .ins-x{border:none;background:#fff;color:var(--brand);cursor:pointer;font-size:13px;line-height:1;width:18px;height:18px;border-radius:5px;transition:.15s;padding:0;}
   .ins-x:hover{background:#eef4ff;}
+  .mv-u,.mv-d{border:none;background:#fff;color:var(--muted);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;border-radius:5px;transition:.15s;padding:0;}
+  .mv-u:hover,.mv-d:hover{background:#f1f5f9;color:var(--txt);}
+  .mv-u:disabled,.mv-d:disabled{color:#cbd5e1;cursor:not-allowed;background:#fff;}
   .tbl tfoot td{font-weight:800;color:#1e3a8a;background:#eef2ff;border:1px solid #dfe4ec;border-top:2px solid #cbd5e1;padding:6px 4px;font-size:12px;}
   .num-cell{font-variant-numeric:tabular-nums;}
   .doc-foot{padding:8px 14px;font-size:12px;color:#8a94a8;background:#fbfcfe;border-top:1px dashed #e3e8f2;}
@@ -175,7 +186,6 @@
   <div class="topbar">
     <button class="btn btn-line" id="addRow">＋ 添加一行</button>
     <button class="btn btn-line" id="exportCsv">导出 CSV</button>
-    <button class="btn btn-line" id="sortRows">按客户日期排序</button>
     <button class="btn btn-line" id="toggleFolded">显示折叠日期</button>
     <button class="btn btn-line" id="clearAll">清空</button>
     <button class="btn btn-primary" id="publish">发布</button>
@@ -185,6 +195,15 @@
     <div class="spacer"></div>
     <div class="field"><label class="req">发货日期</label><input type="date" id="shipDate"></div>
     <input type="hidden" id="planNo">
+  </div>
+
+  <div class="filterbar" id="filterbar">
+    <span class="filter-label">筛选</span>
+    <div class="field"><label>客户</label><input type="text" id="filterCustomer" placeholder="输入客户关键词"></div>
+    <div class="field"><label>型号</label><input type="text" id="filterModel" placeholder="输入型号关键词"></div>
+    <div class="field"><label>发货日期</label><input type="date" id="filterDate" placeholder="选择日期"></div>
+    <button class="btn btn-ghost" id="clearFilter">清除筛选</button>
+    <span class="hint" id="filterCount"></span>
   </div>
 
   <div class="card">
@@ -366,7 +385,10 @@ function addRow(data={}, refRow=null){
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-subton num-cell"></td>
-    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
+    <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
+  const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
+  mvUp.onclick=()=>moveRow(tr, -1);
+  mvDown.onclick=()=>moveRow(tr, 1);
   tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); updateCheckAll(); };
   const rc=tr.querySelector(".row-check");
   if(rc) rc.addEventListener("change", updateCheckAll);
@@ -415,6 +437,18 @@ function reindex(){
     tr.querySelector(".col-idx").textContent=idx;
   });
   $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells();
+}
+function moveRow(tr, dir){
+  const tb=$("tbody");
+  const rows=[...tb.children].filter(r=>!r.classList.contains("subtotal"));
+  const idx=rows.indexOf(tr);
+  if(idx<0) return;
+  const targetIdx=idx+dir;
+  if(targetIdx<0 || targetIdx>=rows.length) return;
+  const target=rows[targetIdx];
+  if(dir<0) tb.insertBefore(tr, target);
+  else tb.insertBefore(tr, target.nextSibling);
+  reindex(); recalc(); saveDraft(); updateCheckAll();
 }
 function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(34,ta.scrollHeight)+"px"; }
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
@@ -558,8 +592,8 @@ function foldByDate(){
     });
   }
 
-  // 行数只统计可见行
-  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")).length;
+  // 行数只统计可见行（同时排除筛选隐藏）
+  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
   $("rowCount").textContent=visible+" 行";
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
 }
@@ -569,6 +603,35 @@ function toggleDateFold(date){
   setFoldState(date, state[date]?0:1);
   foldByDate();
   fitTextareas();
+}
+
+// ===================== 筛选（客户 / 型号 / 发货日期） =====================
+function applyFilter(){
+  const cust=($("filterCustomer").value||"").trim().toLowerCase();
+  const model=($("filterModel").value||"").trim().toLowerCase();
+  const date=$("filterDate").value||"";
+  let shown=0, total=0;
+  [...$("tbody").children].forEach(tr=>{
+    if(tr.classList.contains("subtotal")) return;
+    total++;
+    const trCust=(tr.querySelector('[data-f="customer"]')?.value||"").trim().toLowerCase();
+    const trModel=(tr.querySelector('[data-f="model"]')?.value||"").trim().toLowerCase();
+    const trDate=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    const match=(!cust || trCust.includes(cust)) &&
+                (!model || trModel.includes(model)) &&
+                (!date || trDate===date);
+    tr.classList.toggle("filter-hidden", !match);
+    if(match) shown++;
+  });
+  const hint=$("filterCount");
+  if(hint) hint.textContent=(cust||model||date)?`显示 ${shown}/${total} 行`:"";
+  recalc(); foldByDate(); updateCheckAll();
+}
+function clearFilter(){
+  $("filterCustomer").value="";
+  $("filterModel").value="";
+  $("filterDate").value="";
+  applyFilter();
 }
 
 function recalc(){
@@ -588,8 +651,8 @@ function recalc(){
     const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
     if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";
     const box=parseFloat(boxInput.value)||0;
-    // 表尾合计只统计当前可见行（被折叠隐藏的行不计入）
-    if(!tr.classList.contains("date-fold-hidden")){
+    // 表尾合计只统计当前可见行（被折叠或筛选隐藏的行不计入）
+    if(!tr.classList.contains("date-fold-hidden") && !tr.classList.contains("filter-hidden")){
       sq+=qty; st+=ton; sb+=box;
     }
   });
@@ -678,8 +741,11 @@ function publish(){
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
 }
 function updateCheckAll(){
-  // 仅统计可见行（排除被折叠隐藏的日期行），否则折叠行永远不勾选会让表头全选框恒为半选
-  const boxes=[...$("tbody").querySelectorAll(".row-check")].filter(b=>!b.closest("tr").classList.contains("date-fold-hidden"));
+  // 仅统计可见行（排除被折叠或筛选隐藏的行），否则隐藏行永远不勾选会让表头全选框恒为半选
+  const boxes=[...$("tbody").querySelectorAll(".row-check")].filter(b=>{
+    const tr=b.closest("tr");
+    return !tr.classList.contains("date-fold-hidden") && !tr.classList.contains("filter-hidden");
+  });
   const checked=boxes.filter(b=>b.checked).length;
   const all=$("checkAll");
   all.checked = boxes.length>0 && checked===boxes.length;
@@ -728,30 +794,15 @@ function exportRowsCsv(rows, name){
 }
 $("exportCsv").onclick=()=>{ const rows=collectRows(); if(!rows.length){ toast("暂无数据可导出"); return; } exportRowsCsv(rows, $("planNo").value); };
 
-// ===================== 按客户+日期排序（让相同组合相邻，便于合并） =====================
-function sortRowsByCustomerDate(){
-  const tb=$("tbody");
-  const rows=[...tb.children].filter(tr=>!tr.classList.contains("subtotal"));
-  if(rows.length<=1) return;
-  rows.sort((a,b)=>{
-    const ca=(a.querySelector('[data-f="customer"]')?.value.trim()||"").toLowerCase();
-    const cb=(b.querySelector('[data-f="customer"]')?.value.trim()||"").toLowerCase();
-    if(ca!==cb) return ca.localeCompare(cb, "zh-CN");
-    const da=a.querySelector('[data-f="shipdate"]')?.value||"";
-    const db=b.querySelector('[data-f="shipdate"]')?.value||"";
-    return da.localeCompare(db);
-  });
-  rows.forEach(tr=>tb.appendChild(tr));   // 重新按排序后顺序挂载
-  reindex(); recalc(); saveDraft();
-  toast("已按客户 + 发货日期排序");
-}
-
 // ===================== 其它按钮 =====================
 $("addRow").onclick=()=>{ addRow(); saveDraft(); };
-$("sortRows").onclick=sortRowsByCustomerDate;
-$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); };
+$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); };
 $("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); updateCheckAll(); };
 $("publish").onclick=publish;
+$("filterCustomer").oninput=applyFilter;
+$("filterModel").oninput=applyFilter;
+$("filterDate").onchange=applyFilter;
+$("clearFilter").onclick=clearFilter;
 
 function updateFoldedButton(){
   const show=getShowFolded();
