@@ -588,7 +588,10 @@ function recalc(){
     const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
     if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";
     const box=parseFloat(boxInput.value)||0;
-    sq+=qty; st+=ton; sb+=box;
+    // 表尾合计只统计当前可见行（被折叠隐藏的行不计入）
+    if(!tr.classList.contains("date-fold-hidden")){
+      sq+=qty; st+=ton; sb+=box;
+    }
   });
   $("sumQty").textContent=sq;
   $("sumTon").textContent=st.toFixed(1);
