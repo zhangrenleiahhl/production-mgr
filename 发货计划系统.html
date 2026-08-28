@@ -582,14 +582,14 @@ function foldByDate(){
       b.onclick=()=>{ past.forEach(d=>setFoldState(d,0)); foldByDate(); fitTextareas(); };
       fd.appendChild(b);
     }
-    future.forEach(d=>{
+    if(future.length){
       const b=document.createElement("button");
       b.type="button"; b.className="folded-date-btn";
-      b.textContent="▶ "+esc(d)+" 已折叠";
-      b.title="展开 "+d;
-      b.onclick=()=>{ setFoldState(d,0); foldByDate(); fitTextareas(); };
+      b.textContent="▶ 当天之后已折叠";
+      b.title="展开 "+future.join("、");
+      b.onclick=()=>{ future.forEach(d=>setFoldState(d,0)); foldByDate(); fitTextareas(); };
       fd.appendChild(b);
-    });
+    }
   }
 
   // 行数只统计可见行（同时排除筛选隐藏）
