@@ -85,7 +85,7 @@
   .doc-head .t::after{content:"SHIPPING PLAN";font-size:9px;font-weight:600;letter-spacing:1.2px;color:rgba(255,255,255,.55);margin-left:6px;}
   .doc-head .meta{font-size:11px;color:rgba(255,255,255,.92);display:flex;gap:6px;flex-wrap:wrap;}
   .doc-head .meta span{background:rgba(255,255,255,.18);padding:2px 8px;border-radius:20px;}
-  .doc-head .meta #docDate{background:#ffd43b;color:#1e3a8a;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.12);}
+  .doc-head .meta #docDate{height:22px;background:#fff;padding:2px 8px;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.12);object-fit:contain;}
   .tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
   .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:4px 2px;text-align:center;border:1px solid #dfe4ec;border-bottom:2px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
   .tbl td{padding:3px 2px;border:1px solid #dfe4ec;text-align:center;vertical-align:middle;min-height:32px;}
@@ -212,7 +212,7 @@
       <div class="doc-head">
         <div class="t">发货计划单</div>
         <div class="meta">
-          <span id="docDate">发货日期：-</span>
+          <img id="docDate" src="logo-highly.png" alt="HIGHLY 海立">
         </div>
       </div>
       <table class="tbl" id="tbl">
@@ -677,7 +677,7 @@ function collectRows(){
   }));
 }
 function syncDocHead(){
-  $("docDate").textContent="发货日期："+($("shipDate").value||"/");
+  // 头部已固定为 HIGHLY 海立 logo，不再随发货日期变化
 }
 // ===================== 草稿自动保存（刷新/重开页面不丢未发布数据） =====================
 function saveDraft(){
