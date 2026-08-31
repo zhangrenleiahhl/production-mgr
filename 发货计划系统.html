@@ -82,9 +82,9 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:16px;}
   }
-  .topbar{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;
+  .topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
     background:#fff;border:1px solid #d0d7de;border-radius:0;
-    padding:10px 14px;margin-bottom:16px;box-shadow:none;overflow-x:auto;}
+    padding:10px 14px;margin-bottom:16px;box-shadow:none;overflow:visible;}
   .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:#f6f8fa;border-radius:0;padding:3px 8px;border:1px solid #d0d7de;}
   .filter-group input{border:1px solid #d0d7de;border-radius:0;padding:4px 8px;font-size:12px;outline:none;width:72px;background:#fff;transition:.15s;color:#1f2328;}
   .filter-group input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
@@ -142,7 +142,7 @@
   .tbl tr.group-end td{border-bottom:1px solid var(--purple);}
   .col-idx{width:3%;color:#6b7280;}
   .col-check{width:3%;text-align:center;vertical-align:middle;}
-  .col-check input,.row-check{width:9px;height:9px;cursor:pointer;accent-color:#2563eb;}
+  .col-check input,.row-check{width:8px;height:8px;cursor:pointer;accent-color:#2563eb;}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
@@ -168,7 +168,7 @@
   .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:2px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;transition:.15s;}
   .tbl td.col-shipdate .fold-btn:hover{background:#ede9fe;}
   .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:16px;padding-right:1px;}
-  .tbl th:nth-child(3){font-size:11px;padding:6px 2px;}
+  .tbl th:nth-child(3){padding:6px 4px;}
   .tbl tr.date-fold-hidden{display:none;}
   .tbl tr.filter-hidden{display:none;}
   .tbl tr.date-fold-placeholder{height:24px;background:#fafafa;}
