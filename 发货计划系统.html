@@ -146,20 +146,20 @@
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
-  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:5%;}    /* 发货日期 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:8%;}    /* 发货日期 */
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 客户 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:11%;}   /* 物料编码 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:25%;}   /* 型号 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:7%;}    /* 发货数量 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:5%;}    /* 吨位 */
-  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 交货单 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:5%;}  /* 箱数 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:8%;}  /* 备注 */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 客户吨位合计 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:22%;}   /* 型号 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:7%;}    /* 发货数量 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:5%;}    /* 吨位 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 交货单 */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:5%;}    /* 箱数 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 备注 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 客户吨位 */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:11%;} /* 物料编码 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:9%;}  /* 操作 */
-  .tbl tbody td:nth-child(5) textarea{padding-left:8px;text-align:left;}  /* 物料编码左对齐 */
-  .tbl tbody td:nth-child(6) textarea{padding-left:8px;text-align:left;}  /* 型号左对齐 */
-  .tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(8) input,.tbl tbody td:nth-child(10) input{padding-right:8px;text-align:right;} /* 数量/吨位/箱数右对齐 */
+  .tbl tbody td:nth-child(12) textarea{padding-left:8px;text-align:left;}  /* 物料编码左对齐 */
+  .tbl tbody td:nth-child(5) textarea{padding-left:8px;text-align:left;}  /* 型号左对齐 */
+  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(9) input{padding-right:8px;text-align:right;} /* 发货数量/吨位/箱数右对齐 */
   .tbl tbody td:nth-child(9){color:#2563eb;font-weight:700;}    /* 交货单蓝色粗体 */
   .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:16px;padding-right:1px;font-size:11px;background:#fff;border-color:transparent;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
@@ -181,7 +181,7 @@
   .col-customer.merged-cell textarea:focus,.col-remark.merged-cell textarea:focus{background:#fff;border-color:var(--purple);}
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid var(--purple-l);border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#fff;}
-  .col-act{width:5%;white-space:nowrap;}
+  .col-act{width:9%;white-space:nowrap;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
@@ -267,17 +267,17 @@
       </div>
       <table class="tbl" id="tbl">
         <thead><tr>
-          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>物料编码</th><th>型号</th>
-          <th>发货数量</th><th>吨位(t)</th>
-          <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位合计</th><th class="col-act">操作</th>
+          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>吨位(t)</th>
+          <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位</th><th>物料编码</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
-          <td colspan="6" style="text-align:right">合计</td>
+          <td colspan="5" style="text-align:right">合计</td>
           <td class="num-cell" id="sumQty">0</td>
           <td class="num-cell" id="sumTon">0.0</td>
           <td></td>
           <td class="num-cell" id="sumBox">/</td>
+          <td></td>
           <td></td>
           <td></td>
           <td></td>
@@ -428,7 +428,6 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-check"><input type="checkbox" class="row-check"></td>
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
-    <td><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
     <td class="num-cell"><input data-f="ton" type="number" min="0" step="0.0001" value="${esc(tonVal)}" placeholder="/"></td>
@@ -436,6 +435,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-subton num-cell"></td>
+    <td><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
     <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
   mvUp.onclick=()=>moveRow(tr, -1);
@@ -508,7 +508,7 @@ function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.heigh
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
-const EDITABLE_COLS=[3,4,5,6,7,8,9,10,11];   // 可编辑列的 nth-child 列号（跳过 #/✓/吨位合计/操作）
+const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12];   // 可编辑列的 nth-child 列号（跳过 #/✓/客户吨位/操作；物料编码已移到第12列）
 function collectRowData(tr){
   const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
   const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
