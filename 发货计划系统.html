@@ -161,12 +161,13 @@
   .tbl tbody td:nth-child(6) textarea{padding-left:8px;text-align:left;}  /* 型号左对齐 */
   .tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(8) input,.tbl tbody td:nth-child(10) input{padding-right:8px;text-align:right;} /* 数量/吨位/箱数右对齐 */
   .tbl tbody td:nth-child(9){color:#2563eb;font-weight:700;}    /* 交货单蓝色粗体 */
-  .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:18px;font-size:13px;background:#fff;border-color:transparent;}
+  .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:16px;padding-right:1px;font-size:11px;background:#fff;border-color:transparent;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
   .tbl td.col-shipdate{position:relative;padding:0;vertical-align:middle;}
-  .tbl td.col-shipdate .fold-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:16px;height:16px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:3px;cursor:pointer;font-size:10px;line-height:16px;text-align:center;z-index:1;transition:.15s;}
+  .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:2px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;transition:.15s;}
   .tbl td.col-shipdate .fold-btn:hover{background:#ede9fe;}
-  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:18px;}
+  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:16px;padding-right:1px;}
+  .tbl th:nth-child(3){font-size:11px;padding:6px 2px;}
   .tbl tr.date-fold-hidden{display:none;}
   .tbl tr.filter-hidden{display:none;}
   .tbl tr.date-fold-placeholder{height:24px;background:#fafafa;}
