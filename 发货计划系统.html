@@ -105,6 +105,7 @@
   .btn-line:hover{background:#f8fafc;border-color:var(--soft-line);color:var(--brand-d);}
   .btn-danger{background:#fff;color:var(--red);border:1px solid #fecaca;}
   .btn-danger:hover{background:var(--red-bg);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none;transform:none;}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;box-shadow:var(--sh-md);}
   .card h2{font-size:16px;margin:0 0 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:700;letter-spacing:.2px;}
   .card h2::before{content:"";width:5px;height:18px;border-radius:4px;background:linear-gradient(180deg,#8b5cf6,#6366f1);display:inline-block;box-shadow:0 2px 8px rgba(99,102,241,.4);}
@@ -234,6 +235,7 @@
 
   <div class="topbar">
     <button class="btn btn-line" id="addRow" title="添加一行">＋ 添加</button>
+    <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled>↶ 撤回</button>
     <button class="btn btn-line" id="exportCsv" title="导出 CSV">CSV</button>
     <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期">折叠</button>
     <button class="btn btn-line" id="clearAll" title="清空">清空</button>
@@ -417,7 +419,7 @@ try{ const td=new Date(); $("todayText").textContent=td.getFullYear()+"年"+(td.
 function genPlanNo(){ const d=$("shipDate").value||todayStr(); const p=s=>String(s).padStart(2,"0"); const ymd=d.split("-"); return "FH"+ymd[0]+p(+ymd[1])+p(+ymd[2])+"-"+String(Math.floor(Math.random()*9000)+1000); }
 $("planNo").value=genPlanNo();
 
-function addRow(data={}, refRow=null){
+function addRow(data={}, refRow=null, beforeRow=null){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
   const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
@@ -439,11 +441,12 @@ function addRow(data={}, refRow=null){
   const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
   mvUp.onclick=()=>moveRow(tr, -1);
   mvDown.onclick=()=>moveRow(tr, 1);
-  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); updateCheckAll(); };
+  tr.querySelector(".del-x").onclick=()=>delRow(tr);
   const rc=tr.querySelector(".row-check");
   if(rc) rc.addEventListener("change", updateCheckAll);
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
+    inp.addEventListener("keydown", onCellKey);
     if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
@@ -464,6 +467,7 @@ function addRow(data={}, refRow=null){
     }
   });
   tr.querySelectorAll("textarea").forEach(ta=>{
+    ta.addEventListener("keydown", onCellKey);
     ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); saveDraft(); });
   });
   tr.querySelector('[data-f="customer"]').addEventListener("input", mergeCustomerCells);
@@ -473,7 +477,8 @@ function addRow(data={}, refRow=null){
     inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr); });
     inp.addEventListener("input", ()=>showAC(inp, tr));
   });
-  if(refRow && refRow.parentNode===tb) refRow.after(tr);
+  if(beforeRow && beforeRow.parentNode===tb) beforeRow.before(tr);
+  else if(refRow && refRow.parentNode===tb) refRow.after(tr);
   else tb.appendChild(tr);
   reindex(); recalc(); fitTextareas(); updateCheckAll();
 }
@@ -502,6 +507,86 @@ function moveRow(tr, dir){
 }
 function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(34,ta.scrollHeight)+"px"; }
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
+// ===================== 误删撤回 + WPS 式单元格导航 =====================
+let undoStack=[];
+const EDITABLE_COLS=[3,4,5,6,7,8,9,10,11];   // 可编辑列的 nth-child 列号（跳过 #/✓/吨位合计/操作）
+function collectRowData(tr){
+  const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
+  const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
+  return {
+    shipdate:g("shipdate"), customer:g("customer"), code:g("code"), model:g("model"),
+    qty:g("qty"), unit:g("unit"), perbox:g("perbox"),
+    ton:tonI?tonI.value:"", tonManual:(tonI&&tonI.dataset.manual==="1"),
+    delivery:g("delivery"), box:boxI?boxI.value:"", boxManual:(boxI&&boxI.dataset.manual==="1"),
+    remark:g("remark")
+  };
+}
+function visibleRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("date-fold-hidden")&&!r.classList.contains("filter-hidden")&&!r.classList.contains("date-fold-placeholder")); }
+function allRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("date-fold-placeholder")); }   // 全部数据行（含折叠隐藏），用于删除/撤回等结构性操作
+function delRow(tr){
+  if(!tr || !tr.parentNode) return;
+  const list=allRows();
+  const idx=list.indexOf(tr);
+  if(idx<0) return;
+  const data=collectRowData(tr);
+  tr.remove();
+  undoStack.push({rows:[data], atIndex:idx});
+  if(undoStack.length>50) undoStack.shift();
+  reindex(); recalc(); saveDraft(); updateCheckAll(); updateUndoBtn();
+  toast("已删除 1 行，可点「撤回」恢复");
+}
+function undo(){
+  const item=undoStack.pop();
+  if(!item){ toast("没有可撤回的操作"); return; }
+  const tb=$("tbody");
+  const list=allRows();
+  const ref=list[item.atIndex]||null;
+  item.rows.forEach(d=>{ addRow(d, null, ref); });
+  reindex(); recalc(); saveDraft(); updateCheckAll(); updateUndoBtn();
+  toast("已撤回删除，恢复 "+item.rows.length+" 行");
+}
+function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=undoStack.length===0; }
+function findCell(tr, colNum){
+  const td=tr.children[colNum-1];
+  if(!td) return null;
+  if(td.style.display==="none") return null;
+  const el=td.querySelector("input,textarea");
+  return el||null;
+}
+function navigateFrom(el, ci, dCol, dRow){
+  const rows=visibleRows();
+  const tr=el.closest("tr");
+  const rIdx=rows.indexOf(tr);
+  if(rIdx<0) return;
+  let newCi=ci+dCol, newRi=rIdx+dRow;
+  if(newRi<0||newRi>=rows.length) return;          // 行越界：不导航
+  const targetRow=rows[newRi];
+  let target=findCell(targetRow, EDITABLE_COLS[newCi]);
+  if(!target){                                    // 目标列被合并隐藏：就近找同行可见单元格
+    for(let off=1; off<EDITABLE_COLS.length; off++){
+      const a=EDITABLE_COLS[newCi-off], b=EDITABLE_COLS[newCi+off];
+      if(a){ const t=findCell(targetRow,a); if(t){ target=t; break; } }
+      if(b){ const t=findCell(targetRow,b); if(t){ target=t; break; } }
+    }
+  }
+  if(target){ target.focus(); try{ if(target.select) target.select(); }catch(_){} }
+}
+function onCellKey(e){
+  if(!e.target || !e.target.closest) return;
+  let dCol=0, dRow=0, handled=false;
+  if(e.key==="ArrowUp"){ dRow=-1; handled=true; }
+  else if(e.key==="ArrowDown"){ dRow=1; handled=true; }
+  else if(e.key==="Enter"){ if(e.shiftKey) return; dRow=1; handled=true; }   // Shift+Enter 保留换行
+  else if(e.key==="Tab"){ dCol=e.shiftKey?-1:1; handled=true; }
+  else if(e.key==="ArrowLeft"){ dCol=-1; handled=true; }
+  else if(e.key==="ArrowRight"){ dCol=1; handled=true; }
+  if(!handled) return;
+  if(acEl) return;                                // 自动补全打开时交给它处理
+  e.preventDefault();
+  const ci=EDITABLE_COLS.indexOf(e.target.closest("td").cellIndex+1);
+  if(ci<0) return;
+  navigateFrom(e.target, ci, dCol, dRow);
+}
 function mergeCustomerCells(){
   // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列
   const rows=[...$("tbody").children];
@@ -908,6 +993,15 @@ function importBackup(file){
   reader.readAsText(file);
 }
 $("exportBackup").onclick=exportBackup;
+$("undoBtn").onclick=undo;
+updateUndoBtn();
+document.addEventListener("keydown", e=>{
+  if((e.ctrlKey||e.metaKey) && (e.key==="z"||e.key==="Z")){
+    const ae=document.activeElement;
+    if(ae && (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")) return;   // 让浏览器处理文本内撤销
+    e.preventDefault(); undo();
+  }
+});
 $("importBackup").onclick=()=>$("backupFile").click();
 $("backupFile").onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importBackup(f); e.target.value=""; };
 
