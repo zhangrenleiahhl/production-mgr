@@ -29,7 +29,7 @@
     --ease:cubic-bezier(.2,.7,.3,1);
   }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:"KaiTi","STKaiti","楷体","Microsoft YaHei","PingFang SC",sans-serif;
+  body{margin:0;font-family:"Microsoft YaHei","微软雅黑","PingFang SC","Helvetica Neue",Arial,sans-serif;
     background:#f6f8fa;color:#1f2328;font-size:14px;
     -webkit-font-smoothing:antialiased;text-align:center;}
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;
@@ -164,7 +164,7 @@
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/吨位/箱数居中 */
   .tbl tbody td:nth-child(9){color:#2563eb;font-weight:700;}    /* 交货单蓝色粗体 */
   .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:16px;padding-right:1px;font-size:11px;background:#fff;border-color:transparent;}
-  .tbl td input[data-f="shipdate"].jinling{font-family:"金陵体","JinlingTi","STKaiti","楷体",serif;font-weight:700;color:#1f2328;}
+  .tbl td input[data-f="shipdate"].jinling{font-family:inherit;font-weight:700;color:#1f2328;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
   .tbl td.col-shipdate{position:relative;padding:0;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:2px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;transition:.15s;}
