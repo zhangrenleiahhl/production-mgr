@@ -32,8 +32,9 @@
     -webkit-font-smoothing:antialiased;}
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:4px;z-index:9999;
     background:linear-gradient(90deg,#6366f1,#8b5cf6 60%,#ec4899);}
-  .wrap{max-width:1340px;margin:0 auto;padding:28px 32px 64px;}
-  .page-header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:24px;}
+  .wrap{max-width:none;padding:28px 0 64px;}
+  .page-header,.kpi-grid,.topbar,.card{padding-left:24px;padding-right:24px;}
+  .page-header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:24px;padding-top:4px;}
   .page-header .title-wrap{flex:1;min-width:260px;}
   h1{font-size:26px;margin:0 0 6px;display:flex;align-items:center;gap:12px;letter-spacing:-.3px;font-weight:800;}
   h1 .dot{width:10px;height:24px;background:linear-gradient(180deg,#8b5cf6,#6366f1);border-radius:5px;display:inline-block;box-shadow:0 4px 10px rgba(99,102,241,.45);}
@@ -153,16 +154,16 @@
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:3%;}    /* 勾选 */
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:10%;}   /* 发货日期 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 客户 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:9%;}    /* 物料编码 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:18%;}   /* 型号 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:7%;}    /* 客户 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:8%;}    /* 物料编码 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:22%;}   /* 型号 */
   .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:7%;}    /* 发货数量 */
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:6%;}    /* 吨位 */
   .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 交货单 */
   .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:4%;}  /* 箱数 */
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:10%;} /* 备注 */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:7%;}  /* 客户吨位合计 */
-  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:7%;}  /* 操作 */
+  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
   .tbl td input[data-f="shipdate"]{color:var(--brand-d);font-weight:600;text-align:left;padding-left:4px;font-size:12.5px;}
   .tbl td.col-shipdate{position:relative;padding:0 2px;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:16px;height:16px;padding:0;border:none;background:#e0e7ff;color:#4f46e5;border-radius:5px;cursor:pointer;font-size:10px;line-height:16px;text-align:center;z-index:1;transition:.15s;}
@@ -528,6 +529,9 @@ function delRow(tr){
   const list=allRows();
   const idx=list.indexOf(tr);
   if(idx<0) return;
+  const model=tr.querySelector('[data-f="model"]')?.value?.trim()||"";
+  const customer=tr.querySelector('[data-f="customer"]')?.value?.trim()||"";
+  if(!confirm(`确认删除第 ${idx+1} 行${model?"（型号："+model+"）":""}？\n删除后可通过「撤回」按钮或 Ctrl+Z 恢复。`)) return;
   const data=collectRowData(tr);
   tr.remove();
   undoStack.push({rows:[data], atIndex:idx});
