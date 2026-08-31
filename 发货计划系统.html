@@ -123,17 +123,17 @@
   .doc-head .meta{display:none;}
   .tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;background:#fff;}
   .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:6px 4px;text-align:center;border:1px solid var(--purple-d);white-space:nowrap;position:sticky;top:0;z-index:2;font-size:13px;letter-spacing:0;}
-  .tbl td{padding:3px 4px;border:1px solid var(--purple-l);text-align:center;vertical-align:middle;min-height:26px;}
-  .tbl td input,.tbl td textarea{border:1px solid transparent;background:transparent;width:100%;text-align:center;border-radius:0;font-size:13px;font-weight:400;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:24px;line-height:1.35;}
-  .tbl td input{padding:2px 4px;}
-  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:3px 4px;white-space:pre-wrap;word-break:break-word;}
+  .tbl td{padding:0;border:1px solid var(--purple-l);text-align:center;vertical-align:middle;min-height:26px;}
+  .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:13px;font-weight:400;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:26px;line-height:1.35;}
+  .tbl td input{padding:2px 3px;height:26px;}
+  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:2px 3px;white-space:pre-wrap;word-break:break-word;display:block;}
   .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"]{text-align:left;}
-  .tbl td input:focus,.tbl td textarea:focus{border-color:var(--purple);background:var(--purple-bg);box-shadow:0 0 0 2px rgba(139,92,246,.15);}
+  .tbl td input:focus,.tbl td textarea:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(139,92,246,.15);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
   .tbl td.calc{padding:3px 4px;text-align:center;vertical-align:middle;}
-  .tbl tr.subtotal td{background:#f6f8fa;border-top:1px solid var(--purple);font-weight:700;color:#1f2328;padding:4px 6px;font-size:13px;}
-  .tbl tr.subtotal .sub-label{text-align:left;padding-left:10px;}
+  .tbl tr.subtotal td{background:#f6f8fa;border-top:1px solid var(--purple);font-weight:700;color:#1f2328;padding:2px 3px;font-size:13px;}
+  .tbl tr.subtotal .sub-label{text-align:left;padding-left:8px;}
   .tbl tr.subtotal .sub-ton{text-align:center;color:var(--purple-d);}
   .tbl tbody tr{transition:none;}
   .tbl tbody tr:nth-child(even){background:#fafafa;}
@@ -146,10 +146,10 @@
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
-  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:8%;}    /* 发货日期 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:7%;}    /* 客户 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:10%;}   /* 物料编码 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:24%;}   /* 型号 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:5%;}    /* 发货日期 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 客户 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:11%;}   /* 物料编码 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:25%;}   /* 型号 */
   .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:7%;}    /* 发货数量 */
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:5%;}    /* 吨位 */
   .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 交货单 */
@@ -157,13 +157,13 @@
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:8%;}  /* 备注 */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 客户吨位合计 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:9%;}  /* 操作 */
-  .tbl tbody td:nth-child(5){text-align:left;padding-left:8px;}  /* 物料编码左对齐 */
-  .tbl tbody td:nth-child(6){text-align:left;padding-left:8px;}  /* 型号左对齐 */
-  .tbl tbody td:nth-child(7),.tbl tbody td:nth-child(8),.tbl tbody td:nth-child(10){text-align:right;padding-right:8px;} /* 数量/吨位/箱数右对齐 */
+  .tbl tbody td:nth-child(5) textarea{padding-left:8px;text-align:left;}  /* 物料编码左对齐 */
+  .tbl tbody td:nth-child(6) textarea{padding-left:8px;text-align:left;}  /* 型号左对齐 */
+  .tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(8) input,.tbl tbody td:nth-child(10) input{padding-right:8px;text-align:right;} /* 数量/吨位/箱数右对齐 */
   .tbl tbody td:nth-child(9){color:#2563eb;font-weight:700;}    /* 交货单蓝色粗体 */
-  .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:4px;font-size:13px;background:transparent;border-color:transparent;}
+  .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:18px;font-size:13px;background:#fff;border-color:transparent;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
-  .tbl td.col-shipdate{position:relative;padding:0 2px;vertical-align:middle;}
+  .tbl td.col-shipdate{position:relative;padding:0;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:16px;height:16px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:3px;cursor:pointer;font-size:10px;line-height:16px;text-align:center;z-index:1;transition:.15s;}
   .tbl td.col-shipdate .fold-btn:hover{background:#ede9fe;}
   .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:18px;}
@@ -174,15 +174,15 @@
   .date-fold-placeholder-btn{border:1px solid var(--purple-l);background:#fff;color:var(--purple-d);border-radius:4px;padding:4px 12px;font-size:13px;cursor:pointer;font-weight:600;}
   .date-fold-placeholder-btn:hover{background:var(--purple-bg);}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
-  .col-customer textarea,.col-remark textarea{min-height:24px;height:24px;display:block;margin:0 auto;}
+  .col-customer textarea,.col-remark textarea{min-height:26px;height:26px;display:block;margin:0 auto;}
   .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;vertical-align:middle;background:#fff;}
-  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:100%;min-height:0;padding:3px 4px;margin:0 auto;display:block;background:transparent;border-color:transparent;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:100%;min-height:0;padding:2px 3px;margin:0 auto;display:block;background:#fff;border-color:transparent;}
   .col-customer.merged-cell textarea:focus,.col-remark.merged-cell textarea:focus{background:#fff;border-color:var(--purple);}
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid var(--purple-l);border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#fff;}
   .col-act{width:5%;white-space:nowrap;}
   input[data-f="qty"]{min-width:0;}
-  .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:transparent;border-color:transparent!important;text-align:center;}
+  .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
   .del-x,.ins-x,.mv-u,.mv-d{border:1px solid var(--purple-l);cursor:pointer;line-height:1;width:18px;height:20px;border-radius:3px;transition:.15s;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:10px;background:#fff;}
   .del-x{color:#dc2626;}
@@ -192,7 +192,7 @@
   .mv-u,.mv-d{color:#4b5563;font-size:11px;}
   .mv-u:hover,.mv-d:hover{background:#f3f4f6;border-color:var(--purple-l);color:#1f2328;}
   .mv-u:disabled,.mv-d:disabled{color:#d1d5db;cursor:not-allowed;background:#f9fafb;border-color:var(--purple-l);transform:none;}
-  .tbl tfoot td{font-weight:700;color:#1f2328;background:#f6f8fa;border:1px solid var(--purple-l);border-top:1px solid var(--purple);padding:5px 6px;font-size:13px;}
+  .tbl tfoot td{font-weight:700;color:#1f2328;background:#f6f8fa;border:1px solid var(--purple-l);border-top:1px solid var(--purple);padding:2px 3px;font-size:13px;}
   .num-cell{font-variant-numeric:tabular-nums;}
   .doc-foot{padding:10px 20px;font-size:13px;color:#4b5563;background:#fff;border-top:1px solid var(--purple-l);letter-spacing:0;}
   .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;}
@@ -503,7 +503,7 @@ function moveRow(tr, dir){
   else tb.insertBefore(tr, target.nextSibling);
   reindex(); recalc(); saveDraft(); updateCheckAll();
 }
-function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(24,ta.scrollHeight)+"px"; }
+function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(26,ta.scrollHeight)+"px"; }
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
