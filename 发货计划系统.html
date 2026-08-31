@@ -141,9 +141,9 @@
   .tbl tbody tr:hover td{background:var(--purple-bg);}
   .tbl tr.group-end td{border-bottom:1px solid #000;}
   .col-idx{width:3%;color:#6b7280;}
-  .col-check{width:3%;text-align:center;vertical-align:middle;padding:0!important;}
-  .row-check{width:100%;height:26px;margin:0;padding:0;cursor:pointer;accent-color:#2563eb;transform:none;}
-  #checkAll{width:100%;height:26px;margin:0;padding:0;cursor:pointer;accent-color:#2563eb;}
+  .col-check{width:3%;text-align:center;vertical-align:middle;padding:0!important;display:flex;align-items:center;justify-content:center;}
+  .row-check{width:12px;height:12px;margin:0;padding:0;cursor:pointer;accent-color:#2563eb;transform:none;}
+  #checkAll{width:16px;height:16px;margin:0;padding:0;cursor:pointer;accent-color:#2563eb;}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
@@ -178,12 +178,12 @@
   .date-fold-placeholder-btn{border:1px solid var(--purple-l);background:#fff;color:var(--purple-d);border-radius:4px;padding:4px 12px;font-size:13px;cursor:pointer;font-weight:600;}
   .date-fold-placeholder-btn:hover{background:var(--purple-bg);}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
-  .col-customer textarea,.col-remark textarea{min-height:26px;height:26px;display:block;margin:0 auto;}
+  .col-customer textarea,.col-remark textarea{min-height:26px;height:auto;display:block;margin:0 auto;overflow:hidden;white-space:pre-wrap;word-break:break-word;}
   .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;vertical-align:middle;background:#fff;}
-  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:100%;min-height:0;padding:2px 3px;margin:0 auto;display:block;background:#fff;border-color:transparent;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:100%;min-height:26px;padding:2px 3px;margin:0 auto;display:block;background:#fff;border-color:transparent;overflow:hidden;white-space:pre-wrap;word-break:break-word;}
   .col-customer.merged-cell textarea:focus,.col-remark.merged-cell textarea:focus{background:#fff;border-color:var(--purple);}
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
-  .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#fff;}
+  .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#fff;display:flex;align-items:center;justify-content:center;}
   .col-act{width:9%;white-space:nowrap;}
   /* 发布截图模式：隐藏 #/勾选/物料编码/操作，仅保留发货日期→客户吨位 */
   .tbl.screenshot-mode .col-idx,
@@ -518,7 +518,15 @@ function moveRow(tr, dir){
   else tb.insertBefore(tr, target.nextSibling);
   reindex(); recalc(); saveDraft(); updateCheckAll();
 }
-function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(26,ta.scrollHeight)+"px"; }
+function fitTextarea(ta){
+  if(!ta) return;
+  ta.style.height="auto";
+  const h=Math.max(26,ta.scrollHeight);
+  ta.style.height=h+"px";
+  // 合并单元格：同时给 td 设最小高度，让 rowspan 组随内容撑开
+  const td=ta.closest("td");
+  if(td && td.rowSpan>1) td.style.height=(h+4)+"px";
+}
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
