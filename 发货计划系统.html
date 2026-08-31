@@ -10,6 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
+<script src="html2canvas.min.js"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -28,9 +29,9 @@
     --ease:cubic-bezier(.2,.7,.3,1);
   }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+  body{margin:0;font-family:"KaiTi","STKaiti","楷体","Microsoft YaHei","PingFang SC",sans-serif;
     background:#f6f8fa;color:#1f2328;font-size:14px;
-    -webkit-font-smoothing:antialiased;}
+    -webkit-font-smoothing:antialiased;text-align:center;}
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;
     background:#2563eb;}
   .wrap{max-width:none;padding:28px 0 64px;}
@@ -125,9 +126,9 @@
   .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:6px 4px;text-align:center;border:1px solid var(--purple-d);white-space:nowrap;position:sticky;top:0;z-index:2;font-size:13px;letter-spacing:0;}
   .tbl td{padding:0;border:1px solid var(--purple-l);text-align:center;vertical-align:middle;min-height:26px;}
   .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:13px;font-weight:400;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:26px;line-height:1.35;}
-  .tbl td input{padding:2px 3px;height:26px;}
-  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:2px 3px;white-space:pre-wrap;word-break:break-word;display:block;}
-  .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"]{text-align:left;}
+  .tbl td input{padding:2px 3px;height:26px;text-align:center;}
+  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:2px 3px;white-space:pre-wrap;word-break:break-word;display:block;text-align:center;}
+  .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"]{text-align:center;}
   .tbl td input:focus,.tbl td textarea:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(139,92,246,.15);}
   @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
@@ -141,7 +142,7 @@
   .tbl tr.group-end td{border-bottom:1px solid var(--purple);}
   .col-idx{width:3%;color:#6b7280;}
   .col-check{width:3%;text-align:center;vertical-align:middle;}
-  .col-check input,.row-check{width:16px;height:16px;cursor:pointer;accent-color:#2563eb;}
+  .col-check input,.row-check{width:12px;height:12px;cursor:pointer;accent-color:#2563eb;}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
@@ -157,9 +158,9 @@
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 客户吨位 */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:11%;} /* 物料编码 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:9%;}  /* 操作 */
-  .tbl tbody td:nth-child(12) textarea{padding-left:8px;text-align:left;}  /* 物料编码左对齐 */
-  .tbl tbody td:nth-child(5) textarea{padding-left:8px;text-align:left;}  /* 型号左对齐 */
-  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(9) input{padding-right:8px;text-align:right;} /* 发货数量/吨位/箱数右对齐 */
+  .tbl tbody td:nth-child(12) textarea{text-align:center;}  /* 物料编码居中 */
+  .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
+  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/吨位/箱数居中 */
   .tbl tbody td:nth-child(9){color:#2563eb;font-weight:700;}    /* 交货单蓝色粗体 */
   .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:16px;padding-right:1px;font-size:11px;background:#fff;border-color:transparent;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
@@ -289,7 +290,7 @@
 
   <div class="card">
     <h2>发布记录 <span class="tag" id="recCount">0 条</span>
-      <span class="hint">（发布时仅存档文本数据，不自动截图）</span></h2>
+      <span class="hint">（发布时自动截图下载，并同时存档文本数据）</span></h2>
     <div class="records" id="records"></div>
     <div class="empty" id="recEmpty">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
   </div>
@@ -872,7 +873,7 @@ function publish(){
   if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
   if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
 
-  // 仅存档文本数据（不截图、不下载图片）
+  // 存档文本数据
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent};
@@ -881,6 +882,40 @@ function publish(){
   $("planNo").value=genPlanNo(); syncDocHead();
   saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
+
+  // 自动截图：客户列(第4列) 到 客户吨位列(第11列)
+  capturePublishImage();
+}
+
+function capturePublishImage(){
+  if(typeof html2canvas==="undefined"){ toast("截图库未加载，跳过自动截图"); return; }
+  const tbl=$("tbl");
+  const wrapper=document.createElement("div");
+  wrapper.style.cssText="position:fixed;left:10000px;top:10000px;background:#fff;padding:10px;z-index:-1;";
+  document.body.appendChild(wrapper);
+
+  const clone=tbl.cloneNode(true);
+  // 移除隐藏行，保证截图只含发布时可见数据
+  clone.querySelectorAll("tr.date-fold-hidden, tr.filter-hidden").forEach(tr=>tr.remove());
+  // 仅保留第4列（客户）到第11列（客户吨位），索引 3..10
+  clone.querySelectorAll("tr").forEach(tr=>{
+    const cells=[...tr.children];
+    cells.forEach((cell,idx)=>{ if(idx<3 || idx>10) cell.remove(); });
+  });
+  // 克隆表头原标题
+  const title=document.createElement("div");
+  title.textContent=$("docTitle").textContent;
+  title.style.cssText="font-size:18px;font-weight:700;text-align:center;margin-bottom:8px;color:#1f2328;";
+  wrapper.appendChild(title);
+  wrapper.appendChild(clone);
+
+  html2canvas(wrapper,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
+    const a=document.createElement("a");
+    a.download="发货计划截图_"+($("shipDate").value||new Date().toISOString().slice(0,10))+".png";
+    a.href=canvas.toDataURL("image/png");
+    a.click();
+    wrapper.remove();
+  }).catch(err=>{ console.error(err); wrapper.remove(); toast("自动截图失败，已保存文本记录"); });
 }
 function updateCheckAll(){
   // 仅统计可见行（排除被折叠或筛选隐藏的行），否则隐藏行永远不勾选会让表头全选框恒为半选
