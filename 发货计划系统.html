@@ -163,6 +163,7 @@
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/吨位/箱数居中 */
   .tbl tbody td:nth-child(9){color:#2563eb;font-weight:700;}    /* 交货单蓝色粗体 */
   .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:16px;padding-right:1px;font-size:11px;background:#fff;border-color:transparent;}
+  .tbl td input[data-f="shipdate"].jinling{font-family:"金陵体","JinlingTi","STKaiti","楷体",serif;font-weight:700;color:#1f2328;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
   .tbl td.col-shipdate{position:relative;padding:0;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:2px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;transition:.15s;}
@@ -454,8 +455,8 @@ function addRow(data={}, refRow=null, beforeRow=null){
         recalc(); saveDraft();
       });
     } else if(inp.dataset.f==="shipdate"){
-      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
-      inp.addEventListener("change", ()=>{ reindex(); foldByDate(); saveDraft(); });
+      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); styleShipdate(); });
+      inp.addEventListener("change", ()=>{ reindex(); foldByDate(); saveDraft(); styleShipdate(); });
     } else {
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
@@ -480,7 +481,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
   if(beforeRow && beforeRow.parentNode===tb) beforeRow.before(tr);
   else if(refRow && refRow.parentNode===tb) refRow.after(tr);
   else tb.appendChild(tr);
-  reindex(); recalc(); fitTextareas(); updateCheckAll();
+  reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate();
 }
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
@@ -883,10 +884,17 @@ function publish(){
   saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
 
-  // 自动截图：客户列(第4列) 到 客户吨位列(第11列)
+  // 自动截图：型号列(第5列) 到 客户吨位列(第11列)
   capturePublishImage();
 }
 
+function styleShipdate(){
+  document.querySelectorAll('[data-f="shipdate"]').forEach(inp=>{
+    const v=(inp.value||"").trim();
+    if(v.includes("自提")) inp.classList.add("jinling");
+    else inp.classList.remove("jinling");
+  });
+}
 function capturePublishImage(){
   if(typeof html2canvas==="undefined"){ toast("截图库未加载，跳过自动截图"); return; }
   const tbl=$("tbl");
@@ -897,10 +905,10 @@ function capturePublishImage(){
   const clone=tbl.cloneNode(true);
   // 移除隐藏行，保证截图只含发布时可见数据
   clone.querySelectorAll("tr.date-fold-hidden, tr.filter-hidden").forEach(tr=>tr.remove());
-  // 仅保留第4列（客户）到第11列（客户吨位），索引 3..10
+  // 仅保留第5列（型号）到第11列（客户吨位），索引 4..10
   clone.querySelectorAll("tr").forEach(tr=>{
     const cells=[...tr.children];
-    cells.forEach((cell,idx)=>{ if(idx<3 || idx>10) cell.remove(); });
+    cells.forEach((cell,idx)=>{ if(idx<4 || idx>10) cell.remove(); });
   });
   // 克隆表头原标题
   const title=document.createElement("div");
@@ -1060,6 +1068,7 @@ if(_draft && (_draft.rows.length || _draft.date)){
   $("planNo").value=_draft.no||genPlanNo();
   _draft.rows.forEach(r=>addRow(r));
   syncDocHead();
+  styleShipdate();
 }else{
   addRow(); addRow();
 }
