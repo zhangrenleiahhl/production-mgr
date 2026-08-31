@@ -885,7 +885,7 @@ function publish(){
   saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
 
-  // 自动截图：型号列(第5列) 到 客户吨位列(第11列)
+  // 自动截图：发货日期列(第3列) 到 客户吨位列(第11列)
   capturePublishImage();
 }
 
@@ -906,16 +906,11 @@ function capturePublishImage(){
   const clone=tbl.cloneNode(true);
   // 移除隐藏行，保证截图只含发布时可见数据
   clone.querySelectorAll("tr.date-fold-hidden, tr.filter-hidden").forEach(tr=>tr.remove());
-  // 仅保留第5列（型号）到第11列（客户吨位），索引 4..10
+  // 仅保留第3列（发货日期）到第11列（客户吨位），索引 2..10
   clone.querySelectorAll("tr").forEach(tr=>{
     const cells=[...tr.children];
-    cells.forEach((cell,idx)=>{ if(idx<4 || idx>10) cell.remove(); });
+    cells.forEach((cell,idx)=>{ if(idx<2 || idx>10) cell.remove(); });
   });
-  // 克隆表头原标题
-  const title=document.createElement("div");
-  title.textContent=$("docTitle").textContent;
-  title.style.cssText="font-size:18px;font-weight:700;text-align:center;margin-bottom:8px;color:#1f2328;";
-  wrapper.appendChild(title);
   wrapper.appendChild(clone);
 
   html2canvas(wrapper,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
