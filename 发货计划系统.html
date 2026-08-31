@@ -899,11 +899,14 @@ function styleShipdate(){
 function capturePublishImage(){
   if(typeof html2canvas==="undefined"){ toast("截图库未加载，跳过自动截图"); return; }
   const tbl=$("tbl");
+  const rect=tbl.getBoundingClientRect();
   const wrapper=document.createElement("div");
-  wrapper.style.cssText="position:fixed;left:10000px;top:10000px;background:#fff;padding:10px;z-index:-1;";
+  wrapper.style.cssText=`position:absolute;left:-9999px;top:-9999px;width:${rect.width+20}px;background:#fff;padding:10px;z-index:-1;`;
   document.body.appendChild(wrapper);
 
   const clone=tbl.cloneNode(true);
+  clone.style.width=rect.width+"px";
+  clone.style.tableLayout="fixed";
   // 移除隐藏行，保证截图只含发布时可见数据
   clone.querySelectorAll("tr.date-fold-hidden, tr.filter-hidden").forEach(tr=>tr.remove());
   // 仅保留第3列（发货日期）到第11列（客户吨位），索引 2..10
