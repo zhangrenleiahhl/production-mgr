@@ -185,6 +185,12 @@
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#fff;}
   .col-act{width:9%;white-space:nowrap;}
+  /* 发布截图模式：隐藏 #/勾选/物料编码/操作，仅保留发货日期→客户吨位 */
+  .tbl.screenshot-mode .col-idx,
+  .tbl.screenshot-mode .col-check,
+  .tbl.screenshot-mode .col-code,
+  .tbl.screenshot-mode .col-act,
+  .tbl.screenshot-mode tfoot{display:none;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
@@ -271,7 +277,7 @@
       <table class="tbl" id="tbl">
         <thead><tr>
           <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>吨位(t)</th>
-          <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位</th><th>物料编码</th><th class="col-act">操作</th>
+          <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位</th><th class="col-code">物料编码</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
@@ -438,7 +444,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-subton num-cell"></td>
-    <td><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
+    <td class="col-code"><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
     <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
   mvUp.onclick=()=>moveRow(tr, -1);
@@ -909,11 +915,8 @@ function capturePublishImage(){
   clone.style.tableLayout="fixed";
   // 移除隐藏行，保证截图只含发布时可见数据
   clone.querySelectorAll("tr.date-fold-hidden, tr.filter-hidden").forEach(tr=>tr.remove());
-  // 仅保留第3列（发货日期）到第11列（客户吨位），索引 2..10
-  clone.querySelectorAll("tr").forEach(tr=>{
-    const cells=[...tr.children];
-    cells.forEach((cell,idx)=>{ if(idx<2 || idx>10) cell.remove(); });
-  });
+  // 用 CSS 隐藏 #/勾选/物料编码/操作 及表尾，保留发货日期→客户吨位，避免按索引删单元格导致合并行错乱
+  clone.classList.add("screenshot-mode");
   wrapper.appendChild(clone);
 
   html2canvas(wrapper,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
