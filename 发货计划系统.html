@@ -280,7 +280,7 @@
           <td></td>
           <td class="num-cell" id="sumBox">/</td>
           <td></td>
-          <td></td>
+          <td class="num-cell" id="sumSubTon">/</td>
           <td></td>
           <td></td>
         </tr></tfoot>
@@ -855,6 +855,15 @@ function recalc(){
   $("sumTon").textContent=st.toFixed(1);
   $("sumBox").textContent=(sb>0)?sb:"/";
   foldByDate();
+  // 客户吨位合计：只累加当前可见的分组合计单元格（合并后每个组只显示一个）
+  let sst=0, subCells=0;
+  $("tbl").querySelectorAll("tbody .col-subton").forEach(td=>{
+    if(td.style.display==="none") return;
+    if(td.closest("tr.date-fold-hidden") || td.closest("tr.filter-hidden")) return;
+    subCells++;
+    sst+=parseFloat(td.textContent)||0;
+  });
+  $("sumSubTon").textContent=subCells?(sst>0?sst.toFixed(1):"0.0"):"/";
   updateKPIs();
 }
 function collectRows(){
@@ -933,7 +942,8 @@ function publish(){
   // 存档文本数据
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
-    sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent};
+    sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent,
+    sumSubTon:$("sumSubTon").textContent};
   saveRec(rec); renderRecords();
   toast("已发布 ✓（单号 "+rec.no+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
   $("planNo").value=genPlanNo(); syncDocHead();
@@ -991,7 +1001,7 @@ function renderRecords(){
     const div=document.createElement("div"); div.className="rec";
     div.innerHTML=`
       <div class="info"><b>${rec.no}</b><br>日期：${rec.date}${rec.maker?' ｜ 制单：'+rec.maker:''}<br>
-        共 ${rec.rows.length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ ${rec.sumBox}箱<br>发布：${rec.publishedAt}</div>
+        共 ${rec.rows.length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${rec.publishedAt}</div>
       <div class="acts">
         <button class="btn btn-line" data-act="csv">导出CSV</button>
         <button class="btn btn-danger" data-act="del">删除</button>
