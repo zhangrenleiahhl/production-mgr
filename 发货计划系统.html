@@ -10,7 +10,6 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="html2canvas.min.js"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -185,17 +184,6 @@
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#f6f8fa;text-align:center;}
   .col-act{width:9%;white-space:nowrap;}
-  /* 发布截图模式：隐藏 #/勾选/物料编码/操作，仅保留发货日期→客户吨位 */
-  .tbl.screenshot-mode .col-idx,
-  .tbl.screenshot-mode .col-check,
-  .tbl.screenshot-mode .col-code,
-  .tbl.screenshot-mode .col-act,
-  .tbl.screenshot-mode tfoot{display:none;}
-  .tbl.screenshot-mode thead th{position:static;}  /* 离屏截图时sticky会导致表头跑到底部 */
-  .tbl.screenshot-mode tbody tr{height:auto!important;}
-  .tbl.screenshot-mode td{height:auto!important;min-height:auto!important;}
-  .tbl.screenshot-mode td input{height:auto!important;min-height:26px!important;white-space:normal!important;overflow:visible!important;}
-  .tbl.screenshot-mode td textarea{height:auto!important;min-height:26px!important;overflow:visible!important;white-space:pre-wrap!important;word-break:break-word!important;}
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
@@ -303,7 +291,7 @@
 
   <div class="card">
     <h2>发布记录 <span class="tag" id="recCount">0 条</span>
-      <span class="hint">（发布时自动截图下载，并同时存档文本数据）</span></h2>
+      <span class="hint">（发布后自动同步到发货员链接，同时存档文本数据）</span></h2>
     <div class="records" id="records"></div>
     <div class="empty" id="recEmpty">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
   </div>
@@ -918,7 +906,7 @@ function loadDraft(){ try{ return JSON.parse(localStorage.getItem(LS_DRAFT))||nu
 function clearDraft(){ try{ localStorage.removeItem(LS_DRAFT); }catch(e){} }
 $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); saveDraft(); foldByDate(); });
 
-// ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
+// ===================== 发布：文本存档 + 同步到发货员链接（不再截图下载） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
 function publish(){
   const allTrs=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal"));
@@ -951,9 +939,6 @@ function publish(){
   $("planNo").value=genPlanNo(); syncDocHead();
   saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
-
-  // 自动截图：发货日期列(第3列) 到 客户吨位列(第11列)
-  capturePublishImage();
 }
 
 function styleShipdate(){
@@ -962,33 +947,6 @@ function styleShipdate(){
     if(v.includes("自提")) inp.classList.add("jinling");
     else inp.classList.remove("jinling");
   });
-}
-function capturePublishImage(){
-  if(typeof html2canvas==="undefined"){ toast("截图库未加载，跳过自动截图"); return; }
-  const tbl=$("tbl");
-  const rect=tbl.getBoundingClientRect();
-  const wrapper=document.createElement("div");
-  wrapper.style.cssText=`position:absolute;left:-9999px;top:-9999px;width:${rect.width+20}px;background:#fff;padding:10px;z-index:-1;`;
-  document.body.appendChild(wrapper);
-
-  const clone=tbl.cloneNode(true);
-  clone.style.width=rect.width+"px";
-  clone.style.tableLayout="fixed";
-  // 移除隐藏行，保证截图只含发布时可见数据
-  clone.querySelectorAll("tr.date-fold-hidden, tr.filter-hidden").forEach(tr=>tr.remove());
-  // 用 CSS 隐藏 #/勾选/物料编码/操作 及表尾，保留发货日期→客户吨位，避免按索引删单元格导致合并行错乱
-  clone.classList.add("screenshot-mode");
-  wrapper.appendChild(clone);
-  // 截图前让多行文本框按内容撑开，避免文字被截断
-  clone.querySelectorAll("textarea").forEach(ta=>{ ta.style.height="auto"; ta.style.height=ta.scrollHeight+"px"; });
-
-  html2canvas(wrapper,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
-    const a=document.createElement("a");
-    a.download="发货计划截图_"+($("shipDate").value||new Date().toISOString().slice(0,10))+".png";
-    a.href=canvas.toDataURL("image/png");
-    a.click();
-    wrapper.remove();
-  }).catch(err=>{ console.error(err); wrapper.remove(); toast("自动截图失败，已保存文本记录"); });
 }
 function updateCheckAll(){
   // 仅统计可见行（排除被折叠或筛选隐藏的行），否则隐藏行永远不勾选会让表头全选框恒为半选
