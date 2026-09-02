@@ -514,7 +514,7 @@ function reindex(){
     idx++;
     tr.querySelector(".col-idx").textContent=idx;
   });
-  $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells();
+  $("rowCount").textContent=$("tbody").children.length+" 行"; foldByDate(); mergeCustomerCells();
 }
 function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
   const tb=$("tbody");
@@ -632,9 +632,9 @@ function onCellKey(e){
   navigateFrom(e.target, ci, dCol, dRow);
 }
 function mergeCustomerCells(){
-  // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列
-  const rows=[...$("tbody").children];
-  rows.forEach(tr=>{
+  // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列；只合并当前可见行，避免折叠/筛选隐藏行被rowSpan撑出空白
+  const allRows=[...$("tbody").children];
+  allRows.forEach(tr=>{
     tr.classList.remove("group-end");
     [".col-customer",".col-remark"].forEach(sel=>{
       const c=tr.querySelector(sel);
@@ -643,6 +643,7 @@ function mergeCustomerCells(){
     const sub=tr.querySelector(".col-subton");
     if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; }
   });
+  const rows=allRows.filter(tr=>!tr.classList.contains("subtotal")&&!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden"));
   let i=0;
   while(i<rows.length){
     const cust=rows[i].querySelector('[data-f="customer"]')?.value.trim()||"";
@@ -678,7 +679,6 @@ function mergeCustomerCells(){
     i=j;
   }
   fitTextareas();
-  foldByDate();
 }
 
 const FOLD_STATE_KEY="shipping_fold_dates_v1";
@@ -838,7 +838,7 @@ function recalc(){
   $("sumQty").textContent=sq;
   $("sumTon").textContent=st.toFixed(1);
   $("sumBox").textContent=(sb>0)?sb:"/";
-  mergeCustomerCells();
+  foldByDate(); mergeCustomerCells();
   updateKPIs();
 }
 function collectRows(){
