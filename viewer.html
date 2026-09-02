@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发货计划查看 · 发货员端</title>
+<script src="supabase.min.js"></script>
+<script src="cloud-config.js"></script>
+<script src="cloud-sync.js"></script>
+<script src="xlsx.full.min.js"></script>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<style>
+  :root{
+    --blue:#2563eb; --blue-d:#1d4ed8;
+    --bg:#f6f8fa; --card:#fff; --line:#d0d7de;
+    --txt:#1f2328; --muted:#4b5563; --muted-2:#94a3b8;
+    --green:#059669; --red:#dc2626;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Microsoft YaHei","微软雅黑","PingFang SC",sans-serif;
+    background:var(--bg);color:var(--txt);font-size:14px;-webkit-font-smoothing:antialiased;text-align:center;}
+  body::before{content:"";position:fixed;top:0;left:0;right:0;height:3px;background:var(--blue);z-index:9999;}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px 14px 60px;}
+  header.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0 14px;}
+  h1{font-size:19px;margin:0;display:flex;align-items:center;gap:8px;}
+  h1 .dot{width:6px;height:18px;background:var(--blue);display:inline-block;}
+  h1 .tag{font-size:12px;color:var(--muted);font-weight:400;}
+  .sub{color:var(--muted);font-size:12px;margin:3px 0 0;}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--line);
+    background:#fff;color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;border-radius:4px;transition:.15s;}
+  .btn:hover{background:#f6f8fa;border-color:#9ca3af;}
+  .btn:active{transform:translateY(1px);}
+  .btn.sm{padding:6px 10px;font-size:12px;}
+  .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .btn-primary:hover{background:var(--blue-d);border-color:var(--blue-d);}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#fff;
+    border:1px solid var(--line);padding:10px 12px;margin-bottom:14px;}
+  .toolbar label{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);}
+  .toolbar .sel-info{color:var(--blue);font-size:12px;font-weight:600;margin-left:auto;}
+  #list{display:flex;flex-direction:column;gap:12px;}
+  .rec{background:#fff;border:1px solid var(--line);text-align:left;overflow:hidden;}
+  .rec-head{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;flex-wrap:wrap;}
+  .rec-sel{width:16px;height:16px;margin-top:4px;flex-shrink:0;cursor:pointer;}
+  .rec-info{flex:1;min-width:240px;display:flex;flex-direction:column;gap:4px;}
+  .rec-info b{font-size:15px;color:var(--txt);}
+  .rec-info .meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);}
+  .rec-info .meta span{white-space:nowrap;}
+  .rec-info .meta .muted{color:var(--muted-2);}
+  .rec-acts{display:flex;flex-wrap:wrap;gap:6px;}
+  .rec-detail{padding:0 14px 14px;border-top:1px dashed var(--line);}
+  .dt-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 0 8px;}
+  .dt-acts .sub{margin-left:auto;}
+  table.dt{width:100%;border-collapse:collapse;font-size:12px;}
+  table.dt th,table.dt td{border:1px solid var(--line);padding:6px 7px;vertical-align:middle;}
+  table.dt th{background:#f1f5ff;color:#1e3a8a;font-weight:700;white-space:nowrap;}
+  table.dt td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  table.dt tbody tr:nth-child(even){background:#fafbff;}
+  table.dt tr.sum td{background:#eef2ff;font-weight:700;}
+  table.dt input.row-sel{width:15px;height:15px;cursor:pointer;}
+  .empty{background:#fff;border:1px dashed var(--line);padding:40px 16px;text-align:center;color:var(--muted);font-size:14px;}
+  .empty b{color:var(--blue);}
+  /* 打印样式 */
+  @media print{
+    body::before{display:none;}
+    .wrap{max-width:none;padding:0;}
+    header.top,.toolbar,.rec-head .rec-acts,.dt-acts,.rec-sel{display:none!important;}
+    .rec{border:none;page-break-inside:avoid;}
+    table.dt th{background:#2563eb!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1><span class="dot"></span>发货计划查看 <span class="tag">（发货员端）</span></h1>
+      <p class="sub" id="status">正在连接云端…</p>
+    </div>
+    <button class="btn" id="refresh">↻ 刷新</button>
+  </header>
+
+  <div class="toolbar">
+    <label><input type="checkbox" id="selAll"> 全选所有单</label>
+    <button class="btn btn-primary" id="batchExcel">下载所选单 Excel</button>
+    <button class="btn" id="batchCsv">下载所选单 CSV</button>
+    <button class="btn" id="batchPrint">打印所选单</button>
+    <span class="sel-info" id="selInfo"></span>
+  </div>
+
+  <div id="list"></div>
+  <div id="empty" class="empty" style="display:none">
+    暂无已发布计划。请在管理端填写明细并点击「发布」，发货员即可在此查看与下载。<br>
+    链接：<b>https://zhangrenleiahhl.github.io/production-mgr/viewer.html</b>
+  </div>
+</div>
+
+<script>
+// ===================== 配置 =====================
+const KEY = "shipping_plans_v1";           // 与管理端发布记录键一致
+const $ = (id) => document.getElementById(id);
+let RECORDS = [];
+
+const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/" : s; };
+
+// ===================== 初始化 =====================
+function init(){
+  if (window.CloudSync) CloudSync.init();
+  load();
+  setInterval(load, 30000);                // 每 30 秒自动拉取最新
+  $("refresh").onclick = load;
+  $("selAll").onchange = (e) => {
+    document.querySelectorAll(".rec-sel").forEach(c => c.checked = e.target.checked);
+    updateSel();
+  };
+  $("batchExcel").onclick = () => batchDownload("excel");
+  $("batchCsv").onclick   = () => batchDownload("csv");
+  $("batchPrint").onclick = () => batchPrint();
+}
+
+// ===================== 拉取云端数据 =====================
+async function load(){
+  $("status").textContent = "正在拉取云端数据…";
+  let list = null;
+  if (window.CloudSync && CloudSync.ready()){
+    try { list = await CloudSync.pull(KEY); } catch(e){ list = null; }
+  }
+  if (!Array.isArray(list)){
+    // 本地兜底（同一浏览器曾打开过管理端）
+    try { list = JSON.parse(localStorage.getItem(KEY) || "null"); } catch(e){}
+  }
+  RECORDS = Array.isArray(list) ? list : [];
+  render();
+  const t = new Date().toLocaleTimeString("zh-CN");
+  $("status").textContent = `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
+}
+
+// ===================== 渲染列表 =====================
+function render(){
+  const box = $("list");
+  box.innerHTML = "";
+  $("empty").style.display = RECORDS.length ? "none" : "block";
+  RECORDS.forEach(rec => box.appendChild(card(rec)));
+  updateSel();
+}
+
+function card(rec){
+  const div = document.createElement("div");
+  div.className = "rec";
+  const rows = rec.rows || [];
+  const tonByCust = {};
+  rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0); });
+
+  div.innerHTML = `
+    <div class="rec-head">
+      <input type="checkbox" class="rec-sel" data-id="${rec.id}">
+      <div class="rec-info">
+        <b>${pad(rec.no)}</b>
+        <div class="meta">
+          <span>日期 ${pad(rec.date)}</span>
+          <span>${rows.length} 行</span>
+          <span>数量 ${pad(rec.sumQty)}</span>
+          <span>吨位 ${pad(rec.sumTon)}</span>
+          <span>箱数 ${pad(rec.sumBox)}</span>
+          <span class="muted">发布 ${pad(rec.publishedAt)}</span>
+        </div>
+      </div>
+      <div class="rec-acts">
+        <button class="btn sm" data-act="toggle">查看明细</button>
+        <button class="btn sm" data-act="excel">Excel</button>
+        <button class="btn sm" data-act="csv">CSV</button>
+        <button class="btn sm" data-act="print">打印</button>
+      </div>
+    </div>
+    <div class="rec-detail" style="display:none"></div>`;
+
+  div.querySelector(".rec-sel").onchange = updateSel;
+  div.querySelector('[data-act="toggle"]').onclick = () => {
+    const d = div.querySelector(".rec-detail");
+    if (d.style.display === "none"){ d.innerHTML = detailTable(rec, tonByCust); d.style.display = "block"; bindDetail(d, rec); }
+    else d.style.display = "none";
+  };
+  div.querySelector('[data-act="excel"]').onclick = () => downloadOne(rec, "excel");
+  div.querySelector('[data-act="csv"]').onclick   = () => downloadOne(rec, "csv");
+  div.querySelector('[data-act="print"]').onclick = () => printRec(rec);
+  return div;
+}
+
+function detailTable(rec, tonByCust){
+  const rows = rec.rows || [];
+  let body = rows.map((r, i) => `
+    <tr>
+      <td><input type="checkbox" class="row-sel" data-id="${rec.id}-${i}"></td>
+      <td>${pad(r.shipdate)}</td>
+      <td>${pad(r.customer)}</td>
+      <td>${pad(r.model)}</td>
+      <td class="num">${pad(r.qty)}</td>
+      <td class="num">${pad(r.ton)}</td>
+      <td>${pad(r.delivery)}</td>
+      <td class="num">${pad(r.box)}</td>
+      <td>${pad(r.remark)}</td>
+      <td class="num">${tonByCust[pad(r.customer)] ? tonByCust[pad(r.customer)].toFixed(1) + "t" : "/"}</td>
+      <td>${pad(r.code)}</td>
+    </tr>`).join("");
+
+  const sumQ = rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
+  const sumT = rows.reduce((a, r) => a + (parseFloat(r.ton) || 0), 0);
+  const sumB = rows.reduce((a, r) => a + (parseFloat(r.box) || 0), 0);
+  body += `<tr class="sum">
+      <td></td><td colspan="3">合计</td>
+      <td class="num">${sumQ}</td><td class="num">${sumT.toFixed(1)}</td>
+      <td></td><td class="num">${sumB}</td><td colspan="3"></td>
+    </tr>`;
+
+  return `
+    <div class="dt-acts">
+      <button class="btn sm" data-act="excelRows">下载勾选行 Excel</button>
+      <button class="btn sm" data-act="csvRows">下载勾选行 CSV</button>
+      <button class="btn sm" data-act="printRows">打印勾选行</button>
+      <span class="sub" data-act="rowinfo"></span>
+    </div>
+    <table class="dt"><thead><tr>
+      <th></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>吨位(t)</th>
+      <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位</th><th>物料编码</th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function bindDetail(d, rec){
+  const rows = rec.rows || [];
+  const update = () => {
+    const n = d.querySelectorAll(".row-sel:checked").length;
+    const inf = d.querySelector('[data-act="rowinfo"]');
+    if (inf) inf.textContent = `已选 ${n} 行`;
+  };
+  const pick = () => [...d.querySelectorAll(".row-sel:checked")].map(c => rows[+c.dataset.id.split("-")[1]]);
+  d.querySelectorAll(".row-sel").forEach(c => c.onchange = update);
+  d.querySelector('[data-act="excelRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportExcel(s, rec.no + "_勾选行"); };
+  d.querySelector('[data-act="csvRows"]').onclick   = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportCsv(s, rec.no + "_勾选行"); };
+  d.querySelector('[data-act="printRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } printRows(s, rec.no + "（勾选行）"); };
+  update();
+}
+
+// ===================== 导出 =====================
+function matrix(rows){
+  const head = ["发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  const tonByCust = {};
+  rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0); });
+  const data = rows.map(r => [
+    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.ton),
+    pad(r.delivery), pad(r.box), pad(r.remark),
+    (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)
+  ]);
+  return [head, ...data];
+}
+
+function exportExcel(rows, name){
+  if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
+  const ws = XLSX.utils.aoa_to_sheet(matrix(rows));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, String(name).slice(0, 28));
+  XLSX.writeFile(wb, `发货计划_${name}.xlsx`);
+}
+
+function exportCsv(rows, name){
+  const m = matrix(rows);
+  const csv = "﻿" + m.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `发货计划_${name}.csv`;
+  a.click();
+}
+
+function downloadOne(rec, fmt){
+  const rows = rec.rows || [];
+  if (fmt === "excel") exportExcel(rows, rec.no); else exportCsv(rows, rec.no);
+}
+
+function batchDownload(fmt){
+  const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
+  const recs = RECORDS.filter(r => ids.includes(String(r.id)));
+  if (!recs.length){ alert("请先勾选要下载的计划单（卡片左侧的方框）"); return; }
+
+  if (fmt === "excel"){
+    if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
+    const wb = XLSX.utils.book_new();
+    recs.forEach(rec => {
+      const ws = XLSX.utils.aoa_to_sheet(matrix(rec.rows || []));
+      XLSX.utils.book_append_sheet(wb, ws, String(rec.no).slice(-16).slice(0, 28));
+    });
+    XLSX.writeFile(wb, `发货计划_批量${recs.length}单.xlsx`);
+  } else {
+    let out = ['﻿"单号","发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"'];
+    recs.forEach(rec => {
+      const tonByCust = {};
+      (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0); });
+      (rec.rows || []).forEach(r => {
+        out.push([
+          rec.no, pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.ton),
+          pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)
+        ].map(c => '"' + String(c).replace(/"/g, '""') + '"').join(","));
+      });
+    });
+    const blob = new Blob([out.join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `发货计划_批量${recs.length}单.csv`;
+    a.click();
+  }
+}
+
+// ===================== 打印 =====================
+function printRows(rows, title){
+  const m = matrix(rows);
+  const thead = "<tr>" + m[0].map(h => `<th>${h}</th>`).join("") + "</tr>";
+  const tbody = m.slice(1).map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+    <title>发货计划 ${pad(title)}</title>
+    <style>
+      body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
+      h2{font-size:16px;margin:0 0 10px;}
+      table{border-collapse:collapse;width:100%;}
+      th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
+      th{background:#2563eb;color:#fff;}
+      td:nth-child(4),td:nth-child(5),td:nth-child(6),td:nth-child(8){text-align:right;}
+    </style></head><body>
+    <h2>发货计划 ${pad(title)}</h2>
+    <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+    <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+    </body></html>`;
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+}
+
+function printRec(rec){ printRows(rec.rows || [], rec.no); }
+
+function batchPrint(){
+  const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
+  const recs = RECORDS.filter(r => ids.includes(String(r.id)));
+  if (!recs.length){ alert("请先勾选要打印的计划单（卡片左侧的方框）"); return; }
+
+  let blocks = recs.map(rec => {
+    const m = matrix(rec.rows || []);
+    const thead = "<tr>" + m[0].map(h => `<th>${h}</th>`).join("") + "</tr>";
+    const tbody = m.slice(1).map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+    return `<h2>发货计划 ${pad(rec.no)}（${pad(rec.date)}）</h2>
+      <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+      <div style="page-break-after:always"></div>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+    <title>发货计划批量打印</title>
+    <style>
+      body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
+      h2{font-size:16px;margin:0 0 10px;}
+      table{border-collapse:collapse;width:100%;}
+      th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
+      th{background:#2563eb;color:#fff;}
+      td:nth-child(4),td:nth-child(5),td:nth-child(6),td:nth-child(8){text-align:right;}
+    </style></head><body>${blocks}
+    <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+    </body></html>`;
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+}
+
+// ===================== 选择状态 =====================
+function updateSel(){
+  const n = document.querySelectorAll(".rec-sel:checked").length;
+  $("selInfo").textContent = n ? `已选 ${n} 个单` : "";
+  const all = $("selAll");
+  const boxes = document.querySelectorAll(".rec-sel");
+  all.checked = boxes.length > 0 && n === boxes.length;
+  all.indeterminate = n > 0 && n < boxes.length;
+}
+
+// 启动
+init();
+</script>
+</body>
+</html>
