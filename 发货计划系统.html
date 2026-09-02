@@ -634,45 +634,48 @@ function onCellKey(e){
 function mergeCustomerCells(){
   // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列；只合并当前可见行，避免折叠/筛选隐藏行被rowSpan撑出空白
   const allRows=[...$("tbody").children];
+  // 1) 清除所有行的合并状态
   allRows.forEach(tr=>{
     tr.classList.remove("group-end");
-    [".col-customer",".col-remark"].forEach(sel=>{
-      const c=tr.querySelector(sel);
-      if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); }
+    ["col-customer","col-remark"].forEach(cls=>{
+      const c=tr.querySelector("."+cls);
+      if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
     });
     const sub=tr.querySelector(".col-subton");
-    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; }
+    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; sub.style.height=""; }
   });
+  // 2) 只取可见数据行（subtotal/折叠/筛选隐藏均排除）
   const rows=allRows.filter(tr=>!tr.classList.contains("subtotal")&&!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden"));
   let i=0;
   while(i<rows.length){
-    const cust=rows[i].querySelector('[data-f="customer"]')?.value.trim()||"";
-    const date=rows[i].querySelector('[data-f="shipdate"]')?.value||"";
+    const first=rows[i];
+    const cust=(first.querySelector('[data-f="customer"]')?.value||"").trim();
+    const date=(first.querySelector('[data-f="shipdate"]')?.value||"").trim();
+    if(!cust){ i++; continue; }  // 空客户不合并
     const key=cust+"|"+date;
     let j=i+1;
     while(j<rows.length){
-      const cust2=rows[j].querySelector('[data-f="customer"]')?.value.trim()||"";
-      const date2=rows[j].querySelector('[data-f="shipdate"]')?.value||"";
-      if((cust2+"|"+date2)!==key) break;
+      const cust2=(rows[j].querySelector('[data-f="customer"]')?.value||"").trim();
+      const date2=(rows[j].querySelector('[data-f="shipdate"]')?.value||"").trim();
+      if(cust2+"|"+date2!==key) break;
       j++;
     }
     const len=j-i;
-    // 计算该组合计吨位
+    // 3) 计算该组合计吨位（只要客户非空就显示合计，即使吨位为0）
     let subTon=0;
     for(let k=i;k<j;k++){ subTon+=parseFloat(rows[k].querySelector('[data-f="ton"]')?.value)||0; }
-    if(cust && subTon>0){
-      const first=rows[i];
-      const subCell=first.querySelector(".col-subton");
-      if(subCell){ subCell.textContent=subTon.toFixed(1); subCell.classList.add("merged-cell"); }
-      if(len>1){
-        const c=rows[i].querySelector(".col-customer"), r=rows[i].querySelector(".col-remark");
-        if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
-        if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
-        if(subCell) subCell.rowSpan=len;
-        for(let k=i+1;k<j;k++){
-          const c2=rows[k].querySelector(".col-customer"), r2=rows[k].querySelector(".col-remark"), s2=rows[k].querySelector(".col-subton");
-          if(c2) c2.style.display="none"; if(r2) r2.style.display="none"; if(s2) s2.style.display="none";
-        }
+    const subCell=first.querySelector(".col-subton");
+    if(subCell){ subCell.textContent=subTon.toFixed(1); subCell.classList.add("merged-cell"); }
+    if(len>1){
+      const c=first.querySelector(".col-customer"), r=first.querySelector(".col-remark");
+      if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
+      if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
+      if(subCell) subCell.rowSpan=len;
+      for(let k=i+1;k<j;k++){
+        const c2=rows[k].querySelector(".col-customer"), r2=rows[k].querySelector(".col-remark"), s2=rows[k].querySelector(".col-subton");
+        if(c2){ c2.style.display="none"; c2.rowSpan=1; }
+        if(r2){ r2.style.display="none"; r2.rowSpan=1; }
+        if(s2){ s2.style.display="none"; s2.rowSpan=1; }
       }
     }
     rows[j-1].classList.add("group-end");
@@ -1110,6 +1113,7 @@ if(_draft && (_draft.rows.length || _draft.date)){
 }else{
   addRow(); addRow();
 }
+reindex();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
 renderRecords();
 
 // ===================== 云端同步 =====================
