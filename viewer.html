@@ -279,32 +279,36 @@ function downloadOne(rec, fmt){
   if (fmt === "excel") exportExcel(rows, rec.no); else exportCsv(rows, rec.no);
 }
 
+// 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
+function batchMatrix(recs){
+  const head = ["单号","发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  const data = [];
+  recs.forEach(rec => {
+    const tonByCust = {};
+    (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0); });
+    (rec.rows || []).forEach(r => {
+      data.push([pad(rec.no), pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.ton),
+        pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)]);
+    });
+  });
+  return [head, ...data];
+}
+
 function batchDownload(fmt){
   const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要下载的计划单（卡片左侧的方框）"); return; }
 
+  const m = batchMatrix(recs);
   if (fmt === "excel"){
     if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
+    const ws = XLSX.utils.aoa_to_sheet(m);
     const wb = XLSX.utils.book_new();
-    recs.forEach(rec => {
-      const ws = XLSX.utils.aoa_to_sheet(matrix(rec.rows || []));
-      XLSX.utils.book_append_sheet(wb, ws, String(rec.no).slice(-16).slice(0, 28));
-    });
+    XLSX.utils.book_append_sheet(wb, ws, "批量发货计划");
     XLSX.writeFile(wb, `发货计划_批量${recs.length}单.xlsx`);
   } else {
-    let out = ['﻿"单号","发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"'];
-    recs.forEach(rec => {
-      const tonByCust = {};
-      (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0); });
-      (rec.rows || []).forEach(r => {
-        out.push([
-          rec.no, pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.ton),
-          pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)
-        ].map(c => '"' + String(c).replace(/"/g, '""') + '"').join(","));
-      });
-    });
-    const blob = new Blob([out.join("\n")], { type: "text/csv;charset=utf-8" });
+    const csv = "﻿" + m.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `发货计划_批量${recs.length}单.csv`;
@@ -344,25 +348,22 @@ function batchPrint(){
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要打印的计划单（卡片左侧的方框）"); return; }
 
-  let blocks = recs.map(rec => {
-    const m = matrix(rec.rows || []);
-    const thead = "<tr>" + m[0].map(h => `<th>${h}</th>`).join("") + "</tr>";
-    const tbody = m.slice(1).map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
-    return `<h2>发货计划 ${pad(rec.no)}（${pad(rec.date)}）</h2>
-      <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-      <div style="page-break-after:always"></div>`;
-  }).join("");
+  const m = batchMatrix(recs);
+  const thead = "<tr>" + m[0].map(h => `<th>${h}</th>`).join("") + "</tr>";
+  const tbody = m.slice(1).map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
 
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
-    <title>发货计划批量打印</title>
+    <title>发货计划批量打印（${recs.length} 单）</title>
     <style>
       body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
       h2{font-size:16px;margin:0 0 10px;}
       table{border-collapse:collapse;width:100%;}
       th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
       th{background:#2563eb;color:#fff;}
-      td:nth-child(4),td:nth-child(5),td:nth-child(6),td:nth-child(8){text-align:right;}
-    </style></head><body>${blocks}
+      td:nth-child(5),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
+    </style></head><body>
+    <h2>发货计划批量（${recs.length} 单）</h2>
+    <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
     <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
     </body></html>`;
   const w = window.open("", "_blank");
