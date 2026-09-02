@@ -162,6 +162,7 @@ function card(rec){
           <span>${rows.length} 行</span>
           <span>数量 ${pad(rec.sumQty)}</span>
           <span>吨位 ${pad(rec.sumTon)}</span>
+          ${rec.sumSubTon ? `<span>客户吨位 ${pad(rec.sumSubTon)}</span>` : ""}
           <span>箱数 ${pad(rec.sumBox)}</span>
           <span class="muted">发布 ${pad(rec.publishedAt)}</span>
         </div>
@@ -207,10 +208,11 @@ function detailTable(rec, tonByCust){
   const sumQ = rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
   const sumT = rows.reduce((a, r) => a + (parseFloat(r.ton) || 0), 0);
   const sumB = rows.reduce((a, r) => a + (parseFloat(r.box) || 0), 0);
+  const sumCustT = Object.values(tonByCust).reduce((a, v) => a + v, 0);
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
       <td class="num">${sumQ}</td><td class="num">${sumT.toFixed(1)}</td>
-      <td></td><td class="num">${sumB}</td><td colspan="3"></td>
+      <td></td><td class="num">${sumB}</td><td></td><td class="num">${sumCustT.toFixed(1)}</td><td></td>
     </tr>`;
 
   return `
