@@ -631,10 +631,17 @@ function onCellKey(e){
   if(ci<0) return;
   navigateFrom(e.target, ci, dCol, dRow);
 }
+function unmergeRow(tr){
+  // 取消单行的客户/备注/客户吨位合并
+  ["col-customer","col-remark","col-subton"].forEach(cls=>{
+    const c=tr.querySelector("."+cls);
+    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
+  });
+}
 function mergeCustomerCells(){
-  // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列；只合并当前可见行，避免折叠/筛选隐藏行被rowSpan撑出空白
-  const allRows=[...$("tbody").children];
-  // 1) 清除所有行的合并状态
+  // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列；基于全部数据行合并
+  const allRows=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal"));
+  // 1) 清除所有数据行的合并状态
   allRows.forEach(tr=>{
     tr.classList.remove("group-end");
     ["col-customer","col-remark"].forEach(cls=>{
@@ -644,8 +651,8 @@ function mergeCustomerCells(){
     const sub=tr.querySelector(".col-subton");
     if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; sub.style.height=""; }
   });
-  // 2) 只取可见数据行（subtotal/折叠/筛选隐藏均排除）
-  const rows=allRows.filter(tr=>!tr.classList.contains("subtotal")&&!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden"));
+  // 2) 合并所有非筛选隐藏的数据行；日期折叠组由 foldByDate 单独处理，避免撑出空白
+  const rows=allRows.filter(tr=>!tr.classList.contains("filter-hidden"));
   let i=0;
   while(i<rows.length){
     const first=rows[i];
@@ -774,11 +781,28 @@ function foldByDate(){
     }
   }
 
+  // 3) 先合并所有数据行，再取消被折叠隐藏行的合并，避免 rowSpan 撑出空白
+  mergeCustomerCells();
+  groups.forEach(g=>{
+    if(!g.rows.length) return;
+    let collapsed=state[g.date];
+    if(collapsed===undefined) collapsed=!(g.date>today);  // 当天及之前的日期默认折叠，明天及以后默认展开
+    else collapsed=!!collapsed;
+    if(collapsed){
+      if(showFolded){
+        // 保留第一行作为折叠控制；只取消后续隐藏行的合并
+        for(let k=1;k<g.rows.length;k++) unmergeRow(g.rows[k]);
+      }else{
+        // 整组隐藏：取消该组所有行的合并
+        g.rows.forEach(tr=>unmergeRow(tr));
+      }
+    }
+  });
+
   // 行数只统计可见行（同时排除筛选隐藏）
   const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
   $("rowCount").textContent=visible+" 行";
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
-  mergeCustomerCells();   // 折叠状态改变后重新合并可见行
 }
 
 function toggleDateFold(date){
