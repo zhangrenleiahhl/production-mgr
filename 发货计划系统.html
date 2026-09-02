@@ -468,7 +468,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
       });
     } else if(inp.dataset.f==="shipdate"){
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); styleShipdate(); });
-      inp.addEventListener("change", ()=>{ reindex(); foldByDate(); saveDraft(); styleShipdate(); });
+      inp.addEventListener("change", ()=>{ sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
     } else {
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
@@ -492,7 +492,17 @@ function addRow(data={}, refRow=null, beforeRow=null){
   });
   if(beforeRow && beforeRow.parentNode===tb) beforeRow.before(tr);
   else if(refRow && refRow.parentNode===tb) refRow.after(tr);
-  else tb.appendChild(tr);
+  else {
+    // 默认（添加行）：按发货日期升序插入到正确位置，不放到最后
+    const nd=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    let inserted=false;
+    for(const r of tb.children){
+      if(r.classList.contains("subtotal")) continue;
+      const rd=r.querySelector('[data-f="shipdate"]')?.value||"";
+      if(rd && rd>nd){ r.before(tr); inserted=true; break; }
+    }
+    if(!inserted) tb.appendChild(tr);
+  }
   reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate();
 }
 function reindex(){
@@ -505,6 +515,16 @@ function reindex(){
     tr.querySelector(".col-idx").textContent=idx;
   });
   $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells();
+}
+function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
+  const tb=$("tbody");
+  const rows=[...tb.children].filter(tr=>!tr.classList.contains("subtotal"));
+  rows.sort((a,b)=>{
+    const da=a.querySelector('[data-f="shipdate"]')?.value||"";
+    const db=b.querySelector('[data-f="shipdate"]')?.value||"";
+    return da<db?-1:(da>db?1:0);
+  });
+  rows.forEach(r=>tb.appendChild(r));
 }
 function moveRow(tr, dir){
   const tb=$("tbody");
