@@ -514,7 +514,7 @@ function reindex(){
     idx++;
     tr.querySelector(".col-idx").textContent=idx;
   });
-  $("rowCount").textContent=$("tbody").children.length+" 行"; foldByDate(); mergeCustomerCells();
+  $("rowCount").textContent=$("tbody").children.length+" 行"; foldByDate();
 }
 function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
   const tb=$("tbody");
@@ -775,6 +775,7 @@ function foldByDate(){
   const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
   $("rowCount").textContent=visible+" 行";
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
+  mergeCustomerCells();   // 折叠状态改变后重新合并可见行
 }
 
 function toggleDateFold(date){
@@ -804,7 +805,7 @@ function applyFilter(){
   });
   const hint=$("filterCount");
   if(hint) hint.textContent=(cust||model||date)?`显示 ${shown}/${total} 行`:"";
-  recalc(); foldByDate(); updateCheckAll();
+  recalc(); updateCheckAll();
 }
 function clearFilter(){
   $("filterCustomer").value="";
@@ -838,7 +839,7 @@ function recalc(){
   $("sumQty").textContent=sq;
   $("sumTon").textContent=st.toFixed(1);
   $("sumBox").textContent=(sb>0)?sb:"/";
-  foldByDate(); mergeCustomerCells();
+  foldByDate();
   updateKPIs();
 }
 function collectRows(){
