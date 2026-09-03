@@ -59,6 +59,17 @@
   .tbl tr:hover td{background:#fafcff;}
   .col-act{width:46px;}
   .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:16px;line-height:1;}
+  .lock-ico{color:#b8860b;font-size:13px;}
+  .tbl td input[readonly]{cursor:not-allowed;}
+  .mask{position:fixed;inset:0;background:rgba(31,41,55,.45);display:none;align-items:center;justify-content:center;z-index:98;padding:16px;}
+  .mask.show{display:flex;}
+  .pwd-box{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:330px;box-shadow:0 18px 50px rgba(15,23,42,.28);}
+  .pwd-box h3{margin:0 0 2px;font-size:16px;}
+  .pwd-sub{color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:14px;}
+  .pwd-box input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:10px;outline:none;background:#fafbfc;color:#1f2733;}
+  .pwd-box input:focus{border-color:var(--brand);background:#fff;}
+  .pwd-err{color:var(--red);font-size:12px;min-height:16px;margin:0 0 6px;}
+  .pwd-actions{display:flex;justify-content:flex-end;gap:8px;}
   .empty{color:var(--muted);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
   .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
   .toast.show{opacity:1;}
@@ -76,6 +87,7 @@
 
   <div class="card">
     <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
+      <span class="tag" id="lockTag" style="background:#fff4e5;color:#b45309;">🔒 修改需密码</span>
       <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 备注；按型号或编码匹配）</span></h2>
     <div class="toolbar">
       <input type="file" id="dbFile" accept=".csv,.xlsx,.xls" hidden>
@@ -85,6 +97,8 @@
       <button class="btn btn-line" id="tplDb">下载模板</button>
       <button class="btn btn-line" id="sampleDb">载入示例</button>
       <button class="btn btn-danger" id="clearDb">清空</button>
+      <button class="btn btn-ghost" id="lockDbBtn" style="margin-left:auto;">🔓 解锁修改</button>
+      <button class="btn btn-line" id="pwdDbBtn">🔑 修改密码</button>
     </div>
     <div class="doc doc-scroll">
       <table class="tbl" id="dbTbl">
@@ -98,14 +112,29 @@
   </div>
 </div>
 
+<div class="mask" id="pwdMask">
+  <div class="pwd-box">
+    <h3 id="pwdTitle">输入修改密码</h3>
+    <div class="pwd-sub" id="pwdSub"></div>
+    <div id="pwdFields"></div>
+    <div class="pwd-err" id="pwdErr"></div>
+    <div class="pwd-actions">
+      <button class="btn btn-line" id="pwdCancel">取消</button>
+      <button class="btn btn-primary" id="pwdOk">确定</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
 const LS_DB = "shipping_db_v1";
+const LS_PWD = "shipping_db_pwd_v1";
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
 
 let DB = loadDB();
+let dbUnlocked = false;
+const freshRows = new Set();
 function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }catch(e){ return []; } }
 function saveDB(){ try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); }catch(e){ toast("数据库保存失败：存储空间不足"); } if(window.CloudSync) CloudSync.autoPush(LS_DB); }
 
@@ -115,47 +144,117 @@ function renderDB(){
   $("dbCount").textContent = DB.length + " 条";
   DB.forEach((r,i)=>{
     const tr=document.createElement("tr");
+    const fresh=freshRows.has(r);
+    const locked=!dbUnlocked && !fresh;
+    const ro=locked?"readonly":"";
     tr.innerHTML=`
-      <td><input data-k="code" value="${esc(r.code)}" placeholder="物料编码"></td>
-      <td><input data-k="model" value="${esc(r.model)}" placeholder="型号"></td>
-      <td><input data-k="unit" type="number" min="0" step="0.0001" value="${esc(r.unit)}" placeholder="kg"></td>
-      <td><input data-k="perbox" type="number" min="1" value="${esc(r.perbox)}" placeholder="件/箱"></td>
-      <td><input data-k="customer" value="${esc(r.customer)}" placeholder="客户"></td>
-      <td><input data-k="remark" value="${esc(r.remark)}" placeholder="备注"></td>
-      <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
-    tr.querySelectorAll("input").forEach(inp=>inp.addEventListener("input", ()=>{ DB[i][inp.dataset.k]=inp.value.trim(); saveDB(); }));
-    tr.querySelector(".del-x").onclick=()=>{ DB.splice(i,1); saveDB(); renderDB(); };
+      <td><input data-k="code" ${ro} value="${esc(r.code)}" placeholder="物料编码"></td>
+      <td><input data-k="model" ${ro} value="${esc(r.model)}" placeholder="型号"></td>
+      <td><input data-k="unit" ${ro} type="number" min="0" step="0.0001" value="${esc(r.unit)}" placeholder="kg"></td>
+      <td><input data-k="perbox" ${ro} type="number" min="1" value="${esc(r.perbox)}" placeholder="件/箱"></td>
+      <td><input data-k="customer" ${ro} value="${esc(r.customer)}" placeholder="客户"></td>
+      <td><input data-k="remark" ${ro} value="${esc(r.remark)}" placeholder="备注"></td>
+      <td class="col-act">${locked?'<span class="lock-ico" title="已有物料：修改/删除需先解锁">🔒</span>':'<button class="del-x" title="删除">✕</button>'}</td>`;
+    tr.querySelectorAll("input").forEach(inp=>{
+      if(locked){ inp.title="已有物料：修改需先点「解锁修改」"; inp.addEventListener("focus",()=>{ inp.blur(); toast("修改已有物料需先点「🔓 解锁修改」输入密码"); }); return; }
+      inp.addEventListener("input",()=>{ r[inp.dataset.k]=inp.value.trim(); saveDB(); });
+    });
+    if(!locked) tr.querySelector(".del-x").onclick=()=>{ DB.splice(i,1); freshRows.delete(r); saveDB(); renderDB(); };
     tb.appendChild(tr);
   });
+  syncLockUI();
 }
 function addDbRow(){
-  DB.unshift({code:"",model:"",unit:"",perbox:"",customer:"",remark:""});
+  const rec={code:"",model:"",unit:"",perbox:"",customer:"",remark:""};
+  freshRows.add(rec);
+  DB.unshift(rec);
   saveDB(); renderDB();
   const first=$("dbBody").querySelector('input[data-k="model"]'); if(first) first.focus();
 }
+function syncLockUI(){
+  const b=$("lockDbBtn"), t=$("lockTag");
+  if(b){ b.textContent=dbUnlocked?"🔒 重新锁定":"🔓 解锁修改"; b.className=dbUnlocked?"btn btn-line":"btn btn-ghost"; }
+  if(t){ t.textContent=dbUnlocked?"🔓 编辑中":"🔒 修改需密码"; t.style.background=dbUnlocked?"#e7f8ee":"#fff4e5"; t.style.color=dbUnlocked?"#15803d":"#b45309"; }
+}
+function storedPwd(){ return localStorage.getItem(LS_PWD)||""; }
+function hashPwd(s){ let h=5381; s=String(s==null?"":s); for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))>>>0; } return "d"+h.toString(36); }
+function setStoredPwd(p){ localStorage.setItem(LS_PWD, hashPwd(p)); }
+function verifyPwd(p){ const s=storedPwd(); return !!s && hashPwd(p)===s; }
+function closeModal(){ const m=$("pwdMask"); if(m) m.classList.remove("show"); }
+function openModal(title,sub,fields,onOk){
+  $("pwdTitle").textContent=title; $("pwdSub").textContent=sub||"";
+  $("pwdFields").innerHTML=fields; $("pwdErr").textContent="";
+  $("pwdOk").onclick=()=>{ const err=onOk(); if(err){ $("pwdErr").textContent=err; } else closeModal(); };
+  $("pwdCancel").onclick=closeModal;
+  $("pwdMask").classList.add("show");
+  const first=$("pwdFields").querySelector("input"); if(first){ first.focus(); }
+}
+function openUnlock(){
+  if(dbUnlocked) return true;
+  openModal("解锁修改","输入密码后，本次打开期间可修改、删除已有物料；新增物料无需密码。",
+    '<input type="password" id="pwdIn" placeholder="请输入修改密码" autocomplete="off">',
+    ()=>{
+      const v=$("pwdIn").value;
+      if(!v) return "请输入密码";
+      if(!verifyPwd(v)) return "密码错误，请重试";
+      dbUnlocked=true; syncLockUI(); renderDB(); toast("已解锁，可修改已有物料");
+      return "";
+    });
+  return false;
+}
+function openChangePwd(){
+  const has=!!storedPwd();
+  const fields=(has?'<input type="password" id="oldPwd" placeholder="当前密码" autocomplete="off">':'')
+    +'<input type="password" id="np1" placeholder="新密码" autocomplete="off">'
+    +'<input type="password" id="np2" placeholder="再次输入新密码" autocomplete="off">';
+  openModal("修改密码","建议 6 位以上；修改后解锁需使用新密码。", fields, ()=>{
+    if(has && !verifyPwd($("oldPwd").value)) return "当前密码错误";
+    const a=$("np1").value, b=$("np2").value;
+    if(!a) return "请输入新密码";
+    if(a!==b) return "两次输入的新密码不一致";
+    setStoredPwd(a); toast("修改密码成功"); return "";
+  });
+}
+function ensurePwdSeed(){
+  if(!storedPwd()){ setStoredPwd("123456"); toast("已启用：修改物料需密码，初始密码 123456"); }
+}
 function pick(obj, names){ for(const n of names){ if(obj[n]!==undefined && obj[n]!=="") return String(obj[n]).trim(); } return ""; }
+function findDbIdx(x){
+  return DB.findIndex(d =>
+    (
+      (x.model && d.model && d.model===x.model && (!x.code || !d.code || d.code===x.code)) ||
+      (x.code && d.code && d.code===x.code && (!x.model || !d.model || d.model===x.model))
+    ) && (!x.customer || !d.customer || d.customer===x.customer));
+}
 function mergeDbRows(rows){
-  let added=0, updated=0;
+  const prep=[];
   rows.forEach(raw=>{
     const code=pick(raw,["物料编码","物料代码","编码","code","sku","SKU","物料号"]);
     const model=pick(raw,["型号","规格","model","spec","MODEL"]);
     if(!code && !model) return;
-    const unit=pick(raw,["单重","单重(kg)","重量","unit","Unit","kg/件","净重"]);
-    const perbox=pick(raw,["一箱多少件","每箱件数","装箱数","每箱数量","perbox","PerBox","箱规"]);
-    const customer=pick(raw,["客户","customer","Customer","购货方"]);
-    const remark=pick(raw,["备注","remark","Remark","说明","描述"]);
-    const idx=DB.findIndex(d =>
-      (
-        (model && d.model && d.model===model && (!code || !d.code || d.code===code)) ||
-        (code && d.code && d.code===code && (!model || !d.model || d.model===model))
-      ) && (!customer || !d.customer || d.customer===customer));
+    prep.push({
+      code,model,
+      unit:pick(raw,["单重","单重(kg)","重量","unit","Unit","kg/件","净重"]),
+      perbox:pick(raw,["一箱多少件","每箱件数","装箱数","每箱数量","perbox","PerBox","箱规"]),
+      customer:pick(raw,["客户","customer","Customer","购货方"]),
+      remark:pick(raw,["备注","remark","Remark","说明","描述"])
+    });
+  });
+  if(!prep.length){ toast("未解析到有效数据"); return; }
+  if(!dbUnlocked){
+    const touches=prep.some(x=>findDbIdx(x)>=0);
+    if(touches){ toast("本次内容会改动已有物料，请先「🔓 解锁修改」再导入"); return; }
+  }
+  let added=0, updated=0;
+  prep.forEach(x=>{
+    const idx=findDbIdx(x);
     if(idx>=0){
       const t=DB[idx];
-      t.code=code||t.code; t.model=model||t.model;
-      if(unit) t.unit=unit; if(perbox) t.perbox=perbox;
-      if(customer) t.customer=customer; if(remark) t.remark=remark;
+      t.code=x.code||t.code; t.model=x.model||t.model;
+      if(x.unit) t.unit=x.unit; if(x.perbox) t.perbox=x.perbox;
+      if(x.customer) t.customer=x.customer; if(x.remark) t.remark=x.remark;
       updated++;
-    }else{ DB.push({code,model,unit,perbox,customer,remark}); added++; }
+    }else{ DB.push({code:x.code,model:x.model,unit:x.unit,perbox:x.perbox,customer:x.customer,remark:x.remark}); added++; }
   });
   saveDB(); renderDB(); toast(`导入完成：新增 ${added} 条，更新 ${updated} 条`);
 }
@@ -216,12 +315,18 @@ $("sampleDb").onclick=()=>mergeDbRows([
   {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",remark:""},
   {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",remark:"易碎"}
 ]);
-$("clearDb").onclick=()=>{ if(!DB.length) return; if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; saveDB(); renderDB(); };
+$("clearDb").onclick=()=>{ if(!DB.length) return; if(!dbUnlocked){ openUnlock(); return; } if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; freshRows.clear(); saveDB(); renderDB(); };
 $("addDbRow").onclick=addDbRow;
+$("lockDbBtn").onclick=()=>{ if(dbUnlocked){ dbUnlocked=false; syncLockUI(); renderDB(); toast("已锁定：修改已有物料需重新输入密码"); } else openUnlock(); };
+$("pwdDbBtn").onclick=openChangePwd;
+$("pwdCancel").onclick=closeModal;
+$("pwdMask").addEventListener("click",e=>{ if(e.target===$("pwdMask")) closeModal(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t);   t._t=setTimeout(()=>t.classList.remove("show"),2200); }
 
+ensurePwdSeed();
 renderDB();
 
 // ===================== 云端同步 =====================
