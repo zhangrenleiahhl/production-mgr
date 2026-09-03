@@ -151,17 +151,20 @@
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 客户 */
   .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:22%;}   /* 型号 */
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:7%;}    /* 发货数量 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:4%;}    /* 吨位 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:6%;}    /* 交货单 */
-  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:4%;}    /* 箱数 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 备注 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 交货单 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:4%;}    /* 箱数 */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 备注 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:4%;}  /* 吨位(自动,只读) */
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 客户吨位 */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:7%;} /* 物料编码 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
   .tbl tbody td:nth-child(12) textarea{text-align:center;font-size:12px;font-weight:400;}  /* 物料编码居中、缩字、不加粗 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
-  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(7) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/吨位/箱数居中 */
-  .tbl tbody td:nth-child(9){color:#2563eb;font-weight:700;}    /* 交货单蓝色粗体 */
+  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(8) input{text-align:center;} /* 发货数量/箱数居中 */
+  .tbl td.col-ton{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;}
+  .tbl td.col-ton .ton-val{display:block;font-size:13px;font-weight:600;color:#1f2328;line-height:26px;text-align:center;}
+  .tbl td.col-ton .ton-val:empty::before{content:"/";color:#c0c4cc;font-weight:400;}
+  .tbl td.col-ton input[type="hidden"]{display:none;}
   .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:16px;padding-right:1px;font-size:11px;background:#fff;border-color:transparent;}
   .tbl td input[data-f="shipdate"].jinling{font-family:inherit;font-weight:700;color:#1f2328;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
@@ -268,17 +271,17 @@
       </div>
       <table class="tbl" id="tbl">
         <thead><tr>
-          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>吨位(t)</th>
-          <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位</th><th class="col-code">物料编码</th><th class="col-act">操作</th>
+          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>交货单</th><th>箱数</th><th>备注</th><th>吨位(t)</th>
+          <th>客户吨位</th><th class="col-code">物料编码</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
           <td colspan="5" style="text-align:right">合计</td>
           <td class="num-cell" id="sumQty">0</td>
-          <td class="num-cell" id="sumTon">0.0</td>
           <td></td>
           <td class="num-cell" id="sumBox">/</td>
           <td></td>
+          <td class="num-cell" id="sumTon">0.0</td>
           <td class="num-cell" id="sumSubTon">/</td>
           <td></td>
           <td></td>
@@ -423,7 +426,8 @@ function addRow(data={}, refRow=null, beforeRow=null){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
   const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
-  const tonVal=(data.ton!==undefined&&data.ton!==null&&data.ton!=='/'&&String(data.ton).trim()!=='')?data.ton:((_q>0&&_u>0)?(_q*_u/1000).toFixed(1):'');
+  // 吨位不可编辑：默认按 数量×单重÷1000 自动；无单重的历史行保留原 ton 值兜底
+  const tonVal=(_q>0&&_u>0)?(_q*_u/1000).toFixed(1):((data.ton&&data.ton!=='/'&&String(data.ton).trim()!=='')?data.ton:'');
   tr.innerHTML=`
     <td class="col-idx num-cell">${idx}</td>
     <td class="col-check"><input type="checkbox" class="row-check"></td>
@@ -431,10 +435,10 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
-    <td class="num-cell"><input data-f="ton" type="number" min="0" step="0.0001" value="${esc(tonVal)}" placeholder="/"></td>
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
+    <td class="col-ton num-cell"><span class="ton-val">${esc(tonVal)}</span><input type="hidden" data-f="ton" value="${esc(tonVal)}"></td>
     <td class="col-subton num-cell"></td>
     <td class="col-code"><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
     <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
@@ -447,7 +451,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
     inp.addEventListener("keydown", onCellKey);
-    if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
+    if(inp.dataset.f==="box"){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
         else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
@@ -456,12 +460,12 @@ function addRow(data={}, refRow=null, beforeRow=null){
     } else if(inp.dataset.f==="shipdate"){
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); styleShipdate(); });
       inp.addEventListener("change", ()=>{ sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
-    } else {
+    } else if(inp.dataset.f!=="ton"){   // 吨位只读自动，不响应输入
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
   });
-  // 载入已有箱数/吨位时标记为手填值，避免被自动计算覆盖
-  ["box","ton"].forEach(k=>{
+  // 载入已有箱数时标记为手填值，避免被自动计算覆盖（吨位始终自动，不设手填标记）
+  ["box"].forEach(k=>{
     if(data[k]!==undefined&&data[k]!==null&&data[k]!=='/'&&String(data[k]).trim()!==''){
       const inp=tr.querySelector(`[data-f="${k}"]`); if(inp) inp.dataset.manual="1";
     }
@@ -537,7 +541,7 @@ function fitTextarea(ta){
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
-const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12];   // 可编辑列的 nth-child 列号（跳过 #/✓/客户吨位/操作；物料编码已移到第12列）
+const EDITABLE_COLS=[3,4,5,6,7,8,9,12];   // 可编辑列的 nth-child 列号（跳过 #/✓/吨位/客户吨位/操作；吨位已自动计算只读）
 function collectRowData(tr){
   const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
   const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
@@ -835,10 +839,12 @@ function recalc(){
     const qty=parseFloat(tr.querySelector('[data-f="qty"]').value)||0;
     const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
     const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
-    // 吨位：自动带出（数量×单重/1000），除非手填
+    // 吨位不可编辑：单重存在时按 数量×单重/1000 自动计算；无单重则保留既有值（兜底，不误清历史数据）
     const tonInput=tr.querySelector('[data-f="ton"]');
     const autoTon=(qty>0&&unit>0)?qty*unit/1000:0;
-    if(tonInput.dataset.manual!=="1") tonInput.value=autoTon>0?autoTon.toFixed(1):"";
+    if(unit>0) tonInput.value=autoTon>0?autoTon.toFixed(1):"";
+    const tonShow=tr.querySelector(".ton-val");
+    if(tonShow) tonShow.textContent=tonInput.value||"";
     const ton=parseFloat(tonInput.value)||0;
     // 箱数：自动带出（数量÷每箱件数），除非手填
     const boxInput=tr.querySelector('[data-f="box"]');
