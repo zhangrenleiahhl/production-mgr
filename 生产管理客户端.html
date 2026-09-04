@@ -68,6 +68,16 @@
   const frame=document.getElementById("frame");
   const tabs=document.querySelectorAll(".tab");
   const $=id=>document.getElementById(id);
+  // 首次打开时也绕过 iframe 缓存：给 src 加时间戳（页面已是最新版时浏览器会立刻拉到新内容）
+  (function bustIframeCache(){
+    try{
+      const u=frame.getAttribute("src");
+      if(u && !/_t=/.test(u)){
+        const sep=u.includes("?")?"&":"?";
+        frame.src=u+sep+"_t="+Date.now();
+      }
+    }catch(e){}
+  })();
   function switchTo(page){
     // 加时间戳防止 iframe 缓存旧页面
     const sep=page.includes("?")?"&":"?";
