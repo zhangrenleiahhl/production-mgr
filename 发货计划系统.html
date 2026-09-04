@@ -449,7 +449,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
-    <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
+    <td><input data-f="qty" type="text" inputmode="decimal" value="${esc(data.qty)}" placeholder="/" title="支持算式：10*20、100/4、10*(20+5)，失焦自动算出结果"></td>
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
@@ -476,6 +476,13 @@ function addRow(data={}, refRow=null, beforeRow=null){
     } else if(inp.dataset.f==="shipdate"){
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); styleShipdate(); });
       inp.addEventListener("change", ()=>{ sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
+    } else if(inp.dataset.f==="qty"){
+      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });   // 打字时实时按算式更新吨位/箱数
+      inp.addEventListener("change", ()=>{   // 失焦/回车时把算式换成结果：10*20 → 200
+        const r=evalQtyExpr(inp.value);
+        if(r!==null&&r!=="") inp.value=r;
+        recalc(); saveDraft();
+      });
     } else if(inp.dataset.f!=="ton"){   // 吨位只读自动，不响应输入
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
@@ -873,11 +880,26 @@ function clearFilter(){
   applyFilter();
 }
 
+function evalQtyExpr(v){   // 发货数量支持算式：10*20 → 200；支持 + - * / × ÷ 和括号
+  const s=String(v==null?"":v).trim().replace(/×/g,"*").replace(/÷/g,"/");
+  if(s==="") return "";
+  if(/^[0-9]+(\.[0-9]+)?$/.test(s)) return s;                 // 纯数字原样返回
+  if(!/^[0-9+\-*/().\s]+$/.test(s)) return null;              // 含非法字符 → 不处理
+  try{
+    const r=Function('"use strict";return ('+s+')')();
+    if(typeof r!=="number"||!isFinite(r)) return null;
+    return Number.isInteger(r)?String(r):String(Math.round(r*100)/100);
+  }catch(e){ return null; }                                   // 残缺算式（如 10*）→ 不处理
+}
+function qtyNum(v){          // 取数量数值：能算就按算式算，算不了退回 parseFloat
+  const e=evalQtyExpr(v);
+  return parseFloat(e!==null&&e!==""?e:v)||0;
+}
 function recalc(){
   let sq=0,st=0,sb=0,scwt=0;
   [...$("tbody").children].forEach(tr=>{
     if(tr.classList.contains("subtotal")) return;   // 跳过客户小计行
-    const qty=parseFloat(tr.querySelector('[data-f="qty"]').value)||0;
+    const qty=qtyNum(tr.querySelector('[data-f="qty"]').value);
     const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
     const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
     // 吨位不可编辑：单重存在时按 数量×单重/1000 自动计算；无单重则保留既有值（兜底，不误清历史数据）
@@ -1039,7 +1061,7 @@ function updateKPIs(){
   const visibleRows=rows.filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden"));
   let qty=0, ton=0, checked=0;
   visibleRows.forEach(tr=>{
-    qty+=parseFloat(tr.querySelector('[data-f="qty"]')?.value)||0;
+    qty+=qtyNum(tr.querySelector('[data-f="qty"]')?.value);
     ton+=parseFloat(tr.querySelector('[data-f="ton"]')?.value)||0;
     if(tr.querySelector('.row-check')?.checked) checked++;
   });
