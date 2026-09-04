@@ -150,7 +150,7 @@ function card(rec){
   div.className = "rec";
   const rows = rec.rows || [];
   const tonByCust = {};
-  rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0); });
+  rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
 
   div.innerHTML = `
     <div class="rec-head">
@@ -197,6 +197,7 @@ function detailTable(rec, tonByCust){
       <td>${pad(r.customer)}</td>
       <td>${pad(r.model)}</td>
       <td class="num">${pad(r.qty)}</td>
+      <td class="num">${pad(r.cwt)}</td>
       <td class="num">${pad(r.ton)}</td>
       <td>${pad(r.delivery)}</td>
       <td class="num">${pad(r.box)}</td>
@@ -208,10 +209,11 @@ function detailTable(rec, tonByCust){
   const sumQ = rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
   const sumT = rows.reduce((a, r) => a + (parseFloat(r.ton) || 0), 0);
   const sumB = rows.reduce((a, r) => a + (parseFloat(r.box) || 0), 0);
+  const sumCwt = rows.reduce((a, r) => a + (parseFloat(r.cwt) || 0), 0);
   const sumCustT = Object.values(tonByCust).reduce((a, v) => a + v, 0);
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
-      <td class="num">${sumQ}</td><td class="num">${sumT.toFixed(1)}</td>
+      <td class="num">${sumQ}</td><td class="num">${sumCwt.toFixed(1)}</td><td class="num">${sumT.toFixed(1)}</td>
       <td></td><td class="num">${sumB}</td><td></td><td class="num">${sumCustT.toFixed(1)}</td><td></td>
     </tr>`;
 
@@ -223,7 +225,7 @@ function detailTable(rec, tonByCust){
       <span class="sub" data-act="rowinfo"></span>
     </div>
     <table class="dt"><thead><tr>
-      <th></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>吨位(t)</th>
+      <th></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>箱子重量T</th><th>吨位(t)</th>
       <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位</th><th>物料编码</th>
     </tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -245,11 +247,11 @@ function bindDetail(d, rec){
 
 // ===================== 导出 =====================
 function matrix(rows){
-  const head = ["发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  const head = ["发货日期","客户","型号","发货数量","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   const tonByCust = {};
-  rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0); });
+  rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
   const data = rows.map(r => [
-    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.ton),
+    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.cwt), pad(r.ton),
     pad(r.delivery), pad(r.box), pad(r.remark),
     (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)
   ]);
@@ -281,13 +283,13 @@ function downloadOne(rec, fmt){
 
 // 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
 function batchMatrix(recs){
-  const head = ["单号","发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  const head = ["单号","发货日期","客户","型号","发货数量","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   const data = [];
   recs.forEach(rec => {
     const tonByCust = {};
-    (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0); });
+    (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
     (rec.rows || []).forEach(r => {
-      data.push([pad(rec.no), pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.ton),
+      data.push([pad(rec.no), pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.cwt), pad(r.ton),
         pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)]);
     });
   });
@@ -329,7 +331,7 @@ function printRows(rows, title){
       table{border-collapse:collapse;width:100%;}
       th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
       th{background:#2563eb;color:#fff;}
-      td:nth-child(4),td:nth-child(5),td:nth-child(6),td:nth-child(8){text-align:right;}
+      td:nth-child(5),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
     </style></head><body>
     <h2>发货计划 ${pad(title)}</h2>
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
