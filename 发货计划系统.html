@@ -252,6 +252,7 @@
     <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled>↶ 撤回</button>
     <button class="btn btn-line" id="exportCsv" title="导出 CSV">CSV</button>
     <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期">折叠</button>
+    <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划">折叠当天前</button>
     <button class="btn btn-line" id="clearAll" title="清空">清空</button>
     <button class="btn btn-primary" id="publish" title="发布">发布</button>
     <button class="btn btn-line" id="exportBackup" title="导出备份">导出</button>
@@ -842,6 +843,7 @@ function foldByDate(){
   $("rowCount").textContent=visible+" 行";
   renumberVisible();  // 折叠状态变化后重新编号，保证可见行序号始终连续
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
+  updatePastButton(); // 同步「当天之前」按钮文字
 }
 
 function toggleDateFold(date){
@@ -849,6 +851,36 @@ function toggleDateFold(date){
   setFoldState(date, state[date]?0:1);
   foldByDate();
   fitTextareas();
+}
+
+// 一键折叠/展开「当天之前」所有日期的分组
+function getPastDates(){
+  const today=$("shipDate").value||todayStr();
+  const set=new Set();
+  [...$("tbody").children].forEach(tr=>{
+    if(tr.classList.contains("subtotal")) return;
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    if(d) set.add(d);
+  });
+  return [...set].filter(d=>d<=today).sort();
+}
+function allPastCollapsed(){
+  const dates=getPastDates();
+  if(!dates.length) return true;
+  const state=getFoldState();
+  const today=$("shipDate").value||todayStr();
+  return dates.every(d=>{ const c=state[d]===undefined?!(d>today):!!state[d]; return !!c; });
+}
+function togglePast(){
+  const collapse=!allPastCollapsed();   // 还有展开的就全部折叠，已全折叠则全部展开
+  getPastDates().forEach(d=>setFoldState(d, collapse?1:0));
+  foldByDate(); fitTextareas();
+}
+function updatePastButton(){
+  const btn=$("togglePast"); if(!btn) return;
+  const collapsed=allPastCollapsed();
+  btn.textContent= collapsed ? "展开当天前" : "折叠当天前";
+  btn.title= collapsed ? "一键展开当天之前的计划" : "一键折叠当天之前的计划";
 }
 
 // ===================== 筛选（客户 / 型号 / 发货日期） =====================
@@ -1132,6 +1164,7 @@ function updateFoldedButton(){
   btn.title=show?"点击隐藏已折叠的历史日期":"截图时关闭，可彻底隐藏已折叠的历史日期";
 }
 $("toggleFolded").onclick=()=>{ setShowFolded(!getShowFolded()); updateFoldedButton(); foldByDate(); fitTextareas(); };
+$("togglePast").onclick=()=>{ togglePast(); };
 
 // ===================== 数据备份（本地文件 ↔ 网站互导） =====================
 function exportBackup(){
@@ -1205,6 +1238,7 @@ $("backupFile").onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) i
 // ===================== 启动 =====================
 syncDocHead();
 updateFoldedButton();
+updatePastButton();
 updateDbStatus();
 if(!DB.length) toast("提示：物料库为空，请先到「物料数据库」页导入");
 const _draft=loadDraft();
