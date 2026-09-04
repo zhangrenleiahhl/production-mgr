@@ -704,22 +704,13 @@ function mergeCustomerCells(){
     if(len>1){
       const c=first.querySelector(".col-customer"), r=first.querySelector(".col-remark");
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
-      // 备注仅在组内所有行值一致时才合并，避免不同备注被隐藏成空行
-      let remarkMerged=false;
-      if(r){
-        const firstRemark=(r.querySelector("textarea")?.value||"").trim();
-        let remarkSame=true;
-        for(let k=i+1;k<j;k++){
-          const rv=(rows[k].querySelector(".col-remark textarea")?.value||"").trim();
-          if(rv!==firstRemark){ remarkSame=false; break; }
-        }
-        if(remarkSame){ r.rowSpan=len; r.classList.add("merged-cell"); remarkMerged=true; }
-      }
+      // 备注列与客户列保持同组合并：同一客户+同一日期下自动合并，只显示首行备注
+      if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
       if(subCell) subCell.rowSpan=len;
       for(let k=i+1;k<j;k++){
         const c2=rows[k].querySelector(".col-customer"), r2=rows[k].querySelector(".col-remark"), s2=rows[k].querySelector(".col-subton");
         if(c2){ c2.style.display="none"; c2.rowSpan=1; }
-        if(remarkMerged && r2){ r2.style.display="none"; r2.rowSpan=1; }
+        if(r2){ r2.style.display="none"; r2.rowSpan=1; }
         if(s2){ s2.style.display="none"; s2.rowSpan=1; }
       }
     }
