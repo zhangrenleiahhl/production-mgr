@@ -159,7 +159,7 @@
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 客户吨位 */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:7%;} /* 物料编码 */
   .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:8%!important;}  /* 操作 */
-  .tbl tbody td:nth-child(13) textarea{text-align:center;font-size:12px;font-weight:400;white-space:nowrap;overflow-x:auto;overflow-y:hidden;}  /* 物料编码：13位数字不换行，必要时横向滚动 */
+  .tbl tbody td:nth-child(13) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.25;}  /* 物料编码：数字允许换行显示完整 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(8) input{text-align:center;} /* 发货数量/箱数居中 */
   .tbl td.col-ton{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;}
@@ -179,6 +179,8 @@
   .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:16px;padding-right:1px;}
   .tbl th:nth-child(3){padding:6px 4px;}
   .tbl tr.date-fold-hidden{display:none;}
+  .tbl tr.has-folded td{background:#eef4ff!important;}  /* 折叠日期首行：浅蓝底色提示「后续 N 行被折叠」 */
+  .tbl tr.has-folded .col-shipdate{position:relative;}
   .tbl tr.filter-hidden{display:none;}
   .tbl tr.date-fold-placeholder{height:24px;background:#fafafa;}
   .tbl tr.date-fold-placeholder td{padding:3px 8px;text-align:left;border:1px dashed var(--purple-l);background:#fafafa;}
@@ -520,15 +522,17 @@ function addRow(data={}, refRow=null, beforeRow=null){
   }
   reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate();
 }
+function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛选隐藏行跳过）
+  let idx=0;
+  [...$("tbody").children].forEach(tr=>{
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return;
+    const c=tr.querySelector(".col-idx");
+    if(c) c.textContent=++idx;
+  });
+}
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
-  let idx=0, lastDate="";
-  [...$("tbody").children].forEach(tr=>{
-    const date=tr.querySelector('[data-f="shipdate"]')?.value||"";
-    if(date!==lastDate){ lastDate=date; idx=0; }
-    idx++;
-    tr.querySelector(".col-idx").textContent=idx;
-  });
+  renumberVisible();
   $("rowCount").textContent=$("tbody").children.length+" 行"; foldByDate();
 }
 function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
@@ -667,8 +671,8 @@ function mergeCustomerCells(){
     const sub=tr.querySelector(".col-subton");
     if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; sub.style.height=""; }
   });
-  // 2) 合并所有非筛选隐藏的数据行；日期折叠组由 foldByDate 单独处理，避免撑出空白
-  const rows=allRows.filter(tr=>!tr.classList.contains("filter-hidden"));
+  // 2) 只合并当前可见的数据行（排除筛选隐藏 + 折叠隐藏），否则 rowSpan 会按隐藏行数撑出幽灵行，导致下方整表错位
+  const rows=allRows.filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
   let i=0;
   while(i<rows.length){
     const first=rows[i];
@@ -729,7 +733,7 @@ function hideFoldedRow(tr){ tr.classList.add("date-fold-hidden"); const b=tr.que
 function foldByDate(){
   // 清理旧的折叠标记与按钮
   [...$("tbody").children].forEach(tr=>{
-    tr.classList.remove("date-fold-hidden");
+    tr.classList.remove("date-fold-hidden","has-folded","has-expanded");
     const sd=tr.querySelector(".col-shipdate");
     if(sd){
       sd.classList.remove("date-expanded","date-collapsed");
@@ -770,6 +774,7 @@ function foldByDate(){
     btn.onclick=(e)=>{ e.stopPropagation(); toggleDateFold(g.date); };
     sd.insertBefore(btn, sd.firstChild);
     sd.classList.add(collapsed?"date-collapsed":"date-expanded");
+    first.classList.add(collapsed?"has-folded":"has-expanded");
 
     if(collapsed){
       foldedDates.push(g.date);
@@ -828,6 +833,7 @@ function foldByDate(){
   // 行数只统计可见行（同时排除筛选隐藏）
   const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
   $("rowCount").textContent=visible+" 行";
+  renumberVisible();  // 折叠状态变化后重新编号，保证可见行序号始终连续
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
 }
 
