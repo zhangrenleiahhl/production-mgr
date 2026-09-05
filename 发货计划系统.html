@@ -18,9 +18,9 @@
     --txt:#0f172a; --txt-2:#334155; --muted:#64748b; --muted-2:#94a3b8;
     --brand:#6366f1; --brand-2:#818cf8; --brand-d:#4f46e5;
     --soft:#eef2ff; --soft-2:#e0e7ff; --soft-line:#c7d2fe;
-    --red:#ef4444; --red-bg:#fef2f2; --green:#10b981; --green-bg:#ecfdf5;
+    --red:#ef4444; --red-bg:#ffe4e6; --green:#10b981; --green-bg:#ecfdf5;
     --violet:#8b5cf6; --orange:#f59e0b;
-    --purple:#3b82f6; --purple-d:#2563eb; --purple-l:#60a5fa; --purple-bg:#eff6ff; --blue:#0ea5e9; --blue-bg:#f0f9ff;
+    --purple:#3b82f6; --purple-d:#2563eb; --purple-l:#60a5fa; --purple-bg:#eff6ff; --blue:#0ea5e9; --blue-bg:#e0f2fe;
     --radius:16px; --radius-sm:12px; --radius-lg:20px;
     --sh-sm:0 1px 3px rgba(15,23,42,.06);
     --sh-md:0 4px 20px rgba(15,23,42,.06);
@@ -206,10 +206,7 @@
   .tbl tbody tr.row-future > td.col-idx{ box-shadow:inset 3px 0 0 var(--blue); }
   .tbl tbody tr.row-future > td.merged-cell{ background:var(--blue-bg); }
   .tbl tbody tr.row-future .col-shipdate::after{ content:"待发"; position:absolute; right:1px; top:1px; font-size:9px; line-height:1; color:#fff; background:var(--blue); padding:1px 3px; border-radius:2px; }
-  /* 物料编码：只读（不可编辑，但可选中复制） */
-  /* 物料编码：整列浅蓝标识（只读列），textarea 透明以透出列底色；复制按钮 */
-  .tbl td.col-code{ background:#eaf1ff; }
-  .tbl th.col-code{ background:#3a63a8; }
+  /* 物料编码：只读（不可编辑，但可选中复制）；不加列底色，复制按钮在格右上角 */
   .tbl td textarea[data-f="code"][readonly]{ background:transparent; color:#334155; cursor:text; }
   .col-code .code-wrap{ position:relative; }
   .copy-code{ position:absolute; top:1px; right:1px; z-index:2; font-size:9px; line-height:1; padding:1px 4px; border:1px solid var(--purple-l); background:#fff; color:var(--purple-d); border-radius:3px; cursor:pointer; user-select:none; }
