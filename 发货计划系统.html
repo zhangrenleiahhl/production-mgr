@@ -207,7 +207,14 @@
   .tbl tbody tr.row-future > td.merged-cell{ background:var(--blue-bg); }
   .tbl tbody tr.row-future .col-shipdate::after{ content:"待发"; position:absolute; right:1px; top:1px; font-size:9px; line-height:1; color:#fff; background:var(--blue); padding:1px 3px; border-radius:2px; }
   /* 物料编码：只读（不可编辑，但可选中复制） */
-  .tbl td textarea[data-f="code"][readonly]{ background:#f1f5f9; color:#334155; cursor:text; }
+  /* 物料编码：整列浅蓝标识（只读列），textarea 透明以透出列底色；复制按钮 */
+  .tbl td.col-code{ background:#eaf1ff; }
+  .tbl th.col-code{ background:#3a63a8; }
+  .tbl td textarea[data-f="code"][readonly]{ background:transparent; color:#334155; cursor:text; }
+  .col-code .code-wrap{ position:relative; }
+  .copy-code{ position:absolute; top:1px; right:1px; z-index:2; font-size:9px; line-height:1; padding:1px 4px; border:1px solid var(--purple-l); background:#fff; color:var(--purple-d); border-radius:3px; cursor:pointer; user-select:none; }
+  .copy-code:hover{ background:var(--purple-bg); border-color:var(--purple); }
+  .copy-code.copied{ background:var(--green); color:#fff; border-color:var(--green); }
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;font-size:13px;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
@@ -471,7 +478,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-cwt num-cell"><span class="cwt-val">${esc(cwtVal)}</span><input type="hidden" data-f="cwt" value="${esc(cwtVal)}"${cwtDeleted?' data-deleted="1"':''}>${cwtBtnHtml}</td>
     <td class="col-ton num-cell"><span class="ton-val">${esc(tonVal)}</span><input type="hidden" data-f="ton" value="${esc(tonVal)}"></td>
     <td class="col-subton num-cell"></td>
-    <td class="col-code"><textarea data-f="code" placeholder="/" rows="1" readonly title="物料编码（只读，选中后可复制）">${esc(data.code)}</textarea></td>
+    <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" readonly title="物料编码（只读，选中后可复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
     <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
   mvUp.onclick=()=>moveRow(tr, -1);
@@ -529,6 +536,9 @@ function addRow(data={}, refRow=null, beforeRow=null){
     inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr); });
     inp.addEventListener("input", ()=>showAC(inp, tr));
   });
+  // 物料编码复制按钮
+  const copyBtn=tr.querySelector(".copy-code");
+  if(copyBtn) copyBtn.onclick=()=>copyToClipboard(tr.querySelector('[data-f="code"]').value||"", copyBtn);
   if(beforeRow && beforeRow.parentNode===tb) beforeRow.before(tr);
   else if(refRow && refRow.parentNode===tb) refRow.after(tr);
   else {
@@ -1040,6 +1050,18 @@ $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=ge
 
 // ===================== 发布：文本存档 + 同步到发货员链接（不再截图下载） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+// 复制到剪贴板（优先 navigator.clipboard，老环境/本地文件回退到 execCommand）
+function copyToClipboard(text, btn){
+  const done=()=>{ if(btn){ const o=btn.textContent; btn.textContent="已复制"; btn.classList.add("copied"); toast("已复制 ✓"); setTimeout(()=>{ btn.textContent=o; btn.classList.remove("copied"); },1200); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, cb){
+  const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.top="-1000px"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select();
+  try{ document.execCommand("copy"); cb&&cb(); }catch(e){}
+  document.body.removeChild(ta);
+}
 function publish(){
   const allTrs=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal"));
   if(!allTrs.length){ toast("请先添加发货明细"); return; }
