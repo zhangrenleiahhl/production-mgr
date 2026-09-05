@@ -18,9 +18,9 @@
     --txt:#0f172a; --txt-2:#334155; --muted:#64748b; --muted-2:#94a3b8;
     --brand:#6366f1; --brand-2:#818cf8; --brand-d:#4f46e5;
     --soft:#eef2ff; --soft-2:#e0e7ff; --soft-line:#c7d2fe;
-    --red:#ef4444; --red-bg:#fee2e2; --green:#10b981; --green-bg:#ecfdf5;
+    --red:#ef4444; --red-bg:#fecaca; --green:#10b981; --green-bg:#ecfdf5;
     --violet:#8b5cf6; --orange:#f59e0b;
-    --purple:#3b82f6; --purple-d:#2563eb; --purple-l:#60a5fa; --purple-bg:#eff6ff; --blue:#0ea5e9; --blue-bg:#dbeafe;
+    --purple:#3b82f6; --purple-d:#2563eb; --purple-l:#60a5fa; --purple-bg:#eff6ff; --blue:#0ea5e9; --blue-bg:#bfdbfe;
     --radius:16px; --radius-sm:12px; --radius-lg:20px;
     --sh-sm:0 1px 3px rgba(15,23,42,.06);
     --sh-md:0 4px 20px rgba(15,23,42,.06);
@@ -197,13 +197,13 @@
   /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
   .tbl tbody tr.row-overdue > td{ background:var(--red-bg); }
   .tbl tbody tr.row-overdue > td.col-shipdate input[data-f="shipdate"]{ color:#b91c1c; font-weight:800; }
-  .tbl tbody tr.row-overdue > td.col-idx{ box-shadow:inset 4px 0 0 var(--red); }
+  .tbl tbody tr.row-overdue > td.col-idx{ border-left:5px solid var(--red); }
   .tbl tbody tr.row-overdue > td.merged-cell{ background:var(--red-bg); }
   .tbl tbody tr.row-overdue .col-shipdate::after{ content:"滞后"; position:absolute; right:3px; top:3px; font-size:7px; line-height:1; color:#fff; background:var(--red); padding:2px 6px; border-radius:8px; font-weight:700; letter-spacing:.4px; box-shadow:0 1px 2px rgba(185,28,28,.18); text-transform:uppercase; }
   /* 明天之后的计划：蓝色区分（与滞后红色对称） */
   .tbl tbody tr.row-future > td{ background:var(--blue-bg); }
   .tbl tbody tr.row-future > td.col-shipdate input[data-f="shipdate"]{ color:#0369a1; font-weight:800; }
-  .tbl tbody tr.row-future > td.col-idx{ box-shadow:inset 4px 0 0 var(--blue); }
+  .tbl tbody tr.row-future > td.col-idx{ border-left:5px solid var(--blue); }
   .tbl tbody tr.row-future > td.merged-cell{ background:var(--blue-bg); }
   .tbl tbody tr.row-future .col-shipdate::after{ content:"待发"; position:absolute; right:3px; top:3px; font-size:7px; line-height:1; color:#fff; background:var(--blue); padding:2px 6px; border-radius:8px; font-weight:700; letter-spacing:.4px; box-shadow:0 1px 2px rgba(3,105,161,.18); text-transform:uppercase; }
   /* 物料编码：只读（不可编辑，但可选中复制）；不加列底色，复制按钮在格右上角 */
