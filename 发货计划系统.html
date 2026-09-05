@@ -194,6 +194,12 @@
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#f6f8fa;text-align:center;}
   .col-act{width:8%;white-space:nowrap;padding:3px 2px;}
+  /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
+  .tbl tbody tr.row-overdue > td{ background:var(--red-bg); }
+  .tbl tbody tr.row-overdue > td.col-shipdate input[data-f="shipdate"]{ color:var(--red); font-weight:700; }
+  .tbl tbody tr.row-overdue > td.col-idx{ box-shadow:inset 3px 0 0 var(--red); }
+  .tbl tbody tr.row-overdue > td.merged-cell{ background:var(--red-bg); }
+  .tbl tbody tr.row-overdue .col-shipdate::after{ content:"滞后"; position:absolute; right:1px; top:1px; font-size:9px; line-height:1; color:#fff; background:var(--red); padding:1px 3px; border-radius:2px; }
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;font-size:13px;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
@@ -528,7 +534,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     }
     if(!inserted) tb.appendChild(tr);
   }
-  reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate();
+  reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markOverdue();
 }
 function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛选隐藏行跳过）
   let idx=0;
@@ -835,6 +841,7 @@ function foldByDate(){
   renumberVisible();  // 折叠状态变化后重新编号，保证可见行序号始终连续
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
   updatePastButton(); // 同步「当天之前」按钮文字
+  markOverdue();     // 刷新滞后计划高亮
 }
 
 function toggleDateFold(date){
@@ -1065,6 +1072,15 @@ function styleShipdate(){
     const v=(inp.value||"").trim();
     if(v.includes("自提")) inp.classList.add("jinling");
     else inp.classList.remove("jinling");
+  });
+}
+// 标记「滞后计划」：发货日期 < 当前日期边界（shipDate 或明天）即视为已过期/滞后
+function markOverdue(){
+  const today=$("shipDate").value||todayStr();
+  [...$("tbody").children].forEach(tr=>{
+    if(tr.classList.contains("subtotal")) return;
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    tr.classList.toggle("row-overdue", !!(d && d<today));
   });
 }
 function updateCheckAll(){
