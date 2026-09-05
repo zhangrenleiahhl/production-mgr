@@ -20,7 +20,7 @@
     --soft:#eef2ff; --soft-2:#e0e7ff; --soft-line:#c7d2fe;
     --red:#ef4444; --red-bg:#fef2f2; --green:#10b981; --green-bg:#ecfdf5;
     --violet:#8b5cf6; --orange:#f59e0b;
-    --purple:#3b82f6; --purple-d:#2563eb; --purple-l:#60a5fa; --purple-bg:#eff6ff;
+    --purple:#3b82f6; --purple-d:#2563eb; --purple-l:#60a5fa; --purple-bg:#eff6ff; --blue:#0ea5e9; --blue-bg:#f0f9ff;
     --radius:16px; --radius-sm:12px; --radius-lg:20px;
     --sh-sm:0 1px 3px rgba(15,23,42,.06);
     --sh-md:0 4px 20px rgba(15,23,42,.06);
@@ -200,6 +200,14 @@
   .tbl tbody tr.row-overdue > td.col-idx{ box-shadow:inset 3px 0 0 var(--red); }
   .tbl tbody tr.row-overdue > td.merged-cell{ background:var(--red-bg); }
   .tbl tbody tr.row-overdue .col-shipdate::after{ content:"滞后"; position:absolute; right:1px; top:1px; font-size:9px; line-height:1; color:#fff; background:var(--red); padding:1px 3px; border-radius:2px; }
+  /* 明天之后的计划：蓝色区分（与滞后红色对称） */
+  .tbl tbody tr.row-future > td{ background:var(--blue-bg); }
+  .tbl tbody tr.row-future > td.col-shipdate input[data-f="shipdate"]{ color:var(--blue); font-weight:700; }
+  .tbl tbody tr.row-future > td.col-idx{ box-shadow:inset 3px 0 0 var(--blue); }
+  .tbl tbody tr.row-future > td.merged-cell{ background:var(--blue-bg); }
+  .tbl tbody tr.row-future .col-shipdate::after{ content:"待发"; position:absolute; right:1px; top:1px; font-size:9px; line-height:1; color:#fff; background:var(--blue); padding:1px 3px; border-radius:2px; }
+  /* 物料编码：只读（不可编辑，但可选中复制） */
+  .tbl td textarea[data-f="code"][readonly]{ background:#f1f5f9; color:#334155; cursor:text; }
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;font-size:13px;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
@@ -463,7 +471,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-cwt num-cell"><span class="cwt-val">${esc(cwtVal)}</span><input type="hidden" data-f="cwt" value="${esc(cwtVal)}"${cwtDeleted?' data-deleted="1"':''}>${cwtBtnHtml}</td>
     <td class="col-ton num-cell"><span class="ton-val">${esc(tonVal)}</span><input type="hidden" data-f="ton" value="${esc(tonVal)}"></td>
     <td class="col-subton num-cell"></td>
-    <td class="col-code"><textarea data-f="code" placeholder="/" rows="1">${esc(data.code)}</textarea></td>
+    <td class="col-code"><textarea data-f="code" placeholder="/" rows="1" readonly title="物料编码（只读，选中后可复制）">${esc(data.code)}</textarea></td>
     <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
   mvUp.onclick=()=>moveRow(tr, -1);
@@ -516,7 +524,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
   });
   tr.querySelector('[data-f="customer"]').addEventListener("input", mergeCustomerCells);
   tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
-  ["model","code"].forEach(k=>{
+  ["model"].forEach(k=>{
     const inp=tr.querySelector(`[data-f="${k}"]`);
     inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr); });
     inp.addEventListener("input", ()=>showAC(inp, tr));
@@ -534,7 +542,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     }
     if(!inserted) tb.appendChild(tr);
   }
-  reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markOverdue();
+  reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();
 }
 function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛选隐藏行跳过）
   let idx=0;
@@ -841,7 +849,7 @@ function foldByDate(){
   renumberVisible();  // 折叠状态变化后重新编号，保证可见行序号始终连续
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
   updatePastButton(); // 同步「当天之前」按钮文字
-  markOverdue();     // 刷新滞后计划高亮
+  markRowStates();   // 刷新滞后/之后计划高亮
 }
 
 function toggleDateFold(date){
@@ -1074,13 +1082,14 @@ function styleShipdate(){
     else inp.classList.remove("jinling");
   });
 }
-// 标记「滞后计划」：发货日期 < 当前日期边界（shipDate 或明天）即视为已过期/滞后
-function markOverdue(){
+// 按发货日期标记行的状态：<边界=滞后(红)  >边界=之后(蓝)  边界当天=正常
+function markRowStates(){
   const today=$("shipDate").value||todayStr();
   [...$("tbody").children].forEach(tr=>{
     if(tr.classList.contains("subtotal")) return;
     const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
     tr.classList.toggle("row-overdue", !!(d && d<today));
+    tr.classList.toggle("row-future", !!(d && d>today));
   });
 }
 function updateCheckAll(){
