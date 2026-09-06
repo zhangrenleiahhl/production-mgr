@@ -773,7 +773,7 @@ function foldByDate(){
     else cur.rows.push(tr);
   });
 
-  const today=$("shipDate").value||todayStr();
+  const today=realTodayStr();
   const state=getFoldState();
   const showFolded=getShowFolded();
   const foldedDates=[];
@@ -868,7 +868,7 @@ function toggleDateFold(date){
 
 // 一键折叠/展开「当天之前」所有日期的分组
 function getPastDates(){
-  const today=$("shipDate").value||todayStr();
+  const today=realTodayStr();
   const set=new Set();
   [...$("tbody").children].forEach(tr=>{
     if(tr.classList.contains("subtotal")) return;
@@ -881,7 +881,7 @@ function allPastCollapsed(){
   const dates=getPastDates();
   if(!dates.length) return true;
   const state=getFoldState();
-  const today=$("shipDate").value||todayStr();
+  const today=realTodayStr();
   return dates.every(d=>{ const c=state[d]===undefined?!(d>today):!!state[d]; return !!c; });
 }
 function togglePast(){
