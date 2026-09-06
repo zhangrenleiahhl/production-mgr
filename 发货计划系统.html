@@ -897,6 +897,7 @@ function updatePastButton(){
 }
 
 // ===================== 筛选（客户 / 型号 / 发货日期） =====================
+function isFilterActive(){ return !!((($("filterCustomer").value||"").trim()) || (($("filterModel").value||"").trim()) || ($("filterDate").value||"")); }
 function applyFilter(){
   const cust=($("filterCustomer").value||"").trim().toLowerCase();
   const model=($("filterModel").value||"").trim().toLowerCase();
@@ -922,12 +923,8 @@ function applyFilter(){
   });
   const hint=$("filterCount");
   if(hint) hint.textContent=active?`显示 ${shown}/${total} 行`:"";
-  if(!active){
-    foldByDate();            // 无筛选条件：恢复原本的折叠布局
-  }else{
-    renumberVisible();       // 有筛选：保持可见行序号连续
-  }
-  recalc(); updateCheckAll();
+  recalc();                 // 重新计算吨位/箱数；recalc 内部按筛选状态决定：无筛选→恢复折叠，有筛选→保持穿透显示并刷新合并/编号
+  updateCheckAll();
   const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
   $("rowCount").textContent=visible+" 行";
 }
@@ -995,7 +992,9 @@ function recalc(){
   $("sumTon").textContent=st.toFixed(1);
   $("sumBox").textContent=(sb>0)?sb:"/";
   $("sumCwt").textContent=scwt>0?scwt.toFixed(1):"/";
-  foldByDate();
+  // 有筛选时不再重新折叠（否则会把刚穿透显示的折叠行又折回去）；改为保持穿透显示并刷新合并/编号
+  if(!isFilterActive()){ foldByDate(); }
+  else { renumberVisible(); mergeCustomerCells(); markRowStates(); }
   // 客户吨位合计：只累加当前可见的分组合计单元格（合并后每个组只显示一个）
   let sst=0, subCells=0;
   $("tbl").querySelectorAll("tbody .col-subton").forEach(td=>{
