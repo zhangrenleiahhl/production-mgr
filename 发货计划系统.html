@@ -135,6 +135,10 @@
   .tbl tr.subtotal td{background:#f6f8fa;border-top:1px solid #000;font-weight:700;color:#1f2328;padding:2px 3px;font-size:14px;}
   .tbl tr.subtotal .sub-label{text-align:left;padding-left:8px;}
   .tbl tr.subtotal .sub-ton{text-align:center;color:var(--purple-d);}
+  /* 隔离区分隔带：位于「明日」计划之后，视觉隔离其后（后天及以后）的计划 */
+  .tbl tbody tr.isolation-band > td{padding:0 !important;border:none;background:transparent;height:auto;}
+  .tbl tbody tr.isolation-band .isolation-cell{height:30px;line-height:30px;text-align:center;background:linear-gradient(90deg,#fff7ed,#fed7aa 50%,#fff7ed);border-top:2px solid #fb923c;border-bottom:2px solid #fb923c;box-shadow:inset 0 1px 0 rgba(255,255,255,.7);}
+  .tbl tbody tr.isolation-band .isolation-label{display:inline-block;background:#ea580c;color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;padding:3px 16px;border-radius:999px;box-shadow:0 1px 3px rgba(234,88,12,.3);}
   .tbl tbody tr{transition:none;}
   .tbl tbody tr:nth-child(even){background:#fafafa;}
   .tbl tbody tr:hover td{background:var(--purple-bg);}
@@ -562,11 +566,11 @@ function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛�
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
   renumberVisible();
-  $("rowCount").textContent=$("tbody").children.length+" 行"; foldByDate();
+  $("rowCount").textContent=[...$("tbody").children].filter(isDataRow).length+" 行"; foldByDate();
 }
 function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
   const tb=$("tbody");
-  const rows=[...tb.children].filter(tr=>!tr.classList.contains("subtotal"));
+  const rows=[...tb.children].filter(isDataRow);
   rows.sort((a,b)=>{
     const da=a.querySelector('[data-f="shipdate"]')?.value||"";
     const db=b.querySelector('[data-f="shipdate"]')?.value||"";
@@ -576,7 +580,7 @@ function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客
 }
 function moveRow(tr, dir){
   const tb=$("tbody");
-  const rows=[...tb.children].filter(r=>!r.classList.contains("subtotal"));
+  const rows=[...tb.children].filter(isDataRow);
   const idx=rows.indexOf(tr);
   if(idx<0) return;
   const targetIdx=idx+dir;
@@ -611,8 +615,8 @@ function collectRowData(tr){
     remark:g("remark")
   };
 }
-function visibleRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("date-fold-hidden")&&!r.classList.contains("filter-hidden")&&!r.classList.contains("date-fold-placeholder")); }
-function allRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("date-fold-placeholder")); }   // 全部数据行（含折叠隐藏），用于删除/撤回等结构性操作
+function visibleRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("isolation-band")&&!r.classList.contains("date-fold-hidden")&&!r.classList.contains("filter-hidden")&&!r.classList.contains("date-fold-placeholder")); }
+function allRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("isolation-band")&&!r.classList.contains("date-fold-placeholder")); }   // 全部数据行（含折叠隐藏），用于删除/撤回等结构性操作
 function delRow(tr){
   if(!tr || !tr.parentNode) return;
   const list=allRows();
@@ -689,7 +693,7 @@ function unmergeRow(tr){
 }
 function mergeCustomerCells(){
   // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列；基于全部数据行合并
-  const allRows=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal"));
+  const allRows=[...$("tbody").children].filter(isDataRow);
   // 1) 清除所有数据行的合并状态
   allRows.forEach(tr=>{
     tr.classList.remove("group-end");
@@ -751,8 +755,10 @@ function setShowFolded(show){ try{ localStorage.setItem(SHOW_FOLDED_KEY, show?"1
 function hideFoldedRow(tr){ tr.classList.add("date-fold-hidden"); const b=tr.querySelector(".row-check"); if(b) b.checked=false; }
 
 function foldByDate(){
-  // 清理旧的折叠标记与按钮
+  // 清理旧的折叠标记与按钮，并移除上一次插入的隔离带（确保按最新数据重新计算位置）
+  [...$("tbody").querySelectorAll("tr.isolation-band")].forEach(r=>r.remove());
   [...$("tbody").children].forEach(tr=>{
+    if(!isDataRow(tr)) return;
     tr.classList.remove("date-fold-hidden","has-folded","has-expanded");
     const sd=tr.querySelector(".col-shipdate");
     if(sd){
@@ -767,7 +773,7 @@ function foldByDate(){
   const groups=[];
   let cur=null;
   rows.forEach(tr=>{
-    if(tr.classList.contains("subtotal")){ if(cur) cur.rows.push(tr); return; }
+    if(!isDataRow(tr)){ if(cur) cur.rows.push(tr); return; }
     const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
     if(!cur||cur.date!==d){ cur={date:d, rows:[tr]}; groups.push(cur); }
     else cur.rows.push(tr);
@@ -851,12 +857,13 @@ function foldByDate(){
   });
 
   // 行数只统计可见行（同时排除筛选隐藏）
-  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
+  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")&&!tr.classList.contains("isolation-band")).length;
   $("rowCount").textContent=visible+" 行";
   renumberVisible();  // 折叠状态变化后重新编号，保证可见行序号始终连续
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
   updatePastButton(); // 同步「当天之前」按钮文字
   markRowStates();   // 刷新滞后/之后计划高亮
+  renderIsolationBand();   // 在「明日」计划之后插入视觉隔离带（隔离其后计划）
 }
 
 function toggleDateFold(date){
@@ -871,7 +878,7 @@ function getPastDates(){
   const today=realTodayStr();
   const set=new Set();
   [...$("tbody").children].forEach(tr=>{
-    if(tr.classList.contains("subtotal")) return;
+    if(!isDataRow(tr)) return;
     const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
     if(d) set.add(d);
   });
@@ -898,6 +905,28 @@ function updatePastButton(){
 
 // ===================== 筛选（客户 / 型号 / 发货日期） =====================
 function isFilterActive(){ return !!((($("filterCustomer").value||"").trim()) || (($("filterModel").value||"").trim()) || ($("filterDate").value||"")); }
+// 数据行判定：排除「客户小计」与「隔离区分隔带」这类非数据行（避免被统计/导出/合并当成普通计划行）
+function isDataRow(tr){ return tr && !tr.classList.contains("subtotal") && !tr.classList.contains("isolation-band"); }
+// 在「明日」计划组之后插入视觉隔离带，隔离其后（后天及以后）的计划；数据不变，纯展示
+function renderIsolationBand(){
+  [...$("tbody").querySelectorAll("tr.isolation-band")].forEach(r=>r.remove());   // 幂等：先清后插
+  if(isFilterActive()) return;                                                   // 筛选状态下不显示分隔带
+  const tomorrow=todayStr();                                                     // 系统里 todayStr()=日历明天=用户的“明日”
+  const rows=[...$("tbody").children].filter(isDataRow);
+  let lastTomorrow=null, hasAfter=false;
+  rows.forEach(tr=>{
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    if(d===tomorrow) lastTomorrow=tr;
+    else if(d>tomorrow) hasAfter=true;
+  });
+  if(!lastTomorrow || !hasAfter) return;                                         // 无“明日”组，或明日之后无计划则不显示
+  // 明日组本身被折叠/筛选隐藏时，隔离带会悬空显示，此时不渲染
+  if(lastTomorrow.classList.contains("date-fold-hidden")||lastTomorrow.classList.contains("filter-hidden")) return;
+  const tr=document.createElement("tr"); tr.className="isolation-band";
+  const td=document.createElement("td"); td.colSpan=14; td.className="isolation-cell";
+  td.innerHTML='<span class="isolation-label">隔离区 · 明日之后</span>';
+  tr.appendChild(td); lastTomorrow.after(tr);
+}
 function applyFilter(){
   const cust=($("filterCustomer").value||"").trim().toLowerCase();
   const model=($("filterModel").value||"").trim().toLowerCase();
@@ -905,7 +934,7 @@ function applyFilter(){
   const active=!!(cust||model||date);
   let shown=0, total=0;
   [...$("tbody").children].forEach(tr=>{
-    if(tr.classList.contains("subtotal")) return;
+    if(!isDataRow(tr)) return;
     total++;
     const trCust=(tr.querySelector('[data-f="customer"]')?.value||"").trim().toLowerCase();
     const trModel=(tr.querySelector('[data-f="model"]')?.value||"").trim().toLowerCase();
@@ -925,8 +954,9 @@ function applyFilter(){
   if(hint) hint.textContent=active?`显示 ${shown}/${total} 行`:"";
   recalc();                 // 重新计算吨位/箱数；recalc 内部按筛选状态决定：无筛选→恢复折叠，有筛选→保持穿透显示并刷新合并/编号
   updateCheckAll();
-  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
+  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")&&!tr.classList.contains("isolation-band")).length;
   $("rowCount").textContent=visible+" 行";
+  renderIsolationBand();   // 筛选结束后刷新隔离带（筛选态下自动隐藏）
 }
 function clearFilter(){
   $("filterCustomer").value="";
@@ -953,7 +983,7 @@ function qtyNum(v){          // 取数量数值：能算就按算式算，算不
 function recalc(){
   let sq=0,st=0,sb=0,scwt=0;
   [...$("tbody").children].forEach(tr=>{
-    if(tr.classList.contains("subtotal")) return;   // 跳过客户小计行
+    if(!isDataRow(tr)) return;   // 跳过客户小计行 / 隔离带，避免非数据行读取 data-f 字段报错
     const qty=qtyNum(tr.querySelector('[data-f="qty"]').value);
     const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
     const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
@@ -1008,7 +1038,7 @@ function recalc(){
 }
 function collectRows(){
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
-  return [...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal")).map(tr=>({
+  return [...$("tbody").children].filter(isDataRow).map(tr=>({
     shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
     customer:f(tr.querySelector('[data-f="customer"]').value),
     code:f(tr.querySelector('[data-f="code"]').value),
@@ -1032,7 +1062,7 @@ function syncDocHead(){
 // ===================== 草稿自动保存（刷新/重开页面不丢未发布数据） =====================
 function saveDraft(){
   try{
-    const rows=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal")).map(tr=>{
+    const rows=[...$("tbody").children].filter(isDataRow).map(tr=>{
       const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
       return {
         shipdate:tr.querySelector('[data-f="shipdate"]').value,
@@ -1072,7 +1102,7 @@ function fallbackCopy(text, cb){
   document.body.removeChild(ta);
 }
 function publish(){
-  const allTrs=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal"));
+  const allTrs=[...$("tbody").children].filter(isDataRow);
   if(!allTrs.length){ toast("请先添加发货明细"); return; }
   // 发布前必须勾选确认：仅发布已勾选的行
   const checkedTrs=allTrs.filter(tr=>tr.querySelector(".row-check")?.checked);
@@ -1117,7 +1147,7 @@ function styleShipdate(){
 function markRowStates(){
   const today=$("shipDate").value||todayStr();
   [...$("tbody").children].forEach(tr=>{
-    if(tr.classList.contains("subtotal")) return;
+    if(!isDataRow(tr)) return;
     const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
     tr.classList.toggle("row-overdue", !!(d && d<today));
     tr.classList.toggle("row-future", !!(d && d>today));
@@ -1136,7 +1166,7 @@ function updateCheckAll(){
   updateKPIs();
 }
 function updateKPIs(){
-  const rows=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal"));
+  const rows=[...$("tbody").children].filter(isDataRow);
   const visibleRows=rows.filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden"));
   let qty=0, ton=0, checked=0;
   visibleRows.forEach(tr=>{
