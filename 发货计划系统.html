@@ -901,6 +901,7 @@ function applyFilter(){
   const cust=($("filterCustomer").value||"").trim().toLowerCase();
   const model=($("filterModel").value||"").trim().toLowerCase();
   const date=$("filterDate").value||"";
+  const active=!!(cust||model||date);
   let shown=0, total=0;
   [...$("tbody").children].forEach(tr=>{
     if(tr.classList.contains("subtotal")) return;
@@ -911,12 +912,24 @@ function applyFilter(){
     const match=(!cust || trCust.includes(cust)) &&
                 (!model || trModel.includes(model)) &&
                 (!date || trDate===date);
-    tr.classList.toggle("filter-hidden", !match);
-    if(match) shown++;
+    if(match){
+      // 匹配即显示：同时清除筛选隐藏与折叠隐藏，让被折叠/隐藏的计划也能被筛出来
+      tr.classList.remove("filter-hidden","date-fold-hidden");
+      shown++;
+    }else{
+      tr.classList.add("filter-hidden");
+    }
   });
   const hint=$("filterCount");
-  if(hint) hint.textContent=(cust||model||date)?`显示 ${shown}/${total} 行`:"";
+  if(hint) hint.textContent=active?`显示 ${shown}/${total} 行`:"";
+  if(!active){
+    foldByDate();            // 无筛选条件：恢复原本的折叠布局
+  }else{
+    renumberVisible();       // 有筛选：保持可见行序号连续
+  }
   recalc(); updateCheckAll();
+  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")).length;
+  $("rowCount").textContent=visible+" 行";
 }
 function clearFilter(){
   $("filterCustomer").value="";
