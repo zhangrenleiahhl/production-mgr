@@ -251,35 +251,28 @@
               background:linear-gradient(135deg,rgba(52,211,153,.12),rgba(255,255,255,.014));}
   .insight.ok .ic{background:rgba(52,211,153,.18);border-color:rgba(52,211,153,.36);}
 
-  /* ============ AI 机器人 ============ */
-  .ai-fab{
-    position:fixed;right:26px;bottom:26px;width:62px;height:62px;border-radius:50%;z-index:60;
-    background:linear-gradient(135deg,#22d3ee,#a855f7);cursor:pointer;border:none;
-    display:flex;align-items:center;justify-content:center;font-size:27px;color:#04121f;
-    box-shadow:0 12px 34px rgba(34,211,238,.45);animation:pulse 2.8s infinite;transition:.2s;
-  }
-  .ai-fab:hover{transform:scale(1.09) rotate(-8deg);}
-  @keyframes pulse{0%{box-shadow:0 12px 34px rgba(34,211,238,.45),0 0 0 0 rgba(34,211,238,.55)}
-                   70%{box-shadow:0 12px 34px rgba(34,211,238,.45),0 0 0 20px rgba(34,211,238,0)}
-                   100%{box-shadow:0 12px 34px rgba(34,211,238,.45),0 0 0 0 rgba(34,211,238,0)}}
-  .ai-fab .tip{position:absolute;right:0;bottom:calc(100% + 12px);white-space:nowrap;font-size:12px;
-               font-weight:700;color:#04121f;background:linear-gradient(135deg,#22d3ee,#a855f7);
-               padding:6px 13px;border-radius:999px;box-shadow:0 6px 20px rgba(34,211,238,.45);
-               transform-origin:bottom right;animation:tipIn .6s .8s both;}
-  @keyframes tipIn{from{opacity:0;transform:scale(.7) translateY(6px)}to{opacity:1;transform:none}}
-  .ai-fab .tip::after{content:"";position:absolute;right:14px;top:100%;border:6px solid transparent;
-    border-top-color:#a855f7;}
-
+  /* ============ AI 抽屉（右常驻）============ */
+  .ai-fab{display:none;}   /* 悬浮球已弃用，改为右抽屉 */
   .ai-panel{
-    position:fixed;right:26px;bottom:100px;width:412px;max-width:calc(100vw - 32px);height:590px;
-    max-height:calc(100vh - 140px);z-index:61;display:none;flex-direction:column;
+    position:fixed;right:0;top:0;height:100vh;width:420px;max-width:calc(100vw - 320px);
+    z-index:50;display:flex;flex-direction:column;
     background:linear-gradient(180deg,rgba(11,22,42,.97),rgba(6,12,24,.98));
-    border:1px solid rgba(34,211,238,.32);border-radius:20px;overflow:hidden;
-    box-shadow:0 28px 72px rgba(0,0,0,.66),0 0 40px rgba(34,211,238,.20);
-    backdrop-filter:blur(22px);animation:pop .3s cubic-bezier(.2,.9,.3,1.25) both;
+    border-left:1px solid rgba(34,211,238,.32);border-top:0;border-right:0;border-bottom:0;border-radius:0;
+    overflow:hidden;box-shadow:-28px 0 72px rgba(0,0,0,.66),-12px 0 40px rgba(34,211,238,.18);
+    backdrop-filter:blur(22px);animation:slideInR .5s cubic-bezier(.2,.9,.3,1) both;
   }
-  @keyframes pop{from{opacity:0;transform:translateY(20px) scale(.95)}}
-  .ai-panel.open{display:flex;}
+  @keyframes slideInR{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:none}}
+  .ai-panel.collapsed{width:54px;}
+  .ai-panel.collapsed .ai-head .ti,
+  .ai-panel.collapsed .ai-body,
+  .ai-panel.collapsed .ai-quick,
+  .ai-panel.collapsed .ai-input{display:none !important;}
+  .ai-panel.collapsed .ai-head{padding:13px 10px;justify-content:center;flex-direction:column;gap:8px;}
+  .ai-panel.collapsed .ai-head .av-wrap{margin:0;}
+  .ai-panel.collapsed .collapser{transform:rotate(180deg);}
+  .ai-panel .ai-head .collapser{transition:.25s;}
+  .wrap{padding-right:446px;max-width:1880px;}
+  @media(max-width:1180px){ .wrap{padding-right:0;padding-bottom:80px;} .ai-panel{height:60vh;top:auto;bottom:0;width:100%;max-width:100vw;border-left:0;border-top:1px solid rgba(34,211,238,.32);box-shadow:0 -28px 72px rgba(0,0,0,.66);} }
   .ai-head{display:flex;align-items:center;gap:11px;padding:13px 15px;position:relative;overflow:hidden;
            background:linear-gradient(90deg,rgba(34,211,238,.17),rgba(168,85,247,.15));
            border-bottom:1px solid rgba(34,211,238,.24);}
@@ -339,6 +332,85 @@
   .ai-input button:hover{filter:brightness(1.12);box-shadow:0 0 22px rgba(34,211,238,.55);}
 
   .updated{font-size:11px;color:var(--dim);margin-top:18px;text-align:center;letter-spacing:1.2px;}
+
+  /* ============ 发布会模式（Shift+P / P 切换，Esc 退出）============ */
+  body.present{background:#04070f;}
+  body.present .wrap{padding:32px 40px 60px 40px;max-width:1900px;padding-right:486px;}
+  body.present .hud{padding:16px 22px;margin-bottom:22px;}
+  body.present .hud .title{font-size:30px;}
+  body.present .hud .sub{font-size:14px;}
+  body.present .hud .clock{font-size:22px;}
+  body.present .hud .kbar{padding:6px 14px;font-size:13px;}
+  body.present .kpis{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:22px;}
+  body.present .kpi{padding:22px 22px 20px;}
+  body.present .kpi .value{font-size:42px;}
+  body.present .kpi .label{font-size:13px;}
+  body.present .kpi .spark{height:44px;}
+  body.present .kpi .spark svg{height:44px;}
+  body.present .grid2,.body.present .grid3{gap:22px;margin-bottom:22px;}
+  body.present .card{padding:24px;}
+  body.present .card h2{font-size:18px;}
+  body.present .bar-row{padding:11px 14px;}
+  body.present .bar-val{font-size:14px;}
+  body.present .insight{padding:14px 16px;font-size:14px;}
+  body.present .ai-panel{width:460px;box-shadow:-32px 0 90px rgba(0,0,0,.78),-16px 0 60px rgba(34,211,238,.28);}
+
+  /* 发布会顶部提示条 */
+  .present-hud{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:120;
+    display:flex;align-items:center;gap:14px;padding:10px 18px;border-radius:999px;
+    background:linear-gradient(135deg,rgba(34,211,238,.95),rgba(168,85,247,.95));
+    box-shadow:0 12px 38px rgba(34,211,238,.45),0 0 0 1px rgba(255,255,255,.18) inset;
+    color:#04121f;font-weight:800;font-size:13px;letter-spacing:.4px;opacity:0;pointer-events:none;
+    transition:opacity .3s;}
+  body.present .present-hud{opacity:1;pointer-events:auto;}
+  .present-hud .dot{width:8px;height:8px;border-radius:50%;background:#04121f;animation:blink 1.4s infinite;}
+  .present-hud .timer{font-variant-numeric:tabular-nums;opacity:.85;}
+  .present-hud .exit{background:rgba(4,18,31,.18);border:1px solid rgba(4,18,31,.4);
+    color:#04121f;padding:4px 12px;border-radius:999px;cursor:pointer;font-weight:800;font-size:12px;}
+  .present-hud .exit:hover{background:rgba(4,18,31,.32);}
+
+  /* 发布会右下快捷键提示 */
+  .present-tip{position:fixed;right:480px;bottom:18px;z-index:110;display:flex;gap:8px;
+    opacity:0;transition:opacity .4s;pointer-events:none;}
+  body.present .present-tip{opacity:.9;pointer-events:auto;}
+  .present-tip span{background:rgba(11,22,42,.78);border:1px solid rgba(34,211,238,.4);
+    padding:6px 11px;border-radius:8px;font-size:11.5px;color:#9fe6ff;font-weight:700;
+    display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px);}
+  .present-tip kbd{background:rgba(34,211,238,.18);border:1px solid rgba(34,211,238,.4);
+    padding:1px 7px;border-radius:5px;font-family:inherit;font-size:11px;color:#fff;}
+
+  /* 帮助浮层（按 ? 唤出）*/
+  .help-ov{position:fixed;inset:0;z-index:140;display:none;align-items:center;justify-content:center;
+    background:rgba(4,7,15,.78);backdrop-filter:blur(10px);animation:fadeIn .2s both;}
+  .help-ov.open{display:flex;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .help-card{width:min(540px,92vw);background:linear-gradient(180deg,rgba(11,22,42,.97),rgba(6,12,24,.98));
+    border:1px solid rgba(34,211,238,.4);border-radius:18px;padding:26px 28px;color:#dff5ff;
+    box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 50px rgba(34,211,238,.18);position:relative;}
+  .help-card h3{margin:0 0 6px;font-size:18px;background:linear-gradient(90deg,#fff,#9fe6ff);
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .help-card .desc{color:#7de6f7;font-size:12px;margin-bottom:18px;}
+  .help-card ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;}
+  .help-card li{display:flex;align-items:center;gap:14px;padding:9px 12px;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;}
+  .help-card li kbd{background:rgba(34,211,238,.18);border:1px solid rgba(34,211,238,.4);
+    padding:3px 9px;border-radius:6px;font-family:inherit;font-size:12px;color:#fff;min-width:34px;text-align:center;}
+  .help-card li b{color:#fff;font-weight:600;}
+  .help-card li span{color:#9fe6f7;font-size:12.5px;flex:1;}
+  .help-card .close{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.06);
+    border:1px solid var(--line);color:var(--muted);cursor:pointer;width:30px;height:30px;
+    border-radius:8px;font-size:15px;}
+  .help-card .close:hover{color:#fff;background:rgba(248,113,113,.2);border-color:rgba(248,113,113,.4);}
+
+  /* HUD 上的快捷键徽章 */
+  .hud .kbar .kbd-hint{display:inline-flex;align-items:center;gap:5px;margin-left:8px;
+    padding:3px 9px;border-radius:6px;background:rgba(34,211,238,.16);
+    border:1px solid rgba(34,211,238,.38);color:#cdf3ff;font-size:11px;font-weight:700;}
+  .hud .kbar .kbd-hint kbd{background:rgba(34,211,238,.28);border:1px solid rgba(34,211,238,.5);
+    padding:1px 6px;border-radius:4px;font-family:inherit;font-size:10.5px;color:#fff;}
+
+  /* AI 头部"折叠"按钮 */
+  .ai-head .collapser{font-size:14px;}
 </style>
 </head>
 <body data-page-node-id="AvbmYBE1AfqzAI3JnHYtOZ">
@@ -353,6 +425,7 @@
     </div>
     <div class="ctrl" data-page-node-id="m78WG0G5XI0iYsKPO7nAxH">
       <div class="live" data-page-node-id="5DNEM2ZnrVxYFuF6KcxmXL"><b data-page-node-id="JEN4i43ILi51rNvz7QQvzV"></b>实时数据</div>
+      <span class="kbd-hint" data-page-node-id="iKBDHInt2026">按 <kbd>Shift</kbd>+<kbd>P</kbd> 全屏演示 · <kbd>?</kbd> 看快捷键</span>
       <select id="src" data-page-node-id="eRLUAemyBGCS9Msv41qPR0">
         <option value="all" data-page-node-id="SR5mizUCSlvELXJSapOQcP">全部数据（当前计划 + 已发布）</option>
         <option value="draft" data-page-node-id="Oi5eIA316GTQhBXbCRifNq">仅当前计划（未发布草稿）</option>
@@ -408,14 +481,12 @@
   <div class="updated" id="updated" data-page-node-id="Qf2A8RU4iKmd7CB8Y8GpIw"></div>
 </div>
 
-<button class="ai-fab" id="aiFab" title="打开 AI 助手" data-page-node-id="AuFMB02Gkx67sNwE0gX2Pv"><span class="tip" data-page-node-id="7adcikxRiVR3stCXANY0g6">有问题问我 ✨</span>🤖</button>
-
 <div class="ai-panel" id="aiPanel" data-page-node-id="6RGDvWsfjUtFXRSlNQ9cw5">
   <div class="ai-head" data-page-node-id="pjdXsSfC9kU1DVvJ8FIVwf">
     <div class="av-wrap" data-page-node-id="RVeeRDwCYLRzvMVtcpnerk"><div class="halo" data-page-node-id="Hp77GBI3NzIniMGj6KBUFM"></div><div class="av" data-page-node-id="A7GrkBaHlidRknfifia4mN">🤖</div></div>
     <div class="ti" data-page-node-id="KhZNLsRqbiHAlPghCXmAJK"><b data-page-node-id="ewAMRvzTjC1NuKb2YJScAw">计划助手 AI</b><span data-page-node-id="wIClOIBkRdQjvlbbvq1NuX"><i data-page-node-id="ZaXRc5xPZcIMFPSPb6eidT"></i>在线 · 已连接计划数据</span></div>
     <button id="aiClear" title="清空对话" data-page-node-id="rAuCy7gDNPD0XQDqsvjxZc">⟲</button>
-    <button id="aiClose" title="收起" data-page-node-id="HV4AzLQllLvVrGAwLkFivI">✕</button>
+    <button id="aiClose" class="collapser" title="折叠/展开 抽屉" data-page-node-id="HV4AzLQllLvVrGAwLkFivI">»</button>
   </div>
   <div class="ai-body" id="aiBody" data-page-node-id="UIgNypQiC0gkiE5zwVEB0P"></div>
   <div class="ai-quick" id="aiQuick" data-page-node-id="78f48943AFMjlBcWv2upVa">
@@ -428,6 +499,35 @@
   <div class="ai-input" data-page-node-id="LkFFJ8nOilxWZiAROBCVWE">
     <input id="aiInput" placeholder="问我任何关于发货计划的问题…" autocomplete="off" data-page-node-id="E9pOL60HpYpkin99b39gGC">
     <button id="aiSend" data-page-node-id="Ve39BhtNPc7HMGh7GbX3K8">发送</button>
+  </div>
+</div>
+
+<!-- 发布会模式 顶部提示条 + 右下快捷键提示 -->
+<div class="present-hud" id="presentHud" data-page-node-id="pH0001">
+  <span class="dot" data-page-node-id="pH0002"></span>
+  <span data-page-node-id="pH0003">📺 发布会模式</span>
+  <span class="timer" id="presentTimer" data-page-node-id="pH0004">00:00</span>
+  <button class="exit" id="presentExit" data-page-node-id="pH0005">Esc 退出</button>
+</div>
+<div class="present-tip" data-page-node-id="pT0001">
+  <span data-page-node-id="pT0002"><kbd>Esc</kbd> 退出</span>
+  <span data-page-node-id="pT0003"><kbd>?</kbd> 快捷键</span>
+</div>
+
+<!-- 快捷键帮助浮层（按 ? 唤出） -->
+<div class="help-ov" id="helpOv" data-page-node-id="hO0001">
+  <div class="help-card" data-page-node-id="hC0001">
+    <button class="close" id="helpClose" data-page-node-id="hC0002" title="关闭">✕</button>
+    <h3 data-page-node-id="hC0003">⌨ 快捷键</h3>
+    <div class="desc" data-page-node-id="hC0004">在页面任意位置（输入框内除外）按下对应按键即可触发</div>
+    <ul data-page-node-id="hC0005">
+      <li data-page-node-id="hC0006"><kbd>Shift</kbd>+<kbd>P</kbd> <span data-page-node-id="hC0007"></span><b data-page-node-id="hC0008">进入 / 退出 发布会模式</b></li>
+      <li data-page-node-id="hC0009"><kbd>Esc</kbd> <span data-page-node-id="hC000a"></span><b data-page-node-id="hC000b">退出发布会 / 关闭弹窗</b></li>
+      <li data-page-node-id="hC000c"><kbd>?</kbd> <span data-page-node-id="hC000d"></span><b data-page-node-id="hC000e">显示 / 隐藏 此帮助</b></li>
+      <li data-page-node-id="hC000f"><kbd>R</kbd> <span data-page-node-id="hC000g"></span><b data-page-node-id="hC000h">刷新数据</b></li>
+      <li data-page-node-id="hC000i"><kbd>[</kbd> <span data-page-node-id="hC000j"></span><b data-page-node-id="hC000k">折叠 / 展开 AI 抽屉</b></li>
+      <li data-page-node-id="hC000l"><kbd>/</kbd> <span data-page-node-id="hC000m"></span><b data-page-node-id="hC000n">聚焦 AI 输入框</b></li>
+    </ul>
   </div>
 </div>
 
@@ -975,19 +1075,13 @@ function ask(q){
     typeOut(bubble("bot",""), html);
   },420);
 }
-document.getElementById("aiFab").onclick=function(){
+// AI 抽屉"折叠/展开"按钮（替代旧的关闭按钮）
+document.getElementById("aiClose").onclick=function(){
   var p=document.getElementById("aiPanel");
-  p.classList.toggle("open");
-  if(p.classList.contains("open")){
-    if(!aiBody.children.length){
-      var rows=currentRows();
-      bubble("bot","你好 👋 我是<b>计划助手 AI</b>，已读取 <b>"+rows.length+"</b> 行计划数据。<br>想问什么直接说就行，比如「明天发什么？」"+
-             '<span class="tm">'+nowHM()+'</span>');
-    }
-    setTimeout(function(){ document.getElementById("aiInput").focus(); },60);
-  }
+  p.classList.toggle("collapsed");
+  this.textContent=p.classList.contains("collapsed")?"«":"»";
+  this.title=p.classList.contains("collapsed")?"展开 AI 抽屉":"折叠 AI 抽屉";
 };
-document.getElementById("aiClose").onclick=function(){ document.getElementById("aiPanel").classList.remove("open"); };
 document.getElementById("aiClear").onclick=function(){
   aiBody.innerHTML="";
   bubble("bot","对话已清空 🔄 有什么想问的？"+'<span class="tm">'+nowHM()+'</span>');
@@ -999,6 +1093,87 @@ document.getElementById("aiInput").addEventListener("keydown",function(e){ if(e.
   var v=this.value; if(v.trim()){ ask(v); this.value=""; } } });
 document.getElementById("aiQuick").addEventListener("click",function(e){
   if(e.target && e.target.classList.contains("chip")) ask(e.target.textContent.replace(/^\S+\s/,""));
+});
+
+// 首次加载注入欢迎语
+(function(){
+  if(!aiBody.children.length){
+    var rows=currentRows();
+    bubble("bot","你好 👋 我是<b>计划助手 AI</b>，已读取 <b>"+rows.length+"</b> 行计划数据。<br>想问什么直接说就行，比如「明天发什么？」"+
+           '<span class="tm">'+nowHM()+'</span>');
+  }
+})();
+
+// ================= 全局快捷键 =================
+// 哪些 key 在输入框/可编辑元素里时**不**触发全局快捷键
+function inEditable(el){
+  if(!el) return false;
+  var tag=(el.tagName||"").toUpperCase();
+  if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT") return true;
+  if(el.isContentEditable) return true;
+  return false;
+}
+function setPresent(on){
+  document.body.classList.toggle("present", !!on);
+  if(on){
+    if(!presentStartedAt) presentStartedAt=Date.now();
+    tickPresentTimer();
+  }else{
+    presentStartedAt=0;
+  }
+}
+function tickPresentTimer(){
+  var el=document.getElementById("presentTimer"); if(!el) return;
+  if(!presentStartedAt){ el.textContent="00:00"; return; }
+  var sec=Math.floor((Date.now()-presentStartedAt)/1000);
+  var m=String(Math.floor(sec/60)).padStart(2,"0"), s=String(sec%60).padStart(2,"0");
+  el.textContent=m+":"+s;
+  setTimeout(tickPresentTimer, 1000);
+}
+var presentStartedAt=0;
+function showHelp(on){
+  document.getElementById("helpOv").classList.toggle("open", !!on);
+}
+document.getElementById("helpClose").onclick=function(){ showHelp(false); };
+document.getElementById("presentExit").onclick=function(){ setPresent(false); };
+document.getElementById("helpOv").addEventListener("click",function(e){
+  if(e.target===this) showHelp(false);
+});
+document.addEventListener("keydown",function(e){
+  // 帮助浮层打开时：Esc 关闭，? 关闭
+  if(document.getElementById("helpOv").classList.contains("open")){
+    if(e.key==="Escape"||e.key==="?"){ e.preventDefault(); showHelp(false); return; }
+    return;
+  }
+  // 输入框内：让浏览器自己处理（仅 Esc 透传到全局，用于退出发布会）
+  if(inEditable(e.target) && e.key!=="Escape") return;
+
+  if(e.key==="Escape"){
+    if(document.body.classList.contains("present")){ e.preventDefault(); setPresent(false); }
+    return;
+  }
+  if((e.key==="P"||e.key==="p") && e.shiftKey){
+    e.preventDefault();
+    setPresent(!document.body.classList.contains("present"));
+    return;
+  }
+  if(e.key==="?" && !e.shiftKey){
+    e.preventDefault(); showHelp(!document.getElementById("helpOv").classList.contains("open")); return;
+  }
+  if(e.key==="r"||e.key==="R"){
+    e.preventDefault(); if(typeof render==="function") render(); return;
+  }
+  if(e.key==="["){
+    e.preventDefault();
+    var p=document.getElementById("aiPanel");
+    p.classList.toggle("collapsed");
+    var btn=document.getElementById("aiClose");
+    btn.textContent=p.classList.contains("collapsed")?"«":"»";
+    return;
+  }
+  if(e.key==="/"){
+    e.preventDefault(); document.getElementById("aiInput").focus(); return;
+  }
 });
 
 // ================= 装饰：四角角标 + 滚动渐入 =================
