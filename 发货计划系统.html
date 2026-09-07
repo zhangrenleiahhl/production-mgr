@@ -243,9 +243,12 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .req::after{content:"*";color:#dc2626;margin-left:2px;}
   .ac{position:fixed;z-index:200;background:#fff;border:1px solid #d0d7de;border-radius:0;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:300px;overflow-y:auto;}
-  .ac-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid #e5e7eb;font-size:13px;transition:.15s;}
+  .ac-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid #e5e7eb;font-size:13px;transition:.12s;border-left:4px solid transparent;}
   .ac-item:last-child{border-bottom:none;}
-  .ac-item.active,.ac-item:hover{background:#eff6ff;}
+  /* 高亮更显眼：渐变底 + 左侧粗色条 + 模型字加色加下划线（保持 padding-left 不抖） */
+  .ac-item.active,.ac-item:hover{background:linear-gradient(90deg,#dbeafe,#eff6ff);border-left:4px solid #2563eb;color:#1e3a8a;box-shadow:inset 0 0 0 1px #93c5fd;}
+  .ac-item.active .ac-model{color:#1d4ed8;text-decoration:underline;}
+  .ac-item.active .ac-code{color:#1d4ed8;font-weight:700;}
   .ac-model{font-weight:700;color:#1f2328;}
   .ac-code{color:#2563eb;font-size:12px;}
   .ac-meta{color:#6b7280;font-size:12px;display:block;margin-top:2px;}
@@ -367,6 +370,18 @@ function matchDB(q){
     (r.code||"").toLowerCase().includes(q) ||
     (r.customer||"").toLowerCase().includes(q)).slice(0,8);
 }
+// 待选项优先顺序：含「机加工」=1 > 含「毛坯」=2 > 含「粗抛」=3 > 其他=4；任一字段（型号/编码/客户）命中即取该优先级，数字越小越靠前
+function rankPriority(r){
+  const fields=[r.model,r.code,r.customer];
+  let p=4;
+  for(const f of fields){
+    const s=(f||"").toString();
+    if(s.includes("机加工")) return 1;       // 数字越小越靠前，命中最高级直接返回
+    if(s.includes("毛坯") && p>2) p=2;
+    if(s.includes("粗抛") && p>3) p=3;
+  }
+  return p;
+}
 // 某型号（或编码）在物料库里对应的不同客户集合（用于提示多客户）
 function customersForModel(model, code){
   const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
@@ -391,6 +406,8 @@ function showAC(input, row, typed){
     return;
   }
   acList=matchDB(input.value);
+  // 待选项优先顺序：含「机加工」=P1 > 含「毛坯」=P2 > 含「粗抛」=P3 > 其他=P4（数字越小越靠前，Array.sort 稳定同级保持原顺序）
+  acList.sort((a,b)=>rankPriority(a)-rankPriority(b));
   if(!acList.length){
     acEl=document.createElement("div"); acEl.className="ac";
     acEl.innerHTML=`<div class="ac-item" style="color:var(--muted)">无匹配物料：${esc(input.value)}</div>`;
