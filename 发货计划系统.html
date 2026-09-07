@@ -357,11 +357,12 @@ window.addEventListener("focus", ()=>{
 });
 
 // ===================== 型号模糊待选（自动带出） =====================
-let acEl=null, acList=[], acActive=-1, acRow=null;
-function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1; }
+let acEl=null, acList=[], acActive=-1, acRow=null, acTyped=false;   // acTyped：待选是否由用户主动输入触发（仅此时 Tab/Enter 才允许填入）
+function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1; acTyped=false; }
 function matchDB(q){
   q=q.trim().toLowerCase();
-  return DB.filter(r => !q ||
+  if(!q) return [];                                  // 空输入不匹配任何物料：避免把整库当成待选项被误填入行
+  return DB.filter(r =>
     (r.model||"").toLowerCase().includes(q) ||
     (r.code||"").toLowerCase().includes(q) ||
     (r.customer||"").toLowerCase().includes(q)).slice(0,8);
@@ -376,8 +377,11 @@ function customersForModel(model, code){
   });
   return [...set];
 }
-function showAC(input, row){
+function showAC(input, row, typed){
   acRow=row; closeAC();
+  // 型号栏为空时不弹待选：否则按 Tab/Enter 会把物料库第一条误填进整行（客户列被莫名填上）
+  if(!(input.value||"").trim()) return;
+  acTyped=!!typed;                    // 只有用户打字唤出的待选才允许被填入，单纯聚焦路过时不填入
   if(!DB.length){
     acEl=document.createElement("div"); acEl.className="ac";
     acEl.innerHTML=`<div class="ac-item" style="color:var(--muted)">物料库为空，请先导入或打开「物料数据库」添加</div>`;
@@ -440,8 +444,9 @@ document.addEventListener("keydown", e=>{
   if(!acEl) return;
   if(e.key==="ArrowDown"){ e.preventDefault(); moveAC(1); }
   else if(e.key==="ArrowUp"){ e.preventDefault(); moveAC(-1); }
-  else if(e.key==="Enter"){ e.preventDefault(); if(acActive>=0) applyDb(acRow, acList[acActive]); closeAC(); }
-  else if(e.key==="Tab"){ e.preventDefault(); if(acActive>=0) applyDb(acRow, acList[acActive]); closeAC(); }
+  // 只有「用户打字唤出的待选」才允许 Enter/Tab 填入；单纯聚焦弹出的待选仅作提示，Tab 只关闭并跳格，绝不改数据
+  else if(e.key==="Enter"){ if(acTyped && acList.length && acActive>=0){ e.preventDefault(); applyDb(acRow, acList[acActive]); } closeAC(); }
+  else if(e.key==="Tab"){ if(acTyped && acList.length && acActive>=0){ e.preventDefault(); applyDb(acRow, acList[acActive]); } closeAC(); }
   else if(e.key==="Escape"){ closeAC(); }
 });
 
@@ -534,8 +539,8 @@ function addRow(data={}, refRow=null, beforeRow=null){
   tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
   ["model"].forEach(k=>{
     const inp=tr.querySelector(`[data-f="${k}"]`);
-    inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr); });
-    inp.addEventListener("input", ()=>showAC(inp, tr));
+    inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr, false); });   // 路过聚焦：只提示，不自动填
+    inp.addEventListener("input", ()=>showAC(inp, tr, true));                       // 主动输入：允许 Enter/Tab 填入选中项
   });
   // 物料编码复制按钮
   const copyBtn=tr.querySelector(".copy-code");
