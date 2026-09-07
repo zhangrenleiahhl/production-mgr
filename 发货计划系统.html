@@ -360,8 +360,30 @@ window.addEventListener("focus", ()=>{
 });
 
 // ===================== 型号模糊待选（自动带出） =====================
-let acEl=null, acList=[], acActive=-1, acRow=null, acTyped=false;   // acTyped：待选是否由用户主动输入触发（仅此时 Tab/Enter 才允许填入）
+let acEl=null, acList=[], acActive=-1, acRow=null, acTyped=false, acSnap=null, lastApplied=null;   // acTyped：待选是否由用户主动输入触发；acSnap：打开待选前的整行快照；lastApplied：最近一次「物料带出」前的快照（供 Esc 整行撤销）
 function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1; acTyped=false; }
+// 记录整行会被「物料带出」改写的字段，供按 Esc 时恢复原数据
+function snapRow(row){
+  if(!row) return null;
+  const g=f=>(row.querySelector(`[data-f="${f}"]`)?.value)||"";
+  return { row, model:g("model"), code:g("code"), unit:g("unit"), perbox:g("perbox"), customer:g("customer"), remark:g("remark") };
+}
+function restoreRowSnap(){
+  if(!acSnap || !acSnap.row || !acSnap.row.parentNode) return false;
+  const row=acSnap.row;
+  const set=(f,v)=>{ const el=row.querySelector(`[data-f="${f}"]`); if(el) el.value=v||""; };
+  set("model",acSnap.model); set("code",acSnap.code); set("unit",acSnap.unit);
+  set("perbox",acSnap.perbox); set("customer",acSnap.customer); set("remark",acSnap.remark);
+  recalc(); mergeCustomerCells(); fitTextareas();
+  acSnap=null;
+  return true;
+}
+// 记录可编辑框聚焦时的原始值，供按 Esc 恢复（隐藏字段无需记录）
+function trackOrig(el){
+  if(!el || el.type==="hidden") return;
+  el.addEventListener("focus", ()=>{ if(el.dataset.orig===undefined) el.dataset.orig=el.value; });
+  el.addEventListener("blur", ()=>{ delete el.dataset.orig; });
+}
 function matchDB(q){
   q=q.trim().toLowerCase();
   if(!q) return [];                                  // 空输入不匹配任何物料：避免把整库当成待选项被误填入行
@@ -430,6 +452,7 @@ function showAC(input, row, typed){
   acEl.style.left=rect.left+"px"; acEl.style.top=rect.bottom+4+"px"; acEl.style.width=Math.max(rect.width,340)+"px";
 }
 function applyDb(row, r){
+  lastApplied={ row, snap: acSnap || snapRow(row) };   // 记录带出前的整行数据，带出后按 Esc 可整行撤销
   row.querySelector('[data-f="model"]').value=r.model||"";
   row.querySelector('[data-f="code"]').value=r.code||"";
   row.querySelector('[data-f="unit"]').value=r.unit||"";
@@ -464,7 +487,26 @@ document.addEventListener("keydown", e=>{
   // 只有「用户打字唤出的待选」才允许 Enter/Tab 填入；单纯聚焦弹出的待选仅作提示，Tab 只关闭并跳格，绝不改数据
   else if(e.key==="Enter"){ if(acTyped && acList.length && acActive>=0){ e.preventDefault(); applyDb(acRow, acList[acActive]); } closeAC(); }
   else if(e.key==="Tab"){ if(acTyped && acList.length && acActive>=0){ e.preventDefault(); applyDb(acRow, acList[acActive]); } closeAC(); }
-  else if(e.key==="Escape"){ closeAC(); }
+  else if(e.key==="Escape"){ const done=restoreRowSnap(); closeAC(); if(done) toast("已恢复原数据"); }
+});
+// Esc（无待选面板时）：把当前正在编辑的单元格恢复成聚焦时的值
+document.addEventListener("keydown", e=>{
+  if(e.key!=="Escape" || acEl) return;
+  const el=e.target;
+  // 刚带出过数据（焦点已被移到数量列）：Esc 整行撤销到带出前
+  if(lastApplied && lastApplied.row && el && el.closest && el.closest("tr")===lastApplied.row){
+    const s=lastApplied.snap;
+    const set=(f,v)=>{ const x=lastApplied.row.querySelector(`[data-f="${f}"]`); if(x) x.value=v||""; };
+    set("model",s.model); set("code",s.code); set("unit",s.unit); set("perbox",s.perbox); set("customer",s.customer); set("remark",s.remark);
+    lastApplied=null;
+    recalc(); mergeCustomerCells(); fitTextareas(); saveDraft();
+    toast("已恢复原数据");
+    return;
+  }
+  if(!el || !el.dataset || el.dataset.orig===undefined) return;
+  el.value=el.dataset.orig; delete el.dataset.orig;
+  recalc(); mergeCustomerCells(); fitTextareas(); saveDraft();
+  el.blur(); toast("已恢复原数据");
 });
 
 // ===================== 发货计划单 =====================
@@ -512,6 +554,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
     inp.addEventListener("keydown", onCellKey);
+    trackOrig(inp);
     if(inp.dataset.f==="box"){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
@@ -550,13 +593,14 @@ function addRow(data={}, refRow=null, beforeRow=null){
   }
   tr.querySelectorAll("textarea").forEach(ta=>{
     ta.addEventListener("keydown", onCellKey);
+    trackOrig(ta);
     ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); saveDraft(); });
   });
   tr.querySelector('[data-f="customer"]').addEventListener("input", mergeCustomerCells);
   tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
   ["model"].forEach(k=>{
     const inp=tr.querySelector(`[data-f="${k}"]`);
-    inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr, false); });   // 路过聚焦：只提示，不自动填
+    inp.addEventListener("focus", ()=>{ acSnap=snapRow(tr); lastApplied=null; if(DB.length) showAC(inp, tr, false); });   // 聚焦即记录整行快照，供 Esc 恢复；路过聚焦只提示不自动填
     inp.addEventListener("input", ()=>showAC(inp, tr, true));                       // 主动输入：允许 Enter/Tab 填入选中项
   });
   // 物料编码复制按钮
