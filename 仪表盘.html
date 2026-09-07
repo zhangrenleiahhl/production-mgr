@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html lang="zh-CN" data-page-node-id="v8bsMNv6o7F4lGkBVaWy6r">
+<head data-page-node-id="xGSlQCGqaLM1GtI5t87zIp">
+<meta charset="UTF-8" data-page-node-id="91z9gAGZvP7jV1FVM8QZzV">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="zbStjCJk2C1h33VnPDKuPT">
 <title>智能指挥中心 · 生产管理客户端</title>
 <style>
   :root{
@@ -173,8 +173,9 @@
             transform:translateX(-100%);animation:shine 2.6s ease-in-out infinite;}
   @keyframes shine{0%{transform:translateX(-100%)}60%,100%{transform:translateX(220%)}}
   @keyframes slide{from{width:0 !important;opacity:.3}}
-  .bar-val{flex:0 0 66px;text-align:right;font-size:12.5px;font-weight:800;
-    background:linear-gradient(180deg,#ffffff,#8fdcff);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .bar-val{flex:0 0 76px;text-align:right;font-size:13px;font-weight:800;color:#dff5ff;
+    text-shadow:0 0 8px rgba(34,211,238,.45);font-variant-numeric:tabular-nums;
+    white-space:nowrap;overflow:visible;letter-spacing:.2px;}
 
   /* ============ 柱状图 ============ */
   .cols{display:flex;align-items:flex-end;gap:8px;height:184px;padding-top:10px;position:relative;}
@@ -237,9 +238,10 @@
            background:linear-gradient(135deg,rgba(255,255,255,.062),rgba(255,255,255,.014));
            border:1px solid var(--line);backdrop-filter:blur(12px);transition:.22s;}
   .insight:hover{transform:translateY(-2px);border-color:var(--line-hi);box-shadow:0 12px 30px rgba(0,0,0,.4);}
-  .insight .ic{width:32px;height:32px;flex:0 0 32px;border-radius:10px;display:flex;align-items:center;
-               justify-content:center;font-size:15px;background:rgba(255,255,255,.07);
-               border:1px solid var(--line);}
+  .insight .ic{width:34px;height:34px;flex:0 0 34px;border-radius:11px;display:flex;align-items:center;
+               justify-content:center;background:rgba(255,255,255,.07);
+               border:1px solid var(--line);overflow:hidden;}
+  .insight .ic svg.ic3d{width:26px;height:26px;display:block;filter:drop-shadow(0 2px 5px rgba(0,0,0,.45));}
   .insight .t{font-size:12.6px;line-height:1.62;color:#cfe1fa;}
   .insight .t b{color:#fff;font-weight:800;}
   .insight.warn{border-color:rgba(248,113,113,.34);
@@ -260,9 +262,13 @@
   @keyframes pulse{0%{box-shadow:0 12px 34px rgba(34,211,238,.45),0 0 0 0 rgba(34,211,238,.55)}
                    70%{box-shadow:0 12px 34px rgba(34,211,238,.45),0 0 0 20px rgba(34,211,238,0)}
                    100%{box-shadow:0 12px 34px rgba(34,211,238,.45),0 0 0 0 rgba(34,211,238,0)}}
-  .ai-fab .tip{position:absolute;right:74px;white-space:nowrap;font-size:12px;font-weight:700;color:#04121f;
-               background:linear-gradient(135deg,#22d3ee,#a855f7);padding:6px 13px;border-radius:999px;
-               box-shadow:0 6px 20px rgba(34,211,238,.45);}
+  .ai-fab .tip{position:absolute;right:0;bottom:calc(100% + 12px);white-space:nowrap;font-size:12px;
+               font-weight:700;color:#04121f;background:linear-gradient(135deg,#22d3ee,#a855f7);
+               padding:6px 13px;border-radius:999px;box-shadow:0 6px 20px rgba(34,211,238,.45);
+               transform-origin:bottom right;animation:tipIn .6s .8s both;}
+  @keyframes tipIn{from{opacity:0;transform:scale(.7) translateY(6px)}to{opacity:1;transform:none}}
+  .ai-fab .tip::after{content:"";position:absolute;right:14px;top:100%;border:6px solid transparent;
+    border-top-color:#a855f7;}
 
   .ai-panel{
     position:fixed;right:26px;bottom:100px;width:412px;max-width:calc(100vw - 32px);height:590px;
@@ -335,93 +341,93 @@
   .updated{font-size:11px;color:var(--dim);margin-top:18px;text-align:center;letter-spacing:1.2px;}
 </style>
 </head>
-<body>
-<div class="wrap">
+<body data-page-node-id="AvbmYBE1AfqzAI3JnHYtOZ">
+<div class="wrap" data-page-node-id="w5DXDwAo1cnnEvpo33jvYp">
 
   <!-- 顶部 HUD 指挥栏 -->
-  <div class="hud">
-    <div class="logo">◈</div>
-    <div class="tt">
-      <div class="t">智能生产指挥中心</div>
-      <div class="s">Shipping Analytics · AI Powered</div>
+  <div class="hud" data-page-node-id="EHeZt9Fo6P5sMuywnkspx1">
+    <div class="logo" data-page-node-id="4hMVKk36v5266eBnLAryge">◈</div>
+    <div class="tt" data-page-node-id="HDH15Kaeysz5acLkMTEiKh">
+      <div class="t" data-page-node-id="oLucrBiHeuQUVfFrcqRTi6">智能生产指挥中心</div>
+      <div class="s" data-page-node-id="hErTdbFOoCC1OLkeoIGSLy">Shipping Analytics · AI Powered</div>
     </div>
-    <div class="ctrl">
-      <div class="live"><b></b>实时数据</div>
-      <select id="src">
-        <option value="all">全部数据（当前计划 + 已发布）</option>
-        <option value="draft">仅当前计划（未发布草稿）</option>
-        <option value="rec">仅已发布记录</option>
+    <div class="ctrl" data-page-node-id="m78WG0G5XI0iYsKPO7nAxH">
+      <div class="live" data-page-node-id="5DNEM2ZnrVxYFuF6KcxmXL"><b data-page-node-id="JEN4i43ILi51rNvz7QQvzV"></b>实时数据</div>
+      <select id="src" data-page-node-id="eRLUAemyBGCS9Msv41qPR0">
+        <option value="all" data-page-node-id="SR5mizUCSlvELXJSapOQcP">全部数据（当前计划 + 已发布）</option>
+        <option value="draft" data-page-node-id="Oi5eIA316GTQhBXbCRifNq">仅当前计划（未发布草稿）</option>
+        <option value="rec" data-page-node-id="Ae4CDj8Jsq47peLOzUMdRn">仅已发布记录</option>
       </select>
-      <button id="refresh" class="primary">刷新</button>
+      <button id="refresh" class="primary" data-page-node-id="bo3UVy1kJEY8QUDXMKjIY5">刷新</button>
     </div>
-    <div class="clock">
-      <b id="clock">--:--:--</b>
-      <span id="cdate">---- -- --</span>
+    <div class="clock" data-page-node-id="DoSAQnKaeyNmFsLSb0VToB">
+      <b id="clock" data-page-node-id="c3r7Hf3OfkqnyE2Zu96hCp">--:--:--</b>
+      <span id="cdate" data-page-node-id="NYsVDlD4k5D1J9TBK06eRM">---- -- --</span>
     </div>
   </div>
 
-  <section class="insights reveal" id="insights"></section>
-  <section class="kpis reveal" id="kpis"></section>
+  <section class="insights reveal" id="insights" data-page-node-id="xMeKTFsOD4YYVYQfU17AKt"></section>
+  <section class="kpis reveal" id="kpis" data-page-node-id="xHIiJ6nbkjEtBYz3sVcYfQ"></section>
 
-  <section class="grid3 reveal">
-    <div class="card">
-      <h2><i></i>计划状态分布 <span class="tag">吨位占比</span></h2>
-      <div id="ringBox"></div>
+  <section class="grid3 reveal" data-page-node-id="PkqjKXFEWuCm7PWhbLCOFt">
+    <div class="card" data-page-node-id="RbIw8rVBMEwJbr5yhvjsPA">
+      <h2 data-page-node-id="dMrRDEJpiNoBh4GdeRAe8m"><i data-page-node-id="Vzz3GJYL8JGsmBJFZpcZDK"></i>计划状态分布 <span class="tag" data-page-node-id="jiAABlv73BHzoJkGrowWff">吨位占比</span></h2>
+      <div id="ringBox" data-page-node-id="5NePeUwK3pFR7WJxLg9kjP"></div>
     </div>
-    <div class="card">
-      <h2><i></i>客户吨位 TOP 8 <span class="tag">按吨位合计</span></h2>
-      <div id="custChart"></div>
+    <div class="card" data-page-node-id="PHb1NT3OALQXJu4p4epIar">
+      <h2 data-page-node-id="G2oLePzXfyn9hZCNrAkjRD"><i data-page-node-id="DRTEVSMVCSeFEBY1oQl8l3"></i>客户吨位 TOP 8 <span class="tag" data-page-node-id="6NtKSdn9VGTsrXARd3l5Fq">按吨位合计</span></h2>
+      <div id="custChart" data-page-node-id="HwXz0gxMS8v6mB8Fpy026w"></div>
     </div>
-    <div class="card">
-      <h2><i></i>发货日期分布 <span class="tag">吨位 · 按日期</span></h2>
-      <div id="dateChart"></div>
-      <div class="legend">
-        <span><i style="background:#dc2626;box-shadow:0 0 8px #dc2626"></i>今天及之前（滞后）</span>
-        <span><i style="background:#ea580c;box-shadow:0 0 8px #ea580c"></i>明天（当日计划）</span>
-        <span><i style="background:#3b82f6;box-shadow:0 0 8px #3b82f6"></i>后天及以后（待发）</span>
+    <div class="card" data-page-node-id="nOEbZaPxG3gYmF91F1WkzY">
+      <h2 data-page-node-id="P6moik8u23TR2b3MDkeOM6"><i data-page-node-id="OKYCrosISAdRwn6JIx6zjt"></i>发货日期分布 <span class="tag" data-page-node-id="Iok5FnbRzR0JxZB2KMnbZc">吨位 · 按日期</span></h2>
+      <div id="dateChart" data-page-node-id="5Hu99MvMlsczeWJAtHxc7e"></div>
+      <div class="legend" data-page-node-id="X7MD8yEItSOkepcCa7y1mE">
+        <span data-page-node-id="b4Em3o1fJflPW9i53kTvEQ"><i style="background:#dc2626;box-shadow:0 0 8px #dc2626" data-page-node-id="nudnaVOpPza7ATRhS9e24o"></i>今天及之前（滞后）</span>
+        <span data-page-node-id="5xpKTyKpTgZ6OAGjh1RTXb"><i style="background:#ea580c;box-shadow:0 0 8px #ea580c" data-page-node-id="QEh9edGXT2zfvMuO6Oe2Rj"></i>明天（当日计划）</span>
+        <span data-page-node-id="ofu62P3vEdhVsmfxoYnQpq"><i style="background:#3b82f6;box-shadow:0 0 8px #3b82f6" data-page-node-id="7tOASxPWpnSucVK81TI5eA"></i>后天及以后（待发）</span>
       </div>
     </div>
   </section>
 
-  <section class="grid2 reveal">
-    <div class="card">
-      <h2><i></i>型号 TOP 10 <span class="tag">按数量合计</span></h2>
-      <div id="modelTable"></div>
+  <section class="grid2 reveal" data-page-node-id="AdfoExsTfsHe8uPdE1Qidw">
+    <div class="card" data-page-node-id="MFbdrp6KklBJEYTWfCiwlc">
+      <h2 data-page-node-id="AUwfpH9GjrfhrXBAXzAJbP"><i data-page-node-id="RGoVYHRZiNBmxmdM50JfVH"></i>型号 TOP 10 <span class="tag" data-page-node-id="PU5SNlsFwvzbbqJ9BuRAL9">按数量合计</span></h2>
+      <div id="modelTable" data-page-node-id="SEBwKJKO1vQyXhyr6SkijO"></div>
     </div>
-    <div class="card">
-      <h2><i></i>客户汇总明细</h2>
-      <div id="custTable"></div>
+    <div class="card" data-page-node-id="0ePOMFoGiLAz52mqGI52A8">
+      <h2 data-page-node-id="MJHFmlFABT4WAUNkEqFgB0"><i data-page-node-id="VXG3gxQPGahUqCmzQRjqSe"></i>客户汇总明细</h2>
+      <div id="custTable" data-page-node-id="ItHNNeaDBLV2lbwyh6smD8"></div>
     </div>
   </section>
 
-  <section class="card reveal" style="margin-bottom:16px;">
-    <h2><i></i>⚠ 滞后计划 <span class="tag">今天及之前未发完</span></h2>
-    <div id="overdueTable"></div>
+  <section class="card reveal" style="margin-bottom:16px;" data-page-node-id="Wvvtbx19onSSCqmA3WqvlY">
+    <h2 data-page-node-id="mflnx9vs1FuOnJywMZlbOC"><i data-page-node-id="yomgD1mAECXcVxPBOUicVS"></i>⚠ 滞后计划 <span class="tag" data-page-node-id="ikvKx7Bw3ig8cuCzh0nQBE">今天及之前未发完</span></h2>
+    <div id="overdueTable" data-page-node-id="g2ga81Ly4Y8TlR7ZbotfZA"></div>
   </section>
 
-  <div class="updated" id="updated"></div>
+  <div class="updated" id="updated" data-page-node-id="Qf2A8RU4iKmd7CB8Y8GpIw"></div>
 </div>
 
-<button class="ai-fab" id="aiFab" title="打开 AI 助手"><span class="tip">有问题问我 ✨</span>🤖</button>
+<button class="ai-fab" id="aiFab" title="打开 AI 助手" data-page-node-id="AuFMB02Gkx67sNwE0gX2Pv"><span class="tip" data-page-node-id="7adcikxRiVR3stCXANY0g6">有问题问我 ✨</span>🤖</button>
 
-<div class="ai-panel" id="aiPanel">
-  <div class="ai-head">
-    <div class="av-wrap"><div class="halo"></div><div class="av">🤖</div></div>
-    <div class="ti"><b>计划助手 AI</b><span><i></i>在线 · 已连接计划数据</span></div>
-    <button id="aiClear" title="清空对话">⟲</button>
-    <button id="aiClose" title="收起">✕</button>
+<div class="ai-panel" id="aiPanel" data-page-node-id="6RGDvWsfjUtFXRSlNQ9cw5">
+  <div class="ai-head" data-page-node-id="pjdXsSfC9kU1DVvJ8FIVwf">
+    <div class="av-wrap" data-page-node-id="RVeeRDwCYLRzvMVtcpnerk"><div class="halo" data-page-node-id="Hp77GBI3NzIniMGj6KBUFM"></div><div class="av" data-page-node-id="A7GrkBaHlidRknfifia4mN">🤖</div></div>
+    <div class="ti" data-page-node-id="KhZNLsRqbiHAlPghCXmAJK"><b data-page-node-id="ewAMRvzTjC1NuKb2YJScAw">计划助手 AI</b><span data-page-node-id="wIClOIBkRdQjvlbbvq1NuX"><i data-page-node-id="ZaXRc5xPZcIMFPSPb6eidT"></i>在线 · 已连接计划数据</span></div>
+    <button id="aiClear" title="清空对话" data-page-node-id="rAuCy7gDNPD0XQDqsvjxZc">⟲</button>
+    <button id="aiClose" title="收起" data-page-node-id="HV4AzLQllLvVrGAwLkFivI">✕</button>
   </div>
-  <div class="ai-body" id="aiBody"></div>
-  <div class="ai-quick" id="aiQuick">
-    <span class="chip">📅 明天要发什么？</span>
-    <span class="chip">⚠️ 有哪些滞后的？</span>
-    <span class="chip">📊 总吨位多少？</span>
-    <span class="chip">🏆 哪个客户货量最大？</span>
-    <span class="chip">🧠 帮我总结一下</span>
+  <div class="ai-body" id="aiBody" data-page-node-id="UIgNypQiC0gkiE5zwVEB0P"></div>
+  <div class="ai-quick" id="aiQuick" data-page-node-id="78f48943AFMjlBcWv2upVa">
+    <span class="chip" data-page-node-id="VobjBmuYmCI1wLrg0tInhj">📅 明天要发什么？</span>
+    <span class="chip" data-page-node-id="flbExOuE9cFPnBkLaJMnnl">⚠️ 有哪些滞后的？</span>
+    <span class="chip" data-page-node-id="3Db3noYl0hsjdWW6maKPlk">📊 总吨位多少？</span>
+    <span class="chip" data-page-node-id="ZCFy72GVXlfbEaEZlStONy">🏆 哪个客户货量最大？</span>
+    <span class="chip" data-page-node-id="irUze4DKBqrwJP00V2THar">🧠 帮我总结一下</span>
   </div>
-  <div class="ai-input">
-    <input id="aiInput" placeholder="问我任何关于发货计划的问题…" autocomplete="off">
-    <button id="aiSend">发送</button>
+  <div class="ai-input" data-page-node-id="LkFFJ8nOilxWZiAROBCVWE">
+    <input id="aiInput" placeholder="问我任何关于发货计划的问题…" autocomplete="off" data-page-node-id="E9pOL60HpYpkin99b39gGC">
+    <button id="aiSend" data-page-node-id="Ve39BhtNPc7HMGh7GbX3K8">发送</button>
   </div>
 </div>
 
@@ -646,35 +652,107 @@ function renderOverdue(a){
   box.innerHTML=h+'</tbody></table>';
 }
 
+// ================= 3D 图标（内联 SVG，渐变+高光+阴影） =================
+var ICON3D = {
+  warn: function(){
+    return '<svg class="ic3d" viewBox="0 0 32 32">'+
+      '<defs><radialGradient id="rW" cx="32%" cy="22%" r="80%"><stop offset="0" stop-color="#fecaca"/><stop offset=".55" stop-color="#ef4444"/><stop offset="1" stop-color="#7f1d1d"/></radialGradient>'+
+      '<linearGradient id="rWh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(255,255,255,.6)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>'+
+      '<ellipse cx="16" cy="29" rx="9" ry="1.5" fill="rgba(0,0,0,.5)"/>'+
+      '<path d="M16 3 L29 26.4 L3 26.4 Z" fill="url(#rW)" stroke="rgba(127,29,29,.85)" stroke-width=".8" stroke-linejoin="round"/>'+
+      '<path d="M16 5.4 L26.5 24.5 L5.5 24.5 Z" fill="url(#rWh)"/>'+
+      '<rect x="14.3" y="10.5" width="3.4" height="9" rx="1.5" fill="#fff8e1" stroke="rgba(180,83,9,.55)" stroke-width=".4"/>'+
+      '<circle cx="16" cy="22.4" r="1.9" fill="#fff8e1" stroke="rgba(180,83,9,.55)" stroke-width=".4"/>'+
+    '</svg>';
+  },
+  cal: function(){
+    return '<svg class="ic3d" viewBox="0 0 32 32">'+
+      '<defs><linearGradient id="rC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#c2410c"/></linearGradient>'+
+      '<linearGradient id="rCt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="rgba(255,255,255,.15)"/></linearGradient></defs>'+
+      '<ellipse cx="16" cy="28" rx="10" ry="1.5" fill="rgba(0,0,0,.45)"/>'+
+      '<rect x="3.5" y="7" width="25" height="21" rx="3" fill="url(#rC)" stroke="rgba(124,45,18,.7)" stroke-width=".7"/>'+
+      '<rect x="3.5" y="7" width="25" height="7" rx="3" fill="url(#rCt)" opacity=".55"/>'+
+      '<line x1="3.5" y1="13" x2="28.5" y2="13" stroke="rgba(124,45,18,.65)" stroke-width="1"/>'+
+      '<rect x="8" y="3" width="2.4" height="6" rx="1.2" fill="#1f2937"/>'+
+      '<rect x="21.6" y="3" width="2.4" height="6" rx="1.2" fill="#1f2937"/>'+
+      '<rect x="7.5" y="16" width="3.5" height="3" rx=".6" fill="#fff7ed"/><rect x="13.75" y="16" width="3.5" height="3" rx=".6" fill="#fff7ed" opacity=".55"/><rect x="20" y="16" width="3.5" height="3" rx=".6" fill="#fff7ed" opacity=".55"/>'+
+      '<rect x="7.5" y="22" width="3.5" height="3" rx=".6" fill="#fff7ed" opacity=".55"/><rect x="13.75" y="22" width="3.5" height="3" rx=".6" fill="#fff7ed"/><rect x="20" y="22" width="3.5" height="3" rx=".6" fill="#fff7ed" opacity=".55"/>'+
+    '</svg>';
+  },
+  cup: function(){
+    return '<svg class="ic3d" viewBox="0 0 32 32">'+
+      '<defs><linearGradient id="rP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset=".5" stop-color="#f59e0b"/><stop offset="1" stop-color="#92400e"/></linearGradient>'+
+      '<radialGradient id="rPt" cx="50%" cy="40%"><stop offset="0" stop-color="#fffbeb"/><stop offset="1" stop-color="#fbbf24"/></radialGradient></defs>'+
+      '<ellipse cx="16" cy="28" rx="10" ry="1.5" fill="rgba(0,0,0,.45)"/>'+
+      '<path d="M4 8 Q4 16 10 17" stroke="url(#rP)" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+      '<path d="M28 8 Q28 16 22 17" stroke="url(#rP)" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+      '<path d="M7 5 H25 V15 Q25 23 16 23 Q7 23 7 15 Z" fill="url(#rP)" stroke="rgba(120,53,15,.6)" stroke-width=".6"/>'+
+      '<ellipse cx="16" cy="5.4" rx="9" ry="2" fill="url(#rPt)" stroke="rgba(120,53,15,.6)" stroke-width=".5"/>'+
+      '<path d="M10 8 Q10 13.5 16 13.5 Q22 13.5 22 8" fill="rgba(255,255,255,.32)"/>'+
+      '<rect x="13" y="23" width="6" height="4" fill="url(#rP)" stroke="rgba(120,53,15,.6)" stroke-width=".4"/>'+
+      '<rect x="8" y="26" width="16" height="3" rx="1" fill="url(#rP)" stroke="rgba(120,53,15,.6)" stroke-width=".4"/>'+
+      '<text x="16" y="20" text-anchor="middle" font-size="8" font-weight="900" fill="#7c2d12" font-family="-apple-system,sans-serif">1</text>'+
+    '</svg>';
+  },
+  bars: function(){
+    return '<svg class="ic3d" viewBox="0 0 32 32">'+
+      '<defs><linearGradient id="rB1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#0891b2"/></linearGradient>'+
+      '<linearGradient id="rB2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9d5ff"/><stop offset="1" stop-color="#7e22ce"/></linearGradient>'+
+      '<linearGradient id="rB3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>'+
+      '<ellipse cx="16" cy="28" rx="11" ry="1.5" fill="rgba(0,0,0,.45)"/>'+
+      '<rect x="4" y="18" width="6" height="9" rx="1" fill="url(#rB1)" stroke="rgba(8,47,73,.5)" stroke-width=".5"/>'+
+      '<rect x="4" y="18" width="2" height="9" fill="rgba(255,255,255,.32)"/>'+
+      '<rect x="13" y="11" width="6" height="16" rx="1" fill="url(#rB2)" stroke="rgba(76,29,149,.5)" stroke-width=".5"/>'+
+      '<rect x="13" y="11" width="2" height="16" fill="rgba(255,255,255,.32)"/>'+
+      '<rect x="22" y="15" width="6" height="12" rx="1" fill="url(#rB3)" stroke="rgba(29,78,216,.5)" stroke-width=".5"/>'+
+      '<rect x="22" y="15" width="2" height="12" fill="rgba(255,255,255,.32)"/>'+
+    '</svg>';
+  },
+  truck: function(){
+    return '<svg class="ic3d" viewBox="0 0 32 32">'+
+      '<defs><linearGradient id="rT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#0e7490"/></linearGradient>'+
+      '<linearGradient id="rTc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a5f3fc"/><stop offset="1" stop-color="#155e75"/></linearGradient></defs>'+
+      '<ellipse cx="16" cy="26.5" rx="12" ry="1.5" fill="rgba(0,0,0,.5)"/>'+
+      '<rect x="2.5" y="10" width="14" height="12" rx="1.2" fill="url(#rT)" stroke="rgba(8,47,73,.7)" stroke-width=".6"/>'+
+      '<rect x="2.5" y="10" width="14" height="3" fill="rgba(255,255,255,.28)"/>'+
+      '<path d="M16.5 13.5 L23 13.5 L26.5 18 L26.5 22 L16.5 22 Z" fill="url(#rTc)" stroke="rgba(8,47,73,.7)" stroke-width=".6"/>'+
+      '<rect x="18" y="15" width="6.5" height="3" rx=".6" fill="rgba(186,230,253,.9)" stroke="rgba(8,47,73,.4)" stroke-width=".4"/>'+
+      '<circle cx="8" cy="23.5" r="2.3" fill="#0f172a"/><circle cx="8" cy="23.5" r="1" fill="#94a3b8"/>'+
+      '<circle cx="22" cy="23.5" r="2.3" fill="#0f172a"/><circle cx="22" cy="23.5" r="1" fill="#94a3b8"/>'+
+    '</svg>';
+  }
+};
+function icon3d(k){ return (ICON3D[k]||function(){return "";})(); }
+
 // ================= AI 洞察（自动生成） =================
 function renderInsights(a){
   var out=[];
   if(a.overdue.length){
     var ot=0; a.overdue.forEach(function(r){ot+=num(r.ton);});
-    out.push({ic:"⚠️",cls:"warn",t:"有 <b>"+a.overdue.length+"</b> 行计划已滞后（今天及之前），合计 <b>"+ot.toFixed(1)+"t</b>，建议优先处理。"});
+    out.push({kind:"warn",cls:"warn",t:"有 <b>"+a.overdue.length+"</b> 行计划已滞后（今天及之前），合计 <b>"+ot.toFixed(1)+"t</b>，建议优先处理。"});
   }else{
-    out.push({ic:"✅",cls:"ok",t:"当前没有滞后计划，发货进度良好。"});
+    out.push({kind:"cal",cls:"ok",t:"当前没有滞后计划，发货进度良好。"});
   }
   if(a.today.length){
     var tt=0; a.today.forEach(function(r){tt+=num(r.ton);});
-    out.push({ic:"📅",cls:"",t:"明日（当日计划）共 <b>"+a.today.length+"</b> 行、<b>"+tt.toFixed(1)+"t</b>，需今日备货。"});
+    out.push({kind:"cal",cls:"",t:"明日（当日计划）共 <b>"+a.today.length+"</b> 行、<b>"+tt.toFixed(1)+"t</b>，需今日备货。"});
   }else{
-    out.push({ic:"📅",cls:"",t:"明日暂无发货计划。"});
+    out.push({kind:"cal",cls:"",t:"明日暂无发货计划。"});
   }
   if(a.custList.length){
     var top=a.custList[0], share=a.ton?top.ton/a.ton*100:0;
-    out.push({ic:"🏆",cls:"",t:"货量最大客户是 <b>"+esc(top.name)+"</b>："+top.ton.toFixed(1)+"t（占 "+share.toFixed(0)+"%）。"});
+    out.push({kind:"cup",cls:"",t:"货量最大客户是 <b>"+esc(top.name)+"</b>："+top.ton.toFixed(1)+"t（占 "+share.toFixed(0)+"%）。"});
   }
   if(a.custList.length>=3){
     var t3=a.custList.slice(0,3), s3=0; t3.forEach(function(x){s3+=x.ton;});
-    out.push({ic:"📊",cls:"",t:"前 3 大客户合计 "+s3.toFixed(1)+"t，占总量 "+(a.ton?s3/a.ton*100:0).toFixed(0)+"%。"});
+    out.push({kind:"bars",cls:"",t:"前 3 大客户合计 "+s3.toFixed(1)+"t，占总量 "+(a.ton?s3/a.ton*100:0).toFixed(0)+"%。"});
   }
   if(a.future.length){
-    out.push({ic:"🚚",cls:"",t:"待发（后天起）<b>"+a.future.length+"</b> 行，最晚排到 "+
+    out.push({kind:"truck",cls:"",t:"待发（后天起）<b>"+a.future.length+"</b> 行，最晚排到 "+
       (a.dateKeys.length?a.dateKeys[a.dateKeys.length-1]:"-")+"。"});
   }
   document.getElementById("insights").innerHTML=out.map(function(x,i){
-    return '<div class="insight '+x.cls+'"><div class="ic">'+x.ic+'</div><div class="t">'+x.t+'</div></div>';
+    return '<div class="insight '+x.cls+'"><div class="ic">'+icon3d(x.kind)+'</div><div class="t">'+x.t+'</div></div>';
   }).join("");
 }
 
