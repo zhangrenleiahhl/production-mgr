@@ -251,7 +251,7 @@ function detailTable(rec, tonByCust){
   let body = rows.map((r, i) => `
     <tr>
       <td><input type="checkbox" class="row-sel" data-id="${rec.id}-${i}"></td>
-      <td>${pad(r.shipdate)}</td>
+      <td>${pad(rec.date)}</td>
       <td>${pad(r.customer)}</td>
       <td>${pad(r.model)}</td>
       <td class="num">${pad(r.qty)}</td>
@@ -298,35 +298,35 @@ function bindDetail(d, rec){
   };
   const pick = () => [...d.querySelectorAll(".row-sel:checked")].map(c => rows[+c.dataset.id.split("-")[1]]);
   d.querySelectorAll(".row-sel").forEach(c => c.onchange = update);
-  d.querySelector('[data-act="excelRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportExcel(s, rec.no + "_勾选行"); };
-  d.querySelector('[data-act="csvRows"]').onclick   = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportCsv(s, rec.no + "_勾选行"); };
-  d.querySelector('[data-act="printRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } printRows(s, rec.no + "（勾选行）"); };
+  d.querySelector('[data-act="excelRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportExcel(s, rec.no + "_勾选行", rec.date); };
+  d.querySelector('[data-act="csvRows"]').onclick   = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportCsv(s, rec.no + "_勾选行", rec.date); };
+  d.querySelector('[data-act="printRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } printRows(s, rec.no + "（勾选行）", rec.date); };
   update();
 }
 
 // ===================== 导出 =====================
-function matrix(rows){
+function matrix(rows, date){
   const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   const tonByCust = {};
   rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
   const data = rows.map(r => [
-    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
+    pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
     pad(r.delivery), pad(r.box), pad(r.remark),
     (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)
   ]);
   return [head, ...data];
 }
 
-function exportExcel(rows, name){
+function exportExcel(rows, name, date){
   if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
-  const ws = XLSX.utils.aoa_to_sheet(matrix(rows));
+  const ws = XLSX.utils.aoa_to_sheet(matrix(rows, date));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, String(name).slice(0, 28));
   XLSX.writeFile(wb, `发货计划_${name}.xlsx`);
 }
 
-function exportCsv(rows, name){
-  const m = matrix(rows);
+function exportCsv(rows, name, date){
+  const m = matrix(rows, date);
   const csv = "﻿" + m.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
@@ -337,7 +337,7 @@ function exportCsv(rows, name){
 
 function downloadOne(rec, fmt){
   const rows = rec.rows || [];
-  if (fmt === "excel") exportExcel(rows, rec.no); else exportCsv(rows, rec.no);
+  if (fmt === "excel") exportExcel(rows, rec.no, rec.date); else exportCsv(rows, rec.no, rec.date);
 }
 
 // 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
@@ -348,7 +348,7 @@ function batchMatrix(recs){
     const tonByCust = {};
     (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
     (rec.rows || []).forEach(r => {
-      data.push([pad(rec.no), pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
+      data.push([pad(rec.no), pad(rec.date), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
         pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)]);
     });
   });
@@ -378,8 +378,8 @@ function batchDownload(fmt){
 }
 
 // ===================== 打印 =====================
-function printRows(rows, title){
-  const m = matrix(rows);
+function printRows(rows, title, date){
+  const m = matrix(rows, date);
   const thead = "<tr>" + m[0].map(h => `<th>${h}</th>`).join("") + "</tr>";
   const tbody = m.slice(1).map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
@@ -402,7 +402,7 @@ function printRows(rows, title){
   w.focus();
 }
 
-function printRec(rec){ printRows(rec.rows || [], rec.no); }
+function printRec(rec){ printRows(rec.rows || [], rec.no, rec.date); }
 
 function batchPrint(){
   const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
