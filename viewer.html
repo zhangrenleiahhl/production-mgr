@@ -297,11 +297,11 @@ function card(rec){
 
 function detailTable(rec, tonByCust){
   const rows = rec.rows || [];
-  // 按「客户 + 发货日期」合计吨位（与发货计划系统主表合并规则保持一致）
+  // 先用「rec.rows 原始数据」算 tonByKey（key 形如 "客户|发货日期"），与下方构建的 raw 数组所用字段完全一致
   const tonByKey = {};
   rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
 
-  // 构建原始行数据（第 0 列是 checkbox HTML，不参与合并判断）
+  // 构建原始行数据（第 0 列是 checkbox HTML，不参与合并判断；第 11 列是按「客户+发货日期」合计的客户吨位）
   const raw = rows.map((r, i) => [
     `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
     pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
@@ -404,8 +404,10 @@ function renderMergedRows(data, groups, mergeCols, numCols){
 // ===================== 导出 =====================
 function matrix(rows, date){
   const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  // 先把行数据（不含客户吨位列）按 rec.rows 算 tonByKey，key 为「客户|发货日期」与原始 r.ton/r.cwt 一致
   const tonByKey = {};
   rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  // data 第 0 列是「发货日期」（用传入的 date 兜底），第 1 列是「客户」，合并按 (1,0) 即「客户+发货日期」
   const data = rows.map(r => {
     const key = pad(r.customer) + "|" + pad(r.shipdate);
     return [pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
@@ -445,10 +447,14 @@ function downloadOne(rec, fmt){
 // 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
 function batchMatrix(recs){
   const head = ["单号","发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  // 先用 rec.rows 原始数据算 tonByKey，key 为「客户|发货日期」，与下方 data[2]、data[1] 一致
+  const tonByKey = {};
+  recs.forEach(rec => {
+    (rec.rows || []).forEach(x => { const key = pad(x.customer) + "|" + pad(x.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
+  });
+  // data 第 1 列是「发货日期」（用 recShipDate(rec) 取真实发货日期），第 2 列是「客户」，合并按 (2,1) 即「客户+发货日期」
   const data = [];
   recs.forEach(rec => {
-    const tonByKey = {};
-    (rec.rows || []).forEach(x => { const key = pad(x.customer) + "|" + pad(x.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
     (rec.rows || []).forEach(r => {
       const key = pad(r.customer) + "|" + pad(r.shipdate);
       data.push([pad(rec.no), pad(recShipDate(rec)), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
