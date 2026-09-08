@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html lang="zh-CN" data-page-node-id="9gSej2CAOwiSrk6RvbIXq8">
+<head data-page-node-id="x9gNMJoixUFzSXdMUwif0h">
+<meta charset="UTF-8" data-page-node-id="0WKX7h3U0HcDBkhQwZIHsS">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="QeCw3VOVC4SEKzr9BTyppD">
 <title>发货计划查看 · 发货员端</title>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
 <script src="xlsx.full.min.js"></script>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="ef5SDVfFecmq8rDwoWCj4X">
+<meta http-equiv="Pragma" content="no-cache" data-page-node-id="dSdiiSW8NXQSX1dmF79749">
+<meta http-equiv="Expires" content="0" data-page-node-id="5HwTSP2LIAbCDn0WvvxJ7j">
 <style>
   :root{
     --blue:#2563eb; --blue-d:#1d4ed8;
@@ -69,30 +69,53 @@
     .rec{border:none;page-break-inside:avoid;}
     table.dt th{background:#2563eb!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   }
+  /* 按发货日期分组的颜色分区 */
+  .cat-sec{margin-bottom:4px;}
+  .cat-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;
+    padding:9px 14px;margin:16px 0 10px;border-radius:6px;color:#fff;
+    box-shadow:0 2px 10px rgba(0,0,0,.10);letter-spacing:.5px;}
+  .cat-head .cat-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.92);}
+  .cat-head b{font-weight:800;opacity:.92;margin-left:2px;}
+  .cat-past .cat-head{background:linear-gradient(90deg,#b45309,#d97706);}      /* 今天之前：琥珀 */
+  .cat-today .cat-head{background:linear-gradient(90deg,#047857,#059669);}     /* 今天：绿 */
+  .cat-tomorrow .cat-head{background:linear-gradient(90deg,#1d4ed8,#2563eb);}  /* 明天：蓝 */
+  .cat-future .cat-head{background:linear-gradient(90deg,#6d28d9,#7c3aed);}    /* 明天之后：紫 */
+  .cat-other .cat-head{background:linear-gradient(90deg,#475569,#64748b);}     /* 其它：灰 */
+  .cat-past .rec{border-left:4px solid #d97706;}
+  .cat-today .rec{border-left:4px solid #059669;}
+  .cat-tomorrow .rec{border-left:4px solid #2563eb;}
+  .cat-future .rec{border-left:4px solid #7c3aed;}
+  .cat-other .rec{border-left:4px solid #94a3b8;}
+  .cat-tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;line-height:1.6;}
+  .cat-tag.past{background:#d97706;}
+  .cat-tag.today{background:#059669;}
+  .cat-tag.tomorrow{background:#2563eb;}
+  .cat-tag.future{background:#7c3aed;}
+  .cat-tag.other{background:#94a3b8;}
 </style>
 </head>
-<body>
-<div class="wrap">
-  <header class="top">
-    <div>
-      <h1><span class="dot"></span>发货计划查看 <span class="tag">（发货员端）</span></h1>
-      <p class="sub" id="status">正在连接云端…</p>
+<body data-page-node-id="bgptoCqnVnvCqCBYqnarVe">
+<div class="wrap" data-page-node-id="73z2kKpydLeVZitLvb60bu">
+  <header class="top" data-page-node-id="FnoGyXkiaFt3hWsZoeu7vY">
+    <div data-page-node-id="aQ40fpqjtQxrXjRzezI06U">
+      <h1 data-page-node-id="9d77PK2Swkej7Th8UClaOh"><span class="dot" data-page-node-id="Yg2EuXltkLwNw9mMxFMSzL"></span>发货计划查看 <span class="tag" data-page-node-id="Mwu88Kz9CaTHUDbXsvpV1l">（发货员端）</span></h1>
+      <p class="sub" id="status" data-page-node-id="h0FB3IsConFNijxXo6gNZT">正在连接云端…</p>
     </div>
-    <button class="btn" id="refresh">↻ 刷新</button>
+    <button class="btn" id="refresh" data-page-node-id="e5qK9nt03hECPzZrJyZFtE">↻ 刷新</button>
   </header>
 
-  <div class="toolbar">
-    <label><input type="checkbox" id="selAll"> 全选所有单</label>
-    <button class="btn btn-primary" id="batchExcel">下载所选单 Excel</button>
-    <button class="btn" id="batchCsv">下载所选单 CSV</button>
-    <button class="btn" id="batchPrint">打印所选单</button>
-    <span class="sel-info" id="selInfo"></span>
+  <div class="toolbar" data-page-node-id="qCD375B4KhfEDGJrrUibQm">
+    <label data-page-node-id="zDCsACr21dxrSsdThV5p9y"><input type="checkbox" id="selAll" data-page-node-id="0RNKz4SMCKwW9Sl0A3OI65"> 全选所有单</label>
+    <button class="btn btn-primary" id="batchExcel" data-page-node-id="9R4xodPQxPJXJle5sAbiop">下载所选单 Excel</button>
+    <button class="btn" id="batchCsv" data-page-node-id="eKNDmX5OGXnRnLTEHbF6Pr">下载所选单 CSV</button>
+    <button class="btn" id="batchPrint" data-page-node-id="ppALW0nBFTyPmEdImEmrOT">打印所选单</button>
+    <span class="sel-info" id="selInfo" data-page-node-id="2ctFBZjnn2Qjojb4DYkp4i"></span>
   </div>
 
-  <div id="list"></div>
-  <div id="empty" class="empty" style="display:none">
-    暂无已发布计划。请在管理端填写明细并点击「发布」，发货员即可在此查看与下载。<br>
-    链接：<b>https://zhangrenleiahhl.github.io/production-mgr/viewer.html</b>
+  <div id="list" data-page-node-id="sEmxuijNtHOGPPLFiTlT4r"></div>
+  <div id="empty" class="empty" style="display:none" data-page-node-id="gLUD6h4aAXZVwDvEocunt0">
+    暂无已发布计划。请在管理端填写明细并点击「发布」，发货员即可在此查看与下载。<br data-page-node-id="vKqngcwMYvL1aPI7WKGhDA">
+    链接：<b data-page-node-id="SrmvmFn2RJD1ZlTADF8jYS">https://zhangrenleiahhl.github.io/production-mgr/viewer.html</b>
   </div>
 </div>
 
@@ -103,6 +126,21 @@ const $ = (id) => document.getElementById(id);
 let RECORDS = [];
 
 const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/" : s; };
+
+// ===================== 按发货日期分组（今天之前 / 今天 / 明天 / 明天之后）=====================
+function ymdStr(d){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,"0"); const day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
+const TODAY = ymdStr(new Date());
+const _tmr = new Date(); _tmr.setDate(_tmr.getDate()+1);
+const TOMORROW = ymdStr(_tmr);
+function classify(dateStr){
+  dateStr = String(dateStr == null ? "" : dateStr).trim();
+  if (!dateStr) return "other";
+  if (dateStr < TODAY) return "past";
+  if (dateStr === TODAY) return "today";
+  if (dateStr === TOMORROW) return "tomorrow";
+  return "future";
+}
+const CAT_LABEL = { past:"今天之前", today:"今天", tomorrow:"明天", future:"明天之后", other:"其它" };
 
 // ===================== 初始化 =====================
 function init(){
@@ -136,18 +174,37 @@ async function load(){
   $("status").textContent = `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
 }
 
-// ===================== 渲染列表 =====================
+// ===================== 渲染列表（按发货日期分组 + 颜色分区）=====================
 function render(){
   const box = $("list");
   box.innerHTML = "";
   $("empty").style.display = RECORDS.length ? "none" : "block";
-  RECORDS.forEach(rec => box.appendChild(card(rec)));
+  if (!RECORDS.length) return;
+  const groups = [
+    { key:"past",     label:"今天之前发货计划" },
+    { key:"today",    label:"今天发货计划" },
+    { key:"tomorrow", label:"明天发货计划" },
+    { key:"future",   label:"明天之后发货计划" },
+    { key:"other",    label:"其它" }
+  ];
+  const buckets = { past:[], today:[], tomorrow:[], future:[], other:[] };
+  RECORDS.forEach(rec => buckets[classify(rec.date)].push(rec));
+  groups.forEach(g => {
+    const arr = buckets[g.key];
+    if (!arr.length) return;
+    const sec = document.createElement("div");
+    sec.className = "cat-sec cat-" + g.key;
+    sec.innerHTML = `<div class="cat-head"><span class="cat-dot"></span>${g.label}<b>(${arr.length})</b></div>`;
+    arr.forEach(rec => sec.appendChild(card(rec)));
+    box.appendChild(sec);
+  });
   updateSel();
 }
 
 function card(rec){
   const div = document.createElement("div");
-  div.className = "rec";
+  const cat = classify(rec.date);
+  div.className = "rec cat-" + cat;
   const rows = rec.rows || [];
   const tonByCust = {};
   rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
@@ -158,6 +215,7 @@ function card(rec){
       <div class="rec-info">
         <b>${pad(rec.no)}</b>
         <div class="meta">
+          <span class="cat-tag ${cat}">${CAT_LABEL[cat]}</span>
           <span>发货日期 ${pad(rec.date)}</span>
           <span>${rows.length} 行</span>
           <span>数量 ${pad(rec.sumQty)}</span>
@@ -197,6 +255,7 @@ function detailTable(rec, tonByCust){
       <td>${pad(r.customer)}</td>
       <td>${pad(r.model)}</td>
       <td class="num">${pad(r.qty)}</td>
+      <td>${pad(r.shippt)}</td>
       <td class="num">${pad(r.cwt)}</td>
       <td class="num">${pad(r.ton)}</td>
       <td>${pad(r.delivery)}</td>
@@ -213,7 +272,7 @@ function detailTable(rec, tonByCust){
   const sumCustT = Object.values(tonByCust).reduce((a, v) => a + v, 0);
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
-      <td class="num">${sumQ}</td><td class="num">${sumCwt.toFixed(1)}</td><td class="num">${sumT.toFixed(1)}</td>
+      <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(1)}</td><td class="num">${sumT.toFixed(1)}</td>
       <td></td><td class="num">${sumB}</td><td></td><td class="num">${sumCustT.toFixed(1)}</td><td></td>
     </tr>`;
 
@@ -225,7 +284,7 @@ function detailTable(rec, tonByCust){
       <span class="sub" data-act="rowinfo"></span>
     </div>
     <table class="dt"><thead><tr>
-      <th></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>箱子重量T</th><th>吨位(t)</th>
+      <th></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>发货点</th><th>箱子重量T</th><th>吨位(t)</th>
       <th>交货单</th><th>箱数</th><th>备注</th><th>客户吨位</th><th>物料编码</th>
     </tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -247,11 +306,11 @@ function bindDetail(d, rec){
 
 // ===================== 导出 =====================
 function matrix(rows){
-  const head = ["发货日期","客户","型号","发货数量","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   const tonByCust = {};
   rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
   const data = rows.map(r => [
-    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.cwt), pad(r.ton),
+    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
     pad(r.delivery), pad(r.box), pad(r.remark),
     (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)
   ]);
@@ -283,13 +342,13 @@ function downloadOne(rec, fmt){
 
 // 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
 function batchMatrix(recs){
-  const head = ["单号","发货日期","客户","型号","发货数量","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
+  const head = ["单号","发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   const data = [];
   recs.forEach(rec => {
     const tonByCust = {};
     (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
     (rec.rows || []).forEach(r => {
-      data.push([pad(rec.no), pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.cwt), pad(r.ton),
+      data.push([pad(rec.no), pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
         pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)]);
     });
   });
@@ -331,7 +390,7 @@ function printRows(rows, title){
       table{border-collapse:collapse;width:100%;}
       th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
       th{background:#2563eb;color:#fff;}
-      td:nth-child(5),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
+      td:nth-child(4),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
     </style></head><body>
     <h2>发货计划 ${pad(title)}</h2>
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
@@ -362,7 +421,7 @@ function batchPrint(){
       table{border-collapse:collapse;width:100%;}
       th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
       th{background:#2563eb;color:#fff;}
-      td:nth-child(5),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
+      td:nth-child(5),td:nth-child(7),td:nth-child(8),td:nth-child(10){text-align:right;}
     </style></head><body>
     <h2>发货计划批量（${recs.length} 单）</h2>
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
