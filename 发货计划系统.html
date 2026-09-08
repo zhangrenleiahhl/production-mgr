@@ -153,19 +153,25 @@
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:8%;}    /* 发货日期 */
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 客户 */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:22%;}   /* 型号 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:7%;}    /* 发货数量 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 交货单 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:4%;}    /* 箱数 */
-  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:8%;}    /* 备注 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:5%;}  /* 箱子重量T */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:4%;}  /* 吨位(自动,只读) */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 客户吨位 */
-  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:7%;} /* 物料编码 */
-  .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:8%!important;}  /* 操作 */
-  .tbl tbody td:nth-child(13) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.25;}  /* 物料编码：数字允许换行显示完整 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 发货点 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:6%;}    /* 交货单 */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:4%;}    /* 箱数 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 备注 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱子重量T */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:4%;}  /* 吨位(自动,只读) */
+  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
+  .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:7%;}  /* 物料编码 */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:8%!important;}  /* 操作 */
+  .tbl tbody td:nth-child(14) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.25;}  /* 物料编码：数字允许换行显示完整 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
-  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(8) input{text-align:center;} /* 发货数量/箱数居中 */
+  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
+  /* 发货点：单选下拉 */
+  .tbl td.col-shippt{vertical-align:middle;padding:0;}
+  .tbl td.col-shippt select{width:100%;border:1px solid transparent;background:#fff;font-size:12px;font-weight:600;color:#1f2328;height:26px;padding:1px 2px;text-align:center;text-align-last:center;outline:none;cursor:pointer;box-sizing:border-box;transition:.15s;font-family:inherit;}
+  .tbl td.col-shippt select:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.15);}
+  .tbl td.col-shippt select option{text-align:center;}
   .tbl td.col-ton{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;}
   .tbl td.col-ton .ton-val{display:block;font-size:13px;font-weight:600;color:#1f2328;line-height:26px;text-align:center;}
   .tbl td.col-ton .ton-val:empty::before{content:"/";color:#c0c4cc;font-weight:400;}
@@ -304,13 +310,14 @@
       </div>
       <table class="tbl" id="tbl">
         <thead><tr>
-          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>交货单</th><th>箱数</th><th>备注</th><th>箱子重量T</th><th>吨位(t)</th>
+          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th class="col-shippt">发货点</th><th>交货单</th><th>箱数</th><th>备注</th><th>箱子重量T</th><th>吨位(t)</th>
           <th>客户吨位</th><th class="col-code">物料编码</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot><tr>
           <td colspan="5" style="text-align:right">合计</td>
           <td class="num-cell" id="sumQty">0</td>
+          <td></td>
           <td></td>
           <td class="num-cell" id="sumBox">/</td>
           <td></td>
@@ -342,6 +349,14 @@ const LS_DRAFT = "shipping_draft_v1";   // 未发布明细自动草稿，刷新/
 const BACKUP_KEYS = [LS_DB, LS_REC, LS_DRAFT, "shipping_fold_dates_v1", "shipping_show_folded_v1"];
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+// 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区）
+function shipptOptions(val){
+  const v=(val&&val!=="/")?String(val):"";
+  const opts=["汽零铸造","汽零机加工","北区"];
+  let html='<option value=""></option>';
+  opts.forEach(o=>{ html+=`<option value="${esc(o)}"${v===o?" selected":""}>${esc(o)}</option>`; });
+  return html;
+}
 
 // ===================== 物料库（与物料数据库页共享 localStorage） =====================
 let DB = loadDB();
@@ -537,6 +552,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="text" inputmode="decimal" value="${esc(data.qty)}" placeholder="/" title="支持算式：10*20、100/4、10*(20+5)，失焦自动算出结果"></td>
+    <td class="col-shippt"><select data-f="shippt" title="发货点">${shipptOptions(data.shippt)}</select></td>
     <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
@@ -551,6 +567,8 @@ function addRow(data={}, refRow=null, beforeRow=null){
   tr.querySelector(".del-x").onclick=()=>delRow(tr);
   const rc=tr.querySelector(".row-check");
   if(rc) rc.addEventListener("change", updateCheckAll);
+  const spSel=tr.querySelector('[data-f="shippt"]');
+  if(spSel) spSel.addEventListener("change", ()=>{ saveDraft(); });
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
   tr.querySelectorAll("input").forEach(inp=>{
     inp.addEventListener("keydown", onCellKey);
@@ -668,13 +686,13 @@ function fitTextarea(ta){
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
-const EDITABLE_COLS=[3,4,5,6,7,8,9,13];   // 可编辑列的 nth-child 列号（跳过 #/✓/吨位/箱子重量T/客户吨位/操作；箱子重量T 仅按钮删除/恢复）
+const EDITABLE_COLS=[3,4,5,6,7,8,9,10,14];   // 可编辑列的 nth-child 列号（跳过 #/✓/吨位/箱子重量T/客户吨位/操作；箱子重量T 仅按钮删除/恢复）
 function collectRowData(tr){
   const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
   const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
   return {
     shipdate:g("shipdate"), customer:g("customer"), code:g("code"), model:g("model"),
-    qty:g("qty"), unit:g("unit"), perbox:g("perbox"),
+    qty:g("qty"), shippt:g("shippt"), unit:g("unit"), perbox:g("perbox"),
     ton:tonI?tonI.value:"", tonManual:(tonI&&tonI.dataset.manual==="1"),
     delivery:g("delivery"), box:boxI?boxI.value:"", boxManual:(boxI&&boxI.dataset.manual==="1"),
     cwt:g("cwt"), cwtDeleted:(tr.querySelector('[data-f="cwt"]')?.dataset.deleted==="1"),
@@ -1110,6 +1128,7 @@ function collectRows(){
     code:f(tr.querySelector('[data-f="code"]').value),
     model:f(tr.querySelector('[data-f="model"]').value),
     qty:f(tr.querySelector('[data-f="qty"]').value),
+    shippt:f(tr.querySelector('[data-f="shippt"]').value),
     perbox:f(tr.querySelector('[data-f="perbox"]').value),
     ton:f(tr.querySelector('[data-f="ton"]').value),
     box:f(tr.querySelector('[data-f="box"]').value),
@@ -1136,6 +1155,7 @@ function saveDraft(){
         code:tr.querySelector('[data-f="code"]').value,
         model:tr.querySelector('[data-f="model"]').value,
         qty:tr.querySelector('[data-f="qty"]').value,
+        shippt:tr.querySelector('[data-f="shippt"]').value,
         unit:tr.querySelector('[data-f="unit"]').value,
         perbox:tr.querySelector('[data-f="perbox"]').value,
         ton:tonI.value, tonManual:(tonI.dataset.manual==="1"),
@@ -1180,6 +1200,7 @@ function publish(){
     code:f(tr.querySelector('[data-f="code"]').value),
     model:f(tr.querySelector('[data-f="model"]').value),
     qty:f(tr.querySelector('[data-f="qty"]').value),
+    shippt:f(tr.querySelector('[data-f="shippt"]').value),
     perbox:f(tr.querySelector('[data-f="perbox"]').value),
     ton:f(tr.querySelector('[data-f="ton"]').value),
     box:f(tr.querySelector('[data-f="box"]').value),
@@ -1279,9 +1300,9 @@ function renderRecords(){
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["发货日期","客户","型号","发货数量","箱子重量T","吨位(t)","交货单","箱数","备注"];
+  const head=["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注"];
   const lines=[head.join(",")];
-  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.cwt,r.ton,r.delivery,r.box,r.remark].map(csvCell).join(",")));
+  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
 }
 function exportRowsCsv(rows, name){
