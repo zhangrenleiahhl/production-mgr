@@ -301,18 +301,19 @@ function detailTable(rec, tonByCust){
   const tonByKey = {};
   rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
 
-  // 构建原始行数据（第 0 列是 checkbox HTML，不参与合并判断；第 11 列是按「客户+发货日期」合计的客户吨位）
-  const raw = rows.map((r, i) => [
-    `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
-    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
-    pad(r.delivery), pad(r.box), pad(r.remark),
-    (tonByKey[pad(r.customer) + "|" + pad(r.shipdate)] || 0).toFixed(1) + "t",
-    pad(r.code)
-  ]);
-  const groups = groupByCustRemark(raw, 2, 1); // 客户 + 发货日期（与主表一致）
-  const mergeCols = [2, 10, 11];           // 客户 / 备注 / 客户吨位
+  // 构建行数据（不做单元格合并，每行都完整显示客户 / 备注 / 客户吨位）
   const numCols = [4, 6, 7, 9];            // 发货数量 / 箱子重量T / 吨位 / 箱数
-  let body = renderMergedRows(raw, groups, mergeCols, numCols);
+  let body = rows.map((r, i) => {
+    const cells = [
+      `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
+      pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
+      pad(r.delivery), pad(r.box), pad(r.remark),
+      (tonByKey[pad(r.customer) + "|" + pad(r.shipdate)] || 0).toFixed(1) + "t",
+      pad(r.code)
+    ];
+    const tds = cells.map((c, ci) => numCols.includes(ci) ? `<td class="num">${c}</td>` : `<td>${c}</td>`).join("");
+    return `<tr>${tds}</tr>`;
+  }).join("");
 
   const sumQ = rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
   const sumT = rows.reduce((a, r) => a + (parseFloat(r.ton) || 0), 0);
@@ -353,50 +354,11 @@ function bindDetail(d, rec){
   update();
 }
 
-// ===================== 合并客户 / 备注 / 客户吨位（与发货计划系统保持一致）=====================
-// 按「客户 + 备注」对连续行分组；空客户不合并
-function groupByCustRemark(data, custIdx, remarkIdx){
-  const groups = [];
-  let i = 0;
-  while(i < data.length){
-    const c = data[i][custIdx], r = data[i][remarkIdx];
-    if (!c || c === "/" || c === ""){ groups.push({start:i, end:i+1}); i++; continue; }
-    let j = i + 1;
-    while(j < data.length && data[j][custIdx] === c && data[j][remarkIdx] === r) j++;
-    groups.push({start:i, end:j});
-    i = j;
-  }
-  return groups;
-}
-// 为 SheetJS 生成合并形态：被合并单元格置空，返回 merges
-function mergeForSheet(data, groups, cols){
-  const merged = data.map(row => [...row]);
-  const merges = [];
-  groups.forEach(g => {
-    if (g.end - g.start <= 1) return;
-    cols.forEach(c => {
-      merges.push({s:{r:g.start, c:c}, e:{r:g.end-1, c:c}});
-      for (let k = g.start + 1; k < g.end; k++) merged[k][c] = "";
-    });
-  });
-  return {merged, merges};
-}
-// 为 HTML table 生成带 rowSpan 的 tbody
-function renderMergedRows(data, groups, mergeCols, numCols){
-  return data.map((row, i) => {
-    const g = groups.find(grp => i >= grp.start && i < grp.end);
-    const isFirst = i === g.start;
-    const span = g.end - g.start;
-    const tds = row.map((cell, ci) => {
-      if (mergeCols.includes(ci)){
-        if (!isFirst) return "";
-        const rs = span > 1 ? ` rowspan="${span}"` : "";
-        if (numCols.includes(ci)) return `<td class="num"${rs}>${cell}</td>`;
-        return `<td${rs}>${cell}</td>`;
-      }
-      if (numCols.includes(ci)) return `<td class="num">${cell}</td>`;
-      return `<td>${cell}</td>`;
-    }).join("");
+// ===================== 渲染行（不合并单元格，每行完整显示）=====================
+// numCols：需要右对齐 + 等宽数字的列号
+function rowsToTbody(data, numCols){
+  return data.map(row => {
+    const tds = row.map((cell, ci) => numCols.includes(ci) ? `<td class="num">${cell}</td>` : `<td>${cell}</td>`).join("");
     return `<tr>${tds}</tr>`;
   }).join("");
 }
@@ -414,16 +376,13 @@ function matrix(rows, date){
       pad(r.delivery), pad(r.box), pad(r.remark),
       (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)];
   });
-  const groups = groupByCustRemark(data, 1, 0); // 客户 + 发货日期
-  return {head, data, groups};
+  return {head, data};
 }
 
 function exportExcel(rows, name, date){
   if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
-  const {head, data, groups} = matrix(rows, date);
-  const {merged, merges} = mergeForSheet(data, groups, [1, 9, 10]);
-  const ws = XLSX.utils.aoa_to_sheet([head, ...merged]);
-  ws['!merges'] = merges;
+  const {head, data} = matrix(rows, date);
+  const ws = XLSX.utils.aoa_to_sheet([head, ...data]);   // 不做单元格合并，每行完整
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, String(name).slice(0, 28));
   XLSX.writeFile(wb, `发货计划_${name}.xlsx`);
@@ -459,8 +418,7 @@ function batchMatrix(recs){
         pad(r.delivery), pad(r.box), pad(r.remark), (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)]);
     });
   });
-  const groups = groupByCustRemark(data, 2, 1); // 客户 + 发货日期
-  return {head, data, groups};
+  return {head, data};
 }
 
 function batchDownload(fmt){
@@ -468,12 +426,10 @@ function batchDownload(fmt){
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要下载的计划单（卡片左侧的方框）"); return; }
 
-  const {head, data, groups} = batchMatrix(recs);
+  const {head, data} = batchMatrix(recs);
   if (fmt === "excel"){
     if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
-    const {merged, merges} = mergeForSheet(data, groups, [2, 10, 11]);
-    const ws = XLSX.utils.aoa_to_sheet([head, ...merged]);
-    ws['!merges'] = merges;
+    const ws = XLSX.utils.aoa_to_sheet([head, ...data]);   // 不做单元格合并，每行完整
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "批量发货计划");
     XLSX.writeFile(wb, `发货计划_批量${recs.length}单.xlsx`);
@@ -489,9 +445,9 @@ function batchDownload(fmt){
 
 // ===================== 打印 =====================
 function printRows(rows, title, date){
-  const {head, data, groups} = matrix(rows, date);
+  const {head, data} = matrix(rows, date);
   const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
-  const tbody = renderMergedRows(data, groups, [1, 9, 10], [3, 5, 6, 8]);
+  const tbody = rowsToTbody(data, [3, 5, 6, 8]);   // 不合并单元格
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划 ${pad(title)}</title>
     <style>
@@ -519,9 +475,9 @@ function batchPrint(){
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要打印的计划单（卡片左侧的方框）"); return; }
 
-  const {head, data, groups} = batchMatrix(recs);
+  const {head, data} = batchMatrix(recs);
   const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
-  const tbody = renderMergedRows(data, groups, [2, 10, 11], [4, 6, 7, 9]);
+  const tbody = rowsToTbody(data, [4, 6, 7, 9]);   // 不合并单元格
 
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划批量打印（${recs.length} 单）</title>
