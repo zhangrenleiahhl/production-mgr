@@ -66,16 +66,29 @@
     body::before{display:none;}
     .wrap{max-width:none;padding:0;}
     header.top,.toolbar,.rec-head .rec-acts,.dt-acts,.rec-sel{display:none!important;}
+    .cat-sec.collapsed .cat-body{display:block!important;}
+    .cat-head{cursor:default;margin:10px 0 6px;}
+    .cat-head .cat-selall,.cat-head .cat-fold{display:none!important;}
+    .cat-sec{margin-bottom:0;}
     .rec{border:none;page-break-inside:avoid;}
     table.dt th{background:#2563eb!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   }
   /* 按发货日期分组的颜色分区 */
   .cat-sec{margin-bottom:4px;}
   .cat-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;
-    padding:9px 14px;margin:16px 0 10px;border-radius:6px;color:#fff;
+    padding:9px 14px;margin:16px 0 10px;border-radius:6px;color:#fff;cursor:pointer;user-select:none;
     box-shadow:0 2px 10px rgba(0,0,0,.10);letter-spacing:.5px;}
-  .cat-head .cat-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.92);}
+  .cat-head .cat-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.92);flex-shrink:0;}
+  .cat-head .cat-title{flex:0 0 auto;}
   .cat-head b{font-weight:800;opacity:.92;margin-left:2px;}
+  .cat-head .cat-selall{margin-left:auto;}
+  .cat-head .cat-selall,.cat-head .cat-fold{
+    font:inherit;font-size:12px;font-weight:800;color:#fff;letter-spacing:.3px;
+    background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.55);
+    border-radius:6px;padding:3px 11px;cursor:pointer;line-height:1.5;}
+  .cat-head .cat-selall:hover,.cat-head .cat-fold:hover{background:rgba(255,255,255,.34);}
+  .cat-body{padding-top:2px;}
+  .cat-sec.collapsed .cat-body{display:none;}
   .cat-past .cat-head{background:linear-gradient(90deg,#b45309,#d97706);}      /* 今天之前：琥珀 */
   .cat-today .cat-head{background:linear-gradient(90deg,#047857,#059669);}     /* 今天：绿 */
   .cat-tomorrow .cat-head{background:linear-gradient(90deg,#1d4ed8,#2563eb);}  /* 明天：蓝 */
@@ -188,12 +201,13 @@ function render(){
   box.innerHTML = "";
   $("empty").style.display = RECORDS.length ? "none" : "block";
   if (!RECORDS.length) return;
+  // collapsed=true 的分组默认折叠（今天之前 / 明天之后）
   const groups = [
-    { key:"past",     label:"今天之前发货计划" },
-    { key:"today",    label:"今天发货计划" },
-    { key:"tomorrow", label:"明天发货计划" },
-    { key:"future",   label:"明天之后发货计划" },
-    { key:"other",    label:"其它" }
+    { key:"past",     label:"今天之前发货计划", collapsed:true },
+    { key:"today",    label:"今天发货计划",     collapsed:false },
+    { key:"tomorrow", label:"明天发货计划",     collapsed:false },
+    { key:"future",   label:"明天之后发货计划", collapsed:true },
+    { key:"other",    label:"其它",             collapsed:false }
   ];
   const buckets = { past:[], today:[], tomorrow:[], future:[], other:[] };
   RECORDS.forEach(rec => buckets[classify(recShipDate(rec))].push(rec));
@@ -201,9 +215,36 @@ function render(){
     const arr = buckets[g.key];
     if (!arr.length) return;
     const sec = document.createElement("div");
-    sec.className = "cat-sec cat-" + g.key;
-    sec.innerHTML = `<div class="cat-head"><span class="cat-dot"></span>${g.label}<b>(${arr.length})</b></div>`;
-    arr.forEach(rec => sec.appendChild(card(rec)));
+    sec.className = "cat-sec cat-" + g.key + (g.collapsed ? " collapsed" : "");
+    sec.innerHTML = `<div class="cat-head">
+        <span class="cat-dot"></span>
+        <span class="cat-title">${g.label}</span><b>(${arr.length})</b>
+        <button type="button" class="cat-selall" title="全选 / 取消全选本区域计划">全选</button>
+        <button type="button" class="cat-fold" title="展开 / 折叠本区域">${g.collapsed ? "▸ 展开" : "▾ 折叠"}</button>
+      </div>
+      <div class="cat-body"></div>`;
+    const body = sec.querySelector(".cat-body");
+    arr.forEach(rec => body.appendChild(card(rec)));
+
+    // 一键勾选本区域（已全选则取消全选，否则全部勾上）
+    sec.querySelector(".cat-selall").onclick = (e) => {
+      e.stopPropagation();
+      const boxes = [...sec.querySelectorAll(".rec-sel")];
+      const allChecked = boxes.length > 0 && boxes.every(b => b.checked);
+      boxes.forEach(b => { b.checked = !allChecked; });
+      updateSel();
+    };
+    // 折叠 / 展开（标题条与按钮都可触发，按钮自带 stopPropagation）
+    const toggleFold = () => {
+      sec.classList.toggle("collapsed");
+      sec.querySelector(".cat-fold").textContent = sec.classList.contains("collapsed") ? "▸ 展开" : "▾ 折叠";
+    };
+    sec.querySelector(".cat-fold").onclick = (e) => { e.stopPropagation(); toggleFold(); };
+    sec.querySelector(".cat-head").addEventListener("click", (e) => {
+      if (e.target.closest(".cat-selall") || e.target.closest(".cat-fold")) return;
+      toggleFold();
+    });
+
     box.appendChild(sec);
   });
   updateSel();
