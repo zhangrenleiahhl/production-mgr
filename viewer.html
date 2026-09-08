@@ -297,19 +297,19 @@ function card(rec){
 
 function detailTable(rec, tonByCust){
   const rows = rec.rows || [];
-  // 按「客户 + 备注」合计吨位（与发货计划系统合并规则保持一致）
+  // 按「客户 + 发货日期」合计吨位（与发货计划系统主表合并规则保持一致）
   const tonByKey = {};
-  rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.remark); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
 
   // 构建原始行数据（第 0 列是 checkbox HTML，不参与合并判断）
   const raw = rows.map((r, i) => [
     `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
     pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
     pad(r.delivery), pad(r.box), pad(r.remark),
-    (tonByKey[pad(r.customer) + "|" + pad(r.remark)] || 0).toFixed(1) + "t",
+    (tonByKey[pad(r.customer) + "|" + pad(r.shipdate)] || 0).toFixed(1) + "t",
     pad(r.code)
   ]);
-  const groups = groupByCustRemark(raw, 2, 10);
+  const groups = groupByCustRemark(raw, 2, 1); // 客户 + 发货日期（与主表一致）
   const mergeCols = [2, 10, 11];           // 客户 / 备注 / 客户吨位
   const numCols = [4, 6, 7, 9];            // 发货数量 / 箱子重量T / 吨位 / 箱数
   let body = renderMergedRows(raw, groups, mergeCols, numCols);
@@ -405,14 +405,14 @@ function renderMergedRows(data, groups, mergeCols, numCols){
 function matrix(rows, date){
   const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   const tonByKey = {};
-  rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.remark); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
   const data = rows.map(r => {
-    const key = pad(r.customer) + "|" + pad(r.remark);
+    const key = pad(r.customer) + "|" + pad(r.shipdate);
     return [pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
       (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)];
   });
-  const groups = groupByCustRemark(data, 1, 9);
+  const groups = groupByCustRemark(data, 1, 0); // 客户 + 发货日期
   return {head, data, groups};
 }
 
@@ -448,14 +448,14 @@ function batchMatrix(recs){
   const data = [];
   recs.forEach(rec => {
     const tonByKey = {};
-    (rec.rows || []).forEach(x => { const key = pad(x.customer) + "|" + pad(x.remark); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
+    (rec.rows || []).forEach(x => { const key = pad(x.customer) + "|" + pad(x.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
     (rec.rows || []).forEach(r => {
-      const key = pad(r.customer) + "|" + pad(r.remark);
+      const key = pad(r.customer) + "|" + pad(r.shipdate);
       data.push([pad(rec.no), pad(recShipDate(rec)), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
         pad(r.delivery), pad(r.box), pad(r.remark), (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)]);
     });
   });
-  const groups = groupByCustRemark(data, 2, 10);
+  const groups = groupByCustRemark(data, 2, 1); // 客户 + 发货日期
   return {head, data, groups};
 }
 
