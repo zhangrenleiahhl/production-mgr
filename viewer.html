@@ -308,7 +308,7 @@ function detailTable(rec, tonByCust){
       `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
       pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
-      (tonByKey[pad(r.customer) + "|" + pad(r.shipdate)] || 0).toFixed(1) + "t",
+      (tonByKey[pad(r.customer) + "|" + pad(r.shipdate)] || 0).toFixed(1),
       pad(r.code)
     ];
     const tds = cells.map((c, ci) => numCols.includes(ci) ? `<td class="num">${c}</td>` : `<td>${c}</td>`).join("");
@@ -374,7 +374,7 @@ function matrix(rows, date){
     const key = pad(r.customer) + "|" + pad(r.shipdate);
     return [pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
-      (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)];
+      (tonByKey[key] || 0).toFixed(1), pad(r.code)];
   });
   return {head, data};
 }
@@ -415,7 +415,7 @@ function batchMatrix(recs){
     (rec.rows || []).forEach(r => {
       const key = pad(r.customer) + "|" + pad(r.shipdate);
       data.push([pad(rec.no), sd, pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
-        pad(r.delivery), pad(r.box), pad(r.remark), (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)]);
+        pad(r.delivery), pad(r.box), pad(r.remark), (tonByKey[key] || 0).toFixed(1), pad(r.code)]);
     });
   });
   return {head, data};
