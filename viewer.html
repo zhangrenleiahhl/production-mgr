@@ -297,28 +297,28 @@ function card(rec){
 
 function detailTable(rec, tonByCust){
   const rows = rec.rows || [];
-  let body = rows.map((r, i) => `
-    <tr>
-      <td><input type="checkbox" class="row-sel" data-id="${rec.id}-${i}"></td>
-      <td>${pad(r.shipdate)}</td>
-      <td>${pad(r.customer)}</td>
-      <td>${pad(r.model)}</td>
-      <td class="num">${pad(r.qty)}</td>
-      <td>${pad(r.shippt)}</td>
-      <td class="num">${pad(r.cwt)}</td>
-      <td class="num">${pad(r.ton)}</td>
-      <td>${pad(r.delivery)}</td>
-      <td class="num">${pad(r.box)}</td>
-      <td>${pad(r.remark)}</td>
-      <td class="num">${tonByCust[pad(r.customer)] ? tonByCust[pad(r.customer)].toFixed(1) + "t" : "/"}</td>
-      <td>${pad(r.code)}</td>
-    </tr>`).join("");
+  // 按「客户 + 备注」合计吨位（与发货计划系统合并规则保持一致）
+  const tonByKey = {};
+  rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.remark); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+
+  // 构建原始行数据（第 0 列是 checkbox HTML，不参与合并判断）
+  const raw = rows.map((r, i) => [
+    `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
+    pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
+    pad(r.delivery), pad(r.box), pad(r.remark),
+    (tonByKey[pad(r.customer) + "|" + pad(r.remark)] || 0).toFixed(1) + "t",
+    pad(r.code)
+  ]);
+  const groups = groupByCustRemark(raw, 2, 10);
+  const mergeCols = [2, 10, 11];           // 客户 / 备注 / 客户吨位
+  const numCols = [4, 6, 7, 9];            // 发货数量 / 箱子重量T / 吨位 / 箱数
+  let body = renderMergedRows(raw, groups, mergeCols, numCols);
 
   const sumQ = rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
   const sumT = rows.reduce((a, r) => a + (parseFloat(r.ton) || 0), 0);
   const sumB = rows.reduce((a, r) => a + (parseFloat(r.box) || 0), 0);
   const sumCwt = rows.reduce((a, r) => a + (parseFloat(r.cwt) || 0), 0);
-  const sumCustT = Object.values(tonByCust).reduce((a, v) => a + v, 0);
+  const sumCustT = Object.values(tonByKey).reduce((a, v) => a + v, 0);
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
       <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(1)}</td><td class="num">${sumT.toFixed(1)}</td>
@@ -353,30 +353,83 @@ function bindDetail(d, rec){
   update();
 }
 
+// ===================== 合并客户 / 备注 / 客户吨位（与发货计划系统保持一致）=====================
+// 按「客户 + 备注」对连续行分组；空客户不合并
+function groupByCustRemark(data, custIdx, remarkIdx){
+  const groups = [];
+  let i = 0;
+  while(i < data.length){
+    const c = data[i][custIdx], r = data[i][remarkIdx];
+    if (!c || c === "/" || c === ""){ groups.push({start:i, end:i+1}); i++; continue; }
+    let j = i + 1;
+    while(j < data.length && data[j][custIdx] === c && data[j][remarkIdx] === r) j++;
+    groups.push({start:i, end:j});
+    i = j;
+  }
+  return groups;
+}
+// 为 SheetJS 生成合并形态：被合并单元格置空，返回 merges
+function mergeForSheet(data, groups, cols){
+  const merged = data.map(row => [...row]);
+  const merges = [];
+  groups.forEach(g => {
+    if (g.end - g.start <= 1) return;
+    cols.forEach(c => {
+      merges.push({s:{r:g.start, c:c}, e:{r:g.end-1, c:c}});
+      for (let k = g.start + 1; k < g.end; k++) merged[k][c] = "";
+    });
+  });
+  return {merged, merges};
+}
+// 为 HTML table 生成带 rowSpan 的 tbody
+function renderMergedRows(data, groups, mergeCols, numCols){
+  return data.map((row, i) => {
+    const g = groups.find(grp => i >= grp.start && i < grp.end);
+    const isFirst = i === g.start;
+    const span = g.end - g.start;
+    const tds = row.map((cell, ci) => {
+      if (mergeCols.includes(ci)){
+        if (!isFirst) return "";
+        const rs = span > 1 ? ` rowspan="${span}"` : "";
+        if (numCols.includes(ci)) return `<td class="num"${rs}>${cell}</td>`;
+        return `<td${rs}>${cell}</td>`;
+      }
+      if (numCols.includes(ci)) return `<td class="num">${cell}</td>`;
+      return `<td>${cell}</td>`;
+    }).join("");
+    return `<tr>${tds}</tr>`;
+  }).join("");
+}
+
 // ===================== 导出 =====================
 function matrix(rows, date){
   const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
-  const tonByCust = {};
-  rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
-  const data = rows.map(r => [
-    pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
-    pad(r.delivery), pad(r.box), pad(r.remark),
-    (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)
-  ]);
-  return [head, ...data];
+  const tonByKey = {};
+  rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.remark); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  const data = rows.map(r => {
+    const key = pad(r.customer) + "|" + pad(r.remark);
+    return [pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
+      pad(r.delivery), pad(r.box), pad(r.remark),
+      (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)];
+  });
+  const groups = groupByCustRemark(data, 1, 9);
+  return {head, data, groups};
 }
 
 function exportExcel(rows, name, date){
   if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
-  const ws = XLSX.utils.aoa_to_sheet(matrix(rows, date));
+  const {head, data, groups} = matrix(rows, date);
+  const {merged, merges} = mergeForSheet(data, groups, [1, 9, 10]);
+  const ws = XLSX.utils.aoa_to_sheet([head, ...merged]);
+  ws['!merges'] = merges;
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, String(name).slice(0, 28));
   XLSX.writeFile(wb, `发货计划_${name}.xlsx`);
 }
 
 function exportCsv(rows, name, date){
-  const m = matrix(rows, date);
-  const csv = "﻿" + m.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+  const {head, data} = matrix(rows, date);
+  const csv = "﻿" + [head, ...data].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -394,14 +447,16 @@ function batchMatrix(recs){
   const head = ["单号","发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   const data = [];
   recs.forEach(rec => {
-    const tonByCust = {};
-    (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
+    const tonByKey = {};
+    (rec.rows || []).forEach(x => { const key = pad(x.customer) + "|" + pad(x.remark); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
     (rec.rows || []).forEach(r => {
+      const key = pad(r.customer) + "|" + pad(r.remark);
       data.push([pad(rec.no), pad(recShipDate(rec)), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
-        pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)]);
+        pad(r.delivery), pad(r.box), pad(r.remark), (tonByKey[key] || 0).toFixed(1) + "t", pad(r.code)]);
     });
   });
-  return [head, ...data];
+  const groups = groupByCustRemark(data, 2, 10);
+  return {head, data, groups};
 }
 
 function batchDownload(fmt){
@@ -409,15 +464,17 @@ function batchDownload(fmt){
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要下载的计划单（卡片左侧的方框）"); return; }
 
-  const m = batchMatrix(recs);
+  const {head, data, groups} = batchMatrix(recs);
   if (fmt === "excel"){
     if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
-    const ws = XLSX.utils.aoa_to_sheet(m);
+    const {merged, merges} = mergeForSheet(data, groups, [2, 10, 11]);
+    const ws = XLSX.utils.aoa_to_sheet([head, ...merged]);
+    ws['!merges'] = merges;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "批量发货计划");
     XLSX.writeFile(wb, `发货计划_批量${recs.length}单.xlsx`);
   } else {
-    const csv = "﻿" + m.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const csv = "﻿" + [head, ...data].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -428,16 +485,16 @@ function batchDownload(fmt){
 
 // ===================== 打印 =====================
 function printRows(rows, title, date){
-  const m = matrix(rows, date);
-  const thead = "<tr>" + m[0].map(h => `<th>${h}</th>`).join("") + "</tr>";
-  const tbody = m.slice(1).map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+  const {head, data, groups} = matrix(rows, date);
+  const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
+  const tbody = renderMergedRows(data, groups, [1, 9, 10], [3, 5, 6, 8]);
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划 ${pad(title)}</title>
     <style>
       body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
       h2{font-size:16px;margin:0 0 10px;}
       table{border-collapse:collapse;width:100%;}
-      th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
+      th,td{border:1px solid #000;padding:5px 7px;text-align:center;vertical-align:middle;}
       th{background:#2563eb;color:#fff;}
       td:nth-child(4),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
     </style></head><body>
@@ -458,9 +515,9 @@ function batchPrint(){
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要打印的计划单（卡片左侧的方框）"); return; }
 
-  const m = batchMatrix(recs);
-  const thead = "<tr>" + m[0].map(h => `<th>${h}</th>`).join("") + "</tr>";
-  const tbody = m.slice(1).map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+  const {head, data, groups} = batchMatrix(recs);
+  const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
+  const tbody = renderMergedRows(data, groups, [2, 10, 11], [4, 6, 7, 9]);
 
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划批量打印（${recs.length} 单）</title>
@@ -468,7 +525,7 @@ function batchPrint(){
       body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
       h2{font-size:16px;margin:0 0 10px;}
       table{border-collapse:collapse;width:100%;}
-      th,td{border:1px solid #000;padding:5px 7px;text-align:center;}
+      th,td{border:1px solid #000;padding:5px 7px;text-align:center;vertical-align:middle;}
       th{background:#2563eb;color:#fff;}
       td:nth-child(5),td:nth-child(7),td:nth-child(8),td:nth-child(10){text-align:right;}
     </style></head><body>
