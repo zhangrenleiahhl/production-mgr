@@ -142,6 +142,14 @@ function classify(dateStr){
 }
 const CAT_LABEL = { past:"今天之前", today:"今天", tomorrow:"明天", future:"明天之后", other:"其它" };
 
+// 取一份计划的「真实发货日期」：优先用明细行里的发货日期（第一行有值即采用），没有再退回计划顶部日期
+function recShipDate(rec){
+  const rows = rec.rows || [];
+  for (const r of rows){ if (r && r.shipdate && String(r.shipdate).trim()) return String(r.shipdate).trim(); }
+  return rec.date || "";
+}
+
+
 // ===================== 初始化 =====================
 function init(){
   if (window.CloudSync) CloudSync.init();
@@ -188,7 +196,7 @@ function render(){
     { key:"other",    label:"其它" }
   ];
   const buckets = { past:[], today:[], tomorrow:[], future:[], other:[] };
-  RECORDS.forEach(rec => buckets[classify(rec.date)].push(rec));
+  RECORDS.forEach(rec => buckets[classify(recShipDate(rec))].push(rec));
   groups.forEach(g => {
     const arr = buckets[g.key];
     if (!arr.length) return;
@@ -203,7 +211,7 @@ function render(){
 
 function card(rec){
   const div = document.createElement("div");
-  const cat = classify(rec.date);
+  const cat = classify(recShipDate(rec));
   div.className = "rec cat-" + cat;
   const rows = rec.rows || [];
   const tonByCust = {};
@@ -216,7 +224,7 @@ function card(rec){
         <b>${pad(rec.no)}</b>
         <div class="meta">
           <span class="cat-tag ${cat}">${CAT_LABEL[cat]}</span>
-          <span>发货日期 ${pad(rec.date)}</span>
+          <span>发货日期 ${pad(recShipDate(rec))}</span>
           <span>${rows.length} 行</span>
           <span>数量 ${pad(rec.sumQty)}</span>
           <span>吨位 ${pad(rec.sumTon)}</span>
@@ -251,7 +259,7 @@ function detailTable(rec, tonByCust){
   let body = rows.map((r, i) => `
     <tr>
       <td><input type="checkbox" class="row-sel" data-id="${rec.id}-${i}"></td>
-      <td>${pad(rec.date)}</td>
+      <td>${pad(r.shipdate)}</td>
       <td>${pad(r.customer)}</td>
       <td>${pad(r.model)}</td>
       <td class="num">${pad(r.qty)}</td>
@@ -298,9 +306,9 @@ function bindDetail(d, rec){
   };
   const pick = () => [...d.querySelectorAll(".row-sel:checked")].map(c => rows[+c.dataset.id.split("-")[1]]);
   d.querySelectorAll(".row-sel").forEach(c => c.onchange = update);
-  d.querySelector('[data-act="excelRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportExcel(s, rec.no + "_勾选行", rec.date); };
-  d.querySelector('[data-act="csvRows"]').onclick   = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportCsv(s, rec.no + "_勾选行", rec.date); };
-  d.querySelector('[data-act="printRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } printRows(s, rec.no + "（勾选行）", rec.date); };
+  d.querySelector('[data-act="excelRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportExcel(s, rec.no + "_勾选行", recShipDate(rec)); };
+  d.querySelector('[data-act="csvRows"]').onclick   = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportCsv(s, rec.no + "_勾选行", recShipDate(rec)); };
+  d.querySelector('[data-act="printRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } printRows(s, rec.no + "（勾选行）", recShipDate(rec)); };
   update();
 }
 
@@ -337,7 +345,7 @@ function exportCsv(rows, name, date){
 
 function downloadOne(rec, fmt){
   const rows = rec.rows || [];
-  if (fmt === "excel") exportExcel(rows, rec.no, rec.date); else exportCsv(rows, rec.no, rec.date);
+  if (fmt === "excel") exportExcel(rows, rec.no, recShipDate(rec)); else exportCsv(rows, rec.no, recShipDate(rec));
 }
 
 // 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
@@ -348,7 +356,7 @@ function batchMatrix(recs){
     const tonByCust = {};
     (rec.rows || []).forEach(x => { const c = pad(x.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
     (rec.rows || []).forEach(r => {
-      data.push([pad(rec.no), pad(rec.date), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
+      data.push([pad(rec.no), pad(recShipDate(rec)), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
         pad(r.delivery), pad(r.box), pad(r.remark), (tonByCust[pad(r.customer)] || 0).toFixed(1) + "t", pad(r.code)]);
     });
   });
@@ -402,7 +410,7 @@ function printRows(rows, title, date){
   w.focus();
 }
 
-function printRec(rec){ printRows(rec.rows || [], rec.no, rec.date); }
+function printRec(rec){ printRows(rec.rows || [], rec.no, recShipDate(rec)); }
 
 function batchPrint(){
   const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
