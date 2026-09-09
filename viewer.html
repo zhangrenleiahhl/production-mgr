@@ -154,6 +154,7 @@ let RECORDS = [];
 const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/" : s; };
 // HTML 属性转义（客户名可能含引号 / 尖括号）
 const escAttr = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");   // 文本内容转义（防 XSS）
 
 // ===================== 按发货日期分组（今天之前 / 今天 / 明天 / 明天之后）=====================
 function ymdStr(d){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,"0"); const day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
@@ -298,7 +299,7 @@ function card(rec){
     <div class="rec-head">
       <input type="checkbox" class="rec-sel" data-id="${rec.id}">
       <div class="rec-info">
-        <b>${pad(rec.no)}</b>
+        <b>${pad(rec.no)}${rec.planner?` · ${esc(rec.planner)}`:""}</b>
         <div class="meta">
           <span class="cat-tag ${cat}">${CAT_LABEL[cat]}</span>
           <span>发货日期 ${pad(recShipDate(rec))}</span>
@@ -378,7 +379,7 @@ function detailTable(rec, tonByCust){
   const sumCustT = Object.values(finalByKey).reduce((a, v) => a + v, 0);
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
-      <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(1)}</td><td class="num">${sumT.toFixed(1)}</td>
+      <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(2)}</td><td class="num">${sumT.toFixed(1)}</td>
       <td></td><td class="num">${sumB}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td>
     </tr>`;
 
