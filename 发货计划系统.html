@@ -587,6 +587,10 @@ function processCustModalQueue(){
   const title=document.createElement("div"); title.className="modal-title";
   title.textContent=`型号「${model}」在物料库中发往 ${customers.length} 个送达方，请选择：`;
   box.appendChild(title);
+  const hint=document.createElement("div");
+  hint.style.cssText="font-size:12px;color:#6b7280;margin:-6px 0 10px;";
+  hint.textContent="（本次选择自动用于本型号的所有行，一个型号只需确认一次）";
+  box.appendChild(hint);
   const list=document.createElement("div"); list.className="modal-list";
   customers.forEach(cu=>{
     const b=document.createElement("button"); b.className="modal-opt"; b.textContent=cu;
@@ -595,12 +599,22 @@ function processCustModalQueue(){
   });
   box.appendChild(list);
   const skip=document.createElement("button"); skip.className="modal-skip"; skip.textContent="跳过（不填送达方）";
-  skip.onclick=()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); processCustModalQueue(); };
+  skip.onclick=()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); cb(null); processCustModalQueue(); };
   box.appendChild(skip);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
-// 根据当前行的型号自动带出送达方：唯一则直接填入，多个则弹窗让计划员选择
+// 已确认过的「型号 → 送达方」记忆（本次页面会话内有效，一个型号只确认一次）
+let modelCustChoice={};
+// 等待选择的「型号 → 行」列表：同型号多行只弹一次，选定后统一应用到所有这些行
+let pendingModelRows={};
+function applyCustomerToRow(tr, cust){
+  const custInp=tr.querySelector('[data-f="customer"]');
+  if(!custInp) return;
+  if(!custInp.value.trim()) custInp.value=cust;   // 已有手填值则保留
+  autoFillLogistics(tr);
+}
+// 根据当前行的型号自动带出送达方：唯一则直接填入；多个则弹窗选择，同型号只确认一次
 function autoFillCustomerByModel(tr){
   const modelInp=tr.querySelector('[data-f="model"]');
   const custInp=tr.querySelector('[data-f="customer"]');
@@ -610,14 +624,16 @@ function autoFillCustomerByModel(tr){
   const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
   const custs=customersForModelExactly(model, code);
   if(!custs.length) return;
-  if(custs.length===1){
-    if(!custInp.value.trim()) custInp.value=custs[0];   // 已有手填值则保留
-    autoFillLogistics(tr);
-    return;
-  }
+  if(custs.length===1){ applyCustomerToRow(tr, custs[0]); return; }
+  const remembered=modelCustChoice[model];
+  if(remembered && custs.includes(remembered)){ applyCustomerToRow(tr, remembered); return; }   // 已确认过 → 直接沿用，不再弹窗
+  if(pendingModelRows[model]){ pendingModelRows[model].push(tr); return; }   // 正在等待本型号的选择 → 本行排队，不重复弹窗
+  pendingModelRows[model]=[tr];
   chooseCustomerModal(custs, model, (chosen)=>{
-    custInp.value=chosen;
-    autoFillLogistics(tr);
+    const rows=pendingModelRows[model]||[]; delete pendingModelRows[model];
+    if(!chosen) return;                     // 跳过：不填也不记忆，下次仍会询问
+    modelCustChoice[model]=chosen;          // 记住选择，后续同型号不再询问
+    rows.forEach(r=>applyCustomerToRow(r, chosen));
     recalc(); mergeCustomerCells(); saveDraft();
   });
 }
@@ -773,6 +789,13 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); saveDraft(); });
   });
   tr.querySelector('[data-f="customer"]').addEventListener("input", ()=>{ mergeCustomerCells(); autoFillLogistics(tr); });
+  tr.querySelector('[data-f="customer"]').addEventListener("change", ()=>{   // 手动改送达方 → 记为该型号的选择，后续不再重复询问
+    const m=(tr.querySelector('[data-f="model"]')?.value||"").trim();
+    const cu=(tr.querySelector('[data-f="customer"]').value||"").trim();
+    if(!m||!cu) return;
+    const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
+    if(customersForModelExactly(m, code).includes(cu)) modelCustChoice[m]=cu;
+  });
   tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
   ["model"].forEach(k=>{
     const inp=tr.querySelector(`[data-f="${k}"]`);
