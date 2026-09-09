@@ -59,6 +59,18 @@
   table.dt tbody tr:nth-child(even){background:#fafbff;}
   table.dt tr.sum td{background:#eef2ff;font-weight:700;}
   table.dt input.row-sel{width:15px;height:15px;cursor:pointer;}
+  /* 可编辑的「客户吨位」 */
+  table.dt input.custton-in{
+    width:100%;min-width:62px;box-sizing:border-box;
+    border:1px solid transparent;background:transparent;
+    font:inherit;color:inherit;text-align:right;
+    font-variant-numeric:tabular-nums;padding:2px 4px;border-radius:4px;
+  }
+  table.dt input.custton-in:hover{border-color:#c7d2fe;background:#fff;}
+  table.dt input.custton-in:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
+  table.dt input.custton-in.edited{border-color:#f59e0b;background:#fffbeb;font-weight:700;color:#b45309;}
+  /* 打印时不显示输入框边框，只出数值 */
+  @media print{ table.dt input.custton-in{border:none;background:transparent;padding:0;} }
   .empty{background:#fff;border:1px dashed var(--line);padding:40px 16px;text-align:center;color:var(--muted);font-size:14px;}
   .empty b{color:var(--blue);}
   /* 打印样式 */
@@ -135,10 +147,13 @@
 <script>
 // ===================== 配置 =====================
 const KEY = "shipping_plans_v1";           // 与管理端发布记录键一致
+const KEY_CT = "shipping_custton_v1";      // 客户吨位手动修改的本地备份（防云端旧数据覆盖）
 const $ = (id) => document.getElementById(id);
 let RECORDS = [];
 
 const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/" : s; };
+// HTML 属性转义（客户名可能含引号 / 尖括号）
+const escAttr = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
 // ===================== 按发货日期分组（今天之前 / 今天 / 明天 / 明天之后）=====================
 function ymdStr(d){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,"0"); const day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
@@ -190,6 +205,7 @@ async function load(){
     try { list = JSON.parse(localStorage.getItem(KEY) || "null"); } catch(e){}
   }
   RECORDS = Array.isArray(list) ? list : [];
+  restoreCustTon();                        // 用本地备份补齐客户吨位修改（页面每 30 秒自动刷新，防止改动被冲掉）
   render();
   const t = new Date().toLocaleTimeString("zh-CN");
   $("status").textContent = `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
@@ -269,7 +285,7 @@ function card(rec){
           <span>${rows.length} 行</span>
           <span>数量 ${pad(rec.sumQty)}</span>
           <span>吨位 ${pad(rec.sumTon)}</span>
-          ${rec.sumSubTon ? `<span>客户吨位 ${pad(rec.sumSubTon)}</span>` : ""}
+          ${rec.sumSubTon ? `<span data-subton>客户吨位 ${pad(rec.sumSubTon)}</span>` : `<span data-subton style="display:none">客户吨位 ${pad(rec.sumSubTon)}</span>`}
           <span>箱数 ${pad(rec.sumBox)}</span>
           <span class="muted">发布 ${pad(rec.publishedAt)}</span>
         </div>
@@ -295,6 +311,20 @@ function card(rec){
   return div;
 }
 
+// ===================== 客户吨位：可手动修改（带覆盖值）=====================
+// 覆盖值存在 rec.custTon = { "客户|发货日期": 数值 }
+function custTonKey(r){ return pad(r.customer) + "|" + pad(r.shipdate); }
+function hasOverride(rec, key){
+  const ov = rec && rec.custTon;
+  return !!(ov && ov[key] !== undefined && ov[key] !== null && String(ov[key]).trim() !== "");
+}
+// 取某一行的客户吨位：有手动覆盖值用覆盖值，否则用自动合计值
+function custTonVal(rec, r, tonByKey){
+  const key = custTonKey(r);
+  if (hasOverride(rec, key)) return parseFloat(rec.custTon[key]) || 0;
+  return tonByKey[key] || 0;
+}
+
 function detailTable(rec, tonByCust){
   const rows = rec.rows || [];
   // 先用「rec.rows 原始数据」算 tonByKey（key 形如 "客户|发货日期"），与下方构建的 raw 数组所用字段完全一致
@@ -304,11 +334,14 @@ function detailTable(rec, tonByCust){
   // 构建行数据（不做单元格合并，每行都完整显示客户 / 备注 / 客户吨位）
   const numCols = [4, 6, 7, 9];            // 发货数量 / 箱子重量T / 吨位 / 箱数
   let body = rows.map((r, i) => {
+    const key = custTonKey(r);
+    const val = custTonVal(rec, r, tonByKey).toFixed(1);
+    const ovd = hasOverride(rec, key) ? " edited" : "";
     const cells = [
       `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
       pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
-      (tonByKey[pad(r.customer) + "|" + pad(r.shipdate)] || 0).toFixed(1),
+      `<input type="text" class="custton-in${ovd}" value="${val}" data-key="${escAttr(key)}" data-old="${val}" inputmode="decimal">`,
       pad(r.code)
     ];
     const tds = cells.map((c, ci) => numCols.includes(ci) ? `<td class="num">${c}</td>` : `<td>${c}</td>`).join("");
@@ -319,11 +352,14 @@ function detailTable(rec, tonByCust){
   const sumT = rows.reduce((a, r) => a + (parseFloat(r.ton) || 0), 0);
   const sumB = rows.reduce((a, r) => a + (parseFloat(r.box) || 0), 0);
   const sumCwt = rows.reduce((a, r) => a + (parseFloat(r.cwt) || 0), 0);
-  const sumCustT = Object.values(tonByKey).reduce((a, v) => a + v, 0);
+  // 合计按 key 去重：同一「客户+发货日期」只算一次
+  const finalByKey = {};
+  rows.forEach(r => { const k = custTonKey(r); if (finalByKey[k] === undefined) finalByKey[k] = custTonVal(rec, r, tonByKey); });
+  const sumCustT = Object.values(finalByKey).reduce((a, v) => a + v, 0);
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
       <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(1)}</td><td class="num">${sumT.toFixed(1)}</td>
-      <td></td><td class="num">${sumB}</td><td></td><td class="num">${sumCustT.toFixed(1)}</td><td></td>
+      <td></td><td class="num">${sumB}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td>
     </tr>`;
 
   return `
@@ -332,6 +368,8 @@ function detailTable(rec, tonByCust){
       <button class="btn sm" data-act="csvRows">下载勾选行 CSV</button>
       <button class="btn sm" data-act="printRows">打印勾选行</button>
       <span class="sub" data-act="rowinfo"></span>
+      <span class="sub" data-act="custtonTip" style="color:#b45309;font-weight:700"></span>
+      <span class="sub" style="font-size:11px;color:#64748b">（「客户吨位」可直接点开修改，回车确认；右键可撤回改动）</span>
     </div>
     <table class="dt"><thead><tr>
       <th></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>发货点</th><th>箱子重量T</th><th>吨位(t)</th>
@@ -348,10 +386,112 @@ function bindDetail(d, rec){
   };
   const pick = () => [...d.querySelectorAll(".row-sel:checked")].map(c => rows[+c.dataset.id.split("-")[1]]);
   d.querySelectorAll(".row-sel").forEach(c => c.onchange = update);
-  d.querySelector('[data-act="excelRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportExcel(s, rec.no + "_勾选行", recShipDate(rec)); };
-  d.querySelector('[data-act="csvRows"]').onclick   = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportCsv(s, rec.no + "_勾选行", recShipDate(rec)); };
-  d.querySelector('[data-act="printRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } printRows(s, rec.no + "（勾选行）", recShipDate(rec)); };
+
+  // ---- 客户吨位：可编辑，改完需确认 ----
+  d.querySelectorAll("input.custton-in").forEach(inp => {
+    const commit = () => {
+      const key = inp.dataset.key;
+      const old = inp.dataset.old;
+      let nv = String(inp.value).trim();
+      if (nv === old) return;                       // 没改，忽略
+      if (nv !== "" && !/^-?\d+(\.\d+)?$/.test(nv)){ // 非法输入
+        alert("客户吨位只能填数字（可带小数点），请重新填写。");
+        inp.value = old; return;
+      }
+      const cust = key.split("|")[0];
+      const oldTxt = old === "" ? "（空）" : old;
+      const newTxt = nv === "" ? "（清空，恢复自动合计）" : nv;
+      const ok = confirm(
+        `确认修改客户吨位？\n\n` +
+        `客户：${cust}\n` +
+        `原值：${oldTxt}\n` +
+        `新值：${newTxt}\n\n` +
+        `说明：该客户同一发货日期的所有行都会一起更新，并同步到导出与打印。`
+      );
+      if (!ok){ inp.value = old; return; }
+
+      if (!rec.custTon) rec.custTon = {};
+      if (nv === "") delete rec.custTon[key];        // 清空 = 恢复自动合计
+      else rec.custTon[key] = parseFloat(nv);
+
+      saveCustTon(rec);                              // 持久化（本地 + 云端）
+      applyCustTon(d, rec);                          // 同组所有行同步 + 刷新合计
+      const tip = d.querySelector('[data-act="custtonTip"]');
+      if (tip) tip.textContent = "已保存 ✓";
+      setTimeout(() => { if (tip) tip.textContent = ""; }, 2500);
+    };
+    inp.onchange = commit;
+    inp.onkeydown = (e) => {
+      if (e.key === "Enter"){ e.preventDefault(); inp.blur(); }
+      if (e.key === "Escape"){ inp.value = inp.dataset.old; inp.blur(); }
+    };
+    // 撤回该客户吨位的手动修改
+    inp.oncontextmenu = (e) => {
+      const key = inp.dataset.key;
+      if (!hasOverride(rec, key)) return;
+      e.preventDefault();
+      if (confirm(`撤回【${key.split("|")[0]}】的客户吨位修改，恢复为系统自动合计？`)){
+        delete rec.custTon[key];
+        saveCustTon(rec); applyCustTon(d, rec);
+      }
+    };
+  });
+
+  d.querySelector('[data-act="excelRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportExcel(s, rec.no + "_勾选行", recShipDate(rec), rec); };
+  d.querySelector('[data-act="csvRows"]').onclick   = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } exportCsv(s, rec.no + "_勾选行", recShipDate(rec), rec); };
+  d.querySelector('[data-act="printRows"]').onclick = () => { const s = pick(); if (!s.length){ alert("请先勾选要下载的行"); return; } printRows(s, rec.no + "（勾选行）", recShipDate(rec), rec); };
   update();
+}
+
+// 把 rec.custTon 的最新值刷回表格（同 key 的所有行 + 合计行）
+function applyCustTon(d, rec){
+  const rows = rec.rows || [];
+  const tonByKey = {};
+  rows.forEach(r => { const k = custTonKey(r); tonByKey[k] = (tonByKey[k] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  const finalByKey = {};
+  rows.forEach(r => { const k = custTonKey(r); if (finalByKey[k] === undefined) finalByKey[k] = custTonVal(rec, r, tonByKey); });
+
+  d.querySelectorAll("input.custton-in").forEach(inp => {
+    const k = inp.dataset.key;
+    const v = (finalByKey[k] || 0).toFixed(1);
+    inp.value = v; inp.dataset.old = v;
+    inp.classList.toggle("edited", hasOverride(rec, k));
+  });
+  const sumEl = d.querySelector('[data-act="sumCustT"]');
+  if (sumEl) sumEl.textContent = Object.values(finalByKey).reduce((a, v) => a + v, 0).toFixed(1);
+
+  // 卡片头部的「客户吨位」汇总也一起更新
+  rec.sumSubTon = Object.values(finalByKey).reduce((a, v) => a + v, 0).toFixed(1);
+  const headMeta = d.closest(".rec") && d.closest(".rec").querySelector(".meta [data-subton]");
+  if (headMeta) headMeta.textContent = `客户吨位 ${pad(rec.sumSubTon)}`;
+}
+
+// 保存：本地 + 本地独立备份 + 云端
+async function saveCustTon(rec){
+  try { localStorage.setItem(KEY, JSON.stringify(RECORDS)); } catch(e){}
+  // 单独备份一份覆盖表：页面每 30 秒会从云端重新拉取，若云端还没同步成功，用本地备份兜底
+  try {
+    const bak = {};
+    RECORDS.forEach(r => {
+      if (r && r.custTon && Object.keys(r.custTon).length) bak[r.id != null ? r.id : r.no] = r.custTon;
+    });
+    localStorage.setItem(KEY_CT, JSON.stringify(bak));
+  } catch(e){}
+  if (window.CloudSync && CloudSync.ready()){
+    try { await CloudSync.push(KEY, RECORDS); } catch(e){}
+  }
+}
+
+// 拉取数据后，用本地备份补齐 custTon（云端已有值则优先用云端的）
+function restoreCustTon(){
+  let bak = null;
+  try { bak = JSON.parse(localStorage.getItem(KEY_CT) || "null"); } catch(e){}
+  if (!bak || typeof bak !== "object") return;
+  RECORDS.forEach(r => {
+    if (!r) return;
+    const id = r.id != null ? r.id : r.no;
+    if (bak[id]) r.custTon = Object.assign({}, bak[id], r.custTon || {});
+  });
 }
 
 // ===================== 渲染行（不合并单元格，每行完整显示）=====================
@@ -364,32 +504,33 @@ function rowsToTbody(data, numCols){
 }
 
 // ===================== 导出 =====================
-function matrix(rows, date){
+// rec 可选：传入后「客户吨位」优先取 rec.custTon 里的手动修改值
+function matrix(rows, date, rec){
   const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注","客户吨位","物料编码"];
   // 先把行数据（不含客户吨位列）按 rec.rows 算 tonByKey，key 为「客户|发货日期」与原始 r.ton/r.cwt 一致
   const tonByKey = {};
   rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
-  // data 第 0 列是「发货日期」（用传入的 date 兜底），第 1 列是「客户」，合并按 (1,0) 即「客户+发货日期」
+  // data 第 0 列是「发货日期」（用传入的 date 兜底），第 1 列是「客户」
   const data = rows.map(r => {
     const key = pad(r.customer) + "|" + pad(r.shipdate);
     return [pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
-      (tonByKey[key] || 0).toFixed(1), pad(r.code)];
+      custTonVal(rec, r, tonByKey).toFixed(1), pad(r.code)];
   });
   return {head, data};
 }
 
-function exportExcel(rows, name, date){
+function exportExcel(rows, name, date, rec){
   if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
-  const {head, data} = matrix(rows, date);
+  const {head, data} = matrix(rows, date, rec);
   const ws = XLSX.utils.aoa_to_sheet([head, ...data]);   // 不做单元格合并，每行完整
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, String(name).slice(0, 28));
   XLSX.writeFile(wb, `发货计划_${name}.xlsx`);
 }
 
-function exportCsv(rows, name, date){
-  const {head, data} = matrix(rows, date);
+function exportCsv(rows, name, date, rec){
+  const {head, data} = matrix(rows, date, rec);
   const csv = "﻿" + [head, ...data].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
@@ -400,7 +541,7 @@ function exportCsv(rows, name, date){
 
 function downloadOne(rec, fmt){
   const rows = rec.rows || [];
-  if (fmt === "excel") exportExcel(rows, rec.no, recShipDate(rec)); else exportCsv(rows, rec.no, recShipDate(rec));
+  if (fmt === "excel") exportExcel(rows, rec.no, recShipDate(rec), rec); else exportCsv(rows, rec.no, recShipDate(rec), rec);
 }
 
 // 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
@@ -415,7 +556,7 @@ function batchMatrix(recs){
     (rec.rows || []).forEach(r => {
       const key = pad(r.customer) + "|" + pad(r.shipdate);
       data.push([pad(rec.no), sd, pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
-        pad(r.delivery), pad(r.box), pad(r.remark), (tonByKey[key] || 0).toFixed(1), pad(r.code)]);
+        pad(r.delivery), pad(r.box), pad(r.remark), custTonVal(rec, r, tonByKey).toFixed(1), pad(r.code)]);
     });
   });
   return {head, data};
@@ -444,8 +585,8 @@ function batchDownload(fmt){
 }
 
 // ===================== 打印 =====================
-function printRows(rows, title, date){
-  const {head, data} = matrix(rows, date);
+function printRows(rows, title, date, rec){
+  const {head, data} = matrix(rows, date, rec);
   const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
   const tbody = rowsToTbody(data, [3, 5, 6, 8]);   // 不合并单元格
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
@@ -468,7 +609,7 @@ function printRows(rows, title, date){
   w.focus();
 }
 
-function printRec(rec){ printRows(rec.rows || [], rec.no, recShipDate(rec)); }
+function printRec(rec){ printRows(rec.rows || [], rec.no, recShipDate(rec), rec); }
 
 function batchPrint(){
   const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
