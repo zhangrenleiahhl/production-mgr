@@ -595,7 +595,7 @@ try{ const td=new Date(); $("todayText").textContent=td.getFullYear()+"年"+(td.
 function genPlanNo(){ const d=$("shipDate").value||todayStr(); const p=s=>String(s).padStart(2,"0"); const ymd=d.split("-"); return "FH"+ymd[0]+p(+ymd[1])+p(+ymd[2])+"-"+String(Math.floor(Math.random()*9000)+1000); }
 $("planNo").value=genPlanNo();
 
-function addRow(data={}, refRow=null, beforeRow=null){
+function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
   const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
@@ -724,7 +724,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     }
     if(!inserted) tb.appendChild(tr);
   }
-  reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();
+  if(!skipRefresh){ reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates(); }
 }
 function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛选隐藏行跳过）
   let idx=0;
@@ -884,8 +884,8 @@ function undo(){
   const tb=$("tbody");
   const list=allRows();
   const ref=list[item.atIndex]||null;
-  item.rows.forEach(d=>{ addRow(d, null, ref); });
-  reindex(); recalc(); saveDraft(); updateCheckAll(); updateUndoBtn();
+  item.rows.forEach(d=>{ addRow(d, null, ref, true); });
+  reindex(); recalc(); fitTextareas(); saveDraft(); updateCheckAll(); updateUndoBtn();
   toast("已撤回删除，恢复 "+item.rows.length+" 行");
 }
 function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=undoStack.length===0; }
@@ -1713,7 +1713,7 @@ function onTablePaste(e){
   if(!baseRow || baseRow.closest("#tbody")!==$("tbody")) baseRow=null;
   lines.forEach((line,idx)=>{
     const vals=line.split("\t").map(v=>v.trim());
-    const tr=(idx===0 && baseRow) ? baseRow : addRow();
+    const tr=(idx===0 && baseRow) ? baseRow : addRow({}, null, null, true);
     PASTE_MAP.forEach((f,i)=>{
       if(i<vals.length && f){
         const el=tr.querySelector(`[data-f="${f}"]`);
@@ -1721,7 +1721,7 @@ function onTablePaste(e){
       }
     });
   });
-  recalc(); mergeCustomerCells(); saveDraft();
+  reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraft();
   toast("已粘贴 "+lines.length+" 行");
 }
 $("tbody").addEventListener("paste", onTablePaste);
@@ -1742,13 +1742,13 @@ if(_draft && (_draft.rows.length || _draft.date)){
     $("shipDate").value = (_draft.date <= realTodayStr()) ? todayStr() : _draft.date;
   }
   $("planNo").value=_draft.no||genPlanNo();
-  _draft.rows.forEach(r=>addRow(r));
+  _draft.rows.forEach(r=>addRow(r, null, null, true));
   syncDocHead();
   styleShipdate();
 }else{
   addRow(); addRow();
 }
-reindex();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
+reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
 renderRecords();
 
 // ===================== 云端同步 =====================
