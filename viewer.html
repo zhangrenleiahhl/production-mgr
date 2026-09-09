@@ -443,7 +443,11 @@ function bindDetail(d, rec){
     };
     inp.onchange = commit;
     inp.onkeydown = (e) => {
-      if (e.key === "Enter"){ e.preventDefault(); inp.blur(); }
+      if (e.key === "Enter"){
+        e.preventDefault();          // 阻止默认提交
+        commit();                    // 直接提交（不能只靠 blur，preventDefault 会拦掉 change 事件）
+        inp.blur();
+      }
       if (e.key === "Escape"){ inp.value = inp.dataset.old; inp.blur(); }
     };
     // 撤回该客户吨位的手动修改
