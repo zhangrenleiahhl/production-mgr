@@ -158,7 +158,7 @@
   .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 发货点 */
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:6%;}    /* 交货单 */
   .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:4%;}    /* 箱数 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 备注 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 时效要求 */
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱子重量T */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:4%;}  /* 吨位(自动,只读) */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
@@ -334,7 +334,7 @@
       </div>
       <table class="tbl" id="tbl" data-page-node-id="69L5K4pUkgTxWzvReeDoNT">
         <thead data-page-node-id="mUgEodBiUM6NWcXtxTrp9l"><tr data-page-node-id="F75NOOsiWiw1BCWU5JQN0G">
-          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">客户</th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">备注</th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱子重量T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">吨位(t)</th>
+          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">客户</th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求</th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱子重量T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">吨位(t)</th>
           <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
         </tr></thead>
         <tbody id="tbody" data-page-node-id="WDX43OMxgTtv8EJnrsbiTR"></tbody>
@@ -880,14 +880,14 @@ function onCellKey(e){
   navigateFrom(e.target, ci, dCol, dRow);
 }
 function unmergeRow(tr){
-  // 取消单行的客户/备注/客户吨位合并
+  // 取消单行的客户/时效要求/客户吨位合并
   ["col-customer","col-remark","col-subton"].forEach(cls=>{
     const c=tr.querySelector("."+cls);
     if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
   });
 }
 function mergeCustomerCells(){
-  // 按「客户+发货日期」分组，合并客户、备注、客户吨位合计三列；基于全部数据行合并
+  // 按「客户+发货日期」分组，合并客户、时效要求、客户吨位合计三列；基于全部数据行合并
   const allRows=[...$("tbody").children].filter(isDataRow);
   // 1) 清除所有数据行的合并状态
   allRows.forEach(tr=>{
@@ -939,7 +939,7 @@ function mergeCustomerCells(){
     if(len>1){
       const c=first.querySelector(".col-customer"), r=first.querySelector(".col-remark");
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
-      // 备注列与客户列保持同组合并：同一客户+同一日期下自动合并，只显示首行备注
+      // 时效要求列与客户列保持同组合并：同一客户+同一日期下自动合并，只显示首行时效要求
       if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
       if(subCell) subCell.rowSpan=len;
       for(let k=i+1;k<j;k++){
@@ -1442,7 +1442,7 @@ function renderRecords(){
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","备注"];
+  const head=["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求"];
   const lines=[head.join(",")];
   rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
