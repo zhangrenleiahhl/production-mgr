@@ -152,20 +152,22 @@
   .hide-col input,.hide-col textarea{display:none!important;}
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
-  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:8%;}    /* 发货日期 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 送达方（原客户） */
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:7%;}    /* 发货数量 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 发货点 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:6%;}    /* 发货日期 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:14%;}   /* 送达方（原客户） */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:22%;}   /* 型号 */
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:5%;}    /* 发货数量 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:4%;}    /* 发货点 */
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:6%;}    /* 交货单 */
-  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:4%;}    /* 箱数 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 时效要求 */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:3%;}    /* 箱数 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:7%;}  /* 时效要求 */
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱重T */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 产品重量T(可改可恢复) */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
   .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:3%;}  /* 物流（按客户自动带出） */
-  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:6%;}  /* 物料编码 */
-  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:3%!important;}  /* 操作 */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:5%;}  /* 物料编码 */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4%!important;}  /* 操作 */
+  /* 交货单：按字数自动换行（textarea 自适应高度） */
+  .tbl tbody td:nth-child(8) textarea{white-space:pre-wrap;word-break:break-word;min-height:26px;}
   .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:9px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;}  /* 物料编码：小字体单行显示 */
   .tbl tbody td:nth-child(14) input{font-size:10px;font-weight:600;}  /* 物流：窄列小字体单行 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
@@ -246,7 +248,7 @@
   input.subton-in:focus{outline:none;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.12);}
   input.subton-in.edited{border-color:#f59e0b;background:#fffbeb;color:#b45309;}
   @media print{ input.subton-in{border:none;background:transparent;padding:0;} }
-  .col-act{width:3%;white-space:nowrap;padding:3px 2px;}
+  .col-act{width:4%;white-space:nowrap;padding:3px 2px;}
   /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
   .tbl tbody tr.row-overdue > td{ color:var(--red); }
   .tbl tbody tr.row-overdue > td input,
@@ -349,6 +351,7 @@
     </div>
     <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0;" data-page-node-id="D6I3XsoXc8hQ7XMePwtuCS"></span>
     <div class="field field-inline" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
+    <div class="field field-inline" title="发布后会自动拼到单号后面；填一次浏览器会记住"><label>计划员</label><input type="text" id="planner" placeholder="你的名字" maxlength="20" autocomplete="off"></div>
     <input type="hidden" id="planNo" data-page-node-id="Lj6AeJWsNI5r3zz49b248l">
   </div>
 
@@ -1393,9 +1396,9 @@ function recalc(){
     const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
     if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";
     const box=parseFloat(boxInput.value)||0;
-    // 箱子重量T：按 箱数×0.07 自动；被「删除」的行保持空，不自动带出
+    // 箱子重量T：按 箱数×0.07 自动；保留 2 位小数；被「删除」的行保持空，不自动带出
     const cwtInput=tr.querySelector('[data-f="cwt"]');
-    const autoCwt=box>0?(box*0.07).toFixed(1):"";
+    const autoCwt=box>0?(box*0.07).toFixed(2):"";
     if(cwtInput.dataset.deleted==="1") cwtInput.value="";   // 已删除：保持空
     else cwtInput.value=autoCwt;                            // 未删除：按箱数自动计算
     const cwtShow=tr.querySelector(".cwt-val");
@@ -1663,11 +1666,12 @@ function publish(){
   const sumSubTon = rows.reduce((a,r)=>a+_n(r.ton)+_n(r.cwt), 0);
   // 存档文本数据
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
+    planner:($("planner")?.value||"").trim(),
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:sumQty||"0",sumTon:sumTon.toFixed(1),sumBox:sumBox>0?sumBox:"/",
     sumSubTon:sumSubTon>0?sumSubTon.toFixed(1):"0.0",custTon,fingerprint:fp};
   saveRec(rec); renderRecords();
-  toast("已发布 ✓（单号 "+rec.no+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
+  toast("已发布 ✓（单号 "+(rec.planner?rec.no+" · "+rec.planner:rec.no)+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
   // 发布后自动取消勾选，避免顺手重复发布同一批
   [...$("tbody").querySelectorAll(".row-check")].forEach(b=>b.checked=false);
   updateCheckAll();
@@ -1927,6 +1931,10 @@ if(_draft && (_draft.rows.length || _draft.date)){
   addRow(); addRow();
 }
 reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
+// 计划员：填一次浏览器就记住，下次开页面自动回填
+const PLANNER_KEY="shipping_planner_v1";
+try{ $("planner").value=localStorage.getItem(PLANNER_KEY)||""; }catch(e){}
+$("planner").addEventListener("input", ()=>{ try{ localStorage.setItem(PLANNER_KEY, $("planner").value.trim()); }catch(e){} });
 renderRecords();
 
 // ===================== 云端同步 =====================
