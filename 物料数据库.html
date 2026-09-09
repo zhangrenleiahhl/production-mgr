@@ -71,6 +71,19 @@
   .pwd-err{color:var(--red);font-size:12px;min-height:16px;margin:0 0 6px;}
   .pwd-actions{display:flex;justify-content:flex-end;gap:8px;}
   .empty{color:var(--muted);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
+  /* 搜索框 */
+  .db-search{display:flex;align-items:center;gap:8px;margin:10px 0 8px;}
+  .db-search input{flex:1;max-width:340px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;outline:none;background:#fafbfc;color:#1f2733;}
+  .db-search input:focus{border-color:var(--brand);background:#fff;}
+  .db-search .hint{color:var(--muted);font-size:12px;}
+  /* 分页控件 */
+  .db-pager{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  .db-pager .pg-info{color:var(--muted);font-size:12px;margin-right:6px;}
+  .db-pager button{border:1px solid var(--line);background:#fff;color:var(--txt);border-radius:8px;padding:6px 11px;font-size:13px;cursor:pointer;}
+  .db-pager button:hover:not(:disabled){border-color:var(--brand);color:var(--brand);background:var(--soft);}
+  .db-pager button:disabled{opacity:.45;cursor:not-allowed;}
+  .db-pager button.cur{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700;}
+  .db-pager select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--txt);cursor:pointer;}
   .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
   .toast.show{opacity:1;}
 </style>
@@ -100,6 +113,11 @@
       <button class="btn btn-ghost" id="lockDbBtn" style="margin-left:auto;">🔓 解锁修改</button>
       <button class="btn btn-line" id="pwdDbBtn">🔑 修改密码</button>
     </div>
+    <div class="db-search">
+      <input type="text" id="dbSearch" placeholder="🔍 搜索型号 / 物料编码 / 客户 / 物流 / 备注">
+      <span class="hint" id="dbSearchInfo"></span>
+      <button class="btn btn-line" id="dbSearchClear" style="display:none;">清空搜索</button>
+    </div>
     <div class="doc doc-scroll">
       <table class="tbl" id="dbTbl">
         <thead><tr>
@@ -109,6 +127,7 @@
       </table>
       <div class="empty" id="dbEmpty">数据库为空。可点「导入表格」或「载入示例」开始。</div>
     </div>
+    <div class="db-pager" id="dbPager"></div>
   </div>
 </div>
 
@@ -138,12 +157,51 @@ const freshRows = new Set();
 function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }catch(e){ return []; } }
 function saveDB(){ try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); }catch(e){ toast("数据库保存失败：存储空间不足"); } if(window.CloudSync) CloudSync.autoPush(LS_DB); }
 
+// ===== 分页 / 搜索 / 防抖（3000+ 条时不卡的关键）=====
+let dbPage=1, dbPageSize=100, dbKeyword="", saveTimer=null, searchTimer=null;
+
+// 防抖保存：避免每敲一个字就「全量序列化 + 写 localStorage + 推云端」
+function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>{ saveDB(); }, 600); }
+
+// 返回「筛选后的原始 DB 索引」数组；编辑时按原索引写回，保证分页/搜索下数据不错位
+function getViewIdx(){
+  const kw=dbKeyword.trim().toLowerCase();
+  const idx=[];
+  if(!kw){ for(let i=0;i<DB.length;i++) idx.push(i); return idx; }
+  for(let i=0;i<DB.length;i++){
+    const r=DB[i];
+    const hay=((r.code||"")+" "+(r.model||"")+" "+(r.customer||"")+" "+(r.logistics||"")+" "+(r.remark||"")).toLowerCase();
+    if(hay.indexOf(kw)!==-1) idx.push(i);
+  }
+  return idx;
+}
+const totalPages = n => Math.max(1, Math.ceil(n/dbPageSize));
+
 function renderDB(){
   const tb=$("dbBody"); tb.innerHTML="";
-  $("dbEmpty").style.display = DB.length ? "none" : "block";
-  $("dbCount").textContent = DB.length + " 条";
-  DB.forEach((r,i)=>{
+  const viewIdx=getViewIdx();
+  const total=viewIdx.length;
+  const pages=totalPages(total);
+  if(dbPage>pages) dbPage=pages;
+  if(dbPage<1) dbPage=1;
+
+  const emptyEl=$("dbEmpty");
+  if(!DB.length){ emptyEl.style.display="block"; emptyEl.textContent="数据库为空。可点「导入表格」或「载入示例」开始。"; }
+  else if(!total){ emptyEl.style.display="block"; emptyEl.textContent="没有匹配「"+dbKeyword+"」的物料，换个关键词试试。"; }
+  else emptyEl.style.display="none";
+
+  $("dbCount").textContent = DB.length+" 条"+(dbKeyword?"（筛选出 "+total+" 条）":"");
+  const info=$("dbSearchInfo");
+  if(info) info.textContent = dbKeyword ? ("匹配 "+total+" 条") : (DB.length>dbPageSize ? ("共 "+DB.length+" 条，每页显示 "+dbPageSize+" 条") : "");
+  const clr=$("dbSearchClear"); if(clr) clr.style.display = dbKeyword?"":"none";
+
+  const start=(dbPage-1)*dbPageSize;
+  const pageIdx=viewIdx.slice(start, start+dbPageSize);
+  const frag=document.createDocumentFragment();
+  pageIdx.forEach(oi=>{
+    const r=DB[oi];
     const tr=document.createElement("tr");
+    tr.dataset.i=oi;
     const fresh=freshRows.has(r);
     const locked=!dbUnlocked && !fresh;
     const ro=locked?"readonly":"";
@@ -156,19 +214,62 @@ function renderDB(){
       <td><input data-k="logistics" ${ro} value="${esc(r.logistics)}" placeholder="物流"></td>
       <td><input data-k="remark" ${ro} value="${esc(r.remark)}" placeholder="备注"></td>
       <td class="col-act">${locked?'<span class="lock-ico" title="已有物料：修改/删除需先解锁">🔒</span>':'<button class="del-x" title="删除">✕</button>'}</td>`;
-    tr.querySelectorAll("input").forEach(inp=>{
-      if(locked){ inp.title="已有物料：修改需先点「解锁修改」"; inp.addEventListener("focus",()=>{ inp.blur(); toast("修改已有物料需先点「🔓 解锁修改」输入密码"); }); return; }
-      inp.addEventListener("input",()=>{ r[inp.dataset.k]=inp.value.trim(); saveDB(); });
-    });
-    if(!locked) tr.querySelector(".del-x").onclick=()=>{ DB.splice(i,1); freshRows.delete(r); saveDB(); renderDB(); };
-    tb.appendChild(tr);
+    frag.appendChild(tr);
   });
+  tb.appendChild(frag);            // 一次性插入，避免逐行 append 反复重排
+  renderPager(total, pages);
   syncLockUI();
 }
+
+function renderPager(total, pages){
+  const box=$("dbPager"); if(!box) return;
+  if(!DB.length){ box.innerHTML=""; return; }
+  const btn=(label,pg,dis,cur)=>`<button ${dis?"disabled":""} ${cur?'class="cur"':""} data-pg="${pg}">${label}</button>`;
+  let h=`<span class="pg-info">共 ${total} 条 · 第 ${dbPage}/${pages} 页</span>`;
+  h+=btn("首页",1,dbPage===1,false);
+  h+=btn("上一页",dbPage-1,dbPage===1,false);
+  let s=Math.max(1,dbPage-2), e=Math.min(pages,s+4); s=Math.max(1,e-4);
+  for(let p=s;p<=e;p++) h+=btn(String(p),p,false,p===dbPage);
+  h+=btn("下一页",dbPage+1,dbPage===pages,false);
+  h+=btn("末页",pages,dbPage===pages,false);
+  h+=`<select id="dbPageSize">`;
+  [50,100,200,500].forEach(n=>{ h+=`<option value="${n}" ${n===dbPageSize?"selected":""}>每页 ${n} 条</option>`; });
+  h+=`</select>`;
+  box.innerHTML=h;
+  box.querySelectorAll("[data-pg]").forEach(b=>{ b.onclick=()=>{ dbPage=+b.dataset.pg; renderDB(); }; });
+  const sel=$("dbPageSize");
+  if(sel) sel.onchange=()=>{ dbPageSize=+sel.value; dbPage=1; renderDB(); };
+}
+
+// 事件委托：整个表格只绑 3 个监听器，替代「每格一个」（3000 条时从 21000 个降到 3 个）
+(function bindDbDelegates(){
+  const tb=$("dbBody"); if(!tb||tb._delegated) return; tb._delegated=true;
+  tb.addEventListener("input", e=>{
+    const inp=e.target; if(!inp||inp.tagName!=="INPUT") return;
+    const tr=inp.closest("tr"); if(!tr) return;
+    const oi=+tr.dataset.i, k=inp.dataset.k;
+    if(!k||!DB[oi]) return;
+    DB[oi][k]=inp.value.trim();
+    scheduleSave();                                   // 防抖，不再每敲一下就写盘+推云端
+  });
+  tb.addEventListener("click", e=>{
+    const b=e.target.closest(".del-x"); if(!b) return;
+    const tr=b.closest("tr"); if(!tr) return;
+    const oi=+tr.dataset.i, r=DB[oi];
+    if(r){ DB.splice(oi,1); freshRows.delete(r); saveDB(); renderDB(); }
+  });
+  tb.addEventListener("focusin", e=>{
+    const inp=e.target; if(!inp||inp.tagName!=="INPUT") return;
+    if(inp.hasAttribute("readonly")){ inp.blur(); toast("修改已有物料需先点「🔓 解锁修改」输入密码"); }
+  });
+})();
+
 function addDbRow(){
   const rec={code:"",model:"",unit:"",perbox:"",customer:"",logistics:"",remark:""};
   freshRows.add(rec);
   DB.unshift(rec);
+  dbKeyword=""; const s=$("dbSearch"); if(s) s.value="";   // 清空搜索并回第 1 页，保证能看到新增的空行
+  dbPage=1;
   saveDB(); renderDB();
   const first=$("dbBody").querySelector('input[data-k="model"]'); if(first) first.focus();
 }
@@ -243,22 +344,61 @@ function mergeDbRows(rows){
     });
   });
   if(!prep.length){ toast("未解析到有效数据"); return; }
+  // 用索引匹配，避免「导入 M 条 × 全表 N 条」的 O(M×N) 全表扫描（3000 条时会卡好几十秒）
+  const ix=dbIndexMap();
   if(!dbUnlocked){
-    const touches=prep.some(x=>findDbIdx(x)>=0);
+    const touches=prep.some(x=>findDbIdxFast(x, ix)>=0);
     if(touches){ toast("本次内容会改动已有物料，请先「🔓 解锁修改」再导入"); return; }
   }
   let added=0, updated=0;
   prep.forEach(x=>{
-    const idx=findDbIdx(x);
+    const idx=findDbIdxFast(x, ix);
     if(idx>=0){
       const t=DB[idx];
       t.code=x.code||t.code; t.model=x.model||t.model;
       if(x.unit) t.unit=x.unit; if(x.perbox) t.perbox=x.perbox;
       if(x.customer) t.customer=x.customer; if(x.logistics) t.logistics=x.logistics; if(x.remark) t.remark=x.remark;
       updated++;
-    }else{ DB.push({code:x.code,model:x.model,unit:x.unit,perbox:x.perbox,customer:x.customer,logistics:x.logistics,remark:x.remark}); added++; }
+    }else{
+      DB.push({code:x.code,model:x.model,unit:x.unit,perbox:x.perbox,customer:x.customer,logistics:x.logistics,remark:x.remark});
+      const ni=DB.length-1;                                   // 新记录也要进索引，避免同类物料重复插入
+      const m=x.model?String(x.model).trim():"";
+      const c=x.code?String(x.code).trim():"";
+      if(m){ if(!ix.byModel.has(m)) ix.byModel.set(m,[]); ix.byModel.get(m).push(ni); }
+      if(c){ if(!ix.byCode.has(c)) ix.byCode.set(c,[]); ix.byCode.get(c).push(ni); }
+      added++;
+    }
   });
+  dbPage=1;                                                   // 导入后回到第 1 页
   saveDB(); renderDB(); toast(`导入完成：新增 ${added} 条，更新 ${updated} 条`);
+}
+// 按型号 / 编码建倒排索引：型号→行号数组、编码→行号数组
+function dbIndexMap(){
+  const byModel=new Map(), byCode=new Map();
+  for(let i=0;i<DB.length;i++){
+    const d=DB[i]||{};
+    const m=d.model?String(d.model).trim():"";
+    const c=d.code?String(d.code).trim():"";
+    if(m){ if(!byModel.has(m)) byModel.set(m,[]); byModel.get(m).push(i); }
+    if(c){ if(!byCode.has(c)) byCode.set(c,[]); byCode.get(c).push(i); }
+  }
+  return {byModel,byCode};
+}
+// 只在索引命中的候选行里做精确校验，命中不了就当新物料
+function findDbIdxFast(x, ix){
+  const m=x.model?String(x.model).trim():"";
+  const c=x.code?String(x.code).trim():"";
+  const cand=[];
+  if(m && ix.byModel.has(m)) cand.push(...ix.byModel.get(m));
+  if(c && ix.byCode.has(c)) cand.push(...ix.byCode.get(c));
+  if(!cand.length) return -1;
+  for(const i of new Set(cand)){
+    const d=DB[i]; if(!d) continue;
+    const byModel = x.model && d.model && d.model===x.model && (!x.code || !d.code || d.code===x.code);
+    const byCode  = x.code && d.code && d.code===x.code && (!x.model || !d.model || d.model===x.model);
+    if((byModel || byCode) && (!x.customer || !d.customer || d.customer===x.customer)) return i;
+  }
+  return -1;
 }
 function parseCSV(text){
   if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
@@ -317,8 +457,15 @@ $("sampleDb").onclick=()=>mergeDbRows([
   {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",remark:""},
   {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",remark:"易碎"}
 ]);
-$("clearDb").onclick=()=>{ if(!DB.length) return; if(!dbUnlocked){ openUnlock(); return; } if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; freshRows.clear(); saveDB(); renderDB(); };
+$("clearDb").onclick=()=>{ if(!DB.length) return; if(!dbUnlocked){ openUnlock(); return; } if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; freshRows.clear(); dbPage=1; dbKeyword=""; const _s=$("dbSearch"); if(_s) _s.value=""; saveDB(); renderDB(); };
 $("addDbRow").onclick=addDbRow;
+// 搜索：防抖 250ms，输入停顿后才重新筛选（避免每敲一个字就重渲染整页）
+$("dbSearch").addEventListener("input", e=>{
+  const v=e.target.value;
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{ dbKeyword=v; dbPage=1; renderDB(); }, 250);
+});
+$("dbSearchClear").onclick=()=>{ $("dbSearch").value=""; dbKeyword=""; dbPage=1; renderDB(); };
 $("lockDbBtn").onclick=()=>{ if(dbUnlocked){ dbUnlocked=false; syncLockUI(); renderDB(); toast("已锁定：修改已有物料需重新输入密码"); } else openUnlock(); };
 $("pwdDbBtn").onclick=openChangePwd;
 $("pwdCancel").onclick=closeModal;
