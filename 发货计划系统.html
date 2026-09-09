@@ -991,15 +991,6 @@ function mergeCustomerCells(){
       bindSubTonReset(subCell.querySelector(".subton-reset"), cust, date, autoTxt);
       subCell.classList.add("merged-cell");
     }
-    // 同步本组合并列的时效要求：以组内首个非空值为准，写回每行的 input（避免隐藏行校验/发布时读到空值）
-    const remarkInputs = [];
-    for(let k=i;k<j;k++){
-      const inp = rows[k].querySelector('[data-f="remark"]');
-      if(inp) remarkInputs.push(inp);
-    }
-    const canonicalRemark = remarkInputs.map(inp => (inp.value||"").trim()).find(v => v && v !== "/") || "";
-    remarkInputs.forEach(inp => { if((inp.value||"").trim() !== canonicalRemark) inp.value = canonicalRemark; });
-
     if(len>1){
       const c=first.querySelector(".col-customer"), r=first.querySelector(".col-remark");
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
