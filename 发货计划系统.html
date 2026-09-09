@@ -1473,11 +1473,17 @@ function publish(){
   const _ct=loadCT(), _raw=v=>String(v==null||v==="/"?"":v).trim(), custTon={};
   rows.forEach(r=>{ const k=ctKeyOf(_raw(r.customer),_raw(r.shipdate)); if(_ct[k]!==undefined) custTon[k]=_ct[k]; });
 
+  // 汇总：只统计本次实际发布的行（不再用全局合计，避免把未勾选/其它计划也算进来）
+  const _n = v => parseFloat(String(v==null||v==="/"?"":v).trim())||0;
+  const sumQty = rows.reduce((a,r)=>a+_n(r.qty), 0);
+  const sumTon = rows.reduce((a,r)=>a+_n(r.ton), 0);
+  const sumBox = rows.reduce((a,r)=>a+_n(r.box), 0);
+  const sumSubTon = rows.reduce((a,r)=>a+_n(r.ton)+_n(r.cwt), 0);
   // 存档文本数据
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
-    sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent,
-    sumSubTon:$("sumSubTon").textContent,custTon,fingerprint:fp};
+    sumQty:sumQty||"0",sumTon:sumTon.toFixed(1),sumBox:sumBox>0?sumBox:"/",
+    sumSubTon:sumSubTon>0?sumSubTon.toFixed(1):"0.0",custTon,fingerprint:fp};
   saveRec(rec); renderRecords();
   toast("已发布 ✓（单号 "+rec.no+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
   // 发布后自动取消勾选，避免顺手重复发布同一批
