@@ -163,8 +163,8 @@
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 产品重量T(可改可恢复) */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
   .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:6%;}  /* 物流（按客户自动带出） */
-  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:7%;}  /* 物料编码 */
-  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:8%!important;}  /* 操作 */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:3.5%;}  /* 物料编码 */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4%!important;}  /* 操作 */
   .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.25;}  /* 物料编码：数字允许换行显示完整 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
@@ -244,7 +244,7 @@
   input.subton-in:focus{outline:none;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.12);}
   input.subton-in.edited{border-color:#f59e0b;background:#fffbeb;color:#b45309;}
   @media print{ input.subton-in{border:none;background:transparent;padding:0;} }
-  .col-act{width:8%;white-space:nowrap;padding:3px 2px;}
+  .col-act{width:4%;white-space:nowrap;padding:3px 2px;}
   /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
   .tbl tbody tr.row-overdue > td{ color:var(--red); }
   .tbl tbody tr.row-overdue > td input,
@@ -266,14 +266,11 @@
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;font-size:13px;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
-  .del-x,.ins-x,.mv-u,.mv-d{border:1px solid var(--purple-l);cursor:pointer;line-height:1;width:15px;height:18px;border-radius:3px;transition:.15s;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:10px;background:#fff;margin:0;flex-shrink:0;}
+  .del-x,.ins-x{border:1px solid var(--purple-l);cursor:pointer;line-height:1;width:15px;height:18px;border-radius:3px;transition:.15s;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:10px;background:#fff;margin:0;flex-shrink:0;}
   .del-x{color:#dc2626;}
   .del-x:hover{background:#fee2e2;border-color:#dc2626;}
   .ins-x{color:var(--purple-d);}
   .ins-x:hover{background:var(--purple-bg);border-color:var(--purple);}
-  .mv-u,.mv-d{color:#4b5563;font-size:11px;}
-  .mv-u:hover,.mv-d:hover{background:#f3f4f6;border-color:var(--purple-l);color:#1f2328;}
-  .mv-u:disabled,.mv-d:disabled{color:#d1d5db;cursor:not-allowed;background:#f9fafb;border-color:var(--purple-l);transform:none;}
   .tbl tfoot td{font-weight:700;color:#1f2328;background:#f6f8fa;border:1px solid #000;border-top:1px solid #000;padding:2px 3px;font-size:14px;}
   .num-cell{font-variant-numeric:tabular-nums;}
   .doc-foot{padding:10px 20px;font-size:13px;color:#4b5563;background:#fff;border-top:1px solid #000;letter-spacing:0;}
@@ -628,10 +625,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-subton num-cell"></td>
     <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}" placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
     <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" readonly title="物料编码（只读，选中后可复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
-    <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
-  const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
-  mvUp.onclick=()=>moveRow(tr, -1);
-  mvDown.onclick=()=>moveRow(tr, 1);
+    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   tr.querySelector(".del-x").onclick=()=>delRow(tr);
   const rc=tr.querySelector(".row-check");
   if(rc) rc.addEventListener("change", updateCheckAll);
@@ -839,18 +833,6 @@ function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客
     return da<db?-1:(da>db?1:0);
   });
   rows.forEach(r=>tb.appendChild(r));
-}
-function moveRow(tr, dir){
-  const tb=$("tbody");
-  const rows=[...tb.children].filter(isDataRow);
-  const idx=rows.indexOf(tr);
-  if(idx<0) return;
-  const targetIdx=idx+dir;
-  if(targetIdx<0 || targetIdx>=rows.length) return;
-  const target=rows[targetIdx];
-  if(dir<0) tb.insertBefore(tr, target);
-  else tb.insertBefore(tr, target.nextSibling);
-  reindex(); recalc(); saveDraft(); updateCheckAll();
 }
 function fitTextarea(ta){
   if(!ta) return;
