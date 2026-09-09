@@ -123,6 +123,7 @@
   .doc-head .meta{display:none;}
   .tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;background:#fff;}
   .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:7px 4px;text-align:center;border:1px solid #000;white-space:nowrap;position:sticky;top:0;z-index:2;font-size:15px;letter-spacing:0;}
+  .tbl thead th .req{color:#ffd24d;font-weight:800;margin-left:1px;}  /* 必填项红/黄星号标记 */
   .tbl td{padding:0;border:1px solid #000;text-align:center;vertical-align:middle;min-height:26px;}
   .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:14px;font-weight:600;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:26px;line-height:1.35;}
   .tbl td input{padding:2px 3px;height:26px;text-align:center;}
@@ -152,7 +153,7 @@
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:8%;}    /* 发货日期 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 客户 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:8%;}    /* 送达方（原客户） */
   .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:7%;}    /* 发货数量 */
   .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 发货点 */
@@ -331,7 +332,7 @@
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
       <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
-      <input type="text" id="filterCustomer" placeholder="客户" data-page-node-id="jbSCvvxDbHmcbD7N5N9GFI">
+      <input type="text" id="filterCustomer" placeholder="送达方" data-page-node-id="jbSCvvxDbHmcbD7N5N9GFI">
       <input type="text" id="filterModel" placeholder="型号" data-page-node-id="tVuG2Lo6cGeZIsLBXJSXar">
       <input type="date" id="filterDate" placeholder="日期" data-page-node-id="N3cxJ8rtBlzVBLvIYNA4BK">
       <button class="btn btn-ghost" id="clearFilter" title="清除筛选" data-page-node-id="xJ3haUAQWyfxJiLPfMooCp">清除</button>
@@ -350,8 +351,8 @@
       </div>
       <table class="tbl" id="tbl" data-page-node-id="69L5K4pUkgTxWzvReeDoNT">
         <thead data-page-node-id="mUgEodBiUM6NWcXtxTrp9l"><tr data-page-node-id="F75NOOsiWiw1BCWU5JQN0G">
-          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">客户</th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求</th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱重T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">产品重量T</th>
-          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位</th><th data-page-node-id="thLogistics">物流</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
+          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">送达方<span class="req">*</span></th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求<span class="req">*</span></th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱重T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">产品重量T</th>
+          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位<span class="req">*</span></th><th data-page-node-id="thLogistics">物流</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
         </tr></thead>
         <tbody id="tbody" data-page-node-id="WDX43OMxgTtv8EJnrsbiTR"></tbody>
         <tfoot data-page-node-id="uq5gLKyGotjTgoSk8SzjZi"><tr data-page-node-id="dF3IOFpw1aCa9MWbYud3M0">
@@ -1387,6 +1388,52 @@ function publish(){
   // 发布前必须勾选确认：仅发布已勾选的行
   const checkedTrs=allTrs.filter(tr=>tr.querySelector(".row-check")?.checked);
   if(!checkedTrs.length){ toast("发布前请先勾选要发布的行（✓ 列）"); return; }
+
+  // ===== 必填项校验：送达方 / 时效要求 / 客户吨位 必须填写才能发布 =====
+  // 计算各「送达方|发货日期」组的客户吨位（与表格显示一致：手动覆盖值优先，否则自动合计 产品重量T+箱重T）
+  const subMap={};
+  const visRows=[...$("tbody").children].filter(isDataRow)
+    .filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
+  (function(){
+    let i=0;
+    while(i<visRows.length){
+      const first=visRows[i];
+      const cust=(first.querySelector('[data-f="customer"]')?.value||"").trim();
+      const date=(first.querySelector('[data-f="shipdate"]')?.value||"").trim();
+      if(!cust){ i++; continue; }
+      const key=cust+"|"+date;
+      let j=i+1;
+      while(j<visRows.length){
+        const c2=(visRows[j].querySelector('[data-f="customer"]')?.value||"").trim();
+        const d2=(visRows[j].querySelector('[data-f="shipdate"]')?.value||"").trim();
+        if(c2+"|"+d2!==key) break;
+        j++;
+      }
+      let subTon=0;
+      for(let k=i;k<j;k++){ subTon+=(parseFloat(visRows[k].querySelector('[data-f="ton"]')?.value)||0)+(parseFloat(visRows[k].querySelector('[data-f="cwt"]')?.value)||0); }
+      const ov=ctOverride(cust,date);
+      subMap[key]=ov!==null?ov:subTon;
+      i=j;
+    }
+  })();
+  const miss=[];
+  checkedTrs.forEach((tr,idx)=>{
+    const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
+    const remark=(tr.querySelector('[data-f="remark"]')?.value||"").trim();
+    const shipdate=(tr.querySelector('[data-f="shipdate"]')?.value||"").trim();
+    const msgs=[];
+    if(!cust||cust==="/") msgs.push("送达方未填");
+    if(!remark||remark==="/") msgs.push("时效要求未填");
+    const st=subMap[cust+"|"+shipdate];
+    if(st===undefined||st===""||isNaN(parseFloat(st))||parseFloat(st)<=0) msgs.push("客户吨位为空或为0（请填产品重量T/箱重T，或手动填客户吨位）");
+    if(msgs.length) miss.push("第"+(idx+1)+"行【"+(cust||"空")+"】："+msgs.join("、"));
+  });
+  if(miss.length){
+    toast("⚠ 必填项未填，无法发布");
+    alert("以下必填项未填写，请补全后再发布：\n\n"+miss.slice(0,15).join("\n")+(miss.length>15?"\n…等共 "+miss.length+" 处":""));
+    return;
+  }
+
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
   const rows=checkedTrs.map(tr=>({
     shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
@@ -1499,7 +1546,7 @@ function renderRecords(){
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["发货日期","客户","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","物流"];
+  const head=["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","物流"];
   const lines=[head.join(",")];
   rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark,r.logistics].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
