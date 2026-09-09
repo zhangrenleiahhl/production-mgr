@@ -273,6 +273,26 @@ function card(rec){
   const rows = rec.rows || [];
   const tonByCust = {};
   rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  // 汇总以本计划实际行为准（兼容旧记录里 sumXxx 存成全局合计的情况）
+  const _n = v => parseFloat(String(v==null||v==="/"?"":v).trim())||0;
+  const sumQty = rows.reduce((a,r)=>a+_n(r.qty), 0);
+  const sumTon = rows.reduce((a,r)=>a+_n(r.ton), 0);
+  const sumBox = rows.reduce((a,r)=>a+_n(r.box), 0);
+  // 客户吨位按「客户+发货日期」去重，有手动覆盖值优先用覆盖值
+  const tonByKey = {};
+  rows.forEach(r => { const key = custTonKey(r); tonByKey[key] = (tonByKey[key] || 0) + _n(r.ton) + _n(r.cwt); });
+  const seen = new Set();
+  let sumSubTon = 0;
+  rows.forEach(r => {
+    const key = custTonKey(r);
+    if (seen.has(key)) return;
+    seen.add(key);
+    sumSubTon += custTonVal(rec, r, tonByKey);
+  });
+  const fmtQty = sumQty || "0";
+  const fmtTon = sumTon.toFixed(1);
+  const fmtBox = sumBox > 0 ? sumBox : "/";
+  const fmtSubTon = sumSubTon > 0 ? sumSubTon.toFixed(1) : "0.0";
 
   div.innerHTML = `
     <div class="rec-head">
@@ -283,10 +303,10 @@ function card(rec){
           <span class="cat-tag ${cat}">${CAT_LABEL[cat]}</span>
           <span>发货日期 ${pad(recShipDate(rec))}</span>
           <span>${rows.length} 行</span>
-          <span>数量 ${pad(rec.sumQty)}</span>
-          <span>吨位 ${pad(rec.sumTon)}</span>
-          ${rec.sumSubTon ? `<span data-subton>客户吨位 ${pad(rec.sumSubTon)}</span>` : `<span data-subton style="display:none">客户吨位 ${pad(rec.sumSubTon)}</span>`}
-          <span>箱数 ${pad(rec.sumBox)}</span>
+          <span>数量 ${pad(fmtQty)}</span>
+          <span>吨位 ${pad(fmtTon)}</span>
+          ${fmtSubTon ? `<span data-subton>客户吨位 ${pad(fmtSubTon)}</span>` : `<span data-subton style="display:none">客户吨位 ${pad(fmtSubTon)}</span>`}
+          <span>箱数 ${pad(fmtBox)}</span>
           <span class="muted">发布 ${pad(rec.publishedAt)}</span>
         </div>
       </div>
