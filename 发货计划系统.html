@@ -1728,8 +1728,8 @@ function onTablePaste(e){
   if(maxCols<2) return;   // 单列文本放行，正常粘贴到当前单元格
   const startCell=e.target.closest("[data-f]");
   const startField=startCell?startCell.dataset.f:null;
-  // 型号 / 物料编码 专用批量粘贴：从焦点行往下铺到现有行（数据多于现有行时自动补行）
-  if((startField==="model"||startField==="code") && maxCols<=2){
+  // 型号 / 发货数量 专用批量粘贴：从焦点行往下铺到现有行（数据多于现有行时自动补行）
+  if((startField==="model"||startField==="qty"||startField==="code") && maxCols<=2){
     e.preventDefault();
     const tr0=e.target.closest("tr");
     const allRows=[...$("tbody").children].filter(isDataRow);
@@ -1742,13 +1742,16 @@ function onTablePaste(e){
       const setC=(f,v)=>{ const el=tr.querySelector(`[data-f="${f}"]`); if(el) el.value=(v==null?"":String(v)); };
       if(startField==="model"){
         setC("model", vals[0]);
-        if(vals[1]!==undefined) setC("code", vals[1]);   // 第二列视为物料编码
+        if(vals[1]!==undefined) setC("qty", vals[1]);   // 第二列视为发货数量
+      } else if(startField==="qty"){
+        setC("qty", vals[0]);
+        if(vals[1]!==undefined) setC("model", vals[1]); // 第二列视为型号
       } else {
         setC("code", vals[0]);   // 物料编码列仅填第一列
       }
     });
     reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraft();
-    toast("已粘贴 "+lines.length+" 行（型号/物料编码）");
+    toast("已粘贴 "+lines.length+" 行（型号/发货数量）");
     return;
   }
   // 其余多列：整行按 PASTE_MAP 新增
