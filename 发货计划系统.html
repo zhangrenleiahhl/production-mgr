@@ -203,6 +203,8 @@
   .col-customer.merged-cell textarea:focus,.col-remark.merged-cell textarea:focus{background:#fff;border-color:var(--purple);}
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#f6f8fa;text-align:center;}
+  /* 「恢复吨位」按钮：存在手填值时高亮 */
+  #resetSubTon.has-edited{border-color:#f59e0b!important;color:#b45309!important;background:#fffbeb!important;font-weight:700;}
   /* 客户吨位：可手动修改 */
   input.subton-in{
     width:100%;min-width:48px;box-sizing:border-box;text-align:center;
@@ -292,6 +294,7 @@
   <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
     <button class="btn btn-line" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
     <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶ 撤回</button>
+    <button class="btn btn-line" id="resetSubTon" title="把手填过的「客户吨位」全部恢复为系统自动合计" data-page-node-id="btnResetSubTon">↺ 恢复吨位</button>
     <button class="btn btn-line" id="exportCsv" title="导出 CSV" data-page-node-id="4PBzpCOGreix4MCOkOwvsS">CSV</button>
     <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
     <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">折叠当天前</button>
@@ -1206,7 +1209,18 @@ function recalc(){
     sst+=parseFloat(inp?inp.value:td.textContent)||0;
   });
   $("sumSubTon").textContent=subCells?(sst>0?sst.toFixed(1):"0.0"):"/";
+  updateResetSubTonBtn();
   updateKPIs();
+}
+// 「恢复吨位」按钮状态：有手填过的客户吨位时高亮，并显示具体处数
+function updateResetSubTonBtn(){
+  const btn=$("resetSubTon"); if(!btn) return;
+  let n=0; try{ n=Object.keys(loadCT()||{}).length; }catch(e){}
+  btn.classList.toggle("has-edited", n>0);
+  btn.textContent = n>0 ? `↺ 恢复吨位(${n})` : "↺ 恢复吨位";
+  btn.title = n>0
+    ? `当前有 ${n} 处手填的客户吨位，点击全部恢复为系统自动合计`
+    : "把手填过的「客户吨位」恢复为系统自动合计（当前没有手填值）";
 }
 function collectRows(){
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
@@ -1421,6 +1435,23 @@ function updateFoldedButton(){
 }
 $("toggleFolded").onclick=()=>{ setShowFolded(!getShowFolded()); updateFoldedButton(); foldByDate(); fitTextareas(); };
 $("togglePast").onclick=()=>{ togglePast(); };
+// 「恢复吨位」：把手填过的客户吨位全部恢复为系统自动合计
+$("resetSubTon").onclick=()=>{
+  const o=loadCT();
+  const keys=Object.keys(o||{});
+  if(!keys.length){ toast("当前没有手填过的客户吨位"); return; }
+  const names=keys.map(k=>k.split("|")[0]||"（空）");
+  const preview=names.slice(0,8).join("、")+(names.length>8?` 等 ${names.length} 处`:"");
+  if(!confirm(
+    `确认把以下客户的「客户吨位」恢复为系统自动合计？\n\n${preview}\n\n`+
+    `共 ${keys.length} 处手填值将被清除，此操作不可撤销。\n`+
+    `（只想恢复某一个？在该客户吨位格子上点右键即可单独撤回）`
+  )) return;
+  try{ localStorage.setItem(CT_KEY, JSON.stringify({})); }catch(e){}   // 存空对象而非删除，这样云端也能被同步清空
+  try{ if(window.CloudSync) CloudSync.autoPush(CT_KEY); }catch(e){}
+  recalc();
+  toast(`已恢复 ${keys.length} 处客户吨位为自动合计 ✓（已发布的单需重新发布才会同步）`);
+};
 
 // ===================== 数据备份（本地文件 ↔ 网站互导） =====================
 function exportBackup(){
