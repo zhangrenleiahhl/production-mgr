@@ -159,8 +159,8 @@
   .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:6%;}    /* 交货单 */
   .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:4%;}    /* 箱数 */
   .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 时效要求 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱子重量T */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:4%;}  /* 吨位(自动,只读) */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱重T */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 产品重量T(可改可恢复) */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
   .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:6%;}  /* 物流（按客户自动带出） */
   .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:7%;}  /* 物料编码 */
@@ -174,9 +174,26 @@
   .tbl td.col-shippt select:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.15);}
   .tbl td.col-shippt select option{text-align:center;}
   .tbl td.col-ton{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;}
-  .tbl td.col-ton .ton-val{display:block;font-size:13px;font-weight:600;color:#1f2328;line-height:26px;text-align:center;}
-  .tbl td.col-ton .ton-val:empty::before{content:"/";color:#c0c4cc;font-weight:400;}
-  .tbl td.col-ton input[type="hidden"]{display:none;}
+  /* 产品重量T：可编辑输入框 + 恢复按钮（仅手填过时显示，样式同客户吨位/箱重T） */
+  .tbl td.col-ton .ton-wrap{display:flex;align-items:center;gap:2px;justify-content:center;}
+  .tbl td.col-ton .ton-wrap .ton-in{flex:1 1 auto;min-width:0;}
+  .tbl td.col-ton .ton-reset{
+    flex:0 0 auto;margin-left:2px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;
+    cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;
+    display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;
+  }
+  .tbl td.col-ton .ton-reset:hover{background:#f59e0b;color:#fff;border-color:#d97706;}
+  @media print{ .tbl td.col-ton .ton-reset{display:none;} }
+  input.ton-in{
+    width:100%;min-width:28px;box-sizing:border-box;text-align:center;
+    font:inherit;font-weight:600;color:#1f2328;
+    border:1px solid transparent;background:transparent;
+    padding:2px 3px;border-radius:4px;
+  }
+  input.ton-in:hover{border-color:#c4b5fd;background:#fff;}
+  input.ton-in:focus{outline:none;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.12);}
+  input.ton-in.edited{border-color:#f59e0b;background:#fffbeb;color:#b45309;}
+  @media print{ input.ton-in{border:none;background:transparent;padding:0;} }
   .tbl td.col-cwt{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:center;}
   .tbl td.col-cwt .cwt-val{font-weight:600;color:#1f2328;font-size:13px;}
   .tbl td.col-cwt .cwt-toggle{margin-left:4px;border:1px solid #cfd4da;background:#fff;color:#6b7280;cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;}
@@ -335,7 +352,7 @@
       </div>
       <table class="tbl" id="tbl" data-page-node-id="69L5K4pUkgTxWzvReeDoNT">
         <thead data-page-node-id="mUgEodBiUM6NWcXtxTrp9l"><tr data-page-node-id="F75NOOsiWiw1BCWU5JQN0G">
-          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">客户</th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求</th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱子重量T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">吨位(t)</th>
+          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">客户</th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求</th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱重T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">产品重量T</th>
           <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位</th><th data-page-node-id="thLogistics">物流</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
         </tr></thead>
         <tbody id="tbody" data-page-node-id="WDX43OMxgTtv8EJnrsbiTR"></tbody>
@@ -583,8 +600,11 @@ function addRow(data={}, refRow=null, beforeRow=null){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
   const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
-  // 吨位不可编辑：默认按 数量×单重÷1000 自动；无单重的历史行保留原 ton 值兜底
-  const tonVal=(_q>0&&_u>0)?(_q*_u/1000).toFixed(1):((data.ton&&data.ton!=='/'&&String(data.ton).trim()!=='')?data.ton:'');
+  // 产品重量T：默认按 数量×单重÷1000 自动；可手填（tonManual 标记）；无单重的历史行保留原 ton 值兜底
+  const tonManual=(data.tonManual===true||data.tonManual==="1");
+  const _tonFb=(data.ton&&data.ton!=='/'&&String(data.ton).trim()!=='')?String(data.ton).trim():'';
+  const tonAuto=(_q>0&&_u>0)?(_q*_u/1000).toFixed(1):'';
+  const tonVal=tonManual?_tonFb:(tonAuto||_tonFb);
   // 箱子重量T：始终按 箱数×0.07 自动；仅支持「删除 / 恢复」，不允许手填数字
   const _boxNum=(boxVal!==''&&!isNaN(parseFloat(boxVal)))?parseFloat(boxVal):0;
   const cwtDeleted=!!data.cwtDeleted;
@@ -604,7 +624,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-cwt num-cell"><span class="cwt-val">${esc(cwtVal)}</span><input type="hidden" data-f="cwt" value="${esc(cwtVal)}"${cwtDeleted?' data-deleted="1"':''}>${cwtBtnHtml}</td>
-    <td class="col-ton num-cell"><span class="ton-val">${esc(tonVal)}</span><input type="hidden" data-f="ton" value="${esc(tonVal)}"></td>
+    <td class="col-ton num-cell"><div class="ton-wrap"><input type="text" class="ton-in${tonManual?' edited':''}" data-f="ton" inputmode="decimal" value="${esc(tonVal)}"${tonManual?' data-manual="1"':''} title="产品重量T：默认按 数量×单重÷1000 自动，可直接修改"><button type="button" class="ton-reset" title="恢复自动带出">↺</button></div></td>
     <td class="col-subton num-cell"></td>
     <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}" placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
     <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" readonly title="物料编码（只读，选中后可复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
@@ -643,7 +663,13 @@ function addRow(data={}, refRow=null, beforeRow=null){
         else inp.dataset.manual="1";
         saveDraft();
       });
-    } else if(inp.dataset.f!=="ton"){   // 吨位只读自动，不响应输入
+    } else if(inp.dataset.f==="ton"){   // 产品重量T：手填则标记，清空则恢复自动带出
+      inp.addEventListener("input", ()=>{
+        if(inp.value.trim()==="") delete inp.dataset.manual;
+        else inp.dataset.manual="1";
+        recalc(); saveDraft();
+      });
+    } else if(inp.dataset.f!=="ton"){   // 其余可编辑列
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
   });
@@ -661,6 +687,17 @@ function addRow(data={}, refRow=null, beforeRow=null){
       if(cwtInp.dataset.deleted==="1") delete cwtInp.dataset.deleted;   // 恢复 → 重新按箱数自动计算
       else { cwtInp.dataset.deleted="1"; cwtInp.value=""; }             // 删除 → 立即清空，不再自动带出
       recalc(); mergeCustomerCells(); saveDraft();
+    });
+  }
+  // 产品重量T：↺ 恢复按钮 → 清除手填，重新按 数量×单重÷1000 自动带出
+  const tonReset=tr.querySelector(".ton-reset");
+  if(tonReset){
+    tonReset.addEventListener("mousedown", e=>e.preventDefault());   // 避免输入框失焦
+    tonReset.addEventListener("click", ()=>{
+      const tonInp=tr.querySelector('[data-f="ton"]');
+      if(tonInp) delete tonInp.dataset.manual;
+      recalc(); mergeCustomerCells(); saveDraft();
+      toast("已恢复产品重量T自动带出 ✓");
     });
   }
   tr.querySelectorAll("textarea").forEach(ta=>{
@@ -827,7 +864,7 @@ function fitTextarea(ta){
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
-const EDITABLE_COLS=[3,4,5,6,7,8,9,10,14,15];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱子重量T/吨位/客户吨位/操作；14=物流 15=物料编码）
+const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12,14,15];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱重T/客户吨位/操作；12=产品重量T 14=物流 15=物料编码）
 function collectRowData(tr){
   const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
   const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
@@ -1227,12 +1264,16 @@ function recalc(){
     const qty=qtyNum(tr.querySelector('[data-f="qty"]').value);
     const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
     const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
-    // 吨位不可编辑：单重存在时按 数量×单重/1000 自动计算；无单重则保留既有值（兜底，不误清历史数据）
+    // 产品重量T：未手填时按 数量×单重/1000 自动计算；手填(manual)保留；无单重保留既有值兜底
     const tonInput=tr.querySelector('[data-f="ton"]');
     const autoTon=(qty>0&&unit>0)?qty*unit/1000:0;
-    if(unit>0) tonInput.value=autoTon>0?autoTon.toFixed(1):"";
-    const tonShow=tr.querySelector(".ton-val");
-    if(tonShow) tonShow.textContent=tonInput.value||"";
+    if(tonInput.dataset.manual!=="1") tonInput.value=autoTon>0?autoTon.toFixed(1):"";
+    const tonReset=tr.querySelector(".ton-reset");
+    if(tonReset){
+      const m=tonInput.dataset.manual==="1";
+      tonReset.style.display=m?"":"none";
+      tonInput.classList.toggle("edited", m);
+    }
     const ton=parseFloat(tonInput.value)||0;
     // 箱数：自动带出（数量÷每箱件数），除非手填
     const boxInput=tr.querySelector('[data-f="box"]');
@@ -1475,7 +1516,7 @@ function renderRecords(){
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求","物流"];
+  const head=["发货日期","客户","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","物流"];
   const lines=[head.join(",")];
   rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark,r.logistics].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
