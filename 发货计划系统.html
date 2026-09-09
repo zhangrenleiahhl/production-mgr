@@ -162,9 +162,10 @@
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱子重量T */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:4%;}  /* 吨位(自动,只读) */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
-  .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:7%;}  /* 物料编码 */
-  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:8%!important;}  /* 操作 */
-  .tbl tbody td:nth-child(14) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.25;}  /* 物料编码：数字允许换行显示完整 */
+  .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:6%;}  /* 物流（按客户自动带出） */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:7%;}  /* 物料编码 */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:8%!important;}  /* 操作 */
+  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.25;}  /* 物料编码：数字允许换行显示完整 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
   /* 发货点：单选下拉 */
@@ -335,7 +336,7 @@
       <table class="tbl" id="tbl" data-page-node-id="69L5K4pUkgTxWzvReeDoNT">
         <thead data-page-node-id="mUgEodBiUM6NWcXtxTrp9l"><tr data-page-node-id="F75NOOsiWiw1BCWU5JQN0G">
           <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">客户</th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求</th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱子重量T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">吨位(t)</th>
-          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
+          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位</th><th data-page-node-id="thLogistics">物流</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
         </tr></thead>
         <tbody id="tbody" data-page-node-id="WDX43OMxgTtv8EJnrsbiTR"></tbody>
         <tfoot data-page-node-id="uq5gLKyGotjTgoSk8SzjZi"><tr data-page-node-id="dF3IOFpw1aCa9MWbYud3M0">
@@ -348,6 +349,7 @@
           <td class="num-cell" id="sumCwt" data-page-node-id="a4BpVJ8FndT3UiojF2K1qL">/</td>
           <td class="num-cell" id="sumTon" data-page-node-id="aCGbECX2QCIzaTF8OZ96TY">0.0</td>
           <td class="num-cell" id="sumSubTon" data-page-node-id="oHPZjgLLC5hheJ46sZ23qK">/</td>
+          <td data-page-node-id="tdLogisticsFoot"></td>
           <td data-page-node-id="5wWyKK46NDKWWK8CeJ8bNh"></td>
           <td data-page-node-id="X7djEs9vZnlSSikbepJyxi"></td>
         </tr></tfoot>
@@ -405,14 +407,14 @@ function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1
 function snapRow(row){
   if(!row) return null;
   const g=f=>(row.querySelector(`[data-f="${f}"]`)?.value)||"";
-  return { row, model:g("model"), code:g("code"), unit:g("unit"), perbox:g("perbox"), customer:g("customer"), remark:g("remark") };
+  return { row, model:g("model"), code:g("code"), unit:g("unit"), perbox:g("perbox"), customer:g("customer"), remark:g("remark"), logistics:g("logistics") };
 }
 function restoreRowSnap(){
   if(!acSnap || !acSnap.row || !acSnap.row.parentNode) return false;
   const row=acSnap.row;
   const set=(f,v)=>{ const el=row.querySelector(`[data-f="${f}"]`); if(el) el.value=v||""; };
   set("model",acSnap.model); set("code",acSnap.code); set("unit",acSnap.unit);
-  set("perbox",acSnap.perbox); set("customer",acSnap.customer); set("remark",acSnap.remark);
+  set("perbox",acSnap.perbox); set("customer",acSnap.customer); set("remark",acSnap.remark); set("logistics",acSnap.logistics);
   recalc(); mergeCustomerCells(); fitTextareas();
   acSnap=null;
   return true;
@@ -499,6 +501,7 @@ function applyDb(row, r){
   // 避免物料库中客户与型号相同（常见导入错位）时把型号填进客户列
   row.querySelector('[data-f="customer"]').value=(r.customer && r.customer!==r.model)?r.customer:"";
   row.querySelector('[data-f="remark"]').value=r.remark||"";
+  row.querySelector('[data-f="logistics"]').value=r.logistics||"";   // 物流随客户带出
   recalc(); mergeCustomerCells(); fitTextareas(); toast("已带出："+(r.model||r.code));
   // 一个型号发多个客户：带出后提示用户确认/修改
   const cs=customersForModel(r.model, r.code);
@@ -509,6 +512,26 @@ function applyDb(row, r){
   }
   // 自动聚焦到发货数量，避免光标跳到客户列
   setTimeout(()=>{ const q=row.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
+}
+// 按「客户」从物料库反查物流（取第一个匹配且有物流值的记录）
+function logisticsForCustomer(customer){
+  const c=(customer||"").trim();
+  if(!c || !DB.length) return "";
+  for(const r of DB){
+    if((r.customer||"").trim()===c){
+      const lg=(r.logistics||"").trim();
+      if(lg) return lg;
+    }
+  }
+  return "";
+}
+// 客户列变更时自动带出物流（手填过则不覆盖）
+function autoFillLogistics(tr){
+  const lgInp=tr.querySelector('[data-f="logistics"]');
+  if(!lgInp || lgInp.dataset.manual==="1") return;
+  const cust=tr.querySelector('[data-f="customer"]')?.value||"";
+  const lg=logisticsForCustomer(cust);
+  if(lg) lgInp.value=lg;
 }
 function autoResizeTa(ta){ fitTextarea(ta); }
 function moveAC(d){
@@ -536,7 +559,7 @@ document.addEventListener("keydown", e=>{
   if(lastApplied && lastApplied.row && el && el.closest && el.closest("tr")===lastApplied.row){
     const s=lastApplied.snap;
     const set=(f,v)=>{ const x=lastApplied.row.querySelector(`[data-f="${f}"]`); if(x) x.value=v||""; };
-    set("model",s.model); set("code",s.code); set("unit",s.unit); set("perbox",s.perbox); set("customer",s.customer); set("remark",s.remark);
+    set("model",s.model); set("code",s.code); set("unit",s.unit); set("perbox",s.perbox); set("customer",s.customer); set("remark",s.remark); set("logistics",s.logistics);
     lastApplied=null;
     recalc(); mergeCustomerCells(); fitTextareas(); saveDraft();
     toast("已恢复原数据");
@@ -583,6 +606,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     <td class="col-cwt num-cell"><span class="cwt-val">${esc(cwtVal)}</span><input type="hidden" data-f="cwt" value="${esc(cwtVal)}"${cwtDeleted?' data-deleted="1"':''}>${cwtBtnHtml}</td>
     <td class="col-ton num-cell"><span class="ton-val">${esc(tonVal)}</span><input type="hidden" data-f="ton" value="${esc(tonVal)}"></td>
     <td class="col-subton num-cell"></td>
+    <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}" placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
     <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" readonly title="物料编码（只读，选中后可复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
     <td class="col-act"><button class="mv-u" title="上移">↑</button><button class="mv-d" title="下移">↓</button><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   const mvUp=tr.querySelector(".mv-u"), mvDown=tr.querySelector(".mv-d");
@@ -613,6 +637,12 @@ function addRow(data={}, refRow=null, beforeRow=null){
         if(r!==null&&r!=="") inp.value=r;
         recalc(); saveDraft();
       });
+    } else if(inp.dataset.f==="logistics"){
+      inp.addEventListener("input", ()=>{   // 物流：手填则标记，清空则恢复自动带出
+        if(inp.value.trim()==="") delete inp.dataset.manual;
+        else inp.dataset.manual="1";
+        saveDraft();
+      });
     } else if(inp.dataset.f!=="ton"){   // 吨位只读自动，不响应输入
       inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
     }
@@ -638,7 +668,7 @@ function addRow(data={}, refRow=null, beforeRow=null){
     trackOrig(ta);
     ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); saveDraft(); });
   });
-  tr.querySelector('[data-f="customer"]').addEventListener("input", mergeCustomerCells);
+  tr.querySelector('[data-f="customer"]').addEventListener("input", ()=>{ mergeCustomerCells(); autoFillLogistics(tr); });
   tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
   ["model"].forEach(k=>{
     const inp=tr.querySelector(`[data-f="${k}"]`);
@@ -797,7 +827,7 @@ function fitTextarea(ta){
 function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
-const EDITABLE_COLS=[3,4,5,6,7,8,9,10,14];   // 可编辑列的 nth-child 列号（跳过 #/✓/吨位/箱子重量T/客户吨位/操作；箱子重量T 仅按钮删除/恢复）
+const EDITABLE_COLS=[3,4,5,6,7,8,9,10,14,15];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱子重量T/吨位/客户吨位/操作；14=物流 15=物料编码）
 function collectRowData(tr){
   const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
   const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
@@ -1272,7 +1302,8 @@ function collectRows(){
     box:f(tr.querySelector('[data-f="box"]').value),
     cwt:f(tr.querySelector('[data-f="cwt"]').value),
     delivery:f(tr.querySelector('[data-f="delivery"]').value),
-    remark:f(tr.querySelector('[data-f="remark"]').value)
+    remark:f(tr.querySelector('[data-f="remark"]').value),
+    logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
   }));
 }
 function syncDocHead(){
@@ -1300,7 +1331,8 @@ function saveDraft(){
         delivery:tr.querySelector('[data-f="delivery"]').value,
         box:boxI.value, boxManual:(boxI.dataset.manual==="1"),
         cwt:tr.querySelector('[data-f="cwt"]').value, cwtDeleted:(tr.querySelector('[data-f="cwt"]').dataset.deleted==="1"),
-        remark:tr.querySelector('[data-f="remark"]').value
+        remark:tr.querySelector('[data-f="remark"]').value,
+        logistics:(tr.querySelector('[data-f="logistics"]')||{}).value||""
       };
     });
     if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
@@ -1344,7 +1376,8 @@ function publish(){
     box:f(tr.querySelector('[data-f="box"]').value),
     cwt:f(tr.querySelector('[data-f="cwt"]').value),
     delivery:f(tr.querySelector('[data-f="delivery"]').value),
-    remark:f(tr.querySelector('[data-f="remark"]').value)
+    remark:f(tr.querySelector('[data-f="remark"]').value),
+    logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
   }));
   if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
   if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
@@ -1442,9 +1475,9 @@ function renderRecords(){
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求"];
+  const head=["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求","物流"];
   const lines=[head.join(",")];
-  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark].map(csvCell).join(",")));
+  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark,r.logistics].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
 }
 function exportRowsCsv(rows, name){
