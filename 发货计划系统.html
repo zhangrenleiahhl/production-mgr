@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
+<html lang="zh-CN" data-page-node-id="GZ30c4wJKdjSCvPYoSUQtR">
+<head data-page-node-id="d7JP8DO3NXQ8eoOfL73lO4">
+<meta charset="UTF-8" data-page-node-id="7wbyOSER2C51d8XTbnssqA">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="HKoTCyrOsDYJJS5jftuh1D">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="V48wFwOpnS0yYK2Q22tJur">
+<meta http-equiv="Pragma" content="no-cache" data-page-node-id="0nVfUstoix6vi1vUP1knvo">
+<meta http-equiv="Expires" content="0" data-page-node-id="wk2xJSIUIDB4SDNKMNlfLj">
 <title>发货计划系统</title>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
@@ -203,6 +203,17 @@
   .col-customer.merged-cell textarea:focus,.col-remark.merged-cell textarea:focus{background:#fff;border-color:var(--purple);}
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#f6f8fa;text-align:center;}
+  /* 客户吨位：可手动修改 */
+  input.subton-in{
+    width:100%;min-width:48px;box-sizing:border-box;text-align:center;
+    font:inherit;font-weight:700;color:var(--purple-d);
+    border:1px solid transparent;background:transparent;
+    padding:2px 3px;border-radius:4px;
+  }
+  input.subton-in:hover{border-color:#c4b5fd;background:#fff;}
+  input.subton-in:focus{outline:none;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.12);}
+  input.subton-in.edited{border-color:#f59e0b;background:#fffbeb;color:#b45309;}
+  @media print{ input.subton-in{border:none;background:transparent;padding:0;} }
   .col-act{width:8%;white-space:nowrap;padding:3px 2px;}
   /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
   .tbl tbody tr.row-overdue > td{ color:var(--red); }
@@ -261,86 +272,86 @@
   @media(max-width:600px){.tbl{font-size:12px}.doc-head .t{font-size:16px}.wrap{padding:16px 14px 48px;}}
 </style>
 </head>
-<body>
-<div class="wrap">
-  <div class="page-header">
-    <div class="title-wrap">
-      <h1><span class="dot"></span>发货计划系统</h1>
-      <div class="sub">做计划时只需填<b>型号 + 发货数量</b>，其余信息从「物料数据库」自动带出。</div>
+<body data-page-node-id="4fFYxxpjT3p7fKOAOYlX5n">
+<div class="wrap" data-page-node-id="FidnSL9YObjQpW6utUTEtZ">
+  <div class="page-header" data-page-node-id="2XAP5fMQdvcXR0ZU4ibZgr">
+    <div class="title-wrap" data-page-node-id="tWhGLK4bBFmoh36355WNqg">
+      <h1 data-page-node-id="b6TTOfvKxNvBHWoZrGGOqf"><span class="dot" data-page-node-id="yI9qhrCUbW3A9KFlw5Z43n"></span>发货计划系统</h1>
+      <div class="sub" data-page-node-id="plporT8xXJBt5PHbmuVYBL">做计划时只需填<b data-page-node-id="DEQBUIdYFk5B0NgDaVSf5l">型号 + 发货数量</b>，其余信息从「物料数据库」自动带出。</div>
     </div>
-    <div class="welcome">Hi，欢迎回来 👋<br><strong>今天是 <span id="todayText">-</span></strong></div>
+    <div class="welcome" data-page-node-id="HoIGGyoWb93UIQ6x6tobDD">Hi，欢迎回来 👋<br data-page-node-id="bSada4GMAjl1uWtE9YSUBA"><strong data-page-node-id="cU0PuWFJgolyuValxsmEHr">今天是 <span id="todayText" data-page-node-id="IEDsgPyYPgBMbTO4l6BD6H">-</span></strong></div>
   </div>
 
-  <div class="kpi-grid" id="kpiGrid">
-    <div class="kpi-card"><div class="kpi-icon blue">📋</div><div><div class="kpi-label">明细行数</div><div class="kpi-value" id="kpiRows">0<span class="kpi-unit">行</span></div></div></div>
-    <div class="kpi-card"><div class="kpi-icon violet">📦</div><div><div class="kpi-label">发货数量</div><div class="kpi-value" id="kpiQty">0<span class="kpi-unit">件</span></div></div></div>
-    <div class="kpi-card"><div class="kpi-icon green">⚖️</div><div><div class="kpi-label">总吨位</div><div class="kpi-value" id="kpiTon">0.0<span class="kpi-unit">t</span></div></div></div>
-    <div class="kpi-card"><div class="kpi-icon orange">✓</div><div><div class="kpi-label">待发布</div><div class="kpi-value" id="kpiChecked">0<span class="kpi-unit">行</span></div></div></div>
+  <div class="kpi-grid" id="kpiGrid" data-page-node-id="WveniqAGEU6eEDUhDuDSzC">
+    <div class="kpi-card" data-page-node-id="LgWGSevpmatKuQN272vssm"><div class="kpi-icon blue" data-page-node-id="AFDyO8TvKy3KwLex42CJxP">📋</div><div data-page-node-id="Fx8MCtYAY1SLtfq7ShBjUx"><div class="kpi-label" data-page-node-id="vSinIweQbHoVif4iSsOV2H">明细行数</div><div class="kpi-value" id="kpiRows" data-page-node-id="wA4sFqsIKfCIvdlWpY5x33">0<span class="kpi-unit" data-page-node-id="H6VaBGH83An1Fs3x6aCFpZ">行</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="ChKdpmhbw90qJyxcHxDMnJ"><div class="kpi-icon violet" data-page-node-id="dGhAUgcydfIzp00cOqiMXT">📦</div><div data-page-node-id="aNIMfybl44VlMW0txFTbOk"><div class="kpi-label" data-page-node-id="eoNNB7z8qBXi2d06rAOmDV">发货数量</div><div class="kpi-value" id="kpiQty" data-page-node-id="AaTcqWSjBF0zDnVIGG13xZ">0<span class="kpi-unit" data-page-node-id="MFIaOTpjxMT6kYMj64PDBx">件</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="dFH1p9jIR1imFSYRrgg9eg"><div class="kpi-icon green" data-page-node-id="CB2EoqROpY8Zuw4ts5GBvp">⚖️</div><div data-page-node-id="5LWJA4YTMSG2kq0P5sndtK"><div class="kpi-label" data-page-node-id="zu4GCD4tyT9n0Ie9ABbe1G">总吨位</div><div class="kpi-value" id="kpiTon" data-page-node-id="bwcOOUXxtfXHIZ3dg0Eoc7">0.0<span class="kpi-unit" data-page-node-id="FQYLf6vTgqpAbF1JEvwbcL">t</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="nJJNn0w0sFOceFkgGKLmzb"><div class="kpi-icon orange" data-page-node-id="UeHWXvef4PnyInh431j1DQ">✓</div><div data-page-node-id="A2VgX94wuP5KXtTRTb7xOK"><div class="kpi-label" data-page-node-id="X1N0ZqCUA2Sk32j2B2c3FT">待发布</div><div class="kpi-value" id="kpiChecked" data-page-node-id="leBTEWwcHXhwrmhxae0Yic">0<span class="kpi-unit" data-page-node-id="rKMqVoV2IHaaQPjZB4Ol04">行</span></div></div></div>
   </div>
 
-  <div class="topbar">
-    <button class="btn btn-line" id="addRow" title="添加一行">＋ 添加</button>
-    <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled>↶ 撤回</button>
-    <button class="btn btn-line" id="exportCsv" title="导出 CSV">CSV</button>
-    <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期">折叠</button>
-    <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划">折叠当天前</button>
-    <button class="btn btn-line" id="clearAll" title="清空">清空</button>
-    <button class="btn btn-primary" id="publish" title="发布">发布</button>
-    <button class="btn btn-line" id="exportBackup" title="导出备份">导出</button>
-    <button class="btn btn-line" id="importBackup" title="导入备份">导入</button>
-    <input type="file" id="backupFile" accept="application/json,.json" style="display:none">
-    <div class="filter-group">
-      <span class="filter-label">筛选</span>
-      <input type="text" id="filterCustomer" placeholder="客户">
-      <input type="text" id="filterModel" placeholder="型号">
-      <input type="date" id="filterDate" placeholder="日期">
-      <button class="btn btn-ghost" id="clearFilter" title="清除筛选">清除</button>
-      <span class="hint" id="filterCount"></span>
+  <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
+    <button class="btn btn-line" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
+    <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶ 撤回</button>
+    <button class="btn btn-line" id="exportCsv" title="导出 CSV" data-page-node-id="4PBzpCOGreix4MCOkOwvsS">CSV</button>
+    <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
+    <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">折叠当天前</button>
+    <button class="btn btn-line" id="clearAll" title="清空" data-page-node-id="eNzgRiSfuubxM8vMvgN9Jv">清空</button>
+    <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
+    <button class="btn btn-line" id="exportBackup" title="导出备份" data-page-node-id="x8aMbclVBtBmLdJ10cM3rI">导出</button>
+    <button class="btn btn-line" id="importBackup" title="导入备份" data-page-node-id="axLD6E8QEueFPhfeRThuKN">导入</button>
+    <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
+    <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
+      <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
+      <input type="text" id="filterCustomer" placeholder="客户" data-page-node-id="jbSCvvxDbHmcbD7N5N9GFI">
+      <input type="text" id="filterModel" placeholder="型号" data-page-node-id="tVuG2Lo6cGeZIsLBXJSXar">
+      <input type="date" id="filterDate" placeholder="日期" data-page-node-id="N3cxJ8rtBlzVBLvIYNA4BK">
+      <button class="btn btn-ghost" id="clearFilter" title="清除筛选" data-page-node-id="xJ3haUAQWyfxJiLPfMooCp">清除</button>
+      <span class="hint" id="filterCount" data-page-node-id="foOgEoZ9iuLIiG1J2VPkfT"></span>
     </div>
-    <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0;"></span>
-    <div class="field field-inline"><label class="req">日期</label><input type="date" id="shipDate"></div>
-    <input type="hidden" id="planNo">
+    <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0;" data-page-node-id="D6I3XsoXc8hQ7XMePwtuCS"></span>
+    <div class="field field-inline" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
+    <input type="hidden" id="planNo" data-page-node-id="Lj6AeJWsNI5r3zz49b248l">
   </div>
 
-  <div class="card">
-    <h2>发货明细 <span class="tag" id="rowCount">0 行</span><span id="foldedDates" class="folded-dates"></span></h2>
-    <div class="doc" id="doc">
-      <div class="doc-head">
-        <div class="t" id="docTitle">发货计划</div>
+  <div class="card" data-page-node-id="8lEKJwsQUYOFb6pcml3ZLg">
+    <h2 data-page-node-id="dbuO0FZ4P21qhgqyfFkkMc">发货明细 <span class="tag" id="rowCount" data-page-node-id="JZ6DTAawAuER2FoY9CFgHm">0 行</span><span id="foldedDates" class="folded-dates" data-page-node-id="WcTPMj6nFAHpHmFIIuqAqw"></span></h2>
+    <div class="doc" id="doc" data-page-node-id="q2oCcvrmsWHNCsqcMeMR0G">
+      <div class="doc-head" data-page-node-id="xUeaBODxHoAASjEiOyYtZo">
+        <div class="t" id="docTitle" data-page-node-id="51l0Ug7MqgsRtTsskLRS6R">发货计划</div>
       </div>
-      <table class="tbl" id="tbl">
-        <thead><tr>
-          <th class="col-idx">#</th><th class="col-check"><input type="checkbox" id="checkAll" title="全选 / 取消全选"></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th class="col-shippt">发货点</th><th>交货单</th><th>箱数</th><th>备注</th><th>箱子重量T</th><th>吨位(t)</th>
-          <th>客户吨位</th><th class="col-code">物料编码</th><th class="col-act">操作</th>
+      <table class="tbl" id="tbl" data-page-node-id="69L5K4pUkgTxWzvReeDoNT">
+        <thead data-page-node-id="mUgEodBiUM6NWcXtxTrp9l"><tr data-page-node-id="F75NOOsiWiw1BCWU5JQN0G">
+          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">客户</th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">备注</th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱子重量T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">吨位(t)</th>
+          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
         </tr></thead>
-        <tbody id="tbody"></tbody>
-        <tfoot><tr>
-          <td colspan="5" style="text-align:right">合计</td>
-          <td class="num-cell" id="sumQty">0</td>
-          <td></td>
-          <td></td>
-          <td class="num-cell" id="sumBox">/</td>
-          <td></td>
-          <td class="num-cell" id="sumCwt">/</td>
-          <td class="num-cell" id="sumTon">0.0</td>
-          <td class="num-cell" id="sumSubTon">/</td>
-          <td></td>
-          <td></td>
+        <tbody id="tbody" data-page-node-id="WDX43OMxgTtv8EJnrsbiTR"></tbody>
+        <tfoot data-page-node-id="uq5gLKyGotjTgoSk8SzjZi"><tr data-page-node-id="dF3IOFpw1aCa9MWbYud3M0">
+          <td colspan="5" style="text-align:right" data-page-node-id="o118KKTwRfd9YABLDkuHzc">合计</td>
+          <td class="num-cell" id="sumQty" data-page-node-id="QEkoU342W7oEE0TApXXyhK">0</td>
+          <td data-page-node-id="q5Jtj27QHEZ2p5dCMckiXM"></td>
+          <td data-page-node-id="WrqUujBi8HBDrITJMBe3jF"></td>
+          <td class="num-cell" id="sumBox" data-page-node-id="6XsMoDMT8IOi4Y7cEfAXZL">/</td>
+          <td data-page-node-id="QUbmNrQ5h09PCNFtoeEF35"></td>
+          <td class="num-cell" id="sumCwt" data-page-node-id="a4BpVJ8FndT3UiojF2K1qL">/</td>
+          <td class="num-cell" id="sumTon" data-page-node-id="aCGbECX2QCIzaTF8OZ96TY">0.0</td>
+          <td class="num-cell" id="sumSubTon" data-page-node-id="oHPZjgLLC5hheJ46sZ23qK">/</td>
+          <td data-page-node-id="5wWyKK46NDKWWK8CeJ8bNh"></td>
+          <td data-page-node-id="X7djEs9vZnlSSikbepJyxi"></td>
         </tr></tfoot>
       </table>
-      <div class="doc-foot" id="docFoot">共 0 行 ｜ 发布时间：-</div>
+      <div class="doc-foot" id="docFoot" data-page-node-id="cyWPLDT0uWFXvaOD5iYSrC">共 0 行 ｜ 发布时间：-</div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>发布记录 <span class="tag" id="recCount">0 条</span>
-      <span class="hint">（发布后自动同步到发货员链接，同时存档文本数据）</span></h2>
-    <div class="records" id="records"></div>
-    <div class="empty" id="recEmpty">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
+  <div class="card" data-page-node-id="BV8XiL3IyhT0qaoC07Eb2q">
+    <h2 data-page-node-id="FJhl5XDx5GmPt6aDog2nHa">发布记录 <span class="tag" id="recCount" data-page-node-id="lkfw98ZQMtMF2jeY0fOOqc">0 条</span>
+      <span class="hint" data-page-node-id="gl6Q8P7GVyLip0iWqojslf">（发布后自动同步到发货员链接，同时存档文本数据）</span></h2>
+    <div class="records" id="records" data-page-node-id="PSYP66F5Wp3HLBJ7O0jCYg"></div>
+    <div class="empty" id="recEmpty" data-page-node-id="Rgr8hoUUTet2HFzdexnlr9">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" data-page-node-id="6IWcDiFqPExwMe60DNczp0"></div>
 
 <script>
 const LS_DB = "shipping_db_v1";
@@ -652,6 +663,73 @@ function reindex(){
   renumberVisible();
   $("rowCount").textContent=[...$("tbody").children].filter(isDataRow).length+" 行"; foldByDate();
 }
+// ===================== 客户吨位：手动修改覆盖值 =====================
+// 覆盖值按「客户|发货日期」存，全局生效；发布时打包进 rec.custTon，发货员端自动同步
+const CT_KEY="shipping_custton_v1";
+function loadCT(){ try{ return JSON.parse(localStorage.getItem(CT_KEY))||{}; }catch(e){ return {}; } }
+function saveCT(o){
+  try{ localStorage.setItem(CT_KEY, JSON.stringify(o)); }catch(e){}
+  try{ if(window.CloudSync) CloudSync.autoPush(CT_KEY); }catch(e){}
+}
+function ctKeyOf(cust,date){ return String(cust==null?"":cust).trim()+"|"+String(date==null?"":date).trim(); }
+// 返回手动覆盖值；没改过返回 null
+function ctOverride(cust,date){
+  const o=loadCT(), k=ctKeyOf(cust,date);
+  if(o[k]===undefined||o[k]===null||String(o[k]).trim()==="") return null;
+  const v=parseFloat(o[k]); return isNaN(v)?null:v;
+}
+// 提交一次修改（已在调用处做过校验与确认）
+function commitSubTon(inp){
+  const cust=inp.dataset.cust||"", date=inp.dataset.date||"";
+  const old=inp.dataset.shown||"";
+  const nv=String(inp.value).trim();
+  const o=loadCT(), k=ctKeyOf(cust,date);
+  if(nv==="") delete o[k];               // 清空 = 恢复自动合计
+  else o[k]=parseFloat(nv);
+  saveCT(o);
+  if(typeof recalc==="function") recalc();
+  if(typeof toast==="function") toast(nv===""?"已恢复自动合计 ✓":"客户吨位已修改 ✓");
+}
+// 绑定一个客户吨位输入框的交互：回车确认、Esc 放弃、右键撤回
+function bindSubTonInput(inp){
+  if(inp.dataset.bound==="1") return;
+  inp.dataset.bound="1";
+  inp.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){ e.preventDefault(); inp.blur(); }
+    else if(e.key==="Escape"){ inp.value=inp.dataset.shown||""; inp.blur(); }
+  });
+  inp.addEventListener("change",()=>{
+    const old=inp.dataset.shown||"";
+    let nv=String(inp.value).trim();
+    if(nv===old) return;                                  // 没改，忽略
+    if(nv!=="" && !/^-?\d+(\.\d+)?$/.test(nv)){            // 非法输入
+      alert("客户吨位只能填数字（可带小数点），请重新填写。");
+      inp.value=old; return;
+    }
+    const cust=inp.dataset.cust||"";
+    const newTxt=(nv===""?"（清空，恢复自动合计）":nv);
+    const ok=confirm(
+      "确认修改客户吨位？\n\n"+
+      "客户："+cust+"\n"+
+      "原值："+old+"\n"+
+      "新值："+newTxt+"\n\n"+
+      "说明：该客户同一发货日期的所有行会一起更新，并同步到导出、打印与发货员端。"
+    );
+    if(!ok){ inp.value=old; return; }
+    commitSubTon(inp);
+  });
+  inp.addEventListener("contextmenu",e=>{
+    const cust=inp.dataset.cust||"", date=inp.dataset.date||"";
+    if(ctOverride(cust,date)===null) return;              // 没改过，不拦截右键
+    e.preventDefault();
+    if(confirm("撤回【"+cust+"】的客户吨位修改，恢复为系统自动合计？")){
+      const o=loadCT(); delete o[ctKeyOf(cust,date)]; saveCT(o);
+      if(typeof recalc==="function") recalc();
+      if(typeof toast==="function") toast("已恢复自动合计 ✓");
+    }
+  });
+}
+
 function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
   const tb=$("tbody");
   const rows=[...tb.children].filter(isDataRow);
@@ -809,7 +887,16 @@ function mergeCustomerCells(){
     let subTon=0;
     for(let k=i;k<j;k++){ subTon+=(parseFloat(rows[k].querySelector('[data-f="ton"]')?.value)||0)+(parseFloat(rows[k].querySelector('[data-f="cwt"]')?.value)||0); }
     const subCell=first.querySelector(".col-subton");
-    if(subCell){ subCell.textContent=subTon.toFixed(1); subCell.classList.add("merged-cell"); }
+    if(subCell){
+      // 客户吨位可手动修改：有覆盖值用覆盖值，否则用自动合计
+      const ov=ctOverride(cust,date);
+      const shown=(ov!==null?ov:subTon).toFixed(1);
+      subCell.innerHTML='<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
+        +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
+        +' title="可直接修改，回车确认；右键可撤回改动">';
+      bindSubTonInput(subCell.querySelector(".subton-in"));
+      subCell.classList.add("merged-cell");
+    }
     if(len>1){
       const c=first.querySelector(".col-customer"), r=first.querySelector(".col-remark");
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
@@ -1115,7 +1202,8 @@ function recalc(){
     if(td.style.display==="none") return;
     if(td.closest("tr.date-fold-hidden") || td.closest("tr.filter-hidden")) return;
     subCells++;
-    sst+=parseFloat(td.textContent)||0;
+    const inp=td.querySelector(".subton-in");              // 现在是输入框，读 value 而非 textContent
+    sst+=parseFloat(inp?inp.value:td.textContent)||0;
   });
   $("sumSubTon").textContent=subCells?(sst>0?sst.toFixed(1):"0.0"):"/";
   updateKPIs();
@@ -1211,11 +1299,15 @@ function publish(){
   if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
   if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
 
+  // 把本次发布涉及的「客户吨位」手动修改打包进记录，发货员端自动同步显示
+  const _ct=loadCT(), _raw=v=>String(v==null||v==="/"?"":v).trim(), custTon={};
+  rows.forEach(r=>{ const k=ctKeyOf(_raw(r.customer),_raw(r.shipdate)); if(_ct[k]!==undefined) custTon[k]=_ct[k]; });
+
   // 存档文本数据
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent,
-    sumSubTon:$("sumSubTon").textContent};
+    sumSubTon:$("sumSubTon").textContent,custTon};
   saveRec(rec); renderRecords();
   toast("已发布 ✓（单号 "+rec.no+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
   $("planNo").value=genPlanNo(); syncDocHead();
