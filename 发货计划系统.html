@@ -298,6 +298,14 @@
   .ac-model{font-weight:700;color:#1f2328;}
   .ac-code{color:#2563eb;font-size:12px;}
   .ac-meta{color:#6b7280;font-size:12px;display:block;margin-top:2px;}
+  /* 多送达方选择弹窗 */
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;display:flex;align-items:center;justify-content:center;}
+  .modal-box{background:#fff;border-radius:8px;box-shadow:0 16px 48px rgba(0,0,0,.28);min-width:320px;max-width:90vw;max-height:80vh;overflow:auto;padding:18px 18px 14px;}
+  .modal-title{font-size:15px;font-weight:700;color:#1f2328;margin-bottom:12px;line-height:1.4;}
+  .modal-list{display:flex;flex-direction:column;gap:8px;}
+  .modal-opt{padding:11px 14px;border:1px solid #d0d7de;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:14px;text-align:left;transition:.12s;color:#1f2328;}
+  .modal-opt:hover{background:#dbeafe;border-color:#2563eb;color:#1e3a8a;}
+  .modal-skip{margin-top:10px;font-size:12px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline;padding:4px 0;}
   @media(max-width:600px){.tbl{font-size:12px}.doc-head .t{font-size:16px}.wrap{padding:16px 14px 48px;}}
 </style>
 </head>
@@ -551,6 +559,68 @@ function autoFillLogistics(tr){
   if(lg) lgInp.value=lg;
 }
 function autoResizeTa(ta){ fitTextarea(ta); }
+// 按型号（或物料编码）从物料库反查送达方集合：同型号可能发多个送达方
+function customersForModelExactly(model, code){
+  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
+  const set=[];
+  DB.forEach(r=>{
+    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
+    if((mk && m===mk) || (ck && c===ck)){
+      const cu=(r.customer||"").trim();
+      if(cu && !set.includes(cu)) set.push(cu);
+    }
+  });
+  return set;
+}
+// 多送达方选择弹窗（队列化，避免多行同时弹多个）
+let custModalQueue=[]; let custModalOpen=false;
+function chooseCustomerModal(customers, model, cb){
+  custModalQueue.push({customers, model, cb});
+  if(!custModalOpen) processCustModalQueue();
+}
+function processCustModalQueue(){
+  if(!custModalQueue.length){ custModalOpen=false; return; }
+  custModalOpen=true;
+  const {customers, model, cb}=custModalQueue.shift();
+  const overlay=document.createElement("div"); overlay.className="modal-overlay";
+  const box=document.createElement("div"); box.className="modal-box";
+  const title=document.createElement("div"); title.className="modal-title";
+  title.textContent=`型号「${model}」在物料库中发往 ${customers.length} 个送达方，请选择：`;
+  box.appendChild(title);
+  const list=document.createElement("div"); list.className="modal-list";
+  customers.forEach(cu=>{
+    const b=document.createElement("button"); b.className="modal-opt"; b.textContent=cu;
+    b.onclick=()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); cb(cu); processCustModalQueue(); };
+    list.appendChild(b);
+  });
+  box.appendChild(list);
+  const skip=document.createElement("button"); skip.className="modal-skip"; skip.textContent="跳过（不填送达方）";
+  skip.onclick=()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); processCustModalQueue(); };
+  box.appendChild(skip);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+// 根据当前行的型号自动带出送达方：唯一则直接填入，多个则弹窗让计划员选择
+function autoFillCustomerByModel(tr){
+  const modelInp=tr.querySelector('[data-f="model"]');
+  const custInp=tr.querySelector('[data-f="customer"]');
+  if(!modelInp||!custInp) return;
+  const model=(modelInp.value||"").trim();
+  if(!model) return;
+  const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
+  const custs=customersForModelExactly(model, code);
+  if(!custs.length) return;
+  if(custs.length===1){
+    if(!custInp.value.trim()) custInp.value=custs[0];   // 已有手填值则保留
+    autoFillLogistics(tr);
+    return;
+  }
+  chooseCustomerModal(custs, model, (chosen)=>{
+    custInp.value=chosen;
+    autoFillLogistics(tr);
+    recalc(); mergeCustomerCells(); saveDraft();
+  });
+}
 function moveAC(d){
   if(!acEl) return;
   const items=acEl.querySelectorAll(".ac-item");
@@ -708,6 +778,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     const inp=tr.querySelector(`[data-f="${k}"]`);
     inp.addEventListener("focus", ()=>{ acSnap=snapRow(tr); lastApplied=null; if(DB.length) showAC(inp, tr, false); });   // 聚焦即记录整行快照，供 Esc 恢复；路过聚焦只提示不自动填
     inp.addEventListener("input", ()=>showAC(inp, tr, true));                       // 主动输入：允许 Enter/Tab 填入选中项
+    inp.addEventListener("change", ()=>autoFillCustomerByModel(tr));                 // 失焦时若型号锁定唯一送达方则自动带出；多送达方弹窗
   });
   // 物料编码复制按钮
   const copyBtn=tr.querySelector(".copy-code");
@@ -1751,6 +1822,8 @@ function onTablePaste(e){
       }
     });
     reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraft();
+    // 粘贴的型号若在物料库中能唯一锁定送达方则自动带出；多送达方弹窗让计划员选
+    for(let k=0;k<lines.length;k++){ const tr=allRows[startIdx+k]; if(tr) autoFillCustomerByModel(tr); }
     toast("已粘贴 "+lines.length+" 行（型号/发货数量）");
     return;
   }
