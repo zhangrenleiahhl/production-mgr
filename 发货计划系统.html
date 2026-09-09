@@ -1382,6 +1382,15 @@ function fallbackCopy(text, cb){
   try{ document.execCommand("copy"); cb&&cb(); }catch(e){}
   document.body.removeChild(ta);
 }
+// 内容指纹：把勾选行的关键字段归一化后排序拼接再哈希，用于发布前与已发布记录比对（与行顺序无关）
+function fingerprintRows(rows){
+  const norm = r => [r.shipdate,r.customer,r.code,r.model,r.qty,r.shippt,r.ton,r.box,r.cwt,r.delivery,r.remark,r.logistics]
+    .map(v=>(v==null?"":String(v)).trim()).join("");
+  const parts = rows.map(norm).sort();
+  const s = parts.join("|");
+  let h=0; for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))>>>0; }
+  return h.toString(36);
+}
 function publish(){
   const allTrs=[...$("tbody").children].filter(isDataRow);
   if(!allTrs.length){ toast("请先添加发货明细"); return; }
@@ -1450,6 +1459,13 @@ function publish(){
     remark:f(tr.querySelector('[data-f="remark"]').value),
     logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
   }));
+  // ===== 内容防重：与已发布记录比对，完全相同则提醒确认 =====
+  const fp = fingerprintRows(rows);
+  const dup = loadRec().filter(r=>r.fingerprint && r.fingerprint===fp);
+  if(dup.length){
+    const nos = dup.map(r=>r.no).join("、");
+    if(!confirm("⚠ 这批内容与已发布的计划单（"+nos+"）完全相同。\n\n确定要再次发布吗？\n（如为修改后重发，请先改动内容或换一个单号）")) return;
+  }
   if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
   if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
 
@@ -1461,9 +1477,12 @@ function publish(){
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent,
-    sumSubTon:$("sumSubTon").textContent,custTon};
+    sumSubTon:$("sumSubTon").textContent,custTon,fingerprint:fp};
   saveRec(rec); renderRecords();
   toast("已发布 ✓（单号 "+rec.no+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
+  // 发布后自动取消勾选，避免顺手重复发布同一批
+  [...$("tbody").querySelectorAll(".row-check")].forEach(b=>b.checked=false);
+  updateCheckAll();
   $("planNo").value=genPlanNo(); syncDocHead();
   saveDraft();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
