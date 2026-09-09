@@ -637,6 +637,35 @@ function autoFillCustomerByModel(tr){
     recalc(); mergeCustomerCells(); saveDraft();
   });
 }
+// 按型号/物料编码取物料库中所有候选记录（完全一致匹配）
+function dbRecordsForModel(model, code){
+  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
+  return DB.filter(r=>{
+    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
+    return (mk && m===mk) || (ck && c===ck);
+  });
+}
+// 从物料库带出「物料编码 + 单重 + 每箱件数」：
+// 单重(kg/件) → 产品重量T；每箱件数 → 箱数 → 箱重T；客户吨位 = 产品重量T + 箱重T 由合并逻辑汇总
+function fillDbFieldsForRow(tr){
+  const modelInp=tr.querySelector('[data-f="model"]');
+  const codeInp=tr.querySelector('[data-f="code"]');
+  if(!modelInp) return;
+  const model=(modelInp.value||"").trim();
+  const code=(codeInp?.value||"").trim();
+  if(!model && !code) return;
+  const recs=dbRecordsForModel(model, code);
+  if(!recs.length) return;
+  // 多条候选：优先与当前行送达方一致的，其次本型号已记住的选择，最后首条
+  const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
+  let r=(cust && recs.find(x=>(x.customer||"").trim()===cust))||null;
+  if(!r && model){ const rm=modelCustChoice[model]; if(rm) r=recs.find(x=>(x.customer||"").trim()===rm)||null; }
+  if(!r) r=recs[0];
+  if(codeInp && !(codeInp.value||"").trim()) codeInp.value=r.code||"";   // 物料编码：空才带出，不覆盖已填
+  const setH=(f,v)=>{ const el=tr.querySelector(`[data-f="${f}"]`); if(el) el.value=(v==null?"":String(v)); };
+  setH("unit", r.unit);        // 单重 kg/件
+  setH("perbox", r.perbox);    // 每箱件数
+}
 function moveAC(d){
   if(!acEl) return;
   const items=acEl.querySelectorAll(".ac-item");
@@ -1844,9 +1873,12 @@ function onTablePaste(e){
         setC("code", vals[0]);   // 物料编码列仅填第一列
       }
     });
+    // 先从物料库补齐「物料编码 / 单重 / 每箱件数」，箱数·箱重T·产品重量T·客户吨位 由 recalc 自动算出
+    for(let k=0;k<lines.length;k++){ const tr=allRows[startIdx+k]; if(tr) fillDbFieldsForRow(tr); }
     reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraft();
     // 粘贴的型号若在物料库中能唯一锁定送达方则自动带出；多送达方弹窗让计划员选
     for(let k=0;k<lines.length;k++){ const tr=allRows[startIdx+k]; if(tr) autoFillCustomerByModel(tr); }
+    recalc(); mergeCustomerCells(); saveDraft();   // 送达方填完后再算一次，保证客户吨位按新送达方正确汇总
     toast("已粘贴 "+lines.length+" 行（型号/发货数量）");
     return;
   }
@@ -1854,9 +1886,11 @@ function onTablePaste(e){
   e.preventDefault();
   let baseRow=e.target.closest("tr");
   if(!baseRow || baseRow.closest("#tbody")!==$("tbody")) baseRow=null;
+  const pastedRows=[];
   lines.forEach((line,idx)=>{
     const vals=line.split("\t").map(v=>v.trim());
     const tr=(idx===0 && baseRow) ? baseRow : addRow({}, null, null, true);
+    pastedRows.push(tr);
     PASTE_MAP.forEach((f,i)=>{
       if(i<vals.length && f){
         const el=tr.querySelector(`[data-f="${f}"]`);
@@ -1864,6 +1898,7 @@ function onTablePaste(e){
       }
     });
   });
+  pastedRows.forEach(tr=>fillDbFieldsForRow(tr));   // 同样从物料库补齐单重/每箱件数，自动算箱数·箱重T·产品重量T
   reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraft();
   toast("已粘贴 "+lines.length+" 行");
 }
