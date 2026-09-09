@@ -342,7 +342,7 @@ function detailTable(rec, tonByCust){
       pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
       `<input type="text" class="custton-in${ovd}" value="${val}" data-key="${escAttr(key)}" data-old="${val}" inputmode="decimal">`,
-      pad(r.code)
+      pad(r.logistics), pad(r.code)
     ];
     const tds = cells.map((c, ci) => numCols.includes(ci) ? `<td class="num">${c}</td>` : `<td>${c}</td>`).join("");
     return `<tr>${tds}</tr>`;
@@ -359,7 +359,7 @@ function detailTable(rec, tonByCust){
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
       <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(1)}</td><td class="num">${sumT.toFixed(1)}</td>
-      <td></td><td class="num">${sumB}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td>
+      <td></td><td class="num">${sumB}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td>
     </tr>`;
 
   return `
@@ -373,7 +373,7 @@ function detailTable(rec, tonByCust){
     </div>
     <table class="dt"><thead><tr>
       <th></th><th>发货日期</th><th>客户</th><th>型号</th><th>发货数量</th><th>发货点</th><th>箱子重量T</th><th>吨位(t)</th>
-      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物料编码</th>
+      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物流</th><th>物料编码</th>
     </tr></thead><tbody>${body}</tbody></table>`;
 }
 
@@ -506,7 +506,7 @@ function rowsToTbody(data, numCols){
 // ===================== 导出 =====================
 // rec 可选：传入后「客户吨位」优先取 rec.custTon 里的手动修改值
 function matrix(rows, date, rec){
-  const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求","客户吨位","物料编码"];
+  const head = ["发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求","客户吨位","物流","物料编码"];
   // 先把行数据（不含客户吨位列）按 rec.rows 算 tonByKey，key 为「客户|发货日期」与原始 r.ton/r.cwt 一致
   const tonByKey = {};
   rows.forEach(r => { const key = pad(r.customer) + "|" + pad(r.shipdate); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
@@ -515,7 +515,7 @@ function matrix(rows, date, rec){
     const key = pad(r.customer) + "|" + pad(r.shipdate);
     return [pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
-      custTonVal(rec, r, tonByKey).toFixed(1), pad(r.code)];
+      custTonVal(rec, r, tonByKey).toFixed(1), pad(r.logistics), pad(r.code)];
   });
   return {head, data};
 }
@@ -546,7 +546,7 @@ function downloadOne(rec, fmt){
 
 // 批量导出：把多个单合并成一张表（首个字段为「单号」，方便区分来源）
 function batchMatrix(recs){
-  const head = ["单号","发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求","客户吨位","物料编码"];
+  const head = ["单号","发货日期","客户","型号","发货数量","发货点","箱子重量T","吨位(t)","交货单","箱数","时效要求","客户吨位","物流","物料编码"];
   // 逐单独立计算 tonByKey：不同单的同客户同日期不应互相加总，避免跨单泄漏
   const data = [];
   recs.forEach(rec => {
@@ -556,7 +556,7 @@ function batchMatrix(recs){
     (rec.rows || []).forEach(r => {
       const key = pad(r.customer) + "|" + pad(r.shipdate);
       data.push([pad(rec.no), sd, pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
-        pad(r.delivery), pad(r.box), pad(r.remark), custTonVal(rec, r, tonByKey).toFixed(1), pad(r.code)]);
+        pad(r.delivery), pad(r.box), pad(r.remark), custTonVal(rec, r, tonByKey).toFixed(1), pad(r.logistics), pad(r.code)]);
     });
   });
   return {head, data};
