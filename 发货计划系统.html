@@ -203,11 +203,21 @@
   .col-customer.merged-cell textarea:focus,.col-remark.merged-cell textarea:focus{background:#fff;border-color:var(--purple);}
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#f6f8fa;text-align:center;}
+  /* 「客户吨位」单元格：输入框 + 恢复按钮（仅在手填过时出现，样式同箱子重量T） */
+  .col-subton .subton-wrap{display:flex;align-items:center;gap:2px;justify-content:center;}
+  .col-subton .subton-wrap .subton-in{flex:1 1 auto;min-width:0;}
+  .col-subton .subton-reset{
+    flex:0 0 auto;margin-left:2px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;
+    cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;
+    display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;
+  }
+  .col-subton .subton-reset:hover{background:#f59e0b;color:#fff;border-color:#d97706;}
   /* 「恢复吨位」按钮：存在手填值时高亮 */
   #resetSubTon.has-edited{border-color:#f59e0b!important;color:#b45309!important;background:#fffbeb!important;font-weight:700;}
+  @media print{ .col-subton .subton-reset{display:none;} }
   /* 客户吨位：可手动修改 */
   input.subton-in{
-    width:100%;min-width:48px;box-sizing:border-box;text-align:center;
+    width:100%;min-width:34px;box-sizing:border-box;text-align:center;
     font:inherit;font-weight:700;color:var(--purple-d);
     border:1px solid transparent;background:transparent;
     padding:2px 3px;border-radius:4px;
@@ -294,7 +304,7 @@
   <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
     <button class="btn btn-line" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
     <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶ 撤回</button>
-    <button class="btn btn-line" id="resetSubTon" title="把手填过的「客户吨位」全部恢复为系统自动合计" data-page-node-id="btnResetSubTon">↺ 恢复吨位</button>
+    <button class="btn btn-line" id="resetSubTon" title="一键把手填过的「客户吨位」全部恢复为自动带出（也可点单元格里的 ↺ 单独恢复）" data-page-node-id="btnResetSubTon">↺ 恢复吨位</button>
     <button class="btn btn-line" id="exportCsv" title="导出 CSV" data-page-node-id="4PBzpCOGreix4MCOkOwvsS">CSV</button>
     <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
     <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">折叠当天前</button>
@@ -733,6 +743,26 @@ function bindSubTonInput(inp){
   });
 }
 
+// 「↺ 恢复」小按钮：把手填的客户吨位恢复为系统自动带出的值
+function bindSubTonReset(btn, cust, date, autoTxt){
+  if(!btn) return;
+  // 按下时不要让输入框失焦（否则会先弹「修改确认」框，变成两次弹窗）
+  btn.addEventListener("mousedown", e=>e.preventDefault());
+  btn.addEventListener("click", ()=>{
+    const wrap=btn.closest(".subton-wrap");
+    const inp=wrap && wrap.querySelector(".subton-in");
+    if(inp) inp.value=inp.dataset.shown||"";        // 丢弃未提交的编辑，避免重复确认
+    if(!confirm(
+      "恢复【"+cust+"】的客户吨位为系统自动带出？\n\n"+
+      "当前值："+(inp?inp.dataset.shown:"")+"\n"+
+      "恢复后："+autoTxt
+    )) return;
+    const o=loadCT(); delete o[ctKeyOf(cust,date)]; saveCT(o);
+    if(typeof recalc==="function") recalc();
+    if(typeof toast==="function") toast("已恢复自动带出 ✓");
+  });
+}
+
 function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
   const tb=$("tbody");
   const rows=[...tb.children].filter(isDataRow);
@@ -894,10 +924,16 @@ function mergeCustomerCells(){
       // 客户吨位可手动修改：有覆盖值用覆盖值，否则用自动合计
       const ov=ctOverride(cust,date);
       const shown=(ov!==null?ov:subTon).toFixed(1);
-      subCell.innerHTML='<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
+      const autoTxt=subTon.toFixed(1);
+      subCell.innerHTML='<span class="subton-wrap">'
+        +'<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
         +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
-        +' title="可直接修改，回车确认；右键可撤回改动">';
+        +' title="可直接修改，回车确认">'
+        // 手填过才显示「↺ 恢复」小按钮，位置与样式同「箱子重量T」那一列
+        +(ov!==null?'<button type="button" class="subton-reset" title="恢复自动带出（'+esc(autoTxt)+'）">↺</button>':'')
+        +'</span>';
       bindSubTonInput(subCell.querySelector(".subton-in"));
+      bindSubTonReset(subCell.querySelector(".subton-reset"), cust, date, autoTxt);
       subCell.classList.add("merged-cell");
     }
     if(len>1){
@@ -1445,7 +1481,7 @@ $("resetSubTon").onclick=()=>{
   if(!confirm(
     `确认把以下客户的「客户吨位」恢复为系统自动合计？\n\n${preview}\n\n`+
     `共 ${keys.length} 处手填值将被清除，此操作不可撤销。\n`+
-    `（只想恢复某一个？在该客户吨位格子上点右键即可单独撤回）`
+    `（只想恢复某一个？点该客户吨位格子里的 ↺ 即可单独恢复）`
   )) return;
   try{ localStorage.setItem(CT_KEY, JSON.stringify({})); }catch(e){}   // 存空对象而非删除，这样云端也能被同步清空
   try{ if(window.CloudSync) CloudSync.autoPush(CT_KEY); }catch(e){}
