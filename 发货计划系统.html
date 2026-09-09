@@ -937,7 +937,11 @@ function unmergeRow(tr){
     if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
   });
 }
+let __merging = false;
 function mergeCustomerCells(){
+  if(__merging) return;          // 防止同步 input.value 触发 input 事件导致死循环
+  __merging = true;
+  try {
   // 按「客户+发货日期」分组，合并客户、时效要求、客户吨位合计三列；基于全部数据行合并
   const allRows=[...$("tbody").children].filter(isDataRow);
   // 1) 清除所有数据行的合并状态
@@ -1013,6 +1017,7 @@ function mergeCustomerCells(){
     i=j;
   }
   fitTextareas();
+  } finally { __merging = false; }
 }
 
 const FOLD_STATE_KEY="shipping_fold_dates_v1";
