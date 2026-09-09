@@ -987,6 +987,15 @@ function mergeCustomerCells(){
       bindSubTonReset(subCell.querySelector(".subton-reset"), cust, date, autoTxt);
       subCell.classList.add("merged-cell");
     }
+    // 同步本组合并列的时效要求：以组内首个非空值为准，写回每行的 input（避免隐藏行校验/发布时读到空值）
+    const remarkInputs = [];
+    for(let k=i;k<j;k++){
+      const inp = rows[k].querySelector('[data-f="remark"]');
+      if(inp) remarkInputs.push(inp);
+    }
+    const canonicalRemark = remarkInputs.map(inp => (inp.value||"").trim()).find(v => v && v !== "/") || "";
+    remarkInputs.forEach(inp => { if((inp.value||"").trim() !== canonicalRemark) inp.value = canonicalRemark; });
+
     if(len>1){
       const c=first.querySelector(".col-customer"), r=first.querySelector(".col-remark");
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
@@ -1425,15 +1434,45 @@ function publish(){
       i=j;
     }
   })();
+  // 兼容合并单元格：按「送达方|发货日期」取组内首个非空时效要求作为该组合规值
+  const remarkMap={};
+  (function(){
+    let i=0;
+    while(i<visRows.length){
+      const first=visRows[i];
+      const cust=(first.querySelector('[data-f="customer"]')?.value||"").trim();
+      const date=(first.querySelector('[data-f="shipdate"]')?.value||"").trim();
+      if(!cust){ i++; continue; }
+      const key=cust+"|"+date;
+      let j=i+1;
+      while(j<visRows.length){
+        const c2=(visRows[j].querySelector('[data-f="customer"]')?.value||"").trim();
+        const d2=(visRows[j].querySelector('[data-f="shipdate"]')?.value||"").trim();
+        if(c2+"|"+d2!==key) break;
+        j++;
+      }
+      let remark="";
+      for(let k=i;k<j;k++){
+        const v=(visRows[k].querySelector('[data-f="remark"]')?.value||"").trim();
+        if(v && v!=="/"){ remark=v; break; }
+      }
+      remarkMap[key]=remark;
+      i=j;
+    }
+  })();
+
   const miss=[];
   checkedTrs.forEach((tr,idx)=>{
     const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
-    const remark=(tr.querySelector('[data-f="remark"]')?.value||"").trim();
     const shipdate=(tr.querySelector('[data-f="shipdate"]')?.value||"").trim();
+    const key=cust+"|"+shipdate;
+    // 优先读当前行 input；若为空则取合并组的首个非空值
+    let remark=(tr.querySelector('[data-f="remark"]')?.value||"").trim();
+    if(!remark || remark==="/") remark=remarkMap[key]||"";
     const msgs=[];
     if(!cust||cust==="/") msgs.push("送达方未填");
     if(!remark||remark==="/") msgs.push("时效要求未填");
-    const st=subMap[cust+"|"+shipdate];
+    const st=subMap[key];
     if(st===undefined||st===""||isNaN(parseFloat(st))||parseFloat(st)<=0) msgs.push("客户吨位为空或为0（请填产品重量T/箱重T，或手动填客户吨位）");
     if(msgs.length) miss.push("第"+(idx+1)+"行【"+(cust||"空")+"】："+msgs.join("、"));
   });
@@ -1444,21 +1483,28 @@ function publish(){
   }
 
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
-  const rows=checkedTrs.map(tr=>({
-    shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
-    customer:f(tr.querySelector('[data-f="customer"]').value),
-    code:f(tr.querySelector('[data-f="code"]').value),
-    model:f(tr.querySelector('[data-f="model"]').value),
-    qty:f(tr.querySelector('[data-f="qty"]').value),
-    shippt:f(tr.querySelector('[data-f="shippt"]').value),
-    perbox:f(tr.querySelector('[data-f="perbox"]').value),
-    ton:f(tr.querySelector('[data-f="ton"]').value),
-    box:f(tr.querySelector('[data-f="box"]').value),
-    cwt:f(tr.querySelector('[data-f="cwt"]').value),
-    delivery:f(tr.querySelector('[data-f="delivery"]').value),
-    remark:f(tr.querySelector('[data-f="remark"]').value),
-    logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
-  }));
+  const rows=checkedTrs.map(tr=>{
+    const cust=f(tr.querySelector('[data-f="customer"]').value);
+    const shipdate=f(tr.querySelector('[data-f="shipdate"]').value);
+    const key=(cust==="/"?"":cust)+"|"+(shipdate==="/"?"":shipdate);
+    let remark=f(tr.querySelector('[data-f="remark"]').value);
+    if(remark==="/") remark=remarkMap[key]||"/";
+    return {
+      shipdate,
+      customer:cust,
+      code:f(tr.querySelector('[data-f="code"]').value),
+      model:f(tr.querySelector('[data-f="model"]').value),
+      qty:f(tr.querySelector('[data-f="qty"]').value),
+      shippt:f(tr.querySelector('[data-f="shippt"]').value),
+      perbox:f(tr.querySelector('[data-f="perbox"]').value),
+      ton:f(tr.querySelector('[data-f="ton"]').value),
+      box:f(tr.querySelector('[data-f="box"]').value),
+      cwt:f(tr.querySelector('[data-f="cwt"]').value),
+      delivery:f(tr.querySelector('[data-f="delivery"]').value),
+      remark,
+      logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
+    };
+  });
   // ===== 内容防重：与已发布记录比对，完全相同则提醒确认 =====
   const fp = fingerprintRows(rows);
   const dup = loadRec().filter(r=>r.fingerprint && r.fingerprint===fp);
