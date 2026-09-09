@@ -329,7 +329,7 @@
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
     <button class="btn btn-line" id="exportBackup" title="导出备份" data-page-node-id="x8aMbclVBtBmLdJ10cM3rI">导出</button>
     <button class="btn btn-line" id="importBackup" title="导入备份" data-page-node-id="axLD6E8QEueFPhfeRThuKN">导入</button>
-    <button class="btn btn-line" id="copyModelCode" title="复制所有行的「型号 + 物料编码」（Excel 可粘贴，制表符分隔）">复制型号/物料编码</button>
+    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制型号/发货数量</button>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
       <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
@@ -1388,19 +1388,20 @@ function fallbackCopy(text, cb){
   try{ document.execCommand("copy"); cb&&cb(); }catch(e){}
   document.body.removeChild(ta);
 }
-// 复制所有行的「型号 + 物料编码」（制表符分隔，Excel 可直接粘贴；与批量粘贴格式对称）
+// 复制勾选行的「型号 + 发货数量」（制表符分隔，Excel 可直接粘贴）
 function copyModelCode(){
-  const rows=[...$("tbody").children].filter(isDataRow);
+  const rows=[...$("tbody").children].filter(isDataRow).filter(tr=>tr.querySelector(".row-check")?.checked);
+  if(!rows.length){ toast("请先勾选要复制的行（✓ 列）"); return; }
   const lines=[];
   rows.forEach(tr=>{
     const model=(tr.querySelector('[data-f="model"]')?.value||"").trim();
-    const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
-    if(!model && !code) return;   // 跳过空行
-    lines.push(model+"\t"+code);
+    const qty=(tr.querySelector('[data-f="qty"]')?.value||"").trim();
+    if(!model && !qty) return;   // 跳过空行
+    lines.push(model+"\t"+qty);
   });
-  if(!lines.length){ toast("没有可复制的型号/物料编码"); return; }
+  if(!lines.length){ toast("勾选的行中没有可复制的型号/发货数量"); return; }
   copyToClipboard(lines.join("\n"), null);
-  toast("已复制 "+lines.length+" 行型号/物料编码 ✓");
+  toast("已复制 "+lines.length+" 行型号/发货数量 ✓");
 }
 $("copyModelCode").onclick=copyModelCode;
 // 内容指纹：把勾选行的关键字段归一化后排序拼接再哈希，用于发布前与已发布记录比对（与行顺序无关）
