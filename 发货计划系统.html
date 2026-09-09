@@ -163,9 +163,9 @@
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 产品重量T(可改可恢复) */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
   .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:6%;}  /* 物流（按客户自动带出） */
-  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:3.5%;}  /* 物料编码 */
-  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4%!important;}  /* 操作 */
-  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.25;}  /* 物料编码：数字允许换行显示完整 */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:6%;}  /* 物料编码 */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:3%!important;}  /* 操作 */
+  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:9px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;}  /* 物料编码：小字体单行显示 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
   /* 发货点：单选下拉 */
@@ -244,7 +244,7 @@
   input.subton-in:focus{outline:none;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.12);}
   input.subton-in.edited{border-color:#f59e0b;background:#fffbeb;color:#b45309;}
   @media print{ input.subton-in{border:none;background:transparent;padding:0;} }
-  .col-act{width:4%;white-space:nowrap;padding:3px 2px;}
+  .col-act{width:3%;white-space:nowrap;padding:3px 2px;}
   /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
   .tbl tbody tr.row-overdue > td{ color:var(--red); }
   .tbl tbody tr.row-overdue > td input,
@@ -266,7 +266,7 @@
   input[data-f="qty"]{min-width:0;}
   .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;font-size:13px;}
   .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
-  .del-x,.ins-x{border:1px solid var(--purple-l);cursor:pointer;line-height:1;width:15px;height:18px;border-radius:3px;transition:.15s;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:10px;background:#fff;margin:0;flex-shrink:0;}
+  .del-x,.ins-x{border:1px solid var(--purple-l);cursor:pointer;line-height:1;width:13px;height:16px;border-radius:3px;transition:.15s;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:9px;background:#fff;margin:0;flex-shrink:0;}
   .del-x{color:#dc2626;}
   .del-x:hover{background:#fee2e2;border-color:#dc2626;}
   .ins-x{color:var(--purple-d);}
