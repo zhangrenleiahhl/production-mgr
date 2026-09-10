@@ -339,7 +339,8 @@
     <div class="welcome" data-page-node-id="HoIGGyoWb93UIQ6x6tobDD">Hi，欢迎回来 👋<br data-page-node-id="bSada4GMAjl1uWtE9YSUBA"><strong data-page-node-id="cU0PuWFJgolyuValxsmEHr">今天是 <span id="todayText" data-page-node-id="IEDsgPyYPgBMbTO4l6BD6H">-</span></strong></div>
   </div>
 
-  <div class="kpi-grid" id="kpiGrid" data-page-node-id="WveniqAGEU6eEDUhDuDSzC">
+  <!-- KPI 统计卡片区（明细行数/发货数量/总吨位/待发布）：按要求隐藏，元素保留不影响计算 -->
+  <div class="kpi-grid" id="kpiGrid" style="display:none" data-page-node-id="WveniqAGEU6eEDUhDuDSzC">
     <div class="kpi-card" data-page-node-id="LgWGSevpmatKuQN272vssm"><div class="kpi-icon blue" data-page-node-id="AFDyO8TvKy3KwLex42CJxP">📋</div><div data-page-node-id="Fx8MCtYAY1SLtfq7ShBjUx"><div class="kpi-label" data-page-node-id="vSinIweQbHoVif4iSsOV2H">明细行数</div><div class="kpi-value" id="kpiRows" data-page-node-id="wA4sFqsIKfCIvdlWpY5x33">0<span class="kpi-unit" data-page-node-id="H6VaBGH83An1Fs3x6aCFpZ">行</span></div></div></div>
     <div class="kpi-card" data-page-node-id="ChKdpmhbw90qJyxcHxDMnJ"><div class="kpi-icon violet" data-page-node-id="dGhAUgcydfIzp00cOqiMXT">📦</div><div data-page-node-id="aNIMfybl44VlMW0txFTbOk"><div class="kpi-label" data-page-node-id="eoNNB7z8qBXi2d06rAOmDV">发货数量</div><div class="kpi-value" id="kpiQty" data-page-node-id="AaTcqWSjBF0zDnVIGG13xZ">0<span class="kpi-unit" data-page-node-id="MFIaOTpjxMT6kYMj64PDBx">件</span></div></div></div>
     <div class="kpi-card" data-page-node-id="dFH1p9jIR1imFSYRrgg9eg"><div class="kpi-icon green" data-page-node-id="CB2EoqROpY8Zuw4ts5GBvp">⚖️</div><div data-page-node-id="5LWJA4YTMSG2kq0P5sndtK"><div class="kpi-label" data-page-node-id="zu4GCD4tyT9n0Ie9ABbe1G">总吨位</div><div class="kpi-value" id="kpiTon" data-page-node-id="bwcOOUXxtfXHIZ3dg0Eoc7">0.0<span class="kpi-unit" data-page-node-id="FQYLf6vTgqpAbF1JEvwbcL">t</span></div></div></div>
@@ -365,7 +366,8 @@
       <span class="hint" id="filterCount" data-page-node-id="foOgEoZ9iuLIiG1J2VPkfT"></span>
     </div>
     <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0;" data-page-node-id="D6I3XsoXc8hQ7XMePwtuCS"></span>
-    <div class="field field-inline" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
+    <!-- 顶部「日期」筛选器：按要求隐藏（每行仍可单独选发货日期） -->
+    <div class="field field-inline" style="display:none" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
     <div class="field field-inline" title="发布后会自动拼到单号后面；填一次浏览器会记住"><label>计划员</label><input type="text" id="planner" placeholder="你的名字" maxlength="20" autocomplete="off"></div>
     <input type="hidden" id="planNo" data-page-node-id="Lj6AeJWsNI5r3zz49b248l">
   </div>
