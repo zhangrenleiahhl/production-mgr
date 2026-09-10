@@ -156,8 +156,7 @@
   .doc-head .meta{display:none;}
   .tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;background:#fff;}
   /* 表头冻结：吸附在「顶栏 + 工具栏」下方（--head-top 由 JS 动态计算） */
-  .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:7px 4px;text-align:center;border:1px solid #000;white-space:nowrap;position:sticky;top:var(--head-top,0px);z-index:2;font-size:15px;letter-spacing:0;
-    box-shadow:inset 0 0 0 1px #000;}  /* 兜底：border-collapse 下 sticky 单元格边框会丢失，用内阴影补回黑框 */
+  .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:7px 4px;text-align:center;border:1px solid #000;white-space:nowrap;position:sticky;top:var(--head-top,0px);z-index:2;font-size:15px;letter-spacing:0;}
   .tbl thead th .req{color:#ffd24d;font-weight:800;margin-left:1px;}  /* 必填项红/黄星号标记 */
   .tbl td{padding:0;border:1px solid #000;text-align:center;vertical-align:middle;min-height:26px;}
   .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:14px;font-weight:600;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:26px;line-height:1.35;}
@@ -340,7 +339,12 @@
   .cat-fold:hover{background:#eef2ff;border-color:#2563eb;color:#1e3a8a;}
   .cat-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:14px;}
   .cat-sec.collapsed .cat-body{display:none;}
-  .toast{position:fixed;left:50%;top:28px;transform:translateX(-50%) translateY(-8px);background:#1f2328;color:#fff;padding:11px 20px;border-radius:0;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.18);border-left:4px solid #2563eb;}
+  /* 提示气泡：必须盖在顶部导航栏(210)/工具栏(200)之上，并位于它们下方，否则会被遮住只剩一条黑杠 */
+  .toast{position:fixed;left:50%;top:calc(var(--head-top, 92px) + 12px);transform:translateX(-50%) translateY(-8px);
+    background:#1f2328;color:#fff;padding:10px 18px;border-radius:0;font-size:13px;line-height:1.5;
+    opacity:0;pointer-events:none;transition:.2s;z-index:3000;
+    box-shadow:0 8px 24px rgba(0,0,0,.22);border-left:4px solid #2563eb;
+    max-width:min(720px,92vw);white-space:normal;word-break:break-word;text-align:left;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .req::after{content:"*";color:#dc2626;margin-left:2px;}
   .ac{position:fixed;z-index:200;background:#fff;border:1px solid #d0d7de;border-radius:0;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:300px;overflow-y:auto;}
