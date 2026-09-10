@@ -9,7 +9,7 @@
 <title>发货计划系统</title>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
-<script src="cloud-sync.js"></script>
+<script src="cloud-sync.js?v=20260910b"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -593,14 +593,16 @@ let __flushChain = Promise.resolve();
 async function doFlushRec(silent){
   if(!window.CloudSync || !CloudSync.ready()){ markPending(true); return false; }
   let cloud = null;
-  try{ cloud = await CloudSync.pull(LS_REC); }catch(e){ cloud = null; }
-  if(cloud === null){
-    // 区分「云端真的没这条」和「这次没拉到」：前者以本机为准上传（首次使用要能建起来），
-    // 后者只记一笔，绝不覆盖（宁可晚点传，也不能拿不完整的本机数据冲掉云端）
-    const failed = (typeof CloudSync.lastPullFailed === "function") ? CloudSync.lastPullFailed() : true;
-    if(failed){ markPending(true); return false; }
-    cloud = [];
-  }
+  // ★ 用 pullResult 拿「本次拉取自己的结果」。
+  //   以前用引擎的 lastPullFailed 判断——那是全局共享状态，页面上任何一个
+  //   别的拉取（60 秒自动校对、切回前台、发货员端轮询…）成功都会把它刷成 false。
+  //   于是「这次我没拉到」被误判成「云端真的没有这条」→ 拿本机那份不完整的清单推上去，
+  //   把云端上别人发布的计划整份盖掉。而且只在恰好有并发拉取成功时才发生 —— 所以是「有时候」。
+  let pr = null;
+  try{ pr = await CloudSync.pullResult(LS_REC); }catch(e){ pr = null; }
+  if(!pr || !pr.ok){ markPending(true); return false; }    // 拉不到 → 只记一笔待补传，绝不覆盖云端
+  cloud = pr.value;
+  if(cloud === null) cloud = [];                           // 云端确实还没有这条（首次使用）→ 以本机为准建起来
   let cloudArr = [], localArr = [];
   try{ cloudArr = (typeof cloud==="string") ? (JSON.parse(cloud)||[]) : (Array.isArray(cloud)?cloud:[]); }catch(e){ cloudArr = []; }
   try{ localArr = loadRec(); }catch(e){ localArr = []; }
@@ -615,6 +617,7 @@ async function doFlushRec(silent){
   let ok = false;
   try{ ok = await CloudSync.push(LS_REC, merged); }catch(e){ ok = false; }
   try{ CloudSync.push(LS_DEL, loadDeletedIds()); }catch(e){}       // 墓碑一起同步，删掉的不会被别的端"复活"
+  try{ if(loadArchive().length) CloudSync.push(LS_ARCHIVE, loadArchive()); }catch(e){}   // 归档一起同步（超过上限转归档的记录在别的端也能看到）
   markPending(!ok);
   if(!ok && !silent){ try{ toast("⚠ 没能同步到云端，已存本机，稍后自动补传"); }catch(e){} }
   return ok;
@@ -629,13 +632,14 @@ async function reconcileNow(manual){
     return false;
   }
   let cloud = null;
-  try{ cloud = await CloudSync.pull(LS_REC); }catch(e){ cloud = null; }
-  if(cloud === null){
-    const failed = (typeof CloudSync.lastPullFailed === "function") ? CloudSync.lastPullFailed() : true;
-    if(manual && failed){ try{ toast("暂时连不上云端，请稍后再试"); }catch(e){} }
-    if(failed) return false;
-    cloud = [];
+  let pr2 = null;                                  // ★ 同上：用 pullResult 取本次结果，不用全局共享状态
+  try{ pr2 = await CloudSync.pullResult(LS_REC); }catch(e){ pr2 = null; }
+  if(!pr2 || !pr2.ok){
+    if(manual){ try{ toast("暂时连不上云端，请稍后再试"); }catch(e){} }
+    return false;
   }
+  cloud = pr2.value;
+  if(cloud === null) cloud = [];                   // 云端确实还没有这条
   const cloudArr = Array.isArray(cloud) ? cloud : [];
   const before = loadRec().length;
   // 先把云端的墓碑并到本机（取并集），否则会把别人删掉的记录又推回去
@@ -667,7 +671,10 @@ function findDupRecs(){
   loadRec().forEach(r=>{
     const f = r && r.fingerprint;
     if(!f) return;                                   // 老记录没有指纹，不动它
-    if(seen.has(f)) dups.push(r); else seen.add(f);
+    // ★ 分组键带上"计划员"：内容相同但由不同人发布，很可能是两笔真实业务
+    //   （同一客户/同一型号的正常重复发货），绝不能当成"重复记录"删掉。
+    const key = String(r.planner||"") + "\u0000" + f;
+    if(seen.has(key)) dups.push(r); else seen.add(key);
   });
   return dups;
 }
@@ -675,7 +682,7 @@ function cleanDupRecs(){
   const dups = findDupRecs();
   if(!dups.length){ try{ toast("没有发现重复的发布记录"); }catch(e){} return; }
   const lines = dups.map(r=>"· "+(r.no||"?")+(r.planner?("（"+r.planner+"）"):"")+"　"+(r.publishedAt||"")).join("\n");
-  if(!confirm("发现 "+dups.length+" 条与更早的计划内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？")) return;
+  if(!confirm("发现 "+dups.length+" 条【同一计划员】内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？")) return;
   snapshot(LS_REC, "清理重复前");
   const dupIds = new Set(dups.map(r=>String(r.id)));
   dups.forEach(r=>{ if(r && r.id!=null) markDeleted(r.id); });
@@ -2544,7 +2551,7 @@ if(window.CloudSync){
   CloudSync.init();
   // 注意顺序：LS_DEL 必须排在 LS_REC 前面 —— 合并发布记录时要先用最新的墓碑剔除，
   // 否则会把别的端已经删掉的记录又合回来。
-  const CLOUD_KEYS=[LS_DB, LS_DEL, LS_REC];
+  const CLOUD_KEYS=[LS_DB, LS_DEL, LS_REC, LS_ARCHIVE];
   // 发布记录走「按 id 合并」而不是覆盖：云端已有 + 本地独有 = 并集，任何一端都不会因为一次同步而少记录
   const CLOUD_MERGE={};
   CLOUD_MERGE[LS_REC]=(localStr, cloudStr)=>{
@@ -2562,6 +2569,27 @@ if(window.CloudSync){
     (Array.isArray(b)?b:[]).forEach(x=>set.add(String(x)));
     return JSON.stringify([...set].slice(-800));
   };
+  // 归档区也取并集：合并时超过 200 条的记录会转入归档，归档如果不跟着同步，
+  // 别的端就会认为"这些记录被删掉了"（表现同样是"发布后别人记录少了"）。
+  CLOUD_MERGE[LS_ARCHIVE]=(localStr, cloudStr)=>{
+    const arr = v => { let a=[]; try{ a=JSON.parse(v)||[]; }catch(e){} return Array.isArray(a)?a:[]; };
+    const map = new Map();
+    arr(cloudStr).forEach(r=>{ const k=recKeyOf(r); if(k) map.set(k,r); });
+    arr(localStr).forEach(r=>{ const k=recKeyOf(r); if(k) map.set(k,r); });   // 本地优先
+    return JSON.stringify([...map.values()].slice(-600));
+  };
+
+  // ★★ 上传护栏（根治"别人发布把别人记录删了"）★★
+  // 以前「不覆盖云端」全靠每个调用方自觉：发布要走安全通道、删除要走安全通道、恢复快照要走…
+  // 只要漏掉一条路径（或者某个人的浏览器还在跑旧版页面 —— 旧版是直接 push 本机清单的），
+  // 云端上别人的记录就被整份盖掉。现在把这件事下沉到同步引擎：
+  // 任何一次 push 这些键，引擎都会「先拉云端 → 合并（只增不减、剔墓碑）→ 再上传」，
+  // 拉不到云端就不推。哪怕有人直接 push 本机那几条，也只可能合并，不可能覆盖。
+  try{
+    CloudSync.guard(LS_REC,     CLOUD_MERGE[LS_REC]);
+    CloudSync.guard(LS_DEL,     CLOUD_MERGE[LS_DEL]);
+    CloudSync.guard(LS_ARCHIVE, CLOUD_MERGE[LS_ARCHIVE]);
+  }catch(e){}
   const nav=document.querySelector('.topbar');
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
   const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 校对同步'; btn.title='与云端校对并同步：两边合并（只增不减），并显示本机/云端/合并后的条数';
