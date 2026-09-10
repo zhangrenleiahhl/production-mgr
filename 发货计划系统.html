@@ -523,7 +523,12 @@ function restoreSnapshot(idx){
   if(!confirm("确定恢复到 "+when+" 的自动快照？\n（快照内容："+(s.tag||"自动")+" · "+(s.key||"")+"）\n当前数据会先自动备份一份，可再次恢复。")) return false;
   snapshot(s.key, "恢复前");
   safeSet(s.key, s.data);
-  if(window.CloudSync){ let v=s.data; try{ v=JSON.parse(v); }catch(e){} CloudSync.push(s.key, v); }
+  if(window.CloudSync){
+    // 恢复发布记录后走「合并推送」（只增不减）：恢复本来就是为了找回不见的记录，整份覆盖会把云端别的计划冲掉。
+    // 下面 700ms 就会刷新页面，所以先记「待补传」再推 —— 推送被打断也不会留下"本机有、云端没有"的不一致。
+    if(s.key === LS_REC){ markPending(true); flushRec(false); }
+    else { let v=s.data; try{ v=JSON.parse(v); }catch(e){} CloudSync.push(s.key, v); }
+  }
   try{ toast("已恢复到 "+when+"，正在刷新…"); }catch(e){}
   setTimeout(()=>location.reload(), 700);
   return true;
@@ -599,10 +604,11 @@ async function doFlushRec(silent){
   let cloudArr = [], localArr = [];
   try{ cloudArr = (typeof cloud==="string") ? (JSON.parse(cloud)||[]) : (Array.isArray(cloud)?cloud:[]); }catch(e){ cloudArr = []; }
   try{ localArr = loadRec(); }catch(e){ localArr = []; }
-  let merged = localArr;
-  try{ merged = mergeRecords(cloudArr, localArr); }catch(e){ merged = localArr; }
+  let merged = null;
+  try{ merged = mergeRecords(cloudArr, localArr); }catch(e){ merged = null; }
+  if(!merged){ markPending(true); return false; }        // 合并出错 → 宁可不推，也不拿本机这份去覆盖
   const mergedStr = JSON.stringify(merged);
-  if(mergedStr !== JSON.stringify(localArr)){                     // 云端独有的记录先落到本机
+  if(mergedStr !== JSON.stringify(localArr)){            // 云端独有的记录先落到本机
     safeSet(LS_REC, mergedStr);
     try{ renderRecords(); }catch(e){}
   }
@@ -610,9 +616,49 @@ async function doFlushRec(silent){
   try{ ok = await CloudSync.push(LS_REC, merged); }catch(e){ ok = false; }
   try{ CloudSync.push(LS_DEL, loadDeletedIds()); }catch(e){}       // 墓碑一起同步，删掉的不会被别的端"复活"
   markPending(!ok);
-  if(!ok && !silent){ try{ toast("暂时连不上云端，已存在本机，稍后会自动补传"); }catch(e){} }
+  if(!ok && !silent){ try{ toast("⚠ 没能同步到云端，已存本机，稍后自动补传"); }catch(e){} }
   return ok;
 }
+
+// ===================== 与云端"校对并同步"（人工一键 / 每 60 秒自动） =====================
+// 作用：把云端的删除墓碑并过来 → 双向合并（只增不减）→ 本机补全 → 推回云端。
+// 只要两边条数不一致（例如本机有记录没传上去），就会被发现并追平 —— 避免"编辑器和发货员看到的不是同一份"。
+async function reconcileNow(manual){
+  if(!window.CloudSync || !CloudSync.ready()){
+    if(manual){ try{ toast("这个页面没有连上云端，请刷新后重试（或看右上角状态）"); }catch(e){} }
+    return false;
+  }
+  let cloud = null;
+  try{ cloud = await CloudSync.pull(LS_REC); }catch(e){ cloud = null; }
+  if(cloud === null){
+    const failed = (typeof CloudSync.lastPullFailed === "function") ? CloudSync.lastPullFailed() : true;
+    if(manual && failed){ try{ toast("暂时连不上云端，请稍后再试"); }catch(e){} }
+    if(failed) return false;
+    cloud = [];
+  }
+  const cloudArr = Array.isArray(cloud) ? cloud : [];
+  const before = loadRec().length;
+  // 先把云端的墓碑并到本机（取并集），否则会把别人删掉的记录又推回去
+  try{
+    const cd = await CloudSync.pull(LS_DEL);
+    if(Array.isArray(cd) && cd.length){
+      const mine = loadDeletedIds(), set = new Set(mine.map(String));
+      cd.forEach(x=>{ if(!set.has(String(x))){ set.add(String(x)); mine.push(x); } });
+      try{ localStorage.setItem(LS_DEL, JSON.stringify(mine.slice(-800))); }catch(e){}
+    }
+  }catch(e){}
+  // 自动校对：条数一致且没有待补传 → 不用折腾（省流量、少写库）
+  if(!manual && before === cloudArr.length && !isPending()) return true;
+  const ok = await flushRec(true);
+  if(manual){
+    const after = loadRec().length;
+    try{ toast("校对完成：本机 " + before + " 条 ｜ 云端 " + cloudArr.length + " 条 ｜ 合并后 " + after + " 条"
+      + (ok ? " · 已同步到云端 ✓" : " · 未上传，已记待补传（稍后自动重试）")); }catch(e){}
+  }
+  return ok;
+}
+setInterval(()=>{ try{ if(!document.hidden) reconcileNow(false); }catch(e){} }, 60000);
+document.addEventListener("visibilitychange", ()=>{ try{ if(!document.hidden) reconcileNow(false); }catch(e){} });
 
 // ===================== 清理「内容完全相同」的重复发布记录 =====================
 // 同一批货被发了两次（单号不同、内容一模一样）时，只保留最新的一条，重复的转入归档并打删除墓碑。
@@ -2135,7 +2181,8 @@ function saveRec(rec){
   }
   // 发布是关键操作：立刻同步云端（不走 900ms 防抖）。走 flushRec —— 它会先拉云端、
   // 按 id 合并（只增不减）再上传，绝不会把本机这份不完整的清单整份盖到云端。
-  if(window.CloudSync) flushRec(true);
+  // 这里不静默：万一没传上去必须让用户看见（否则就会出现"编辑器和发货员看到的不一样"）。
+  if(window.CloudSync) flushRec(false);
   return ok;
 }
 function loadRec(){ try{ return JSON.parse(localStorage.getItem(LS_REC))||[]; }catch(e){ return []; } }
@@ -2234,7 +2281,7 @@ function renderRecords(){
           safeSet(LS_REC, JSON.stringify(keep));
           renderRecords();
           // 删除是关键操作，立刻同步（墓碑随 flushRec 一起推；合并时会剔除墓碑，删除在所有端都生效）
-          if(window.CloudSync) flushRec(true);
+          if(window.CloudSync) flushRec(false);
           toast("已删除发布记录 "+(rec.no||"")+"（已留档可恢复）");
         });
       };
@@ -2303,7 +2350,7 @@ function importBackup(file){
       BACKUP_KEYS.forEach(k=>{ if(k in data) snapshot(k, "导入备份前"); });
       BACKUP_KEYS.forEach(k=>{ if(k in data){ const v=data[k]; safeSet(k, typeof v==="string"?v:JSON.stringify(v)); } });
       if(window.CloudSync){ BACKUP_KEYS.forEach(k=>{
-        if(k === LS_REC){ flushRec(true); return; }     // 发布记录一律走"合并推送"，不整份覆盖云端
+        if(k === LS_REC){ markPending(true); flushRec(true); return; }     // 发布记录一律走"合并推送"，不整份覆盖云端（先记待补传，防止下面的刷新打断）
         let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); }
       }); }
       toast("备份已导入，正在刷新…");
@@ -2495,7 +2542,9 @@ renderRecords();
 // ===================== 云端同步 =====================
 if(window.CloudSync){
   CloudSync.init();
-  const CLOUD_KEYS=[LS_DB, LS_REC, LS_DEL];
+  // 注意顺序：LS_DEL 必须排在 LS_REC 前面 —— 合并发布记录时要先用最新的墓碑剔除，
+  // 否则会把别的端已经删掉的记录又合回来。
+  const CLOUD_KEYS=[LS_DB, LS_DEL, LS_REC];
   // 发布记录走「按 id 合并」而不是覆盖：云端已有 + 本地独有 = 并集，任何一端都不会因为一次同步而少记录
   const CLOUD_MERGE={};
   CLOUD_MERGE[LS_REC]=(localStr, cloudStr)=>{
@@ -2504,16 +2553,26 @@ if(window.CloudSync){
     try{ b=JSON.parse(cloudStr)||[]; }catch(e){ b=[]; }
     return JSON.stringify(mergeRecords(b, a));
   };
+  // 墓碑取并集：本地这次没记录到的删除不能因为"云端的那份更短"被抹掉
+  CLOUD_MERGE[LS_DEL]=(localStr, cloudStr)=>{
+    let a=[], b=[];
+    try{ a=JSON.parse(localStr)||[]; }catch(e){ a=[]; }
+    try{ b=JSON.parse(cloudStr)||[]; }catch(e){ b=[]; }
+    const set=new Set((Array.isArray(a)?a:[]).map(String));
+    (Array.isArray(b)?b:[]).forEach(x=>set.add(String(x)));
+    return JSON.stringify([...set].slice(-800));
+  };
   const nav=document.querySelector('.topbar');
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
-  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 同步'; btn.title='拉取最新';
+  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 校对同步'; btn.title='与云端校对并同步：两边合并（只增不减），并显示本机/云端/合并后的条数';
   if(nav){ const dbStatus=nav.querySelector('#dbStatus'); const anchor=dbStatus?dbStatus.nextSibling:null; nav.insertBefore(pill, anchor); nav.insertBefore(btn, pill.nextSibling); CloudSync.bindStatus(pill);
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true, CLOUD_MERGE).then(()=>flushRec(true)); }   // 手动点同步：发布记录仍走合并，绝不整份覆盖
+    // 手动点：拉云端 → 并墓碑 → 双向合并（只增不减）→ 推回云端，并明确报告条数，方便发现"哪一边少了"
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true, CLOUD_MERGE).then(()=>reconcileNow(true)); }
   if(CloudSync.ready()){
     CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, false, CLOUD_MERGE).then(()=>{
       // ★ 启动时不再无条件「把本地回写云端」：万一某个键这次没拉到，回写就会用本机旧数据冲掉云端。
-      //   只在「上次有改动没推上去」时补推一次，而且补推前会先与云端合并（见 flushRec）。
-      if(isPending()) flushRec(true);
+      //   改成：有待补传就补推；本机比云端多也补推（否则两边会长期不一致）。
+      reconcileNow(false);
     });
   } else { CloudSync.setStatus('未配置云端','off'); }
 }
