@@ -489,7 +489,10 @@ if(window.CloudSync){
   if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
     btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }, true); }   // 手动点同步 = 明确以云端为准
   if(CloudSync.ready()){
-    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }).then(()=>{
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }).then((r)=>{
+      // ★ 只在"这次拉取真的没失败"时才把本机数据回写云端：否则会把本机旧物料库冲掉云端。
+      //   手动点「☁ 拉取最新」是明确操作，不受此限制。
+      if(r && r.failed && r.failed.length) return;
       CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
     });
   } else { CloudSync.setStatus('未配置云端','off'); }
