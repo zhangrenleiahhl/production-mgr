@@ -657,7 +657,7 @@ function autoFillCustomerByModel(tr){
     if(!chosen) return;                     // 跳过：不填也不记忆，下次仍会询问
     modelCustChoice[model]=chosen;          // 记住选择，后续同型号不再询问
     rows.forEach(r=>applyCustomerToRow(r, chosen));
-    recalc(); mergeCustomerCells(); saveDraft();
+    recalc(); mergeCustomerCells(); saveDraftNow();
   });
 }
 // 按型号/物料编码取物料库中所有候选记录（完全一致匹配）
@@ -716,13 +716,13 @@ document.addEventListener("keydown", e=>{
     const set=(f,v)=>{ const x=lastApplied.row.querySelector(`[data-f="${f}"]`); if(x) x.value=v||""; };
     set("model",s.model); set("code",s.code); set("unit",s.unit); set("perbox",s.perbox); set("customer",s.customer); set("remark",s.remark); set("logistics",s.logistics);
     lastApplied=null;
-    recalc(); mergeCustomerCells(); fitTextareas(); saveDraft();
+    recalc(); mergeCustomerCells(); fitTextareas(); saveDraftNow();
     toast("已恢复原数据");
     return;
   }
   if(!el || !el.dataset || el.dataset.orig===undefined) return;
   el.value=el.dataset.orig; delete el.dataset.orig;
-  recalc(); mergeCustomerCells(); fitTextareas(); saveDraft();
+  recalc(); mergeCustomerCells(); fitTextareas(); saveDraftNow();
   el.blur(); toast("已恢复原数据");
 });
 
@@ -772,7 +772,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   if(rc) rc.addEventListener("change", updateCheckAll);
   const spSel=tr.querySelector('[data-f="shippt"]');
   if(spSel) spSel.addEventListener("change", ()=>{ saveDraft(); });
-  tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraft(); };
+  tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraftNow(); };
   tr.querySelectorAll("input").forEach(inp=>{
     inp.addEventListener("keydown", onCellKey);
     trackOrig(inp);
@@ -780,13 +780,13 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
         else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
-        recalc(); saveDraft();
+        scheduleRefresh(recalcLite, saveDraft);
       });
     } else if(inp.dataset.f==="shipdate"){
-      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); styleShipdate(); });
+      inp.addEventListener("input", ()=>scheduleRefresh(recalc, saveDraft, styleShipdate));
       inp.addEventListener("change", ()=>{ sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
     } else if(inp.dataset.f==="qty"){
-      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });   // 打字时实时按算式更新吨位/箱数
+      inp.addEventListener("input", ()=>scheduleRefresh(recalcLite, saveDraft));   // 打字时实时按算式更新吨位/箱数
       inp.addEventListener("change", ()=>{   // 失焦/回车时把算式换成结果：10*20 → 200
         const r=evalQtyExpr(inp.value);
         if(r!==null&&r!=="") inp.value=r;
@@ -802,10 +802,10 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;
         else inp.dataset.manual="1";
-        recalc(); saveDraft();
+        scheduleRefresh(recalcLite, saveDraft);
       });
     } else if(inp.dataset.f!=="ton"){   // 其余可编辑列
-      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
+      inp.addEventListener("input", ()=>scheduleRefresh(recalcLite, saveDraft));
     }
   });
   // 载入已有箱数时标记为手填值，避免被自动计算覆盖（吨位、箱子重量T 始终自动，不在此列）
@@ -821,7 +821,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
       const cwtInp=tr.querySelector('[data-f="cwt"]');
       if(cwtInp.dataset.deleted==="1") delete cwtInp.dataset.deleted;   // 恢复 → 重新按箱数自动计算
       else { cwtInp.dataset.deleted="1"; cwtInp.value=""; }             // 删除 → 立即清空，不再自动带出
-      recalc(); mergeCustomerCells(); saveDraft();
+      recalc(); mergeCustomerCells(); saveDraftNow();
     });
   }
   // 产品重量T：↺ 恢复按钮 → 清除手填，重新按 数量×单重÷1000 自动带出
@@ -831,16 +831,16 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     tonReset.addEventListener("click", ()=>{
       const tonInp=tr.querySelector('[data-f="ton"]');
       if(tonInp) delete tonInp.dataset.manual;
-      recalc(); mergeCustomerCells(); saveDraft();
+      recalc(); mergeCustomerCells(); saveDraftNow();
       toast("已恢复产品重量T自动带出 ✓");
     });
   }
   tr.querySelectorAll("textarea").forEach(ta=>{
     ta.addEventListener("keydown", onCellKey);
     trackOrig(ta);
-    ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); saveDraft(); });
+    ta.addEventListener("input", ()=>{ fitTextarea(ta); scheduleRefresh(recalcLite, mergeCustomerCells, saveDraft); });
   });
-  tr.querySelector('[data-f="customer"]').addEventListener("input", ()=>{ mergeCustomerCells(); autoFillLogistics(tr); });
+  tr.querySelector('[data-f="customer"]').addEventListener("input", ()=>{ autoFillLogistics(tr); scheduleRefresh(mergeCustomerCells, saveDraft); });
   tr.querySelector('[data-f="customer"]').addEventListener("change", ()=>{   // 手动改送达方 → 记为该型号的选择，后续不再重复询问
     const m=(tr.querySelector('[data-f="model"]')?.value||"").trim();
     const cu=(tr.querySelector('[data-f="customer"]').value||"").trim();
@@ -848,7 +848,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
     if(customersForModelExactly(m, code).includes(cu)) modelCustChoice[m]=cu;
   });
-  tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
+  tr.querySelector('[data-f="remark"]').addEventListener("input", ()=>scheduleRefresh(mergeCustomerCells, saveDraft));
   ["model"].forEach(k=>{
     const inp=tr.querySelector(`[data-f="${k}"]`);
     inp.addEventListener("focus", ()=>{ acSnap=snapRow(tr); lastApplied=null; if(DB.length) showAC(inp, tr, false); });   // 聚焦即记录整行快照，供 Esc 恢复；路过聚焦只提示不自动填
@@ -992,7 +992,36 @@ function fitTextarea(ta){
   const td=ta.closest("td");
   if(td && td.rowSpan>1) td.style.height=(h+4)+"px";
 }
-function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
+// 批量自适应高度：读写分离（先统一置 auto → 统一读 scrollHeight → 统一写回），
+// 把 N 次「强制同步布局」压到 1~2 次，折叠展开后几百行也不卡
+function fitTextareas(){
+  const tas=[...$("tbody").querySelectorAll("textarea")];
+  if(!tas.length) return;
+  tas.forEach(ta=>{ if(ta.style.height!=="auto") ta.style.height="auto"; });
+  const hs=tas.map(ta=>Math.max(26, ta.scrollHeight));
+  tas.forEach((ta,i)=>{ const v=hs[i]+"px"; if(ta.style.height!==v) ta.style.height=v; });
+  tas.forEach((ta,i)=>{ const td=ta.closest("td"); if(td && td.rowSpan>1){ const v=(hs[i]+4)+"px"; if(td.style.height!==v) td.style.height=v; } });
+}
+// —— 性能优化：输入时的全表刷新合批。打字会连续触发 recalc / 合并 / 折叠 / 高亮等多轮全表遍历，
+//    用微任务队列合并成一次执行，重复调用只跑一遍。
+function recalcLite(){ recalc(true); }   // 具名包装：便于合批调度器按引用去重
+let _rq=0, _rjobs=null, _rqRAF=false;
+function flushRefresh(){
+  if(!_rq) return;
+  if(typeof cancelAnimationFrame==="function" && _rqRAF) cancelAnimationFrame(_rq); else clearTimeout(_rq);
+  _rq=0; _rqRAF=false;
+  const j=_rjobs; _rjobs=null;
+  if(j) j.forEach(f=>{ try{ f(); }catch(e){} });
+}
+function scheduleRefresh(){
+  for(let i=0;i<arguments.length;i++){
+    if(!_rjobs) _rjobs=new Set();
+    _rjobs.add(arguments[i]);
+  }
+  if(_rq) return;
+  if(typeof requestAnimationFrame==="function"){ _rqRAF=true; _rq=requestAnimationFrame(flushRefresh); }
+  else { _rqRAF=false; _rq=setTimeout(flushRefresh, 16); }
+}
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 let undoStack=[];
 const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12,14,15];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱重T/客户吨位/操作；12=产品重量T 14=物流 15=物料编码）
@@ -1022,7 +1051,7 @@ function delRow(tr){
   tr.remove();
   undoStack.push({rows:[data], atIndex:idx});
   if(undoStack.length>50) undoStack.shift();
-  reindex(); recalc(); saveDraft(); updateCheckAll(); updateUndoBtn();
+  reindex(); recalc(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
   toast("已删除 1 行，可点「撤回」恢复");
 }
 function undo(){
@@ -1032,7 +1061,7 @@ function undo(){
   const list=allRows();
   const ref=list[item.atIndex]||null;
   item.rows.forEach(d=>{ addRow(d, null, ref, true); });
-  reindex(); recalc(); fitTextareas(); saveDraft(); updateCheckAll(); updateUndoBtn();
+  reindex(); recalc(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
   toast("已撤回删除，恢复 "+item.rows.length+" 行");
 }
 function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=undoStack.length===0; }
@@ -1094,39 +1123,51 @@ function mergeCustomerCells(){
   // 1) 清除所有数据行的合并状态
   allRows.forEach(tr=>{
     tr.classList.remove("group-end");
-    ["col-customer","col-remark"].forEach(cls=>{
-      const c=tr.querySelector("."+cls);
-      if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
-    });
-    const sub=tr.querySelector(".col-subton");
-    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; sub.style.height=""; }
+    const R=rowRefs(tr);
+    const c=R.cellCustomer;
+    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
+    const r=R.cellRemark;
+    if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); r.style.height=""; }
+    const sub=R.cellSubton;
+    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; sub.style.height="";
+      sub._key=null; sub._val=null; sub._ov=0; }   // 内容已清空，缓存标记必须一并失效，否则会误判「无变化」而不重建
   });
   // 2) 只合并当前可见的数据行（排除筛选隐藏 + 折叠隐藏），否则 rowSpan 会按隐藏行数撑出幽灵行，导致下方整表错位
   const rows=allRows.filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
   let i=0;
   while(i<rows.length){
     const first=rows[i];
-    const cust=(first.querySelector('[data-f="customer"]')?.value||"").trim();
-    const date=(first.querySelector('[data-f="shipdate"]')?.value||"").trim();
+    const Rf=rowRefs(first);
+    const cust=(Rf.customer?.value||"").trim();
+    const date=(Rf.shipdate?.value||"").trim();
     if(!cust){ i++; continue; }  // 空客户不合并
     const key=cust+"|"+date;
     let j=i+1;
     while(j<rows.length){
-      const cust2=(rows[j].querySelector('[data-f="customer"]')?.value||"").trim();
-      const date2=(rows[j].querySelector('[data-f="shipdate"]')?.value||"").trim();
+      const R2=rowRefs(rows[j]);
+      const cust2=(R2.customer?.value||"").trim();
+      const date2=(R2.shipdate?.value||"").trim();
       if(cust2+"|"+date2!==key) break;
       j++;
     }
     const len=j-i;
     // 3) 计算该组合计吨位（只要客户非空就显示合计，即使吨位为0）
     let subTon=0;
-    for(let k=i;k<j;k++){ subTon+=(parseFloat(rows[k].querySelector('[data-f="ton"]')?.value)||0)+(parseFloat(rows[k].querySelector('[data-f="cwt"]')?.value)||0); }
-    const subCell=first.querySelector(".col-subton");
+    for(let k=i;k<j;k++){ const Rk=rowRefs(rows[k]); subTon+=(parseFloat(Rk.ton?.value)||0)+(parseFloat(Rk.cwt?.value)||0); }
+    const subCell=Rf.cellSubton;
     if(subCell){
       // 客户吨位可手动修改：有覆盖值用覆盖值，否则用自动合计
       const ov=ctOverride(cust,date);
       const shown=(ov!==null?ov:subTon).toFixed(1);
       const autoTxt=subTon.toFixed(1);
+      // 值与上次完全一样则跳过 innerHTML 重建（全表重建 input + 绑事件是合并的大头）
+      if(subCell._key===cust+"|"+date && subCell._val===shown && subCell._ov===(ov!==null?1:0)){
+        subCell.classList.add("merged-cell");
+        if(len>1) subCell.rowSpan=len;
+        rows[j-1].classList.add("group-end");
+        i=j; continue;
+      }
+      subCell._key=cust+"|"+date; subCell._val=shown; subCell._ov=(ov!==null?1:0);
       subCell.innerHTML='<span class="subton-wrap">'
         +'<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
         +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
@@ -1139,13 +1180,14 @@ function mergeCustomerCells(){
       subCell.classList.add("merged-cell");
     }
     if(len>1){
-      const c=first.querySelector(".col-customer"), r=first.querySelector(".col-remark");
+      const c=Rf.cellCustomer, r=Rf.cellRemark;
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
       // 时效要求列与客户列保持同组合并：同一客户+同一日期下自动合并，只显示首行时效要求
       if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
       if(subCell) subCell.rowSpan=len;
       for(let k=i+1;k<j;k++){
-        const c2=rows[k].querySelector(".col-customer"), r2=rows[k].querySelector(".col-remark"), s2=rows[k].querySelector(".col-subton");
+        const Rk2=rowRefs(rows[k]);
+        const c2=Rk2.cellCustomer, r2=Rk2.cellRemark, s2=Rk2.cellSubton;
         if(c2){ c2.style.display="none"; c2.rowSpan=1; }
         if(r2){ r2.style.display="none"; r2.rowSpan=1; }
         if(s2){ s2.style.display="none"; s2.rowSpan=1; }
@@ -1280,6 +1322,7 @@ function foldByDate(){
 }
 
 function toggleDateFold(date){
+  flushRefresh();
   const state=getFoldState();
   setFoldState(date, state[date]?0:1);
   foldByDate();
@@ -1389,45 +1432,88 @@ function evalQtyExpr(v){   // 发货数量支持算式：10*20 → 200；支持 
     return Number.isInteger(r)?String(r):String(Math.round(r*100)/100);
   }catch(e){ return null; }                                   // 残缺算式（如 10*）→ 不处理
 }
+// 快路径：绝大多数数量是纯数字，直接 parseFloat，避免每行都 new Function 编译算式（全表重算的主要开销）
+const PURE_NUM=/^\d+(\.\d+)?$/;
 function qtyNum(v){          // 取数量数值：能算就按算式算，算不了退回 parseFloat
-  const e=evalQtyExpr(v);
-  return parseFloat(e!==null&&e!==""?e:v)||0;
+  if(v==null) return 0;
+  const s=String(v).trim();
+  if(PURE_NUM.test(s)) return parseFloat(s);
+  const e=evalQtyExpr(s);
+  return parseFloat(e!==null&&e!==""?e:s)||0;
 }
-function recalc(){
+// 只在值真的变化时才写 DOM（程序化赋值虽不触发事件，但仍会让浏览器重排，全表逐字写入是卡顿源之一）
+function setValIfChanged(el, v){ if(el && el.value!==v) el.value=v; }
+// 行内元素引用缓存：recalc / 合并 每次都要全表逐行 querySelector，行多时开销巨大。
+// 行结构创建后不再变动，缓存一次即可；节点被替换（isConnected=false）时自动重建。
+function rowRefs(tr){
+  let c=tr._refs;
+  if(c && c.qty && c.qty.isConnected) return c;
+  c = tr._refs = {
+    shipdate:tr.querySelector('[data-f="shipdate"]'),
+    customer:tr.querySelector('[data-f="customer"]'),
+    code:tr.querySelector('[data-f="code"]'),
+    model:tr.querySelector('[data-f="model"]'),
+    qty:tr.querySelector('[data-f="qty"]'),
+    unit:tr.querySelector('[data-f="unit"]'),
+    perbox:tr.querySelector('[data-f="perbox"]'),
+    ton:tr.querySelector('[data-f="ton"]'),
+    box:tr.querySelector('[data-f="box"]'),
+    cwt:tr.querySelector('[data-f="cwt"]'),
+    remark:tr.querySelector('[data-f="remark"]'),
+    tonReset:tr.querySelector(".ton-reset"),
+    cwtShow:tr.querySelector(".cwt-val"),
+    cwtTog:tr.querySelector(".cwt-toggle"),
+    cellCustomer:tr.querySelector(".col-customer"),
+    cellRemark:tr.querySelector(".col-remark"),
+    cellSubton:tr.querySelector(".col-subton"),
+    rowCheck:tr.querySelector(".row-check")
+  };
+  return c;
+}
+// skipFold=true：本次不重跑折叠（改数量/箱数/吨位不会改变日期分组，省掉一整轮全表折叠+高亮+隔离带重排）
+function recalc(skipFold){
   let sq=0,st=0,sb=0,scwt=0;
   [...$("tbody").children].forEach(tr=>{
     if(!isDataRow(tr)) return;   // 跳过客户小计行 / 隔离带，避免非数据行读取 data-f 字段报错
-    const qty=qtyNum(tr.querySelector('[data-f="qty"]').value);
-    const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
-    const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
+    const R=rowRefs(tr);
+    const qty=qtyNum(R.qty.value);
+    const unit=parseFloat(R.unit.value)||0;
+    const perbox=parseFloat(R.perbox.value)||0;
     // 产品重量T：未手填时按 数量×单重/1000 自动计算；手填(manual)保留；无单重保留既有值兜底
-    const tonInput=tr.querySelector('[data-f="ton"]');
+    const tonInput=R.ton;
     const autoTon=(qty>0&&unit>0)?qty*unit/1000:0;
-    if(tonInput.dataset.manual!=="1") tonInput.value=autoTon>0?autoTon.toFixed(1):"";
-    const tonReset=tr.querySelector(".ton-reset");
+    if(tonInput.dataset.manual!=="1") setValIfChanged(tonInput, autoTon>0?autoTon.toFixed(1):"");
+    const tonReset=R.tonReset;
     if(tonReset){
       const m=tonInput.dataset.manual==="1";
-      tonReset.style.display=m?"":"none";
+      const d=m?"":"none";
+      if(tonReset.style.display!==d) tonReset.style.display=d;
       tonInput.classList.toggle("edited", m);
     }
     const ton=parseFloat(tonInput.value)||0;
     // 箱数：自动带出（数量÷每箱件数），除非手填
-    const boxInput=tr.querySelector('[data-f="box"]');
+    const boxInput=R.box;
     const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
-    if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";
+    if(boxInput.dataset.manual!=="1") setValIfChanged(boxInput, autoBox>0?autoBox:"");
     const box=parseFloat(boxInput.value)||0;
     // 箱子重量T：按 箱数×0.07 自动；保留 2 位小数；被「删除」的行保持空，不自动带出
-    const cwtInput=tr.querySelector('[data-f="cwt"]');
+    const cwtInput=R.cwt;
     const autoCwt=box>0?(box*0.07).toFixed(2):"";
-    if(cwtInput.dataset.deleted==="1") cwtInput.value="";   // 已删除：保持空
-    else cwtInput.value=autoCwt;                            // 未删除：按箱数自动计算
-    const cwtShow=tr.querySelector(".cwt-val");
-    if(cwtShow) cwtShow.textContent=cwtInput.value||"";
-    const cwtTog=tr.querySelector(".cwt-toggle");
+    if(cwtInput.dataset.deleted==="1") setValIfChanged(cwtInput, "");   // 已删除：保持空
+    else setValIfChanged(cwtInput, autoCwt);                            // 未删除：按箱数自动计算
+    const cwtShow=R.cwtShow;
+    if(cwtShow){ const t=cwtInput.value||""; if(cwtShow.textContent!==t) cwtShow.textContent=t; }
+    const cwtTog=R.cwtTog;
     if(cwtTog){
-      if(cwtInput.dataset.deleted==="1"){ cwtTog.style.display=""; cwtTog.textContent="↺"; cwtTog.title="点击恢复（按箱数重新计算）"; }
-      else if(cwtInput.value){ cwtTog.style.display=""; cwtTog.textContent="×"; cwtTog.title="点击删除"; }
-      else cwtTog.style.display="none";   // 无箱数、也无值：不显示按钮
+      let d="", txt="", title="";
+      if(cwtInput.dataset.deleted==="1"){ d=""; txt="↺"; title="点击恢复（按箱数重新计算）"; }
+      else if(cwtInput.value){ d=""; txt="×"; title="点击删除"; }
+      else { d="none"; }   // 无箱数、也无值：不显示按钮
+      if(cwtTog.style.display!==d) cwtTog.style.display=d;
+      if(d!=="none"){
+        if(cwtTog.textContent!==txt) cwtTog.textContent=txt;
+        if(cwtTog.title!==title) cwtTog.title=title;
+      }
     }
     const cwt=parseFloat(cwtInput.value)||0;
     // 表尾合计只统计当前可见行（被折叠或筛选隐藏的行不计入）
@@ -1440,7 +1526,8 @@ function recalc(){
   $("sumBox").textContent=(sb>0)?sb:"/";
   $("sumCwt").textContent=scwt>0?scwt.toFixed(1):"/";
   // 有筛选时不再重新折叠（否则会把刚穿透显示的折叠行又折回去）；改为保持穿透显示并刷新合并/编号
-  if(!isFilterActive()){ foldByDate(); }
+  if(skipFold && !isFilterActive()){ mergeCustomerCells(); }
+  else if(!isFilterActive()){ foldByDate(); }
   else { renumberVisible(); mergeCustomerCells(); markRowStates(); }
   // 客户吨位合计：只累加当前可见的分组合计单元格（合并后每个组只显示一个）
   let sst=0, subCells=0;
@@ -1491,7 +1578,19 @@ function syncDocHead(){
   }
 }
 // ===================== 草稿自动保存（刷新/重开页面不丢未发布数据） =====================
+// —— 性能优化：草稿写入防抖。打字时每敲一个字都全量序列化 + 同步写 localStorage 是主要卡顿源，
+//    改成停手 250ms 后写一次；关页面/切后台前强制 flush，保证不丢数据。
+let _draftTimer=0, _draftDirty=false;
+function flushDraft(){ if(!_draftDirty) return; _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
+window.addEventListener("beforeunload", flushDraft);
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden) flushDraft(); });
 function saveDraft(){
+  _draftDirty=true;
+  clearTimeout(_draftTimer);
+  _draftTimer=setTimeout(()=>{ _draftTimer=0; if(_draftDirty){ _draftDirty=false; writeDraftNow(); } }, 250);
+}
+function saveDraftNow(){ _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
+function writeDraftNow(){
   try{
     const rows=[...$("tbody").children].filter(isDataRow).map(tr=>{
       const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
@@ -1560,6 +1659,7 @@ function fingerprintRows(rows){
   return h.toString(36);
 }
 function publish(){
+  flushRefresh();   // 先把待处理的全表刷新跑完，确保发布读到的是最新值
   const allTrs=[...$("tbody").children].filter(isDataRow);
   if(!allTrs.length){ toast("请先添加发货明细"); return; }
   // 发布前必须勾选确认：仅发布已勾选的行
@@ -1696,7 +1796,7 @@ function publish(){
   [...$("tbody").querySelectorAll(".row-check")].forEach(b=>b.checked=false);
   updateCheckAll();
   $("planNo").value=genPlanNo(); syncDocHead();
-  saveDraft();
+  saveDraftNow();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
 }
 
@@ -1870,7 +1970,7 @@ function exportRowsCsv(rows, name){
 $("exportCsv").onclick=()=>{ const rows=collectRows(); if(!rows.length){ toast("暂无数据可导出"); return; } exportRowsCsv(rows, $("planNo").value); };
 
 // ===================== 其它按钮 =====================
-$("addRow").onclick=()=>{ addRow(); saveDraft(); };
+$("addRow").onclick=()=>{ addRow(); saveDraftNow(); };
 $("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); };
 $("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); updateCheckAll(); };
 $("publish").onclick=publish;
@@ -1980,10 +2080,10 @@ function onTablePaste(e){
     });
     // 先从物料库补齐「物料编码 / 单重 / 每箱件数」，箱数·箱重T·产品重量T·客户吨位 由 recalc 自动算出
     for(let k=0;k<lines.length;k++){ const tr=allRows[startIdx+k]; if(tr) fillDbFieldsForRow(tr); }
-    reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraft();
+    reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
     // 粘贴的型号若在物料库中能唯一锁定送达方则自动带出；多送达方弹窗让计划员选
     for(let k=0;k<lines.length;k++){ const tr=allRows[startIdx+k]; if(tr) autoFillCustomerByModel(tr); }
-    recalc(); mergeCustomerCells(); saveDraft();   // 送达方填完后再算一次，保证客户吨位按新送达方正确汇总
+    recalc(); mergeCustomerCells(); saveDraftNow();   // 送达方填完后再算一次，保证客户吨位按新送达方正确汇总
     toast("已粘贴 "+lines.length+" 行（型号/发货数量）");
     return;
   }
@@ -2004,7 +2104,7 @@ function onTablePaste(e){
     });
   });
   pastedRows.forEach(tr=>fillDbFieldsForRow(tr));   // 同样从物料库补齐单重/每箱件数，自动算箱数·箱重T·产品重量T
-  reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraft();
+  reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
   toast("已粘贴 "+lines.length+" 行");
 }
 $("tbody").addEventListener("paste", onTablePaste);
