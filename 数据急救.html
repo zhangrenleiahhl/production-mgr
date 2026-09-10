@@ -89,10 +89,19 @@ function scanLocal(){
     let preview=v.slice(0,120).replace(/</g,'&lt;').replace(/>/g,'&gt;');
     if(v.length>120) preview+='…';
     let mark='';
-    if(k==='shipping_db_v1') mark=tag('warn','物料库');
-    if(k==='shipping_rec_v1') mark=tag('warn','发布记录');
-    if(k==='shipping_schedule_v1') mark=tag('warn','排产表');
-    if(k==='shipping_makers_v1') mark=tag('warn','制单人');
+    const LBL={
+      'shipping_db_v1':'物料库',
+      'shipping_plans_v1':'发布记录',
+      'shipping_plans_archive_v1':'发布记录归档',
+      'shipping_draft_v1':'未发布草稿',
+      'shipping_custton_v1':'客户吨位修改',
+      'shipping_planner_v1':'计划员',
+      'shipping_snapshots_v1':'自动快照',
+      'shipping_rec_v1':'旧版发布记录',
+      'shipping_schedule_v1':'旧版排产表',
+      'shipping_makers_v1':'旧版制单人'
+    };
+    if(LBL[k]) mark=tag(/旧版/.test(LBL[k])?'err':'warn',LBL[k]);
     html+=`<tr><td>${k} ${mark}</td><td>${len} 字符</td><td>${preview}</td></tr>`;
   });
   tbl.innerHTML=html;
@@ -152,7 +161,7 @@ $('pullDbBtn').onclick=async()=>{
 
 $('pullAllBtn').onclick=async()=>{
   $('cloudResult').textContent='';
-  const keys=['shipping_db_v1','shipping_rec_v1','shipping_schedule_v1','shipping_makers_v1'];
+  const keys=['shipping_db_v1','shipping_plans_v1','shipping_plans_archive_v1','shipping_draft_v1','shipping_custton_v1','shipping_planner_v1'];
   let ok=0;
   for(const k of keys){
     const v=await fetchCloud(k,'拉取 '+k);
