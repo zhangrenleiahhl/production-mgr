@@ -471,7 +471,8 @@ const LS_DRAFT = "shipping_draft_v1";   // 未发布明细自动草稿，刷新/
 const LS_ARCHIVE = "shipping_plans_archive_v1"; // 超出保留上限的老发布记录 → 归档（不再直接丢弃）
 const LS_SNAP = "shipping_snapshots_v1";        // 关键操作前的自动快照（滚动保留最近 3 份）
 const LS_CT = "shipping_custton_v1";            // 客户吨位手动修改值
-const BACKUP_KEYS = [LS_DB, LS_REC, LS_ARCHIVE, LS_DRAFT, LS_CT, "shipping_fold_dates_v1", "shipping_show_folded_v1"];
+const LS_DEL = "shipping_plans_del_v1";         // 已删除发布记录的 id 墓碑（防止被别的端同步时"复活"）
+const BACKUP_KEYS = [LS_DB, LS_REC, LS_ARCHIVE, LS_DEL, LS_DRAFT, LS_CT, "shipping_fold_dates_v1", "shipping_show_folded_v1"];
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
 
@@ -531,6 +532,41 @@ function archiveRecs(recs){   // 超出上限的老记录转入归档区（归�
   if(!recs || !recs.length) return;
   const a = loadArchive().concat(recs);
   try{ localStorage.setItem(LS_ARCHIVE, JSON.stringify(a.slice(-500))); }catch(e){}
+}
+
+// ===================== 发布记录"只增不减"合并 =====================
+// 背景：发布记录以前是「谁最后写谁覆盖整份列表」。只要有一端拿的是稍早的旧副本
+// （例如发货员端 30 秒才拉一次、或拉取失败退回本地旧数据），它一保存就会把期间
+// 新发布的计划整份盖掉 —— 本地和云端同时消失。改成按 id 取并集后就不可能再丢。
+function loadDeletedIds(){ try{ const a=JSON.parse(localStorage.getItem(LS_DEL)); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function markDeleted(id){
+  if(id == null) return;
+  const a = loadDeletedIds(), s = String(id);
+  if(!a.some(x=>String(x)===s)) a.push(s);
+  try{ localStorage.setItem(LS_DEL, JSON.stringify(a.slice(-800))); }catch(e){}
+}
+function recKeyOf(r){ return (r && r.id != null) ? ("i"+r.id) : (r && r.no ? ("n"+r.no) : null); }
+// base=云端（底） extra=本地（优先）。两边都有的记录 —— 就地复用本地对象（保住调用方持有的引用），
+// 只把客户吨位覆盖表做并集，这样两边各自改的吨位都不会丢。
+function mergeRecords(base, extra){
+  const map = new Map();
+  (base||[]).forEach(r=>{ const k=recKeyOf(r); if(k) map.set(k,r); });
+  (extra||[]).forEach(r=>{
+    const k=recKeyOf(r); if(!k) return;
+    const b = map.get(k);
+    if(b && r){
+      try{
+        r.custTon = Object.assign({}, b.custTon||{}, r.custTon||{});
+        if(b.sumSubTon && !r.sumSubTon) r.sumSubTon = b.sumSubTon;
+      }catch(e){}
+    }
+    map.set(k, r);
+  });
+  const del = new Set(loadDeletedIds().map(String));
+  let out = [...map.values()].filter(r=>!(r && r.id != null && del.has(String(r.id))));
+  out.sort((x,y)=>((Number(y && y.id)||0) - (Number(x && x.id)||0)));   // 置顶最新的
+  if(out.length > 200){ archiveRecs(out.slice(200)); out = out.slice(0,200); }
+  return out;
 }
 
 // 顶部导航栏动态时钟（精确到秒）
@@ -2026,7 +2062,8 @@ function saveRec(rec){
     ok = safeSet(LS_REC, JSON.stringify(keep));
     if(ok) toast("存储空间不足，较早记录已转入归档（导出备份可取回）");
   }
-  if(window.CloudSync) CloudSync.autoPush(LS_REC);
+  // 发布是关键操作：立刻推云端，不走 900ms 防抖（防抖期间关页面会导致云端收不到）
+  if(window.CloudSync) CloudSync.push(LS_REC, loadRec());
   return ok;
 }
 function loadRec(){ try{ return JSON.parse(localStorage.getItem(LS_REC))||[]; }catch(e){ return []; } }
@@ -2118,8 +2155,12 @@ function renderRecords(){
       card.querySelector('[data-act="del"]').onclick=()=>{
         askDeletePwd(rec, ()=>{
           snapshot(LS_REC, "删除记录前");   // 删除前自动留档，误删可从「数据备份 → 恢复自动快照」找回
-          safeSet(LS_REC, JSON.stringify(loadRec().filter(r=>r.id!==rec.id)));
-          renderRecords(); if(window.CloudSync) CloudSync.autoPush(LS_REC);
+          markDeleted(rec.id);              // 记墓碑：别的端合并时不会再把它"复活"
+          const keep = loadRec().filter(r=>r.id!==rec.id);
+          safeSet(LS_REC, JSON.stringify(keep));
+          renderRecords();
+          // 删除是关键操作，立刻推云端（不再走 900ms 防抖，避免关页面时没推上）
+          if(window.CloudSync){ CloudSync.push(LS_REC, keep); CloudSync.push(LS_DEL, loadDeletedIds()); }
           toast("已删除发布记录 "+(rec.no||"")+"（已留档可恢复）");
         });
       };
@@ -2376,14 +2417,22 @@ renderRecords();
 // ===================== 云端同步 =====================
 if(window.CloudSync){
   CloudSync.init();
-  const CLOUD_KEYS=[LS_DB, LS_REC];
+  const CLOUD_KEYS=[LS_DB, LS_REC, LS_DEL];
+  // 发布记录走「按 id 合并」而不是覆盖：云端已有 + 本地独有 = 并集，任何一端都不会因为一次同步而少记录
+  const CLOUD_MERGE={};
+  CLOUD_MERGE[LS_REC]=(localStr, cloudStr)=>{
+    let a=[], b=[];
+    try{ a=JSON.parse(localStr)||[]; }catch(e){ a=[]; }
+    try{ b=JSON.parse(cloudStr)||[]; }catch(e){ b=[]; }
+    return JSON.stringify(mergeRecords(b, a));
+  };
   const nav=document.querySelector('.topbar');
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
   const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 同步'; btn.title='拉取最新';
   if(nav){ const dbStatus=nav.querySelector('#dbStatus'); const anchor=dbStatus?dbStatus.nextSibling:null; nav.insertBefore(pill, anchor); nav.insertBefore(btn, pill.nextSibling); CloudSync.bindStatus(pill);
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true); }   // 手动点同步 = 明确以云端为准
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true, CLOUD_MERGE); }   // 手动点同步：发布记录仍走合并，绝不整份覆盖
   if(CloudSync.ready()){
-    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }).then(()=>{
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, false, CLOUD_MERGE).then(()=>{
       CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
     });
   } else { CloudSync.setStatus('未配置云端','off'); }
