@@ -167,8 +167,8 @@
   .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:5%;}  /* 物料编码 */
   .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4%!important;}  /* 操作 */
   /* 交货单：按字数自动换行（textarea 自适应高度，列宽不够自动折行且撑高行） */
-  .tbl tbody td:nth-child(8) textarea{white-space:pre-wrap!important;word-break:break-word;overflow-wrap:anywhere;min-height:26px;height:auto;line-height:1.3;}
-  .tbl tbody td:nth-child(8){vertical-align:middle;overflow:visible;}
+  .tbl td.col-delivery textarea{white-space:pre-wrap!important;word-break:break-word;overflow-wrap:anywhere;min-height:26px;height:auto;line-height:1.25;padding:2px 3px;font-size:12px;font-weight:500;text-align:center;display:block;}
+  .tbl td.col-delivery{vertical-align:middle;overflow:visible;padding:0;}
   .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:9px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;}  /* 物料编码：小字体单行显示 */
   .tbl tbody td:nth-child(14) input{font-size:10px;font-weight:600;}  /* 物流：窄列小字体单行 */
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
@@ -758,7 +758,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="text" inputmode="decimal" value="${esc(data.qty)}" placeholder="/" title="支持算式：10*20、100/4、10*(20+5)，失焦自动算出结果"></td>
     <td class="col-shippt"><select data-f="shippt" title="发货点">${shipptOptions(data.shippt)}</select></td>
-    <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
+    <td class="col-delivery"><textarea data-f="delivery" placeholder="/" rows="1">${esc(data.delivery)}</textarea></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
     <td class="col-cwt num-cell"><span class="cwt-val">${esc(cwtVal)}</span><input type="hidden" data-f="cwt" value="${esc(cwtVal)}"${cwtDeleted?' data-deleted="1"':''}>${cwtBtnHtml}</td>
