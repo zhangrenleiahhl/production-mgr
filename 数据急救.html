@@ -165,7 +165,23 @@ $('pullAllBtn').onclick=async()=>{
   let ok=0;
   for(const k of keys){
     const v=await fetchCloud(k,'拉取 '+k);
-    if(v!=null){ localStorage.setItem(k, JSON.stringify(v)); ok++; }
+    if(v!=null){
+      if(k==='shipping_plans_v1' || k==='shipping_plans_archive_v1'){
+        // ★ 急救也必须"只增不减"：云端偶尔会偏少（被别的端误覆盖过），整份写下来
+        //   会把本机还能用的记录一起冲掉 —— 那急救反而成了丢数据。
+        const keyOf=r=>r&&(r.id!=null?('i'+r.id):(r.no?('n'+r.no):null));
+        let cur=[]; try{ cur=JSON.parse(localStorage.getItem(k))||[]; }catch(e){}
+        const map=new Map();
+        (Array.isArray(v)?v:[]).forEach(r=>{ const kk=keyOf(r); if(kk) map.set(kk,r); });
+        (Array.isArray(cur)?cur:[]).forEach(r=>{ const kk=keyOf(r); if(kk) map.set(kk,r); });   // 本机优先
+        const out=[...map.values()].sort((a,b)=>((Number(b&&b.id)||0)-(Number(a&&a.id)||0)));
+        localStorage.setItem(k, JSON.stringify(out));
+        log('cloudResult','ℹ '+k+'：云端 '+(Array.isArray(v)?v.length:0)+' 条 ｜ 本机原有 '+cur.length+' 条 → 合并后 '+out.length+' 条（只增不减，不会冲掉本机记录）');
+      } else {
+        localStorage.setItem(k, JSON.stringify(v));
+      }
+      ok++;
+    }
   }
   log('cloudResult',`✅ 共恢复 ${ok}/${keys.length} 项到本地，请刷新原系统页面。`);
   scanLocal();
