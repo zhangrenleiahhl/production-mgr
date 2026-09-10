@@ -31,12 +31,13 @@ window.CloudSync = (function () {
   function bindStatus(el) { statusEl = el; }
 
   async function pull(key) {
-    if (!ready) return null;
+    if (!ready) { pullErr = true; return null; }
     try {
       const { data, error } = await client.from("app_data").select("value").eq("key", key).maybeSingle();
-      if (error) return null;
+      if (error) { pullErr = true; return null; }
+      pullErr = false;
       return data ? data.value : null;
-    } catch (e) { return null; }
+    } catch (e) { pullErr = true; return null; }
   }
 
   async function push(key, value) {
@@ -72,11 +73,12 @@ window.CloudSync = (function () {
   // force=true 表示用户手动点了「同步」，按用户意图强制以云端为准
   // merge={ key: (localStr, cloudStr) => mergedStr } 时该键走"合并"而不是"覆盖"（最安全，只增不减）
   async function pullAll(keys, after, force, merge) {
-    if (!ready) { if (after) after(); return; }
+    if (!ready) { if (after) after(); return { failed: keys.slice(), ok: 0 }; }
     let keptLocal = false;
+    const failed = [];
     for (const k of keys) {
       const v = await pull(k);
-      if (v === null) continue;
+      if (v === null) { if (pullErr) failed.push(k); continue; }   // 只有"真的失败"才算失败；云端本就没这条不算
       const incoming = (typeof v === "string") ? v : JSON.stringify(v);
       const local = localStorage.getItem(k);
       if (local != null) {
@@ -103,10 +105,12 @@ window.CloudSync = (function () {
     }
     if (keptLocal) setStatus("云端数据偏少，已保留本地", "warn");
     if (after) after();
+    return { failed: failed, ok: keys.length - failed.length };
   }
 
   return {
     init, ready: () => ready, configured,
-    pull, push, autoPush, pullAll, bindStatus, setStatus
+    pull, push, autoPush, pullAll, bindStatus, setStatus,
+    lastPullFailed: () => pullErr
   };
 })();
