@@ -390,6 +390,7 @@
       <button class="btn btn-add" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
       <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
     </div>
+    <button class="btn btn-line" id="cleanEmptyBtn" title="一键删除所有空白行（送达方/型号/发货数量/发货点/交货单/时效要求/物料编码 全都没填的行）">删空行</button>
     <div class="btn-group">
       <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
       <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">当天前</button>
@@ -1133,12 +1134,48 @@ function delRow(tr){
 function undo(){
   const item=undoStack.pop();
   if(!item){ toast("没有可撤回的操作"); return; }
-  const tb=$("tbody");
-  const list=allRows();
-  const ref=list[item.atIndex]||null;
-  item.rows.forEach(d=>{ addRow(d, null, ref, true); });
+  if(item.positions && item.positions.length){
+    // 批量删除（删空行）：按原行号从小到大回插，恢复到原来的位置
+    [...item.positions].sort((a,b)=>a.atIndex-b.atIndex).forEach(p=>{
+      const list=allRows();
+      addRow(p.data, null, list[p.atIndex]||null, true);
+    });
+  } else {
+    const list=allRows();
+    const ref=list[item.atIndex]||null;
+    item.rows.forEach(d=>{ addRow(d, null, ref, true); });
+  }
   reindex(); recalc(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
-  toast("已撤回删除，恢复 "+item.rows.length+" 行");
+  toast("已撤回删除，恢复 "+(item.positions?item.positions.length:item.rows.length)+" 行");
+}
+// ===================== 一键删除空白行 =====================
+// 空白行判定：这些「计划员会填」的列全空 = 空白行
+// （发货日期默认带明天、箱重/产品重量T 是自动计算、物流是自动带出，都不算内容）
+const BLANK_FIELDS=["customer","model","qty","shippt","delivery","remark","code"];
+function rowIsBlank(tr){
+  if(!tr) return false;
+  // 手动改过的产品重量T / 箱数 / 物流 视为有内容
+  const manual=["ton","box","logistics"];
+  for(const f of manual){
+    const el=tr.querySelector(`[data-f="${f}"]`);
+    if(el && el.dataset.manual==="1" && String(el.value).trim()!=="") return false;
+  }
+  return BLANK_FIELDS.every(f=>{
+    const el=tr.querySelector(`[data-f="${f}"]`);
+    return !el || String(el.value||"").trim()==="";
+  });
+}
+function cleanEmptyRows(){
+  const list=allRows();
+  const blanks=list.filter(rowIsBlank);
+  if(!blanks.length){ toast("没有空白行，当前数据都是有效的 ✓"); return; }
+  if(!confirm(`检测到 ${blanks.length} 行空白行（送达方、型号、发货数量等全都没填），确认一键删除？\n\n删除后可通过「撤回」按钮或 Ctrl+Z 一次性恢复。`)) return;
+  const positions=blanks.map(tr=>({data:collectRowData(tr), atIndex:list.indexOf(tr)}));
+  blanks.forEach(tr=>tr.remove());
+  undoStack.push({rows:positions.map(p=>p.data), positions});
+  if(undoStack.length>50) undoStack.shift();
+  reindex(); recalc(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
+  toast(`已删除 ${blanks.length} 行空白行，可点「撤回」恢复`);
 }
 function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=undoStack.length===0; }
 function findCell(tr, colNum){
@@ -2083,6 +2120,7 @@ function importBackup(file){
   reader.readAsText(file);
 }
 $("undoBtn").onclick=undo;
+$("cleanEmptyBtn").onclick=cleanEmptyRows;
 updateUndoBtn();
 document.addEventListener("keydown", e=>{
   if((e.ctrlKey||e.metaKey) && (e.key==="z"||e.key==="Z")){
