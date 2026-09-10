@@ -156,7 +156,8 @@
   .doc-head .meta{display:none;}
   .tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;background:#fff;}
   /* 表头冻结：吸附在「顶栏 + 工具栏」下方（--head-top 由 JS 动态计算） */
-  .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:7px 4px;text-align:center;border:1px solid #000;white-space:nowrap;position:sticky;top:var(--head-top,0px);z-index:2;font-size:15px;letter-spacing:0;}
+  /* z-index:20 让表头始终盖在行内悬浮元素（复制按钮等 z-index:1~2）之上，避免被挡住 */
+  .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:7px 4px;text-align:center;border:1px solid #000;white-space:nowrap;position:sticky;top:var(--head-top,0px);z-index:20;font-size:15px;letter-spacing:0;}
   .tbl thead th .req{color:#ffd24d;font-weight:800;margin-left:1px;}  /* 必填项红/黄星号标记 */
   .tbl td{padding:0;border:1px solid #000;text-align:center;vertical-align:middle;min-height:26px;}
   .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:14px;font-weight:600;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:26px;line-height:1.35;}
@@ -302,7 +303,7 @@
   /* 物料编码：只读（不可编辑，但可选中复制）；不加列底色，复制按钮在格右上角 */
   .tbl td textarea[data-f="code"][readonly]{ background:transparent; color:#334155; cursor:text; }
   .col-code .code-wrap{ position:relative; }
-  .copy-code{ position:absolute; top:1px; right:1px; z-index:2; font-size:9px; line-height:1; padding:1px 4px; border:1px solid var(--purple-l); background:#fff; color:var(--purple-d); border-radius:3px; cursor:pointer; user-select:none; }
+  .copy-code{ position:absolute; top:1px; right:1px; z-index:1; font-size:9px; line-height:1; padding:1px 4px; border:1px solid var(--purple-l); background:#fff; color:var(--purple-d); border-radius:3px; cursor:pointer; user-select:none; }
   .copy-code:hover{ background:var(--purple-bg); border-color:var(--purple); }
   .copy-code.copied{ background:var(--green); color:#fff; border-color:var(--green); }
   input[data-f="qty"]{min-width:0;}
