@@ -71,26 +71,32 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:16px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:5px 6px;align-items:center;
+  .topbar{display:flex;flex-wrap:wrap;gap:3px 4px;align-items:center;
     background:#fff;border:1px solid #d0d7de;border-radius:0;
-    padding:6px 10px;margin-bottom:10px;box-shadow:0 2px 8px rgba(15,23,42,.06);overflow:visible;
+    padding:4px 8px;margin-bottom:6px;box-shadow:0 1px 4px rgba(15,23,42,.05);overflow:visible;
     position:sticky;top:0;z-index:200;}
-  .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:#f6f8fa;border-radius:0;padding:3px 8px;border:1px solid #d0d7de;}
-  .filter-group input{border:1px solid #d0d7de;border-radius:0;padding:4px 8px;font-size:12px;outline:none;width:72px;background:#fff;transition:.15s;color:#1f2328;}
+  .topbar .btn-group{display:inline-flex;align-items:center;gap:0;flex-shrink:0;}
+  .topbar .btn-group .btn{border-radius:0;margin-left:-1px;}
+  .topbar .btn-group .btn:first-child{border-radius:4px 0 0 4px;margin-left:0;}
+  .topbar .btn-group .btn:last-child{border-radius:0 4px 4px 0;}
+  .topbar .btn-group .btn:disabled{z-index:0;}
+  .topbar .btn-group .btn:not(:disabled):hover,.topbar .btn-group .btn:not(:disabled):focus{z-index:1;}
+  .filter-group{display:inline-flex;align-items:center;gap:3px;flex-wrap:nowrap;background:#f6f8fa;border-radius:4px;padding:2px 6px;border:1px solid #d0d7de;}
+  .filter-group input{border:1px solid #d0d7de;border-radius:3px;padding:2px 5px;font-size:11px;outline:none;width:62px;background:#fff;transition:.15s;color:#1f2328;height:20px;box-sizing:border-box;}
   .filter-group input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
-  .filter-label{align-self:center;font-size:12px;font-weight:700;color:#4b5563;padding:0 1px 0 3px;white-space:nowrap;}
-  .filter-group .hint{font-size:12px;color:#6b7280;font-weight:600;white-space:nowrap;}
-  .field{display:flex;flex-direction:column;gap:3px;}
-  .field label{font-size:12px;color:#4b5563;font-weight:700;letter-spacing:0;}
-  .field input{border:1px solid #d0d7de;border-radius:0;padding:5px 8px;font-size:12px;outline:none;background:#fff;transition:.15s;color:#1f2328;}
-  .field-inline{flex-direction:row;align-items:center;gap:5px;}
-  .field-inline input{width:112px;padding:5px 8px;font-size:12px;}
+  .filter-label{align-self:center;font-size:11px;font-weight:700;color:#4b5563;padding:0 1px;white-space:nowrap;}
+  .filter-group .hint{font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;padding:0 2px;}
+  .field{display:flex;flex-direction:column;gap:2px;}
+  .field label{font-size:11px;color:#4b5563;font-weight:700;letter-spacing:0;}
+  .field input{border:1px solid #d0d7de;border-radius:3px;padding:2px 5px;font-size:11px;outline:none;background:#fff;transition:.15s;color:#1f2328;height:20px;box-sizing:border-box;}
+  .field-inline{flex-direction:row;align-items:center;gap:3px;}
+  .field-inline input{width:70px;padding:2px 5px;font-size:11px;}
   .field input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
   .field input[readonly]{background:#f3f4f6;color:#6b7280;border-style:dashed;cursor:pointer;}
-  .card h2.section-head{border:none;background:transparent;padding-left:0;margin:0 0 8px;}
+  .card h2.section-head{border:none;background:transparent;padding-left:0;margin:0;min-height:0;display:none;}
   .card h2.section-head::before{display:none;}
   .spacer{flex:1;}
-  .btn{border:1px solid #d0d7de;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:2px;flex-shrink:0;background:#fff;color:#1f2328;height:22px;box-sizing:border-box;}
+  .btn{border:1px solid #d0d7de;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:2px;flex-shrink:0;background:#fff;color:#1f2328;height:20px;box-sizing:border-box;}
   .btn:active{transform:none;}
   .btn-primary{background:#2563eb;color:#fff;border-color:#2563eb;}
   .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8;}
@@ -101,13 +107,15 @@
   .btn-danger{background:#fff;color:#dc2626;border:1px solid #fecaca;}
   .btn-danger:hover{background:#fef2f2;}
   .btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;transform:none;background:#f9fafb;border-color:#e5e7eb;color:#9ca3af;}
-  .card{background:#fff;border:1px solid #d0d7de;border-radius:0;padding:16px 20px;margin-bottom:16px;box-shadow:none;}
+  .cloud-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;background:#f6f8fa;color:#4b5563;border:1px solid #d0d7de;white-space:nowrap;transition:.15s;flex-shrink:0;height:20px;box-sizing:border-box;}
+  .cloud-pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 0 2px rgba(75,85,99,.12);}
+  .card{background:#fff;border:1px solid #d0d7de;border-radius:0;padding:10px 16px;margin-bottom:10px;box-shadow:none;}
   .card h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:700;letter-spacing:0;color:#1f2328;}
   .card h2::before{content:"";width:4px;height:18px;background:#2563eb;display:inline-block;}
   .card h2 .tag{font-size:11.5px;background:var(--soft);color:var(--brand-d);padding:4px 12px;border-radius:999px;font-weight:700;border:1px solid #dbe6ff;}
-  .folded-dates{display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto;}
+  .folded-dates{display:inline-flex;flex-wrap:wrap;gap:3px 4px;align-items:center;margin-left:auto;}
   .folded-dates:empty{display:none;}
-  .folded-date-btn{border:1px solid #d0d7de;background:#eff6ff;color:#1d4ed8;border-radius:0;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap;transition:.15s;}
+  .folded-date-btn{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap;transition:.15s;height:20px;box-sizing:border-box;}
   .folded-date-btn:hover{background:#dbeafe;border-color:#2563eb;}
   .hint{font-size:12px;color:#6b7280;}
   /* ===== 发货计划单（WPS 清晰风） ===== */
@@ -325,14 +333,18 @@
 </head>
 <body data-page-node-id="4fFYxxpjT3p7fKOAOYlX5n">
 <div class="wrap" data-page-node-id="FidnSL9YObjQpW6utUTEtZ">
-  <!-- 工具栏置顶冻结：红框内按钮行移到最上面，滚动时钉在顶部 -->
+  <!-- 工具栏置顶冻结：红框内所有控件合并为一条紧凑工具栏，滚动时钉在顶部 -->
   <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
-    <button class="btn btn-line" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
-    <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶ 撤回</button>
-    <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
-    <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">折叠当天前</button>
+    <div class="btn-group">
+      <button class="btn btn-line" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋</button>
+      <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
+      <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">当天前</button>
+    </div>
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
-    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制型号/发货数量</button>
+    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制</button>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
       <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
@@ -345,7 +357,8 @@
     <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0;" data-page-node-id="D6I3XsoXc8hQ7XMePwtuCS"></span>
     <!-- 顶部「日期」筛选器：按要求隐藏（每行仍可单独选发货日期） -->
     <div class="field field-inline" style="display:none" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
-    <div class="field field-inline" id="plannerWrap"><label>计划员</label><input type="text" id="planner" placeholder="你的名字" maxlength="20" autocomplete="off"></div>
+    <div class="field field-inline" id="plannerWrap" title="点击修改需密码"><label>计划员</label><input type="text" id="planner" placeholder="名字" maxlength="20" autocomplete="off"></div>
+    <span id="foldedDates" class="folded-dates" data-page-node-id="WcTPMj6nFAHpHmFIIuqAqw"></span>
     <input type="hidden" id="planNo" data-page-node-id="Lj6AeJWsNI5r3zz49b248l">
   </div>
 
@@ -358,7 +371,7 @@
   </div>
 
   <div class="card" data-page-node-id="8lEKJwsQUYOFb6pcml3ZLg">
-    <h2 class="section-head" data-page-node-id="dbuO0FZ4P21qhgqyfFkkMc"><span class="tag" id="rowCount" style="display:none" data-page-node-id="JZ6DTAawAuER2FoY9CFgHm">0 行</span><span id="foldedDates" class="folded-dates" data-page-node-id="WcTPMj6nFAHpHmFIIuqAqw"></span></h2>
+    <h2 class="section-head" data-page-node-id="dbuO0FZ4P21qhgqyfFkkMc"><span class="tag" id="rowCount" style="display:none" data-page-node-id="JZ6DTAawAuER2FoY9CFgHm">0 行</span></h2>
     <div class="doc" id="doc" data-page-node-id="q2oCcvrmsWHNCsqcMeMR0G">
       <div class="doc-head" data-page-node-id="xUeaBODxHoAASjEiOyYtZo">
         <div class="t" id="docTitle" data-page-node-id="51l0Ug7MqgsRtTsskLRS6R">发货计划</div>
