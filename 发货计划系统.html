@@ -71,31 +71,22 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:16px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:5px 8px;align-items:center;
-    background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border:1px solid rgba(56,189,248,.25);border-radius:0;
-    padding:5px 10px;margin-bottom:10px;box-shadow:0 0 18px rgba(56,189,248,.12),0 4px 12px rgba(2,6,23,.25);overflow:visible;
+  .topbar{display:flex;flex-wrap:wrap;gap:5px 6px;align-items:center;
+    background:#fff;border:1px solid #d0d7de;border-radius:0;
+    padding:6px 10px;margin-bottom:10px;box-shadow:0 2px 8px rgba(15,23,42,.06);overflow:visible;
     position:sticky;top:0;z-index:200;}
-  .topbar .spacer{flex:1;}
-  .btn-group{display:inline-flex;align-items:center;gap:0;border:1px solid rgba(56,189,248,.28);border-radius:6px;overflow:hidden;background:rgba(15,23,42,.55);box-shadow:0 0 10px rgba(56,189,248,.08);}
-  .btn-group .btn{border:none;border-radius:0;background:transparent;color:#e2e8f0;font-size:11px;padding:4px 9px;height:24px;border-right:1px solid rgba(56,189,248,.18);}
-  .btn-group .btn:last-child{border-right:none;}
-  .btn-group .btn:hover{background:rgba(56,189,248,.15);color:#fff;text-shadow:0 0 6px rgba(56,189,248,.5);}
-  .btn-group .btn:disabled{color:#64748b;background:transparent;}
-  .btn-group .btn-primary{background:linear-gradient(135deg,#0ea5e9 0%,#2563eb 100%);color:#fff;font-weight:700;box-shadow:0 0 10px rgba(14,165,233,.35);}
-  .btn-group .btn-primary:hover{background:linear-gradient(135deg,#38bdf8 0%,#3b82f6 100%);box-shadow:0 0 14px rgba(56,189,248,.5);}
-  .filter-group{display:inline-flex;align-items:center;gap:4px;flex-wrap:nowrap;background:rgba(15,23,42,.45);border-radius:6px;padding:2px 6px;border:1px solid rgba(148,163,184,.22);}
-  .filter-group input{border:1px solid rgba(148,163,184,.35);border-radius:4px;padding:3px 6px;font-size:11px;outline:none;width:62px;background:rgba(2,6,23,.35);transition:.15s;color:#f1f5f9;height:20px;box-sizing:border-box;}
-  .filter-group input:focus{border-color:#38bdf8;box-shadow:0 0 0 2px rgba(56,189,248,.18);background:rgba(2,6,23,.5);}
-  .filter-group input::placeholder{color:#94a3b8;}
-  .filter-label{align-self:center;font-size:11px;font-weight:700;color:#94a3b8;padding:0 1px 0 2px;white-space:nowrap;}
-  .filter-group .hint{font-size:11px;color:#cbd5e1;font-weight:600;white-space:nowrap;}
-  .field{display:flex;flex-direction:column;gap:2px;}
-  .field label{font-size:10px;color:#94a3b8;font-weight:700;letter-spacing:0;}
-  .field input{border:1px solid rgba(148,163,184,.35);border-radius:4px;padding:3px 6px;font-size:11px;outline:none;background:rgba(2,6,23,.35);transition:.15s;color:#f1f5f9;height:20px;box-sizing:border-box;}
-  .field-inline{flex-direction:row;align-items:center;gap:4px;}
-  .field-inline input{width:78px;padding:3px 6px;font-size:11px;}
-  .field input:focus{border-color:#38bdf8;box-shadow:0 0 0 2px rgba(56,189,248,.18);background:rgba(2,6,23,.5);}
-  .field input[readonly]{background:rgba(148,163,184,.18);color:#cbd5e1;border-style:dashed;cursor:pointer;}
+  .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:#f6f8fa;border-radius:0;padding:3px 8px;border:1px solid #d0d7de;}
+  .filter-group input{border:1px solid #d0d7de;border-radius:0;padding:4px 8px;font-size:12px;outline:none;width:72px;background:#fff;transition:.15s;color:#1f2328;}
+  .filter-group input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
+  .filter-label{align-self:center;font-size:12px;font-weight:700;color:#4b5563;padding:0 1px 0 3px;white-space:nowrap;}
+  .filter-group .hint{font-size:12px;color:#6b7280;font-weight:600;white-space:nowrap;}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:12px;color:#4b5563;font-weight:700;letter-spacing:0;}
+  .field input{border:1px solid #d0d7de;border-radius:0;padding:5px 8px;font-size:12px;outline:none;background:#fff;transition:.15s;color:#1f2328;}
+  .field-inline{flex-direction:row;align-items:center;gap:5px;}
+  .field-inline input{width:112px;padding:5px 8px;font-size:12px;}
+  .field input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
+  .field input[readonly]{background:#f3f4f6;color:#6b7280;border-style:dashed;cursor:pointer;}
   .card h2.section-head{border:none;background:transparent;padding-left:0;margin:0 0 8px;}
   .card h2.section-head::before{display:none;}
   .spacer{flex:1;}
@@ -116,8 +107,8 @@
   .card h2 .tag{font-size:11.5px;background:var(--soft);color:var(--brand-d);padding:4px 12px;border-radius:999px;font-weight:700;border:1px solid #dbe6ff;}
   .folded-dates{display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto;}
   .folded-dates:empty{display:none;}
-  .folded-date-btn{border:1px solid rgba(56,189,248,.35);background:rgba(14,165,233,.12);color:#e0f2fe;border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap;transition:.15s;box-shadow:0 0 8px rgba(56,189,248,.15);}
-  .folded-date-btn:hover{background:rgba(56,189,248,.25);border-color:#38bdf8;box-shadow:0 0 12px rgba(56,189,248,.3);}
+  .folded-date-btn{border:1px solid #d0d7de;background:#eff6ff;color:#1d4ed8;border-radius:0;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap;transition:.15s;}
+  .folded-date-btn:hover{background:#dbeafe;border-color:#2563eb;}
   .hint{font-size:12px;color:#6b7280;}
   /* ===== 发货计划单（WPS 清晰风） ===== */
   .doc{border:none;border-radius:0;overflow:hidden;background:#fff;box-shadow:none;width:100%;max-width:100%;}
@@ -220,8 +211,7 @@
   .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:18px;padding-right:1px;height:30px;min-height:30px;}
   .tbl th:nth-child(3){padding:6px 4px;}
   .tbl tr.date-fold-hidden{display:none;}
-  .tbl tr.has-folded td{background:linear-gradient(90deg,#e0f2fe 0%,#eff6ff 100%)!important;box-shadow:inset 3px 0 0 #0ea5e9;}  /* 折叠：科技蓝 */
-  .tbl tr.has-expanded td{background:linear-gradient(90deg,#d1fae5 0%,#ecfdf5 100%)!important;box-shadow:inset 3px 0 0 #10b981;}  /* 展开：科技绿 */
+  .tbl tr.has-folded td{background:#eef4ff!important;}  /* 折叠日期首行：浅蓝底色提示「后续 N 行被折叠」 */
   .tbl tr.has-folded .col-shipdate{position:relative;}
   .tbl tr.filter-hidden{display:none;}
   .tbl tr.date-fold-placeholder{height:24px;background:#fafafa;}
@@ -337,18 +327,12 @@
 <div class="wrap" data-page-node-id="FidnSL9YObjQpW6utUTEtZ">
   <!-- 工具栏置顶冻结：红框内按钮行移到最上面，滚动时钉在顶部 -->
   <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
-    <div class="btn-group">
-      <button class="btn" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
-      <button class="btn" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶ 撤回</button>
-    </div>
-    <div class="btn-group">
-      <button class="btn" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
-      <button class="btn" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">折叠当天前</button>
-    </div>
-    <div class="btn-group">
-      <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
-      <button class="btn" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制</button>
-    </div>
+    <button class="btn btn-line" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
+    <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶ 撤回</button>
+    <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
+    <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">折叠当天前</button>
+    <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
+    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制型号/发货数量</button>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
       <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
@@ -1266,19 +1250,28 @@ function foldByDate(){
     }
   });
 
-  // 在「发货明细」标题右侧渲染折叠日期入口（直接显示具体日期）
+  // 在「发货明细」标题右侧渲染折叠日期入口
   const fd=$("foldedDates");
   fd.innerHTML="";
   if(!showFolded && foldedDates.length){
-    foldedDates.forEach(d=>{
+    const past=foldedDates.filter(d=>d<=today);
+    const future=foldedDates.filter(d=>d>today);
+    if(past.length){
       const b=document.createElement("button");
       b.type="button"; b.className="folded-date-btn";
-      const md=d.slice(5).replace("-","/");
-      b.textContent=`▶ ${md}`;
-      b.title=`展开 ${d}`;
-      b.onclick=()=>{ setFoldState(d,0); foldByDate(); fitTextareas(); };
+      b.textContent="▶ 当天之前已折叠";
+      b.title="展开 "+past.join("、");
+      b.onclick=()=>{ past.forEach(d=>setFoldState(d,0)); foldByDate(); fitTextareas(); };
       fd.appendChild(b);
-    });
+    }
+    if(future.length){
+      const b=document.createElement("button");
+      b.type="button"; b.className="folded-date-btn";
+      b.textContent="▶ 当天之后已折叠";
+      b.title="展开 "+future.join("、");
+      b.onclick=()=>{ future.forEach(d=>setFoldState(d,0)); foldByDate(); fitTextareas(); };
+      fd.appendChild(b);
+    }
   }
 
   // 3) 先合并所有数据行，再取消被折叠隐藏行的合并，避免 rowSpan 撑出空白
