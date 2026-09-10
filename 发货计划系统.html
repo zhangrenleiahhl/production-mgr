@@ -153,13 +153,13 @@
   .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
   .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:10%;}   /* 发货日期 */
-  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:12%;}   /* 送达方（原客户） */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 送达方（原客户） */
   .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:5%;}    /* 发货数量 */
-  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:4%;}    /* 发货点 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 交货单（可换行） */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 发货点 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:5%;}    /* 交货单（可换行） */
   .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:3%;}    /* 箱数 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:5%;}  /* 时效要求 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 时效要求 */
   .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱重T */
   .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 产品重量T(可改可恢复) */
   .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
@@ -203,13 +203,18 @@
   .tbl td.col-cwt .cwt-val{font-weight:600;color:#1f2328;font-size:13px;}
   .tbl td.col-cwt .cwt-toggle{margin-left:4px;border:1px solid #cfd4da;background:#fff;color:#6b7280;cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;}
   .tbl td.col-cwt .cwt-toggle:hover{background:#eef2f7;color:#2563eb;border-color:#2563eb;}
-  .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:16px;padding-right:1px;font-size:11px;background:#fff;border-color:transparent;}
+  .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:18px;padding-right:1px;font-size:12.5px;height:30px;min-height:30px;background:#fff;border-color:transparent;}
+  /* 日期选择器（日历小图标）加大，方便点击弹出日期面板 */
+  .tbl td input[data-f="shipdate"]::-webkit-calendar-picker-indicator{width:22px;height:22px;padding:2px;margin-left:2px;cursor:pointer;opacity:.75;background-size:20px 20px;}
+  .tbl td input[data-f="shipdate"]::-webkit-calendar-picker-indicator:hover{opacity:1;background-color:var(--purple-bg);border-radius:4px;}
+  .tbl td input[data-f="shipdate"]::-webkit-datetime-edit{font-size:12.5px;letter-spacing:0;}
+  .tbl td input[data-f="shipdate"]::-webkit-datetime-edit-fields-wrapper{padding:0;}
   .tbl td input[data-f="shipdate"].jinling{font-family:inherit;font-weight:700;color:#1f2328;}
   .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
   .tbl td.col-shipdate{position:relative;padding:0;vertical-align:middle;}
   .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:2px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;transition:.15s;}
   .tbl td.col-shipdate .fold-btn:hover{background:#ede9fe;}
-  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:16px;padding-right:1px;}
+  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:18px;padding-right:1px;height:30px;min-height:30px;}
   .tbl th:nth-child(3){padding:6px 4px;}
   .tbl tr.date-fold-hidden{display:none;}
   .tbl tr.has-folded td{background:#eef4ff!important;}  /* 折叠日期首行：浅蓝底色提示「后续 N 行被折叠」 */
