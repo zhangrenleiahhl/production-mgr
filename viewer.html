@@ -6,7 +6,7 @@
 <title>发货计划查看 · 发货员端</title>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
-<script src="cloud-sync.js"></script>
+<script src="cloud-sync.js?v=20260910b"></script>
 <!-- 性能：xlsx.full.min.js（约 880KB）不再首屏加载，改为点「导出 Excel」时按需加载，发货员打开页面更快 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="ef5SDVfFecmq8rDwoWCj4X">
 <meta http-equiv="Pragma" content="no-cache" data-page-node-id="dSdiiSW8NXQSX1dmF79749">
@@ -227,6 +227,20 @@ function recShipDate(rec){
 // ===================== 初始化 =====================
 function init(){
   if (window.CloudSync) CloudSync.init();
+  // ★ 上传护栏：发货员端也会把整份记录推回云端（改客户吨位时），而它手里那份可能不是最新的。
+  //   挂上护栏后，引擎在 push 之前一定先拉云端合并（只增不减 + 剔墓碑），绝不覆盖 ——
+  //   发货员的操作从此不可能把计划员刚发布的记录盖掉。
+  if (window.CloudSync && CloudSync.guard){
+    try{
+      const arr = v => { let a=[]; try{ a=JSON.parse(v)||[]; }catch(e){} return Array.isArray(a)?a:[]; };
+      CloudSync.guard(KEY, (localStr, cloudStr) => JSON.stringify(mergeRecordsById(arr(cloudStr), arr(localStr))));
+      CloudSync.guard(KEY_DEL, (localStr, cloudStr) => {
+        const set = new Set(arr(localStr).map(String));
+        arr(cloudStr).forEach(x => set.add(String(x)));
+        return JSON.stringify([...set].slice(-800));
+      });
+    }catch(e){}
+  }
   load();
   setInterval(() => load(false), 30000);   // 每 30 秒自动拉取最新（内容无变化不重绘；后台时跳过）
   // 从别的页签切回来 → 立刻拉一次，保证看到的是最新
@@ -275,15 +289,21 @@ function dataFingerprint(list){
 async function load(manual){
   if (document.hidden && !manual) return;    // 页面在后台 → 跳过这次轮询，省流量省电
   $("status").textContent = "正在拉取云端数据…";
-  let list = null;
-  if (window.CloudSync && CloudSync.ready()){
-    try { list = await CloudSync.pull(KEY); } catch(e){ list = null; }
+  const csReady = !!(window.CloudSync && CloudSync.ready());
+  let list = null, ok = !csReady, degraded = false;   // 没接云端 → 直接用本机数据
+  if (csReady){
+    try { const r = await CloudSync.pullResult(KEY); ok = r.ok; list = r.value; } catch(e){}
   }
-  if (!Array.isArray(list)){
-    // 本地兜底（同一浏览器曾打开过管理端）
-    try { list = JSON.parse(localStorage.getItem(KEY) || "null"); } catch(e){}
+  if (ok){
+    RECORDS = Array.isArray(list) ? list : [];
+  } else {
+    // ★ 这次没拉到云端：绝不能把页面清空（发货员会以为"计划全没了"）。
+    //   保持页面上已经显示的数据；如果是首次打开，用本机缓存兜底，并明确提示"暂时连不上"。
+    degraded = true;
+    if (!RECORDS.length){
+      try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (Array.isArray(c)) RECORDS = c; } catch(e){}
+    }
   }
-  RECORDS = Array.isArray(list) ? list : [];
   try{                                     // 本机墓碑：管理端删掉的记录不再显示（云端/本地旧副本都可能还留着）
     const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
     if (Array.isArray(del)) RECORDS = filterDeleted(RECORDS, del);
@@ -295,9 +315,11 @@ async function load(manual){
     render();
   }
   const t = new Date().toLocaleTimeString("zh-CN");
-  $("status").textContent = `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
-  // 上次改的吨位没能推上云（当时拉取失败）→ 这次拉取成功了，补传一次
-  if (isCtPending() && window.CloudSync && CloudSync.ready()){
+  $("status").textContent = degraded
+    ? `⚠ 暂时连不上云端，显示的是上次的数据（${RECORDS.length} 个计划），会自动重试`
+    : `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
+  // 上次改的吨位没能推上云（当时拉取失败）→ 这次拉取成功了才补传（拉不到就推是危险的）
+  if (!degraded && isCtPending() && window.CloudSync && CloudSync.ready()){
     try { await CloudSync.push(KEY, RECORDS); setCtPending(false); } catch(e){}
   }
 }
@@ -595,9 +617,8 @@ async function saveCustTon(rec){
   let mayPush = !(window.CloudSync && CloudSync.ready());
   if (window.CloudSync && CloudSync.ready()){
     try {                                        // ① 拉云端最新，避免用旧副本盖掉期间新发布的计划
-      const fresh = await CloudSync.pull(KEY);
-      if (Array.isArray(fresh)) { mayPush = true; if (fresh.length) RECORDS = mergeRecordsById(fresh, RECORDS); }
-      else if (typeof CloudSync.lastPullFailed === "function" && !CloudSync.lastPullFailed()) mayPush = true;  // 云端确实没这条（首次）→ 可以推
+      const r = await CloudSync.pullResult(KEY); // ★ 用"本次拉取自己的结果"，不用会被并发拉取洗掉的全局状态
+      if (r.ok) { mayPush = true; if (Array.isArray(r.value) && r.value.length) RECORDS = mergeRecordsById(r.value, RECORDS); }
     } catch(e){}
     try {                                        // ② 取删除墓碑，避免把管理端已删除的计划又推回去
       const del = await CloudSync.pull(KEY_DEL);
