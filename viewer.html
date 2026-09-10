@@ -24,6 +24,22 @@
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:3px;background:var(--blue);z-index:9999;}
   .wrap{max-width:1100px;margin:0 auto;padding:16px 14px 60px;}
   header.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0 14px;}
+  .clock{display:inline-flex;align-items:center;gap:10px;padding:6px 16px;border-radius:999px;
+    background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+    border:1px solid rgba(56,189,248,.35);
+    box-shadow:0 0 14px rgba(56,189,248,.22), inset 0 0 12px rgba(56,189,248,.10);
+    color:#38bdf8;font-family:"SF Mono","Consolas","Monaco","Microsoft YaHei",monospace;
+    font-size:15px;font-weight:700;letter-spacing:1px;text-shadow:0 0 8px rgba(56,189,248,.55);
+    position:relative;overflow:hidden;white-space:nowrap;}
+  .clock::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(56,189,248,.18),transparent);
+    animation:scan 2.4s linear infinite;pointer-events:none;}
+  @keyframes scan{0%{left:-100%}100%{left:100%}}
+  .clock .date{color:#94a3b8;font-size:12px;font-weight:600;letter-spacing:0;text-shadow:none;}
+  .clock .time{color:#e0f2fe;}
+  .clock .sep{animation:blink 1s step-end infinite;color:#38bdf8;}
+  @keyframes blink{50%{opacity:0}}
+  @media (max-width:760px){.clock{display:none;}}
   h1{font-size:19px;margin:0;display:flex;align-items:center;gap:8px;}
   h1 .dot{width:6px;height:18px;background:var(--blue);display:inline-block;}
   h1 .tag{font-size:12px;color:var(--muted);font-weight:400;}
@@ -126,6 +142,9 @@
       <h1 data-page-node-id="9d77PK2Swkej7Th8UClaOh"><span class="dot" data-page-node-id="Yg2EuXltkLwNw9mMxFMSzL"></span>发货计划查看 <span class="tag" data-page-node-id="Mwu88Kz9CaTHUDbXsvpV1l">（发货员端）</span></h1>
       <p class="sub" id="status" data-page-node-id="h0FB3IsConFNijxXo6gNZT">正在连接云端…</p>
     </div>
+    <div class="clock" id="clock" title="当前时间">
+      <span class="date">-</span><span class="sep">|</span><span class="time">--:--:--</span>
+    </div>
     <button class="btn" id="refresh" data-page-node-id="e5qK9nt03hECPzZrJyZFtE">↻ 刷新</button>
   </header>
 
@@ -192,6 +211,19 @@ function init(){
   $("batchExcel").onclick = () => batchDownload("excel");
   $("batchCsv").onclick   = () => batchDownload("csv");
   $("batchPrint").onclick = () => batchPrint();
+  startClock();
+}
+
+function startClock(){
+  const pad2 = n => String(n).padStart(2,"0");
+  function update(){
+    const clock = $("clock"); if(!clock) return;
+    const now = new Date();
+    clock.querySelector(".date").textContent = `${now.getFullYear()}/${pad2(now.getMonth()+1)}/${pad2(now.getDate())}`;
+    clock.querySelector(".time").textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+  }
+  update();
+  setInterval(update, 1000);
 }
 
 // ===================== 拉取云端数据 =====================
