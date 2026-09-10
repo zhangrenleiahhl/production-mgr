@@ -167,8 +167,34 @@
 // ===================== 配置 =====================
 const KEY = "shipping_plans_v1";           // 与管理端发布记录键一致
 const KEY_CT = "shipping_custton_v1";      // 客户吨位手动修改的本地备份（防云端旧数据覆盖）
+const KEY_DEL = "shipping_plans_del_v1";   // 管理端已删除记录的 id 墓碑（防止本地旧副本把它们"复活"）
 const $ = (id) => document.getElementById(id);
 let RECORDS = [];
+
+// ===================== 发布记录按 id 合并（只增不减）=====================
+// 为什么需要：本页保存客户吨位时会把整份 RECORDS 写回本地并推上云。如果 RECORDS 是
+// 几十秒前（或拉取失败时退回到本地）的旧副本，这一写就会把期间新发布的计划整份盖掉。
+// 保存前统一先跟云端最新数据合并，就不可能再丢计划。
+function recKeyOf(r){ return (r && r.id != null) ? ("i"+r.id) : (r && r.no ? ("n"+r.no) : null); }
+function mergeRecordsById(base, extra){
+  const map = new Map();
+  (base||[]).forEach(r => { const k = recKeyOf(r); if(k) map.set(k, r); });
+  (extra||[]).forEach(r => {
+    const k = recKeyOf(r); if(!k) return;
+    const b = map.get(k);
+    if(b && r){                                   // 两边都有：就地复用本地对象（保住页面里持有的引用）
+      r.custTon = Object.assign({}, b.custTon || {}, r.custTon || {});
+      if(b.sumSubTon && !r.sumSubTon) r.sumSubTon = b.sumSubTon;
+    }
+    map.set(k, r);
+  });
+  return [...map.values()].sort((x,y) => ((Number(y && y.id)||0) - (Number(x && x.id)||0)));
+}
+function filterDeleted(list, delIds){
+  const st = new Set((delIds||[]).map(String));
+  if(!st.size) return list;
+  return (list||[]).filter(r => !(r && r.id != null && st.has(String(r.id))));
+}
 
 const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/" : s; };
 // HTML 属性转义（客户名可能含引号 / 尖括号）
@@ -258,6 +284,10 @@ async function load(manual){
     try { list = JSON.parse(localStorage.getItem(KEY) || "null"); } catch(e){}
   }
   RECORDS = Array.isArray(list) ? list : [];
+  try{                                     // 本机墓碑：管理端删掉的记录不再显示（云端/本地旧副本都可能还留着）
+    const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
+    if (Array.isArray(del)) RECORDS = filterDeleted(RECORDS, del);
+  }catch(e){}
   restoreCustTon();                        // 用本地备份补齐客户吨位修改（页面每 30 秒自动刷新，防止改动被冲掉）
   const fp = dataFingerprint(RECORDS);
   if (fp !== __lastFp){                    // 内容有变化才重绘
@@ -551,8 +581,18 @@ function applyCustTon(d, rec){
 // 超过保质期就以云端为准，避免旧的本地备份长期"复活"已经被改掉/删掉的吨位值
 const CT_BAK_TTL = 30 * 60 * 1000;
 
-// 保存：本地 + 本地独立备份 + 云端
+// 保存：先与云端最新记录合并（只增不减），再写本地 + 本地独立备份 + 云端
 async function saveCustTon(rec){
+  if (window.CloudSync && CloudSync.ready()){
+    try {                                        // ① 拉云端最新，避免用旧副本盖掉期间新发布的计划
+      const fresh = await CloudSync.pull(KEY);
+      if (Array.isArray(fresh) && fresh.length) RECORDS = mergeRecordsById(fresh, RECORDS);
+    } catch(e){}
+    try {                                        // ② 取删除墓碑，避免把管理端已删除的计划又推回去
+      const del = await CloudSync.pull(KEY_DEL);
+      if (Array.isArray(del)) RECORDS = filterDeleted(RECORDS, del);
+    } catch(e){}
+  }
   try { localStorage.setItem(KEY, JSON.stringify(RECORDS)); } catch(e){}
   // 单独备份一份覆盖表：页面每 30 秒会从云端重新拉取，若云端还没同步成功，用本地备份兜底
   try {
