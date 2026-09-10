@@ -949,6 +949,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     if(!inserted) tb.appendChild(tr);
   }
   if(!skipRefresh){ reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates(); }
+  return tr;   // 返回新建的行（粘贴/批量添加时需要拿到它）
 }
 function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛选隐藏行跳过）
   let idx=0;
@@ -2128,10 +2129,57 @@ document.addEventListener("keydown", e=>{
     if(ae && (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")) return;   // 让浏览器处理文本内撤销
     e.preventDefault(); undo();
   }
+});
 
-// ===================== 整行复制粘贴（从 Excel 等复制一行，粘贴到表格自动按列填入） =====================
-// 展示列顺序（与表头一致，去掉 #/✓/操作）；吨位(t)、客户吨位 为自动列，作占位消耗不填充
-const PASTE_MAP=[["shipdate"],["customer"],["model"],["qty"],["delivery"],["box"],["remark"],[null],[null],[null],["code"]];
+// ===================== 复制粘贴（Ctrl+V，从 Excel 等按列填入表格） =====================
+// 展示列顺序（与表头/每行单元格 data-f 一一对应）；箱重T/产品重量T/客户吨位 为自动列，只占位不填充
+const PASTE_COLS=["shipdate","customer","model","qty","shippt","delivery","box","remark","cwt","ton","subton","logistics","code"];
+const PASTE_AUTO={cwt:1,ton:1,subton:1};
+const PASTE_LABEL={shipdate:"发货日期",customer:"送达方",model:"型号",qty:"发货数量",shippt:"发货点",delivery:"交货单",box:"箱数",remark:"时效要求",logistics:"物流",code:"物料编码"};
+// 往单元格写值（下拉框自动补选项；箱数手填要打 manual 标记，避免被自动计算覆盖）
+function pasteFill(tr,f,v){
+  if(!tr||PASTE_AUTO[f]) return;
+  const el=tr.querySelector(`[data-f="${f}"]`);
+  if(!el) return;
+  const val=(v==null?"":String(v)).trim();
+  if(el.tagName==="SELECT"){
+    if(!val) return;
+    let hit=null;
+    [...el.options].forEach(o=>{ if(o.value===val||o.textContent.trim()===val) hit=o; });
+    if(!hit){ hit=document.createElement("option"); hit.value=val; hit.textContent=val; el.appendChild(hit); }
+    el.value=hit.value;
+    return;
+  }
+  if(f==="shipdate"){                                   // 日期：格式不对就跳过，不覆盖原值
+    const m=val.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if(!m) return;
+    el.value=m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");
+    return;
+  }
+  el.value=val;
+  if(f==="box"){ if(val==="") delete el.dataset.manual; else el.dataset.manual="1"; }
+}
+// 从「落点行」开始取 count 行（不够就自动补行）
+function pasteTargetRows(anchorTr, count){
+  const rows=allRows();
+  let start=anchorTr?rows.indexOf(anchorTr):-1;
+  if(start<0) start=rows.length-1;
+  if(start<0) start=0;
+  const out=[];
+  for(let i=0;i<count;i++){
+    let tr=rows[start+i];
+    if(!tr){ tr=addRow({}, null, null, true); rows.push(tr); }
+    out.push(tr);
+  }
+  return out;
+}
+// 粘贴后统一收尾：补物料库字段 → 重算 → 合并 → 存草稿 → 按型号带出送达方
+function pasteFinish(rows){
+  rows.forEach(tr=>fillDbFieldsForRow(tr));
+  reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
+  rows.forEach(tr=>autoFillCustomerByModel(tr));   // 型号能唯一锁定送达方就自动带出，多个则弹窗
+  recalc(); mergeCustomerCells(); saveDraftNow();
+}
 function onTablePaste(e){
   const cd=e.clipboardData||window.clipboardData;
   if(!cd) return;
@@ -2139,63 +2187,63 @@ function onTablePaste(e){
   if(!txt) return;
   const lines=txt.replace(/\r/g,"").split("\n").filter(r=>r.trim()!=="");
   if(!lines.length) return;
-  const maxCols=Math.max(...lines.map(l=>l.split("\t").length));
-  if(maxCols<2) return;   // 单列文本放行，正常粘贴到当前单元格
-  const startCell=e.target.closest("[data-f]");
-  const startField=startCell?startCell.dataset.f:null;
-  // 型号 / 发货数量 专用批量粘贴：从焦点行往下铺到现有行（数据多于现有行时自动补行）
-  if((startField==="model"||startField==="qty"||startField==="code") && maxCols<=2){
+  const grid=lines.map(l=>l.split("\t").map(v=>v.trim()));
+  const maxCols=Math.max(...grid.map(r=>r.length));
+  const cell=(e.target&&e.target.closest)?e.target.closest("[data-f]"):null;
+  const startField=cell?cell.dataset.f:null;
+  const tr0=(e.target&&e.target.closest)?e.target.closest("tr"):null;
+  const finish=(rows,msg)=>{ pasteFinish(rows); toast(msg); };
+
+  // ① 型号 / 发货数量（两列以内）：从当前行往下铺，第二列互为另一列
+  if((startField==="model"||startField==="qty") && maxCols<=2){
     e.preventDefault();
-    const tr0=e.target.closest("tr");
-    const allRows=[...$("tbody").children].filter(isDataRow);
-    let startIdx=tr0?allRows.indexOf(tr0):allRows.length-1;
-    if(startIdx<0) startIdx=0;
-    lines.forEach((line,i)=>{
-      const vals=line.split("\t").map(v=>v.trim());
-      let tr=allRows[startIdx+i];
-      if(!tr){ tr=addRow({}, null, null, true); allRows.push(tr); }
-      const setC=(f,v)=>{ const el=tr.querySelector(`[data-f="${f}"]`); if(el) el.value=(v==null?"":String(v)); };
+    const rows=pasteTargetRows(tr0, grid.length);
+    grid.forEach((vals,i)=>{
+      const tr=rows[i];
       if(startField==="model"){
-        setC("model", vals[0]);
-        if(vals[1]!==undefined) setC("qty", vals[1]);   // 第二列视为发货数量
-      } else if(startField==="qty"){
-        setC("qty", vals[0]);
-        if(vals[1]!==undefined) setC("model", vals[1]); // 第二列视为型号
+        pasteFill(tr,"model",vals[0]);
+        if(vals[1]!==undefined) pasteFill(tr,"qty",vals[1]);   // 第二列视为发货数量
       } else {
-        setC("code", vals[0]);   // 物料编码列仅填第一列
+        pasteFill(tr,"qty",vals[0]);
+        if(vals[1]!==undefined) pasteFill(tr,"model",vals[1]); // 第二列视为型号
       }
     });
-    // 先从物料库补齐「物料编码 / 单重 / 每箱件数」，箱数·箱重T·产品重量T·客户吨位 由 recalc 自动算出
-    for(let k=0;k<lines.length;k++){ const tr=allRows[startIdx+k]; if(tr) fillDbFieldsForRow(tr); }
-    reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
-    // 粘贴的型号若在物料库中能唯一锁定送达方则自动带出；多送达方弹窗让计划员选
-    for(let k=0;k<lines.length;k++){ const tr=allRows[startIdx+k]; if(tr) autoFillCustomerByModel(tr); }
-    recalc(); mergeCustomerCells(); saveDraftNow();   // 送达方填完后再算一次，保证客户吨位按新送达方正确汇总
-    toast("已粘贴 "+lines.length+" 行（型号/发货数量）");
+    finish(rows, "已粘贴 "+grid.length+" 行（型号/发货数量）");
     return;
   }
-  // 其余多列：整行按 PASTE_MAP 新增
+  // ② 物料编码：单列向下铺；两列时只取第一列
+  if(startField==="code" && maxCols<=2){
+    e.preventDefault();
+    const rows=pasteTargetRows(tr0, grid.length);
+    grid.forEach((vals,i)=>pasteFill(rows[i],"code",vals[0]));
+    finish(rows, "已粘贴 "+grid.length+" 行（物料编码）");
+    return;
+  }
+  // ③ 单列多行：向下填充「当前这一列」（只复制一列数据时用）
+  if(maxCols<=1){
+    if(!startField || !tr0 || lines.length<2 || PASTE_AUTO[startField]) return;   // 单行/没落点 → 交给浏览器默认粘贴
+    const list=grid.map(r=>r[0]).filter(v=>v!=="");
+    if(!list.length) return;
+    e.preventDefault();
+    const rows=pasteTargetRows(tr0, list.length);
+    rows.forEach((tr,i)=>pasteFill(tr, startField, list[i]));
+    finish(rows, "已粘贴 "+list.length+" 行到「"+(PASTE_LABEL[startField]||startField)+"」");
+    return;
+  }
+  // ④ 多列：以「落点所在列」为起点，向右按列填入，第一行落在当前行
   e.preventDefault();
-  let baseRow=e.target.closest("tr");
-  if(!baseRow || baseRow.closest("#tbody")!==$("tbody")) baseRow=null;
-  const pastedRows=[];
-  lines.forEach((line,idx)=>{
-    const vals=line.split("\t").map(v=>v.trim());
-    const tr=(idx===0 && baseRow) ? baseRow : addRow({}, null, null, true);
-    pastedRows.push(tr);
-    PASTE_MAP.forEach((f,i)=>{
-      if(i<vals.length && f){
-        const el=tr.querySelector(`[data-f="${f}"]`);
-        if(el){ el.value=vals[i]; if(f==="box" && vals[i]!=="") el.dataset.manual="1"; }
-      }
-    });
+  let a=PASTE_COLS.indexOf(startField);
+  if(a<0) a=0;
+  const rows=pasteTargetRows(tr0, grid.length);
+  grid.forEach((vals,ri)=>{
+    const tr=rows[ri];
+    vals.forEach((v,ci)=>{ const f=PASTE_COLS[a+ci]; if(f) pasteFill(tr,f,v); });
+    const d=tr.querySelector('[data-f="shipdate"]');
+    if(d && !d.value) d.value=$("shipDate").value||todayStr();   // 没带日期 → 补默认「明天」，避免落进「当天之前」被折叠
   });
-  pastedRows.forEach(tr=>fillDbFieldsForRow(tr));   // 同样从物料库补齐单重/每箱件数，自动算箱数·箱重T·产品重量T
-  reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
-  toast("已粘贴 "+lines.length+" 行");
+  finish(rows, "已粘贴 "+grid.length+" 行");
 }
 $("tbody").addEventListener("paste", onTablePaste);
-});
 // ===================== 启动 =====================
 syncDocHead();
 updateFoldedButton();
