@@ -71,9 +71,9 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:16px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  .topbar{display:flex;flex-wrap:wrap;gap:5px 6px;align-items:center;
     background:#fff;border:1px solid #d0d7de;border-radius:0;
-    padding:10px 14px;margin-bottom:16px;box-shadow:0 4px 12px rgba(15,23,42,.08);overflow:visible;
+    padding:6px 10px;margin-bottom:10px;box-shadow:0 2px 8px rgba(15,23,42,.06);overflow:visible;
     position:sticky;top:0;z-index:200;}
   .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:#f6f8fa;border-radius:0;padding:3px 8px;border:1px solid #d0d7de;}
   .filter-group input{border:1px solid #d0d7de;border-radius:0;padding:4px 8px;font-size:12px;outline:none;width:72px;background:#fff;transition:.15s;color:#1f2328;}
@@ -90,7 +90,7 @@
   .card h2.section-head{border:none;background:transparent;padding-left:0;margin:0 0 8px;}
   .card h2.section-head::before{display:none;}
   .spacer{flex:1;}
-  .btn{border:1px solid #d0d7de;border-radius:4px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:3px;flex-shrink:0;background:#fff;color:#1f2328;}
+  .btn{border:1px solid #d0d7de;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:2px;flex-shrink:0;background:#fff;color:#1f2328;height:22px;box-sizing:border-box;}
   .btn:active{transform:none;}
   .btn-primary{background:#2563eb;color:#fff;border-color:#2563eb;}
   .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8;}
@@ -332,8 +332,6 @@
     <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
     <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">折叠当天前</button>
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
-    <button class="btn btn-line" id="exportBackup" title="导出备份" data-page-node-id="x8aMbclVBtBmLdJ10cM3rI">导出</button>
-    <button class="btn btn-line" id="importBackup" title="导入备份" data-page-node-id="axLD6E8QEueFPhfeRThuKN">导入</button>
     <button class="btn btn-line" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制型号/发货数量</button>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
@@ -1985,7 +1983,6 @@ function importBackup(file){
   };
   reader.readAsText(file);
 }
-$("exportBackup").onclick=exportBackup;
 $("undoBtn").onclick=undo;
 updateUndoBtn();
 document.addEventListener("keydown", e=>{
@@ -2062,9 +2059,6 @@ function onTablePaste(e){
 }
 $("tbody").addEventListener("paste", onTablePaste);
 });
-$("importBackup").onclick=()=>$("backupFile").click();
-$("backupFile").onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importBackup(f); e.target.value=""; };
-
 // ===================== 启动 =====================
 syncDocHead();
 updateFoldedButton();
