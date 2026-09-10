@@ -76,7 +76,9 @@
       <div class="ttl">数据备份与恢复</div>
       <div class="brow"><button class="bbtn" id="expBtn">⬇ 导出备份文件</button></div>
       <div class="brow"><label class="bbtn">⬆ 导入备份恢复<input type="file" id="impFile" accept=".json" hidden></label></div>
+      <div class="brow"><button class="bbtn" id="restoreBtn">⏱ 恢复自动快照</button></div>
       <div class="brow toggle"><input type="checkbox" id="autoChk"><label for="autoChk">发布时自动备份</label></div>
+      <div class="brow info" id="snapInfo">暂无自动快照</div>
       <div class="brow info" id="lastBk">尚未导出过备份</div>
     </div>
   </div>
@@ -129,6 +131,8 @@
     const data={};
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);
+      // 自动快照是本机临时留档、体积大且可重新生成，不放进备份文件
+      if(k==="shipping_snapshots_v1") continue;
       if(k && (k.startsWith("shipping_")||k==="last_client_tab"||k==="maker_history"||k==="auto_backup")) data[k]=localStorage.getItem(k);
     }
     return data;
@@ -148,19 +152,52 @@
     $("lastBk").textContent="上次备份："+now;
     toast("已导出备份文件");
   }
+  function frameWin(){ try{ return frame.contentWindow; }catch(e){ return null; } }
   function importBackup(file){
     const r=new FileReader();
     r.onload=()=>{
       try{
         const obj=JSON.parse(r.result);
+        const w=frameWin();
         let n=0;
-        for(const k in obj){ if(k==="__meta")continue; try{localStorage.setItem(k,obj[k]);n++;}catch(e){} }
-        toast("已恢复 "+n+" 项数据，正在刷新…");
+        for(const k in obj){
+          if(k==="__meta") continue;
+          // 覆盖前先留一份自动快照（导错了可用「⏱ 恢复自动快照」原样退回）
+          try{ if(w && typeof w.snapshot==="function") w.snapshot(k, "导入备份前"); }catch(e){}
+          try{ localStorage.setItem(k,obj[k]); n++; }catch(e){}
+        }
+        toast("已恢复 "+n+" 项数据（导入前数据已留档），正在刷新…");
         setTimeout(()=>{try{frame.contentWindow.location.reload();}catch(e){frame.src=frame.src;}},500);
       }catch(e){ toast("备份文件格式错误"); }
     };
     r.readAsText(file);
   }
+  // ===== 自动快照 =====
+  function refreshSnapInfo(){
+    const el=$("snapInfo");
+    if(!el) return;
+    const w=frameWin();
+    let list=[]; try{ list=(w && typeof w.getSnapshots==="function") ? (w.getSnapshots()||[]) : []; }catch(e){}
+    if(!list.length){ el.textContent="暂无自动快照（发布/删除/导入前自动留档）"; return; }
+    const s=list[0];
+    el.textContent="最近快照："+String(s.at||"").replace("T"," ").slice(0,19)+" · "+(s.tag||"自动");
+  }
+  $("restoreBtn").onclick=()=>{
+    const w=frameWin();
+    if(!w || typeof w.restoreSnapshot!=="function" || typeof w.getSnapshots!=="function"){ toast("请先切到「发货计划」页再操作"); return; }
+    const list=w.getSnapshots()||[];
+    if(!list.length){ toast("没有可用的自动快照"); return; }
+    let msg="选择要恢复的快照（输入序号）：\n\n";
+    list.forEach((s,i)=>{ msg+=(i+1)+". "+String(s.at||"").replace("T"," ").slice(0,19)+" ［"+(s.tag||"自动")+"］\n"; });
+    const pick=window.prompt(msg+"\n0 = 取消","1");
+    if(pick===null) return;
+    const i=parseInt(pick,10);
+    if(!i) return;
+    $("bpanel").classList.remove("show");
+    w.restoreSnapshot(i-1);
+  };
+  setInterval(refreshSnapInfo,5000);
+  refreshSnapInfo();
   $("expBtn").onclick=()=>{downloadBackup();$("bpanel").classList.remove("show");};
   $("impFile").onchange=e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); $("bpanel").classList.remove("show"); e.target.value=""; };
   $("backupBtn").onclick=()=>$("bpanel").classList.toggle("show");
