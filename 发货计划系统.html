@@ -83,7 +83,8 @@
   }
   .topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
     background:#fff;border:1px solid #d0d7de;border-radius:0;
-    padding:10px 14px;margin-bottom:16px;box-shadow:none;overflow:visible;}
+    padding:10px 14px;margin-bottom:16px;box-shadow:0 4px 12px rgba(15,23,42,.08);overflow:visible;
+    position:sticky;top:0;z-index:200;}
   .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:#f6f8fa;border-radius:0;padding:3px 8px;border:1px solid #d0d7de;}
   .filter-group input{border:1px solid #d0d7de;border-radius:0;padding:4px 8px;font-size:12px;outline:none;width:72px;background:#fff;transition:.15s;color:#1f2328;}
   .filter-group input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
@@ -331,22 +332,7 @@
 </head>
 <body data-page-node-id="4fFYxxpjT3p7fKOAOYlX5n">
 <div class="wrap" data-page-node-id="FidnSL9YObjQpW6utUTEtZ">
-  <div class="page-header" data-page-node-id="2XAP5fMQdvcXR0ZU4ibZgr">
-    <div class="title-wrap" data-page-node-id="tWhGLK4bBFmoh36355WNqg">
-      <h1 data-page-node-id="b6TTOfvKxNvBHWoZrGGOqf"><span class="dot" data-page-node-id="yI9qhrCUbW3A9KFlw5Z43n"></span>发货计划系统</h1>
-      <div class="sub" data-page-node-id="plporT8xXJBt5PHbmuVYBL">做计划时只需填<b data-page-node-id="DEQBUIdYFk5B0NgDaVSf5l">型号 + 发货数量</b>，其余信息从「物料数据库」自动带出。</div>
-    </div>
-    <div class="welcome" data-page-node-id="HoIGGyoWb93UIQ6x6tobDD">Hi，欢迎回来 👋<br data-page-node-id="bSada4GMAjl1uWtE9YSUBA"><strong data-page-node-id="cU0PuWFJgolyuValxsmEHr">今天是 <span id="todayText" data-page-node-id="IEDsgPyYPgBMbTO4l6BD6H">-</span></strong></div>
-  </div>
-
-  <!-- KPI 统计卡片区（明细行数/发货数量/总吨位/待发布）：按要求隐藏，元素保留不影响计算 -->
-  <div class="kpi-grid" id="kpiGrid" style="display:none" data-page-node-id="WveniqAGEU6eEDUhDuDSzC">
-    <div class="kpi-card" data-page-node-id="LgWGSevpmatKuQN272vssm"><div class="kpi-icon blue" data-page-node-id="AFDyO8TvKy3KwLex42CJxP">📋</div><div data-page-node-id="Fx8MCtYAY1SLtfq7ShBjUx"><div class="kpi-label" data-page-node-id="vSinIweQbHoVif4iSsOV2H">明细行数</div><div class="kpi-value" id="kpiRows" data-page-node-id="wA4sFqsIKfCIvdlWpY5x33">0<span class="kpi-unit" data-page-node-id="H6VaBGH83An1Fs3x6aCFpZ">行</span></div></div></div>
-    <div class="kpi-card" data-page-node-id="ChKdpmhbw90qJyxcHxDMnJ"><div class="kpi-icon violet" data-page-node-id="dGhAUgcydfIzp00cOqiMXT">📦</div><div data-page-node-id="aNIMfybl44VlMW0txFTbOk"><div class="kpi-label" data-page-node-id="eoNNB7z8qBXi2d06rAOmDV">发货数量</div><div class="kpi-value" id="kpiQty" data-page-node-id="AaTcqWSjBF0zDnVIGG13xZ">0<span class="kpi-unit" data-page-node-id="MFIaOTpjxMT6kYMj64PDBx">件</span></div></div></div>
-    <div class="kpi-card" data-page-node-id="dFH1p9jIR1imFSYRrgg9eg"><div class="kpi-icon green" data-page-node-id="CB2EoqROpY8Zuw4ts5GBvp">⚖️</div><div data-page-node-id="5LWJA4YTMSG2kq0P5sndtK"><div class="kpi-label" data-page-node-id="zu4GCD4tyT9n0Ie9ABbe1G">总吨位</div><div class="kpi-value" id="kpiTon" data-page-node-id="bwcOOUXxtfXHIZ3dg0Eoc7">0.0<span class="kpi-unit" data-page-node-id="FQYLf6vTgqpAbF1JEvwbcL">t</span></div></div></div>
-    <div class="kpi-card" data-page-node-id="nJJNn0w0sFOceFkgGKLmzb"><div class="kpi-icon orange" data-page-node-id="UeHWXvef4PnyInh431j1DQ">✓</div><div data-page-node-id="A2VgX94wuP5KXtTRTb7xOK"><div class="kpi-label" data-page-node-id="X1N0ZqCUA2Sk32j2B2c3FT">待发布</div><div class="kpi-value" id="kpiChecked" data-page-node-id="leBTEWwcHXhwrmhxae0Yic">0<span class="kpi-unit" data-page-node-id="rKMqVoV2IHaaQPjZB4Ol04">行</span></div></div></div>
-  </div>
-
+  <!-- 工具栏置顶冻结：红框内按钮行移到最上面，滚动时钉在顶部 -->
   <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
     <button class="btn btn-line" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
     <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶ 撤回</button>
@@ -370,6 +356,22 @@
     <div class="field field-inline" style="display:none" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
     <div class="field field-inline" title="发布后会自动拼到单号后面；填一次浏览器会记住"><label>计划员</label><input type="text" id="planner" placeholder="你的名字" maxlength="20" autocomplete="off"></div>
     <input type="hidden" id="planNo" data-page-node-id="Lj6AeJWsNI5r3zz49b248l">
+  </div>
+
+  <div class="page-header" data-page-node-id="2XAP5fMQdvcXR0ZU4ibZgr">
+    <div class="title-wrap" data-page-node-id="tWhGLK4bBFmoh36355WNqg">
+      <h1 data-page-node-id="b6TTOfvKxNvBHWoZrGGOqf"><span class="dot" data-page-node-id="yI9qhrCUbW3A9KFlw5Z43n"></span>发货计划系统</h1>
+      <div class="sub" data-page-node-id="plporT8xXJBt5PHbmuVYBL">做计划时只需填<b data-page-node-id="DEQBUIdYFk5B0NgDaVSf5l">型号 + 发货数量</b>，其余信息从「物料数据库」自动带出。</div>
+    </div>
+    <div class="welcome" data-page-node-id="HoIGGyoWb93UIQ6x6tobDD">Hi，欢迎回来 👋<br data-page-node-id="bSada4GMAjl1uWtE9YSUBA"><strong data-page-node-id="cU0PuWFJgolyuValxsmEHr">今天是 <span id="todayText" data-page-node-id="IEDsgPyYPgBMbTO4l6BD6H">-</span></strong></div>
+  </div>
+
+  <!-- KPI 统计卡片区（明细行数/发货数量/总吨位/待发布）：按要求隐藏，元素保留不影响计算 -->
+  <div class="kpi-grid" id="kpiGrid" style="display:none" data-page-node-id="WveniqAGEU6eEDUhDuDSzC">
+    <div class="kpi-card" data-page-node-id="LgWGSevpmatKuQN272vssm"><div class="kpi-icon blue" data-page-node-id="AFDyO8TvKy3KwLex42CJxP">📋</div><div data-page-node-id="Fx8MCtYAY1SLtfq7ShBjUx"><div class="kpi-label" data-page-node-id="vSinIweQbHoVif4iSsOV2H">明细行数</div><div class="kpi-value" id="kpiRows" data-page-node-id="wA4sFqsIKfCIvdlWpY5x33">0<span class="kpi-unit" data-page-node-id="H6VaBGH83An1Fs3x6aCFpZ">行</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="ChKdpmhbw90qJyxcHxDMnJ"><div class="kpi-icon violet" data-page-node-id="dGhAUgcydfIzp00cOqiMXT">📦</div><div data-page-node-id="aNIMfybl44VlMW0txFTbOk"><div class="kpi-label" data-page-node-id="eoNNB7z8qBXi2d06rAOmDV">发货数量</div><div class="kpi-value" id="kpiQty" data-page-node-id="AaTcqWSjBF0zDnVIGG13xZ">0<span class="kpi-unit" data-page-node-id="MFIaOTpjxMT6kYMj64PDBx">件</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="dFH1p9jIR1imFSYRrgg9eg"><div class="kpi-icon green" data-page-node-id="CB2EoqROpY8Zuw4ts5GBvp">⚖️</div><div data-page-node-id="5LWJA4YTMSG2kq0P5sndtK"><div class="kpi-label" data-page-node-id="zu4GCD4tyT9n0Ie9ABbe1G">总吨位</div><div class="kpi-value" id="kpiTon" data-page-node-id="bwcOOUXxtfXHIZ3dg0Eoc7">0.0<span class="kpi-unit" data-page-node-id="FQYLf6vTgqpAbF1JEvwbcL">t</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="nJJNn0w0sFOceFkgGKLmzb"><div class="kpi-icon orange" data-page-node-id="UeHWXvef4PnyInh431j1DQ">✓</div><div data-page-node-id="A2VgX94wuP5KXtTRTb7xOK"><div class="kpi-label" data-page-node-id="X1N0ZqCUA2Sk32j2B2c3FT">待发布</div><div class="kpi-value" id="kpiChecked" data-page-node-id="leBTEWwcHXhwrmhxae0Yic">0<span class="kpi-unit" data-page-node-id="rKMqVoV2IHaaQPjZB4Ol04">行</span></div></div></div>
   </div>
 
   <div class="card" data-page-node-id="8lEKJwsQUYOFb6pcml3ZLg">
