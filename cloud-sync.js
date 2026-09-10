@@ -61,13 +61,36 @@ window.CloudSync = (function () {
     }, 900);
   }
 
+  // 数组型数据的条数（非数组返回 -1）
+  function arrLen(s) {
+    try { const v = JSON.parse(s); return Array.isArray(v) ? v.length : -1; } catch (e) { return -1; }
+  }
+
   // 拉取多个键，存在则写回 localStorage，结束后回调重渲染
-  async function pullAll(keys, after) {
+  // ★ 防覆盖保护：云端数据明显少于本地时拒绝覆盖（例如云端被误清 / 另一台机器推了旧数据），
+  //   并先把本地当前值备份成 key+"__bak"，任何一次覆盖都可回退。
+  // force=true 表示用户手动点了「同步」，按用户意图强制以云端为准
+  async function pullAll(keys, after, force) {
     if (!ready) { if (after) after(); return; }
+    let keptLocal = false;
     for (const k of keys) {
       const v = await pull(k);
-      if (v !== null) localStorage.setItem(k, (typeof v === "string") ? v : JSON.stringify(v));
+      if (v === null) continue;
+      const incoming = (typeof v === "string") ? v : JSON.stringify(v);
+      const local = localStorage.getItem(k);
+      if (local != null) {
+        if (local === incoming) continue;                       // 完全一致，省一次写
+        const ll = arrLen(local), cl = arrLen(incoming);
+        if (!force && ll > 0 && cl >= 0 && cl * 100 < ll * 60) { // 云端不足本地的 60% → 判定为异常，保留本地
+          try { localStorage.setItem(k + "__cloud", incoming); } catch (e) {}
+          keptLocal = true;
+          continue;
+        }
+        try { localStorage.setItem(k + "__bak", local); } catch (e) {}   // 覆盖前留底
+      }
+      try { localStorage.setItem(k, incoming); } catch (e) {}
     }
+    if (keptLocal) setStatus("云端数据偏少，已保留本地", "warn");
     if (after) after();
   }
 
