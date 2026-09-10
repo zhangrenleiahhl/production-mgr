@@ -604,7 +604,19 @@ async function saveCustTon(rec){
       if (Array.isArray(del)) RECORDS = filterDeleted(RECORDS, del);
     } catch(e){}
   }
-  try { localStorage.setItem(KEY, JSON.stringify(RECORDS)); } catch(e){}
+  // 写回本地缓存：只增不减！
+  // ★ 编辑器和查看页在同一个站点下共用同一份 localStorage（同源），查看页手里的常常是
+  //   "刚从云端拉的这份"。如果直接整份写回去，会把编辑器本机独有的记录（还没传上云的）
+  //   当场冲掉 —— 表现就是"编辑器里有、查看页里没有，两边对不上"。所以这里先跟本机已有的取并集。
+  try {
+    const cur = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (Array.isArray(cur) && cur.length) RECORDS = mergeRecordsById(RECORDS, cur);
+    try{                                        // 并集之后再剔一次墓碑，别让已删除的从本机缓存里溜回来
+      const d2 = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
+      if (Array.isArray(d2)) RECORDS = filterDeleted(RECORDS, d2);
+    }catch(e){}
+    localStorage.setItem(KEY, JSON.stringify(RECORDS));
+  } catch(e){}
   // 单独备份一份覆盖表：页面每 30 秒会从云端重新拉取，若云端还没同步成功，用本地备份兜底
   try {
     const bak = {};
