@@ -1591,17 +1591,27 @@ $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=ge
 
 // ===================== 发布：文本存档 + 同步到发货员链接（不再截图下载） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
-// 复制到剪贴板（优先 navigator.clipboard，老环境/本地文件回退到 execCommand）
-function copyToClipboard(text, btn){
-  const done=()=>{ if(btn){ const o=btn.textContent; btn.textContent="已复制"; btn.classList.add("copied"); toast("已复制 ✓"); setTimeout(()=>{ btn.textContent=o; btn.classList.remove("copied"); },1200); } };
+// 复制到剪贴板（优先 navigator.clipboard，老环境/iframe/本地文件回退到 execCommand）
+function copyToClipboard(text, btn, onResult){
+  const ok=()=>{
+    if(btn){ const o=btn.textContent; btn.textContent="已复制"; btn.classList.add("copied"); setTimeout(()=>{ btn.textContent=o; btn.classList.remove("copied"); },1200); }
+    if(onResult) onResult(true);
+    else toast("已复制 ✓");
+  };
+  const fail=(reason)=>{ if(onResult) onResult(false, reason); else toast("复制失败："+(reason||"请重试")); };
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
-  } else fallbackCopy(text, done);
+    navigator.clipboard.writeText(text).then(ok).catch(()=>fallbackCopy(text, ok, fail));
+  } else fallbackCopy(text, ok, fail);
 }
-function fallbackCopy(text, cb){
-  const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.top="-1000px"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select();
-  try{ document.execCommand("copy"); cb&&cb(); }catch(e){}
-  document.body.removeChild(ta);
+function fallbackCopy(text, onOk, onFail){
+  let ok=false;
+  try{
+    const ta=document.createElement("textarea"); ta.value=text; ta.setAttribute("readonly",""); ta.style.cssText="position:fixed;top:-1000px;left:-1000px;opacity:0;";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    ok=document.execCommand("copy");
+    document.body.removeChild(ta);
+  }catch(e){ ok=false; }
+  if(ok) onOk&&onOk(); else onFail&&onFail("浏览器阻止了剪贴板写入");
 }
 // 复制勾选行的「型号 + 发货数量」（制表符分隔，Excel 可直接粘贴）
 function copyModelCode(){
@@ -1615,8 +1625,10 @@ function copyModelCode(){
     lines.push(model+"\t"+qty);
   });
   if(!lines.length){ toast("勾选的行中没有可复制的型号/发货数量"); return; }
-  copyToClipboard(lines.join("\n"), null);
-  toast("已复制 "+lines.length+" 行型号/发货数量 ✓");
+  copyToClipboard(lines.join("\n"), this, (ok, err)=>{
+    if(ok) toast("已复制 "+lines.length+" 行型号/发货数量 ✓");
+    else toast("复制失败："+(err||"请重试")+"，可尝试按 Ctrl+C 手动复制");
+  });
 }
 $("copyModelCode").onclick=copyModelCode;
 // 内容指纹：把勾选行的关键字段归一化后排序拼接再哈希，用于发布前与已发布记录比对（与行顺序无关）
