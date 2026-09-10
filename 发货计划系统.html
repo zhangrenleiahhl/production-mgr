@@ -35,10 +35,33 @@
     background:#2563eb;}
   .wrap{max-width:none;padding:14px 0 64px;}
   .kpi-grid,.topbar,.card{padding-left:24px;padding-right:24px;}
-  .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
-  .nav-link{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:0;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid #d0d7de;color:#4b5563;transition:.15s;box-shadow:none;}
-  .nav-link:hover{background:#f6f8fa;color:#2563eb;border-color:#9ca3af;}
-  .nav-link.active{background:#2563eb;color:#fff;border-color:#2563eb;}
+  /* ===== 顶部应用导航栏（与框架页风格一致，紧凑版） ===== */
+  .appbar{position:sticky;top:0;z-index:210;display:flex;align-items:center;gap:8px;
+    padding:5px 16px;background:#fff;border-bottom:1px solid #d0d7de;
+    box-shadow:0 2px 8px rgba(15,23,42,.06);}
+  .appbar .logo{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800;color:#1f2328;}
+  .appbar .logo .dot{width:8px;height:18px;background:#2563eb;border-radius:2px;display:inline-block;}
+  .appbar .tabs{display:flex;gap:5px;flex-wrap:wrap;margin-left:4px;}
+  .appbar .tab{border:none;border-radius:6px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;background:#eff6ff;color:#2563eb;transition:.15s;text-decoration:none;}
+  .appbar .tab:hover{background:#dbeafe;}
+  .appbar .tab.active{background:#2563eb;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.22);}
+  .appbar .spacer{flex:1;}
+  .appbar .clock{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;
+    background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+    border:1px solid rgba(56,189,248,.35);
+    box-shadow:0 0 10px rgba(56,189,248,.18), inset 0 0 8px rgba(56,189,248,.08);
+    color:#38bdf8;font-family:"SF Mono","Consolas","Monaco","Microsoft YaHei",monospace;
+    font-size:13px;font-weight:700;letter-spacing:1px;text-shadow:0 0 6px rgba(56,189,248,.5);
+    position:relative;overflow:hidden;white-space:nowrap;}
+  .appbar .clock::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(56,189,248,.18),transparent);
+    animation:scan 2.4s linear infinite;pointer-events:none;}
+  @keyframes scan{0%{left:-100%}100%{left:100%}}
+  .appbar .clock .date{color:#94a3b8;font-size:11px;font-weight:600;letter-spacing:0;text-shadow:none;}
+  .appbar .clock .time{color:#e0f2fe;}
+  .appbar .clock .sep{animation:blink 1s step-end infinite;color:#38bdf8;}
+  @keyframes blink{50%{opacity:0}}
+  @media (max-width:900px){.appbar .clock{display:none;}}
   /* ===== KPI 统计卡片 ===== */
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;}
   .kpi-card{background:#fff;border:1px solid #d0d7de;border-radius:0;padding:14px 16px;box-shadow:none;display:flex;align-items:center;gap:12px;transition:none;}
@@ -74,7 +97,7 @@
   .topbar{display:flex;flex-wrap:wrap;gap:3px 4px;align-items:center;
     background:#fff;border:1px solid #d0d7de;border-radius:0;
     padding:4px 8px;margin-bottom:6px;box-shadow:0 1px 4px rgba(15,23,42,.05);overflow:visible;
-    position:sticky;top:0;z-index:200;}
+    position:sticky;top:36px;z-index:200;}
   .topbar .btn-group{display:inline-flex;align-items:center;gap:0;flex-shrink:0;}
   .topbar .btn-group .btn{border-radius:0;margin-left:-1px;}
   .topbar .btn-group .btn:first-child{border-radius:4px 0 0 4px;margin-left:0;}
@@ -333,6 +356,19 @@
 </head>
 <body data-page-node-id="4fFYxxpjT3p7fKOAOYlX5n">
 <div class="wrap" data-page-node-id="FidnSL9YObjQpW6utUTEtZ">
+  <!-- 顶部应用导航栏：恢复导航标签页与动态时钟 -->
+  <div class="appbar" id="appbar">
+    <a class="logo" href="生产管理客户端.html"><span class="dot"></span>生产管理客户端</a>
+    <div class="tabs">
+      <a class="tab active" href="发货计划系统.html">📋 发货计划</a>
+      <a class="tab" href="仪表盘.html">📊 仪表盘</a>
+      <a class="tab" href="订单管理系统.html">🧾 订单管理</a>
+      <a class="tab" href="物料数据库.html">📦 物料数据库</a>
+    </div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock"><span class="date"></span><span class="sep">|</span><span class="time"></span></div>
+  </div>
+
   <!-- 工具栏置顶冻结：红框内所有控件合并为一条紧凑工具栏，滚动时钉在顶部 -->
   <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
     <div class="btn-group">
@@ -418,6 +454,20 @@ const LS_DRAFT = "shipping_draft_v1";   // 未发布明细自动草稿，刷新/
 const BACKUP_KEYS = [LS_DB, LS_REC, LS_DRAFT, "shipping_fold_dates_v1", "shipping_show_folded_v1"];
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+
+// 顶部导航栏动态时钟（精确到秒）
+(function(){
+  function pad(n){return String(n).padStart(2,"0");}
+  function updateClock(){
+    const clock=$("clock"); if(!clock) return;
+    const now=new Date();
+    const dateEl=clock.querySelector(".date");
+    const timeEl=clock.querySelector(".time");
+    if(dateEl) dateEl.textContent=now.getFullYear()+"/"+pad(now.getMonth()+1)+"/"+pad(now.getDate());
+    if(timeEl) timeEl.textContent=pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+  }
+  if($("clock")){ updateClock(); setInterval(updateClock,1000); }
+})();
 // 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区）
 function shipptOptions(val){
   const v=(val&&val!=="/")?String(val):"";
