@@ -456,6 +456,7 @@
 
   <div class="card" data-page-node-id="BV8XiL3IyhT0qaoC07Eb2q">
     <h2 data-page-node-id="FJhl5XDx5GmPt6aDog2nHa">发布记录 <span class="tag" id="recCount" data-page-node-id="lkfw98ZQMtMF2jeY0fOOqc">0 条</span>
+      <button class="dup-clean" id="dupCleanBtn" style="display:none" title="找出内容完全相同的重复发布记录，保留最新一条"></button>
       <span class="hint" data-page-node-id="gl6Q8P7GVyLip0iWqojslf">（发布后自动同步到发货员链接，同时存档文本数据）</span></h2>
     <div class="records" id="records" data-page-node-id="PSYP66F5Wp3HLBJ7O0jCYg"></div>
     <div class="empty" id="recEmpty" data-page-node-id="Rgr8hoUUTet2HFzdexnlr9">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
@@ -567,6 +568,76 @@ function mergeRecords(base, extra){
   out.sort((x,y)=>((Number(y && y.id)||0) - (Number(x && x.id)||0)));   // 置顶最新的
   if(out.length > 200){ archiveRecs(out.slice(200)); out = out.slice(0,200); }
   return out;
+}
+
+// ===================== 安全推送：先跟云端合并，再上传 =====================
+// 以前发布/删除是「把本机这份清单整份推上云」。如果这台电脑是刚用的（本机只有刚发布的
+// 那一条），或者开机拉取还没跑完，这一推就把云端上别人的计划全盖掉了 —— 表现就是
+// 「新人员一发布，其他几条被删了」。
+// 现在统一走这里：拉云端 → 按 id 合并（只增不减、剔除墓碑）→ 写回本机 → 再推合并结果。
+// ★ 拉不到云端就绝不推送（那只说明网络不通，不能拿本机这份"可能不完整"的清单去覆盖）。
+const LS_PENDING = "shipping_plans_pending_v1";   // 有改动还没推上云（本机私有标记，不参与同步/备份）
+function markPending(on){ try{ on ? localStorage.setItem(LS_PENDING,"1") : localStorage.removeItem(LS_PENDING); }catch(e){} }
+function isPending(){ try{ return localStorage.getItem(LS_PENDING)==="1"; }catch(e){ return false; } }
+async function flushRec(silent){
+  const run = () => doFlushRec(silent);
+  __flushChain = __flushChain.then(run, run);      // 串行化：连点两次发布也不会互相盖
+  return __flushChain;
+}
+let __flushChain = Promise.resolve();
+async function doFlushRec(silent){
+  if(!window.CloudSync || !CloudSync.ready()){ markPending(true); return false; }
+  let cloud = null;
+  try{ cloud = await CloudSync.pull(LS_REC); }catch(e){ cloud = null; }
+  if(cloud === null){
+    // 区分「云端真的没这条」和「这次没拉到」：前者以本机为准上传（首次使用要能建起来），
+    // 后者只记一笔，绝不覆盖（宁可晚点传，也不能拿不完整的本机数据冲掉云端）
+    const failed = (typeof CloudSync.lastPullFailed === "function") ? CloudSync.lastPullFailed() : true;
+    if(failed){ markPending(true); return false; }
+    cloud = [];
+  }
+  let cloudArr = [], localArr = [];
+  try{ cloudArr = (typeof cloud==="string") ? (JSON.parse(cloud)||[]) : (Array.isArray(cloud)?cloud:[]); }catch(e){ cloudArr = []; }
+  try{ localArr = loadRec(); }catch(e){ localArr = []; }
+  let merged = localArr;
+  try{ merged = mergeRecords(cloudArr, localArr); }catch(e){ merged = localArr; }
+  const mergedStr = JSON.stringify(merged);
+  if(mergedStr !== JSON.stringify(localArr)){                     // 云端独有的记录先落到本机
+    safeSet(LS_REC, mergedStr);
+    try{ renderRecords(); }catch(e){}
+  }
+  let ok = false;
+  try{ ok = await CloudSync.push(LS_REC, merged); }catch(e){ ok = false; }
+  try{ CloudSync.push(LS_DEL, loadDeletedIds()); }catch(e){}       // 墓碑一起同步，删掉的不会被别的端"复活"
+  markPending(!ok);
+  if(!ok && !silent){ try{ toast("暂时连不上云端，已存在本机，稍后会自动补传"); }catch(e){} }
+  return ok;
+}
+
+// ===================== 清理「内容完全相同」的重复发布记录 =====================
+// 同一批货被发了两次（单号不同、内容一模一样）时，只保留最新的一条，重复的转入归档并打删除墓碑。
+function findDupRecs(){
+  const seen = new Set(), dups = [];
+  loadRec().forEach(r=>{
+    const f = r && r.fingerprint;
+    if(!f) return;                                   // 老记录没有指纹，不动它
+    if(seen.has(f)) dups.push(r); else seen.add(f);
+  });
+  return dups;
+}
+function cleanDupRecs(){
+  const dups = findDupRecs();
+  if(!dups.length){ try{ toast("没有发现重复的发布记录"); }catch(e){} return; }
+  const lines = dups.map(r=>"· "+(r.no||"?")+(r.planner?("（"+r.planner+"）"):"")+"　"+(r.publishedAt||"")).join("\n");
+  if(!confirm("发现 "+dups.length+" 条与更早的计划内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？")) return;
+  snapshot(LS_REC, "清理重复前");
+  const dupIds = new Set(dups.map(r=>String(r.id)));
+  dups.forEach(r=>{ if(r && r.id!=null) markDeleted(r.id); });
+  archiveRecs(dups);
+  safeSet(LS_REC, JSON.stringify(loadRec().filter(r=>!(r && r.id!=null && dupIds.has(String(r.id))))));
+  try{ renderRecords(); }catch(e){}
+  flushRec(true);
+  toast("已清理 "+dups.length+" 条重复记录（已归档，可恢复）");
 }
 
 // 顶部导航栏动态时钟（精确到秒）
@@ -2062,8 +2133,9 @@ function saveRec(rec){
     ok = safeSet(LS_REC, JSON.stringify(keep));
     if(ok) toast("存储空间不足，较早记录已转入归档（导出备份可取回）");
   }
-  // 发布是关键操作：立刻推云端，不走 900ms 防抖（防抖期间关页面会导致云端收不到）
-  if(window.CloudSync) CloudSync.push(LS_REC, loadRec());
+  // 发布是关键操作：立刻同步云端（不走 900ms 防抖）。走 flushRec —— 它会先拉云端、
+  // 按 id 合并（只增不减）再上传，绝不会把本机这份不完整的清单整份盖到云端。
+  if(window.CloudSync) flushRec(true);
   return ok;
 }
 function loadRec(){ try{ return JSON.parse(localStorage.getItem(LS_REC))||[]; }catch(e){ return []; } }
@@ -2116,6 +2188,8 @@ function classifyRec(shipdate){
 
 function renderRecords(){
   const list=loadRec(); $("recCount").textContent=list.length+" 条";
+  const dupBtn=$("dupCleanBtn");
+  if(dupBtn){ const dn=findDupRecs().length; dupBtn.style.display=dn?"":"none"; dupBtn.textContent=dn?("⚠ 清理重复 "+dn):""; }
   const box=$("records"); box.innerHTML="";
   $("recEmpty").style.display=list.length?"none":"block";
   if(!list.length){ updateKPIs(); return; }
@@ -2159,8 +2233,8 @@ function renderRecords(){
           const keep = loadRec().filter(r=>r.id!==rec.id);
           safeSet(LS_REC, JSON.stringify(keep));
           renderRecords();
-          // 删除是关键操作，立刻推云端（不再走 900ms 防抖，避免关页面时没推上）
-          if(window.CloudSync){ CloudSync.push(LS_REC, keep); CloudSync.push(LS_DEL, loadDeletedIds()); }
+          // 删除是关键操作，立刻同步（墓碑随 flushRec 一起推；合并时会剔除墓碑，删除在所有端都生效）
+          if(window.CloudSync) flushRec(true);
           toast("已删除发布记录 "+(rec.no||"")+"（已留档可恢复）");
         });
       };
@@ -2228,7 +2302,10 @@ function importBackup(file){
       // 导入会整片覆盖本机数据 → 先给每个将被覆盖的键留一份快照，导错可原样退回
       BACKUP_KEYS.forEach(k=>{ if(k in data) snapshot(k, "导入备份前"); });
       BACKUP_KEYS.forEach(k=>{ if(k in data){ const v=data[k]; safeSet(k, typeof v==="string"?v:JSON.stringify(v)); } });
-      if(window.CloudSync){ BACKUP_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } }); }
+      if(window.CloudSync){ BACKUP_KEYS.forEach(k=>{
+        if(k === LS_REC){ flushRec(true); return; }     // 发布记录一律走"合并推送"，不整份覆盖云端
+        let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); }
+      }); }
       toast("备份已导入，正在刷新…");
       setTimeout(()=>location.reload(),700);
     }catch(e){ toast("备份文件解析失败："+e.message); }
@@ -2237,6 +2314,7 @@ function importBackup(file){
 }
 $("undoBtn").onclick=undo;
 $("cleanEmptyBtn").onclick=cleanEmptyRows;
+if($("dupCleanBtn")) $("dupCleanBtn").onclick=cleanDupRecs;
 updateUndoBtn();
 document.addEventListener("keydown", e=>{
   if((e.ctrlKey||e.metaKey) && (e.key==="z"||e.key==="Z")){
@@ -2430,10 +2508,12 @@ if(window.CloudSync){
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
   const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 同步'; btn.title='拉取最新';
   if(nav){ const dbStatus=nav.querySelector('#dbStatus'); const anchor=dbStatus?dbStatus.nextSibling:null; nav.insertBefore(pill, anchor); nav.insertBefore(btn, pill.nextSibling); CloudSync.bindStatus(pill);
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true, CLOUD_MERGE); }   // 手动点同步：发布记录仍走合并，绝不整份覆盖
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true, CLOUD_MERGE).then(()=>flushRec(true)); }   // 手动点同步：发布记录仍走合并，绝不整份覆盖
   if(CloudSync.ready()){
     CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, false, CLOUD_MERGE).then(()=>{
-      CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
+      // ★ 启动时不再无条件「把本地回写云端」：万一某个键这次没拉到，回写就会用本机旧数据冲掉云端。
+      //   只在「上次有改动没推上去」时补推一次，而且补推前会先与云端合并（见 flushRec）。
+      if(isPending()) flushRec(true);
     });
   } else { CloudSync.setStatus('未配置云端','off'); }
 }
