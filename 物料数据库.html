@@ -28,6 +28,7 @@
   .cloud-pill.ok{background:#e7f8ee;color:#15803d;border-color:#bbe7c9;}
   .cloud-pill.err{background:#fdecea;color:#d92d20;border-color:#f3c7c2;}
   .cloud-pill.sync{background:#eef4ff;color:#2563eb;border-color:#c5d8ff;}
+  .cloud-pill.warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
   .cloud-pill.off{background:#f1f5f9;color:#94a3b8;}
   @media (max-width:820px){
     .wrap{padding:12px 8px 56px;}
@@ -486,7 +487,7 @@ if(window.CloudSync){
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
   const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
   if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }); }
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }, true); }   // 手动点同步 = 明确以云端为准
   if(CloudSync.ready()){
     CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }).then(()=>{
       CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
