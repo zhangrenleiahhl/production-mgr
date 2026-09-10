@@ -70,7 +70,8 @@ window.CloudSync = (function () {
   // ★ 防覆盖保护：云端数据明显少于本地时拒绝覆盖（例如云端被误清 / 另一台机器推了旧数据），
   //   并先把本地当前值备份成 key+"__bak"，任何一次覆盖都可回退。
   // force=true 表示用户手动点了「同步」，按用户意图强制以云端为准
-  async function pullAll(keys, after, force) {
+  // merge={ key: (localStr, cloudStr) => mergedStr } 时该键走"合并"而不是"覆盖"（最安全，只增不减）
+  async function pullAll(keys, after, force, merge) {
     if (!ready) { if (after) after(); return; }
     let keptLocal = false;
     for (const k of keys) {
@@ -80,6 +81,16 @@ window.CloudSync = (function () {
       const local = localStorage.getItem(k);
       if (local != null) {
         if (local === incoming) continue;                       // 完全一致，省一次写
+        // 合并模式：调用方自己决定怎么合（例如按 id 取并集），永不丢数据
+        if (merge && typeof merge[k] === "function") {
+          let merged = null;
+          try { merged = merge[k](local, incoming); } catch (e) { merged = null; }
+          if (typeof merged === "string" && merged !== local) {
+            try { localStorage.setItem(k + "__bak", local); } catch (e) {}
+            try { localStorage.setItem(k, merged); } catch (e) {}
+          }
+          continue;
+        }
         const ll = arrLen(local), cl = arrLen(incoming);
         if (!force && ll > 0 && cl >= 0 && cl * 100 < ll * 60) { // 云端不足本地的 60% → 判定为异常，保留本地
           try { localStorage.setItem(k + "__cloud", incoming); } catch (e) {}
