@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="xlsx.full.min.js"></script>
+<!-- 性能：xlsx.full.min.js（约 880KB）不再首屏加载，改为点「导出 Excel」时按需加载，发货员打开页面更快 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="ef5SDVfFecmq8rDwoWCj4X">
 <meta http-equiv="Pragma" content="no-cache" data-page-node-id="dSdiiSW8NXQSX1dmF79749">
 <meta http-equiv="Expires" content="0" data-page-node-id="5HwTSP2LIAbCDn0WvvxJ7j">
@@ -202,8 +202,10 @@ function recShipDate(rec){
 function init(){
   if (window.CloudSync) CloudSync.init();
   load();
-  setInterval(load, 30000);                // 每 30 秒自动拉取最新
-  $("refresh").onclick = load;
+  setInterval(() => load(false), 30000);   // 每 30 秒自动拉取最新（内容无变化不重绘；后台时跳过）
+  // 从别的页签切回来 → 立刻拉一次，保证看到的是最新
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) load(false); });
+  $("refresh").onclick = () => load(true);
   $("selAll").onchange = (e) => {
     document.querySelectorAll(".rec-sel").forEach(c => c.checked = e.target.checked);
     updateSel();
@@ -227,7 +229,25 @@ function startClock(){
 }
 
 // ===================== 拉取云端数据 =====================
-async function load(){
+// 性能：给数据算一个指纹，30 秒轮询到内容没变时「不重绘」——避免整页闪一下、
+//      也不会把发货员已展开的明细/已勾选的行冲掉。
+let __lastFp = null;
+function dataFingerprint(list){
+  try{
+    let h = 5381, n = 0;
+    for (const r of list){
+      if (!r){ n++; continue; }
+      const s = (r.id != null ? r.id : r.no || "") + "|" + (r.publishedAt || "") + "|" +
+                ((r.rows && r.rows.length) || 0) + "|" + (r.custTon ? JSON.stringify(r.custTon) : "");
+      for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+      n++;
+    }
+    return n + ":" + h;
+  }catch(e){ return "err:" + Date.now(); }
+}
+
+async function load(manual){
+  if (document.hidden && !manual) return;    // 页面在后台 → 跳过这次轮询，省流量省电
   $("status").textContent = "正在拉取云端数据…";
   let list = null;
   if (window.CloudSync && CloudSync.ready()){
@@ -239,7 +259,11 @@ async function load(){
   }
   RECORDS = Array.isArray(list) ? list : [];
   restoreCustTon();                        // 用本地备份补齐客户吨位修改（页面每 30 秒自动刷新，防止改动被冲掉）
-  render();
+  const fp = dataFingerprint(RECORDS);
+  if (fp !== __lastFp){                    // 内容有变化才重绘
+    __lastFp = fp;
+    render();
+  }
   const t = new Date().toLocaleTimeString("zh-CN");
   $("status").textContent = `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
 }
@@ -523,6 +547,10 @@ function applyCustTon(d, rec){
   if (headMeta) headMeta.textContent = `客户吨位 ${pad(rec.sumSubTon)}`;
 }
 
+// 本地兜底的保质期：只在 30 分钟内有效（用于"云端还没来得及同步"的短窗口）
+// 超过保质期就以云端为准，避免旧的本地备份长期"复活"已经被改掉/删掉的吨位值
+const CT_BAK_TTL = 30 * 60 * 1000;
+
 // 保存：本地 + 本地独立备份 + 云端
 async function saveCustTon(rec){
   try { localStorage.setItem(KEY, JSON.stringify(RECORDS)); } catch(e){}
@@ -532,7 +560,7 @@ async function saveCustTon(rec){
     RECORDS.forEach(r => {
       if (r && r.custTon && Object.keys(r.custTon).length) bak[r.id != null ? r.id : r.no] = r.custTon;
     });
-    localStorage.setItem(KEY_CT, JSON.stringify(bak));
+    localStorage.setItem(KEY_CT, JSON.stringify({ at: Date.now(), data: bak }));
   } catch(e){}
   if (window.CloudSync && CloudSync.ready()){
     try { await CloudSync.push(KEY, RECORDS); } catch(e){}
@@ -541,14 +569,24 @@ async function saveCustTon(rec){
 
 // 拉取数据后，用本地备份补齐 custTon（云端已有值则优先用云端的）
 function restoreCustTon(){
-  let bak = null;
-  try { bak = JSON.parse(localStorage.getItem(KEY_CT) || "null"); } catch(e){}
-  if (!bak || typeof bak !== "object") return;
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(KEY_CT) || "null"); } catch(e){}
+  if (!raw || typeof raw !== "object") return;
+  if (!raw.at || !raw.data){                     // 旧格式（无时间戳）：清掉，避免无限期复活旧值
+    try { localStorage.removeItem(KEY_CT); } catch(e){}
+    return;
+  }
+  if (Date.now() - raw.at > CT_BAK_TTL) return;  // 已过期 → 以云端为准
+  const bak = raw.data;
+  const alive = new Set();
+  RECORDS.forEach(r => { if (r) alive.add(String(r.id != null ? r.id : r.no)); });
+  const bak2 = {};                               // 顺手清掉已删除计划残留的备份，防止无限增长
   RECORDS.forEach(r => {
     if (!r) return;
-    const id = r.id != null ? r.id : r.no;
-    if (bak[id]) r.custTon = Object.assign({}, bak[id], r.custTon || {});
+    const id = String(r.id != null ? r.id : r.no);
+    if (bak[id]){ bak2[id] = bak[id]; r.custTon = Object.assign({}, bak[id], r.custTon || {}); }
   });
+  try { localStorage.setItem(KEY_CT, JSON.stringify({ at: raw.at, data: bak2 })); } catch(e){}
 }
 
 // ===================== 渲染行（不合并单元格，每行完整显示）=====================
@@ -577,8 +615,23 @@ function matrix(rows, date, rec){
   return {head, data};
 }
 
-function exportExcel(rows, name, date, rec){
-  if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
+// ===== 按需加载 Excel 组件（首屏不再下载 880KB，点导出时才拉）=====
+let __xlsxPromise = null;
+function ensureXLSX(){
+  if (typeof XLSX !== "undefined") return Promise.resolve(true);
+  if (__xlsxPromise) return __xlsxPromise;
+  __xlsxPromise = new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "xlsx.full.min.js";
+    s.onload = () => setTimeout(() => resolve(typeof XLSX !== "undefined"), 0);
+    s.onerror = () => { __xlsxPromise = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return __xlsxPromise;
+}
+
+async function exportExcel(rows, name, date, rec){
+  if (!(await ensureXLSX())){ alert("Excel 组件加载失败，请检查网络后重试（也可改用 CSV 导出）"); return; }
   const {head, data} = matrix(rows, date, rec);
   const ws = XLSX.utils.aoa_to_sheet([head, ...data]);   // 不做单元格合并，每行完整
   const wb = XLSX.utils.book_new();
@@ -619,14 +672,14 @@ function batchMatrix(recs){
   return {head, data};
 }
 
-function batchDownload(fmt){
+async function batchDownload(fmt){
   const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要下载的计划单（卡片左侧的方框）"); return; }
 
   const {head, data} = batchMatrix(recs);
   if (fmt === "excel"){
-    if (typeof XLSX === "undefined"){ alert("Excel 库未加载，请刷新页面"); return; }
+    if (!(await ensureXLSX())){ alert("Excel 组件加载失败，请检查网络后重试（也可改用 CSV 导出）"); return; }
     const ws = XLSX.utils.aoa_to_sheet([head, ...data]);   // 不做单元格合并，每行完整
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "批量发货计划");
