@@ -36,28 +36,28 @@
   .wrap{max-width:none;padding:14px 0 64px;}
   .kpi-grid,.topbar,.card{padding-left:24px;padding-right:24px;}
   /* ===== 顶部应用导航栏（与框架页风格一致，紧凑版） ===== */
-  .appbar{position:sticky;top:0;z-index:210;display:flex;align-items:center;gap:8px;
-    padding:5px 16px;background:#fff;border-bottom:1px solid #d0d7de;
+  .appbar{position:sticky;top:0;z-index:210;display:flex;align-items:center;gap:12px;
+    padding:9px 20px;background:#fff;border-bottom:1px solid #d0d7de;
     box-shadow:0 2px 8px rgba(15,23,42,.06);}
-  .appbar .logo{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800;color:#1f2328;}
-  .appbar .logo .dot{width:8px;height:18px;background:#2563eb;border-radius:2px;display:inline-block;}
-  .appbar .tabs{display:flex;gap:5px;flex-wrap:wrap;margin-left:4px;}
-  .appbar .tab{border:none;border-radius:6px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;background:#eff6ff;color:#2563eb;transition:.15s;text-decoration:none;}
+  .appbar .logo{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:800;color:#1f2328;}
+  .appbar .logo .dot{width:10px;height:23px;background:#2563eb;border-radius:2px;display:inline-block;}
+  .appbar .tabs{display:flex;gap:7px;flex-wrap:wrap;margin-left:8px;}
+  .appbar .tab{border:none;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;background:#eff6ff;color:#2563eb;transition:.15s;text-decoration:none;}
   .appbar .tab:hover{background:#dbeafe;}
   .appbar .tab.active{background:#2563eb;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.22);}
   .appbar .spacer{flex:1;}
-  .appbar .clock{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;
+  .appbar .clock{display:inline-flex;align-items:center;gap:9px;padding:8px 18px;border-radius:999px;
     background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
     border:1px solid rgba(56,189,248,.35);
     box-shadow:0 0 10px rgba(56,189,248,.18), inset 0 0 8px rgba(56,189,248,.08);
     color:#38bdf8;font-family:"SF Mono","Consolas","Monaco","Microsoft YaHei",monospace;
-    font-size:13px;font-weight:700;letter-spacing:1px;text-shadow:0 0 6px rgba(56,189,248,.5);
+    font-size:16px;font-weight:700;letter-spacing:1px;text-shadow:0 0 6px rgba(56,189,248,.5);
     position:relative;overflow:hidden;white-space:nowrap;}
   .appbar .clock::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
     background:linear-gradient(90deg,transparent,rgba(56,189,248,.18),transparent);
     animation:scan 2.4s linear infinite;pointer-events:none;}
   @keyframes scan{0%{left:-100%}100%{left:100%}}
-  .appbar .clock .date{color:#94a3b8;font-size:11px;font-weight:600;letter-spacing:0;text-shadow:none;}
+  .appbar .clock .date{color:#94a3b8;font-size:14px;font-weight:600;letter-spacing:0;text-shadow:none;}
   .appbar .clock .time{color:#e0f2fe;}
   .appbar .clock .sep{animation:blink 1s step-end infinite;color:#38bdf8;}
   @keyframes blink{50%{opacity:0}}
@@ -468,6 +468,14 @@ const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&
   }
   if($("clock")){ updateClock(); setInterval(updateClock,1000); }
 })();
+// 工具栏吸附位置跟随顶部导航栏实际高度（导航栏放大/换行时自动对齐，避免被遮挡）
+function syncTopbarOffset(){
+  const ab=$("appbar"), tb=document.querySelector(".topbar");
+  if(ab&&tb) tb.style.top=ab.offsetHeight+"px";
+}
+syncTopbarOffset();
+window.addEventListener("resize", syncTopbarOffset);
+window.addEventListener("load", syncTopbarOffset);
 // 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区）
 function shipptOptions(val){
   const v=(val&&val!=="/")?String(val):"";
@@ -1317,16 +1325,8 @@ function foldByDate(){
   const fd=$("foldedDates");
   fd.innerHTML="";
   if(!showFolded && foldedDates.length){
-    const past=foldedDates.filter(d=>d<=today);
+    // 按要求：不再渲染「当天之前」的折叠展开入口（当天之前默认折叠，想展开点工具栏「当天前」）
     const future=foldedDates.filter(d=>d>today);
-    if(past.length){
-      const b=document.createElement("button");
-      b.type="button"; b.className="folded-date-btn";
-      b.textContent="▶ 当天之前已折叠";
-      b.title="展开 "+past.join("、");
-      b.onclick=()=>{ past.forEach(d=>setFoldState(d,0)); foldByDate(); fitTextareas(); };
-      fd.appendChild(b);
-    }
     if(future.length){
       const b=document.createElement("button");
       b.type="button"; b.className="folded-date-btn";
