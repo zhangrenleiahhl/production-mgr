@@ -296,6 +296,10 @@ async function load(manual){
   }
   const t = new Date().toLocaleTimeString("zh-CN");
   $("status").textContent = `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
+  // 上次改的吨位没能推上云（当时拉取失败）→ 这次拉取成功了，补传一次
+  if (isCtPending() && window.CloudSync && CloudSync.ready()){
+    try { await CloudSync.push(KEY, RECORDS); setCtPending(false); } catch(e){}
+  }
 }
 
 // ===================== 渲染列表（按发货日期分组 + 颜色分区）=====================
@@ -582,11 +586,18 @@ function applyCustTon(d, rec){
 const CT_BAK_TTL = 30 * 60 * 1000;
 
 // 保存：先与云端最新记录合并（只增不减），再写本地 + 本地独立备份 + 云端
+// ★ 拉云端失败时绝不推云端：那只说明网络不通，本机这份可能已是不完整的旧副本，推上去会冲掉云端。
+//   此时只记一笔「待补传」，等下次拉取成功后自动补推。
+const KEY_PENDING = "shipping_custton_pending_v1";
+function setCtPending(on){ try{ on ? localStorage.setItem(KEY_PENDING,"1") : localStorage.removeItem(KEY_PENDING); }catch(e){} }
+function isCtPending(){ try{ return localStorage.getItem(KEY_PENDING)==="1"; }catch(e){ return false; } }
 async function saveCustTon(rec){
+  let mayPush = !(window.CloudSync && CloudSync.ready());
   if (window.CloudSync && CloudSync.ready()){
     try {                                        // ① 拉云端最新，避免用旧副本盖掉期间新发布的计划
       const fresh = await CloudSync.pull(KEY);
-      if (Array.isArray(fresh) && fresh.length) RECORDS = mergeRecordsById(fresh, RECORDS);
+      if (Array.isArray(fresh)) { mayPush = true; if (fresh.length) RECORDS = mergeRecordsById(fresh, RECORDS); }
+      else if (typeof CloudSync.lastPullFailed === "function" && !CloudSync.lastPullFailed()) mayPush = true;  // 云端确实没这条（首次）→ 可以推
     } catch(e){}
     try {                                        // ② 取删除墓碑，避免把管理端已删除的计划又推回去
       const del = await CloudSync.pull(KEY_DEL);
@@ -602,8 +613,10 @@ async function saveCustTon(rec){
     });
     localStorage.setItem(KEY_CT, JSON.stringify({ at: Date.now(), data: bak }));
   } catch(e){}
-  if (window.CloudSync && CloudSync.ready()){
-    try { await CloudSync.push(KEY, RECORDS); } catch(e){}
+  if (mayPush && window.CloudSync && CloudSync.ready()){
+    try { await CloudSync.push(KEY, RECORDS); setCtPending(false); } catch(e){ setCtPending(true); }
+  } else {
+    setCtPending(true);                          // 拉不到云端 → 不推，记一笔下次补传
   }
 }
 
