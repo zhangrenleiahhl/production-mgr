@@ -86,6 +86,9 @@
   .field-inline{flex-direction:row;align-items:center;gap:5px;}
   .field-inline input{width:112px;padding:5px 8px;font-size:12px;}
   .field input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
+  .field input[readonly]{background:#f3f4f6;color:#6b7280;border-style:dashed;cursor:pointer;}
+  .card h2.section-head{border:none;background:transparent;padding-left:0;margin:0 0 8px;}
+  .card h2.section-head::before{display:none;}
   .spacer{flex:1;}
   .btn{border:1px solid #d0d7de;border-radius:4px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:3px;flex-shrink:0;background:#fff;color:#1f2328;}
   .btn:active{transform:none;}
@@ -344,7 +347,7 @@
     <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0;" data-page-node-id="D6I3XsoXc8hQ7XMePwtuCS"></span>
     <!-- 顶部「日期」筛选器：按要求隐藏（每行仍可单独选发货日期） -->
     <div class="field field-inline" style="display:none" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
-    <div class="field field-inline" title="发布后会自动拼到单号后面；填一次浏览器会记住"><label>计划员</label><input type="text" id="planner" placeholder="你的名字" maxlength="20" autocomplete="off"></div>
+    <div class="field field-inline" id="plannerWrap"><label>计划员</label><input type="text" id="planner" placeholder="你的名字" maxlength="20" autocomplete="off"></div>
     <input type="hidden" id="planNo" data-page-node-id="Lj6AeJWsNI5r3zz49b248l">
   </div>
 
@@ -357,7 +360,7 @@
   </div>
 
   <div class="card" data-page-node-id="8lEKJwsQUYOFb6pcml3ZLg">
-    <h2 data-page-node-id="dbuO0FZ4P21qhgqyfFkkMc">发货明细 <span class="tag" id="rowCount" data-page-node-id="JZ6DTAawAuER2FoY9CFgHm">0 行</span><span id="foldedDates" class="folded-dates" data-page-node-id="WcTPMj6nFAHpHmFIIuqAqw"></span></h2>
+    <h2 class="section-head" data-page-node-id="dbuO0FZ4P21qhgqyfFkkMc"><span class="tag" id="rowCount" style="display:none" data-page-node-id="JZ6DTAawAuER2FoY9CFgHm">0 行</span><span id="foldedDates" class="folded-dates" data-page-node-id="WcTPMj6nFAHpHmFIIuqAqw"></span></h2>
     <div class="doc" id="doc" data-page-node-id="q2oCcvrmsWHNCsqcMeMR0G">
       <div class="doc-head" data-page-node-id="xUeaBODxHoAASjEiOyYtZo">
         <div class="t" id="docTitle" data-page-node-id="51l0Ug7MqgsRtTsskLRS6R">发货计划</div>
@@ -2082,10 +2085,39 @@ if(_draft && (_draft.rows.length || _draft.date)){
   addRow(); addRow();
 }
 reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
-// 计划员：填一次浏览器就记住，下次开页面自动回填
+// 计划员：首次设置无需密码，设置后自动锁定；再次修改需输入密码 123456
 const PLANNER_KEY="shipping_planner_v1";
-try{ $("planner").value=localStorage.getItem(PLANNER_KEY)||""; }catch(e){}
-$("planner").addEventListener("input", ()=>{ try{ localStorage.setItem(PLANNER_KEY, $("planner").value.trim()); }catch(e){} });
+const PLANNER_PWD="123456";
+function applyPlannerLock(){
+  const el=$("planner");
+  const saved=(localStorage.getItem(PLANNER_KEY)||"").trim();
+  el.value=saved;
+  if(saved){
+    el.readOnly=true;
+    el.title="计划员已锁定，点击修改需输入密码 "+PLANNER_PWD;
+  }else{
+    el.readOnly=false;
+    el.title="首次设置无需密码，设置后会自动锁定";
+  }
+}
+try{ applyPlannerLock(); }catch(e){}
+$("planner").addEventListener("focus", function(){
+  if(this.readOnly){
+    const pwd=window.prompt("修改计划员需要密码：");
+    if(pwd===PLANNER_PWD){
+      this.readOnly=false;
+      this.title="修改完成后离开输入框自动保存并锁定";
+    }else{
+      this.blur();
+      if(pwd!==null) toast("密码错误");
+    }
+  }
+});
+$("planner").addEventListener("blur", function(){
+  const val=this.value.trim();
+  try{ localStorage.setItem(PLANNER_KEY, val); }catch(e){}
+  applyPlannerLock();
+});
 renderRecords();
 
 // ===================== 云端同步 =====================
