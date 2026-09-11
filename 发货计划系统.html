@@ -1,211 +1,736 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html lang="zh-CN" data-page-node-id="GZ30c4wJKdjSCvPYoSUQtR">
+<head data-page-node-id="d7JP8DO3NXQ8eoOfL73lO4">
+<meta charset="UTF-8" data-page-node-id="7wbyOSER2C51d8XTbnssqA">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="HKoTCyrOsDYJJS5jftuh1D">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="V48wFwOpnS0yYK2Q22tJur">
+<meta http-equiv="Pragma" content="no-cache" data-page-node-id="0nVfUstoix6vi1vUP1knvo">
+<meta http-equiv="Expires" content="0" data-page-node-id="wk2xJSIUIDB4SDNKMNlfLj">
 <title>发货计划系统</title>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
-<script src="cloud-sync.js"></script>
+<script src="cloud-sync.js?v=20260910b"></script>
+<script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
-    --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
-    --muted:#7a8699; --brand:#2563eb; --brand-d:#1e4fb0;
-    --red:#d92d20; --green:#15803d; --soft:#eef4ff;
+    --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
+    --card:#ffffff; --line:#e6e9f4; --line-2:#f1f4fb;
+    --txt:#0f172a; --txt-2:#334155; --muted:#64748b; --muted-2:#94a3b8;
+    --brand:#6366f1; --brand-2:#818cf8; --brand-d:#4f46e5;
+    --soft:#eef2ff; --soft-2:#e0e7ff; --soft-line:#c7d2fe;
+    --red:#ef4444; --red-bg:#fecaca; --green:#10b981; --green-bg:#ecfdf5;
+    --violet:#8b5cf6; --orange:#f59e0b;
+    --purple:#3b82f6; --purple-d:#2563eb; --purple-l:#60a5fa; --purple-bg:#eff6ff; --blue:#0ea5e9; --blue-bg:#bfdbfe;
+    --radius:16px; --radius-sm:12px; --radius-lg:20px;
+    --sh-sm:0 1px 3px rgba(15,23,42,.06);
+    --sh-md:0 4px 20px rgba(15,23,42,.06);
+    --sh-lg:0 18px 45px rgba(15,23,42,.10);
+    --ease:cubic-bezier(.2,.7,.3,1);
   }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
-    background:var(--bg);color:var(--txt);font-size:14px;}
-  .wrap{max-width:1320px;margin:0 auto;padding:18px 14px 60px;}
-  h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
-  h1 .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:14px;}
-  .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
-  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
-  .nav-link:hover{background:var(--soft);color:var(--brand);}
-  .nav-link.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 4px 12px rgba(37,99,235,.28);}
+  body{margin:0;font-family:"Microsoft YaHei","微软雅黑","PingFang SC","Helvetica Neue",Arial,sans-serif;
+    background:#f6f8fa;color:#1f2328;font-size:14px;
+    -webkit-font-smoothing:antialiased;text-align:center;}
+  body::before{content:"";position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;
+    background:#2563eb;}
+  .wrap{max-width:none;padding:14px 0 64px;}
+  .kpi-grid,.topbar,.card{padding-left:24px;padding-right:24px;}
+  /* ===== 顶部应用导航栏（与框架页风格一致，紧凑版） ===== */
+  .appbar{position:sticky;top:0;z-index:210;display:flex;align-items:center;gap:12px;
+    padding:9px 20px;background:#fff;border-bottom:1px solid #d0d7de;
+    box-shadow:0 2px 8px rgba(15,23,42,.06);}
+  .appbar .logo{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:800;color:#1f2328;}
+  .appbar .logo .dot{width:10px;height:23px;background:#2563eb;border-radius:2px;display:inline-block;}
+  .appbar .tabs{display:flex;gap:7px;flex-wrap:wrap;margin-left:8px;}
+  .appbar .tab{border:none;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;background:#eff6ff;color:#2563eb;transition:.15s;text-decoration:none;}
+  .appbar .tab:hover{background:#dbeafe;}
+  .appbar .tab.active{background:#2563eb;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.22);}
+  .appbar .spacer{flex:1;}
+  .appbar .clock{display:inline-flex;align-items:center;gap:9px;padding:8px 18px;border-radius:999px;
+    background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+    border:1px solid rgba(56,189,248,.35);
+    box-shadow:0 0 10px rgba(56,189,248,.18), inset 0 0 8px rgba(56,189,248,.08);
+    color:#38bdf8;font-family:"SF Mono","Consolas","Monaco","Microsoft YaHei",monospace;
+    font-size:16px;font-weight:700;letter-spacing:1px;text-shadow:0 0 6px rgba(56,189,248,.5);
+    position:relative;overflow:hidden;white-space:nowrap;}
+  .appbar .clock::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(56,189,248,.18),transparent);
+    animation:scan 2.4s linear infinite;pointer-events:none;}
+  @keyframes scan{0%{left:-100%}100%{left:100%}}
+  .appbar .clock .date{color:#94a3b8;font-size:14px;font-weight:600;letter-spacing:0;text-shadow:none;}
+  .appbar .clock .time{color:#e0f2fe;}
+  .appbar .clock .sep{animation:blink 1s step-end infinite;color:#38bdf8;}
+  @keyframes blink{50%{opacity:0}}
+  @media (max-width:900px){.appbar .clock{display:none;}}
+  /* ===== KPI 统计卡片 ===== */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;}
+  .kpi-card{background:#fff;border:1px solid #d0d7de;border-radius:0;padding:14px 16px;box-shadow:none;display:flex;align-items:center;gap:12px;transition:none;}
+  .kpi-icon{width:38px;height:38px;border-radius:0;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:#f6f8fa;border:1px solid #d0d7de;}
+  .kpi-icon.blue{color:#2563eb;}
+  .kpi-icon.violet{color:#7c3aed;}
+  .kpi-icon.green{color:#059669;}
+  .kpi-icon.orange{color:#d97706;}
+  .kpi-label{font-size:12px;color:#4b5563;font-weight:600;letter-spacing:0;margin-bottom:4px;}
+  .kpi-value{font-size:20px;font-weight:700;color:#1f2328;line-height:1.1;font-variant-numeric:tabular-nums;}
+  .kpi-unit{font-size:12px;color:#6b7280;font-weight:500;margin-left:3px;}
   /* ===== 云端同步状态 + 手机自适应 ===== */
-  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;}
-  .cloud-pill.ok{background:#e7f8ee;color:#15803d;border-color:#bbe7c9;}
-  .cloud-pill.err{background:#fdecea;color:#d92d20;border-color:#f3c7c2;}
-  .cloud-pill.sync{background:#eef4ff;color:#2563eb;border-color:#c5d8ff;}
-  .cloud-pill.off{background:#f1f5f9;color:#94a3b8;}
+  .cloud-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:0;font-size:11px;font-weight:600;background:#f6f8fa;color:#4b5563;border:1px solid #d0d7de;white-space:nowrap;transition:.15s;flex-shrink:0;}
+  .cloud-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 2px rgba(75,85,99,.12);}
+  .cloud-pill.ok{background:#ecfdf5;color:#059669;border-color:#a7f3d0;}
+  .cloud-pill.err{background:#fef2f2;color:#dc2626;border-color:#fecaca;}
+  .cloud-pill.sync{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+  .cloud-pill.warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
+  .cloud-pill.off{background:#f9fafb;color:#9ca3af;}
   @media (max-width:820px){
-    .wrap{padding:10px 8px 56px;}
-    h1{font-size:18px;}
+    .wrap{padding:14px 14px 56px;}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);gap:12px;}
+    .kpi-card{padding:14px;}
+    .kpi-icon{width:38px;height:38px;font-size:18px;}
+    .kpi-value{font-size:18px;}
     .topbar{gap:10px;}
     .field{width:100%;}
-    .nav{gap:6px;}
+    .nav{gap:8px;}
     .doc{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .tbl thead th{top:0;}  /* 窄屏下 .doc 变成横向滚动容器，表头吸附回容器顶部 */
     .tbl{min-width:760px;}
     .tbl td input,.tbl td textarea{font-size:14px;}
-    .card{padding:12px;}
+    .card{padding:16px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;
-    background:var(--card);border:1px solid var(--line);border-radius:12px;
-    padding:16px 18px;margin-bottom:18px;box-shadow:0 8px 24px rgba(31,45,77,.05);}
-  .field{display:flex;flex-direction:column;gap:6px;}
-  .field label{font-size:12px;color:var(--muted);}
-  .field input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;outline:none;background:#fff;}
-  .field input:focus{border-color:var(--brand);}
+  .topbar{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;
+    background:#fff;border:1px solid #d0d7de;border-radius:0;
+    padding:8px 14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(15,23,42,.06);overflow:visible;
+    position:sticky;top:36px;z-index:200;}
+  .topbar .btn-group{display:inline-flex;align-items:center;gap:0;flex-shrink:0;}
+  .topbar .btn-group .btn{border-radius:0;margin-left:-1px;}
+  .topbar .btn-group .btn:first-child{border-radius:6px 0 0 6px;margin-left:0;}
+  .topbar .btn-group .btn:last-child{border-radius:0 6px 6px 0;}
+  .topbar .btn-group .btn:disabled{z-index:0;}
+  .topbar .btn-group .btn:not(:disabled):hover,.topbar .btn-group .btn:not(:disabled):focus{z-index:1;}
+  .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:#f6f8fa;border-radius:6px;padding:4px 9px;border:1px solid #d0d7de;}
+  .filter-group input{border:1px solid #d0d7de;border-radius:4px;padding:4px 8px;font-size:13px;outline:none;width:82px;background:#fff;transition:.15s;color:#1f2328;height:28px;box-sizing:border-box;}
+  .filter-group input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
+  .filter-label{align-self:center;font-size:13px;font-weight:700;color:#4b5563;padding:0 2px;white-space:nowrap;}
+  .filter-group .hint{font-size:13px;color:#6b7280;font-weight:600;white-space:nowrap;padding:0 3px;}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:13px;color:#4b5563;font-weight:700;letter-spacing:0;}
+  .field input{border:1px solid #d0d7de;border-radius:4px;padding:4px 8px;font-size:13px;outline:none;background:#fff;transition:.15s;color:#1f2328;height:28px;box-sizing:border-box;}
+  .field-inline{flex-direction:row;align-items:center;gap:5px;}
+  .field-inline input{width:96px;padding:4px 8px;font-size:13px;}
+  .field input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
+  .field input[readonly]{background:#f3f4f6;color:#6b7280;border-style:dashed;cursor:pointer;}
+  .card h2.section-head{border:none;background:transparent;padding-left:0;margin:0;min-height:0;display:none;}
+  .card h2.section-head::before{display:none;}
   .spacer{flex:1;}
-  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-weight:600;transition:.15s;}
-  .btn-primary{background:var(--brand);color:#fff;}
-  .btn-primary:hover{background:var(--brand-d);}
-  .btn-ghost{background:var(--soft);color:var(--brand);}
-  .btn-ghost:hover{background:#dfeaff;}
-  .btn-line{background:#fff;color:var(--txt);border:1px solid var(--line);}
-  .btn-line:hover{background:#f3f6fb;}
-  .btn-danger{background:#fff;color:var(--red);border:1px solid #f3c7c2;}
-  .btn-danger:hover{background:#fdecea;}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;box-shadow:0 8px 24px rgba(31,45,77,.05);}
-  .card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .card h2 .tag{font-size:11px;background:var(--soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600;}
-  .hint{font-size:12px;color:var(--muted);}
-  /* ===== 发货计划单（美化） ===== */
-  .doc{border:1px solid #e6e9f2;border-radius:14px;overflow:visible;background:#fff;box-shadow:0 12px 32px rgba(31,45,77,.07);width:100%;max-width:100%;}
-  .doc-head{padding:16px 18px;border:none;background:linear-gradient(120deg,#3b5bdb 0%,#5b7cfa 55%,#4263eb 100%);color:#fff;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;}
-  .doc-head .t{font-size:18px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
-  .doc-head .t::before{content:"";width:8px;height:22px;border-radius:3px;background:#ffd43b;display:inline-block;}
-  .doc-head .t::after{content:"SHIPPING PLAN";font-size:10px;font-weight:600;letter-spacing:1.5px;color:rgba(255,255,255,.55);margin-left:8px;}
-  .doc-head .meta{font-size:12px;color:rgba(255,255,255,.92);display:flex;gap:8px;flex-wrap:wrap;}
-  .doc-head .meta span{background:rgba(255,255,255,.18);padding:3px 10px;border-radius:20px;}
-  .doc-head .meta #docDate{background:#ffd43b;color:#1e3a8a;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.12);}
-  .tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
-  .tbl thead th{background:#f1f4fb;color:#64748b;font-weight:600;padding:6px 4px;text-align:center;border:1px solid #dfe4ec;border-bottom:2px solid #cbd5e1;white-space:nowrap;position:sticky;top:0;font-size:11px;letter-spacing:.2px;}
-  .tbl td{padding:6px 4px;border:1px solid #dfe4ec;text-align:center;vertical-align:middle;min-height:44px;}
-  .tbl td input,.tbl td textarea{border:1px solid #c7d2e6;background:#fff;width:100%;text-align:center;border-radius:5px;font-size:12.5px;font-weight:600;color:#1e293b;outline:none;transition:.18s;box-sizing:border-box;min-height:34px;line-height:1.35;}
-  .tbl td input{padding:7px 6px;}
-  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:8px 6px;white-space:pre-wrap;word-break:break-word;}
-  .tbl td textarea[data-f="model"]{text-align:center;}
-  .tbl td input:focus,.tbl td textarea:focus{border-color:#5b7cfa;background:#f5f8ff;box-shadow:0 0 0 2px rgba(91,124,250,.25);}
-  @keyframes flashc{0%,100%{box-shadow:0 0 0 3px rgba(91,124,250,.14)}50%{box-shadow:0 0 0 3px rgba(217,45,20,.55)}}
+  .btn{border:1px solid #d0d7de;border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;background:#fff;color:#1f2328;height:30px;box-sizing:border-box;}
+  .btn:active{transform:none;}
+  .btn-primary{background:#2563eb;color:#fff;border-color:#2563eb;}
+  .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8;}
+  /* 「添加一行」按钮：绿色醒目款，方便一眼找到 */
+  .btn-add{background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#fff;border-color:#059669;
+    font-size:17px;font-weight:800;padding:0 16px;line-height:1;
+    box-shadow:0 2px 10px rgba(16,185,129,.38);}
+  .btn-add:hover{background:linear-gradient(135deg,#0ea472 0%,#047857 100%);border-color:#047857;
+    box-shadow:0 3px 14px rgba(16,185,129,.5);}
+  .btn-ghost{background:#eff6ff;color:#2563eb;border-color:#bfdbfe;}
+  .btn-ghost:hover{background:#dbeafe;}
+  .btn-line{background:#fff;color:#1f2328;border:1px solid #d0d7de;}
+  .btn-line:hover{background:#f6f8fa;border-color:#9ca3af;color:#1f2328;}
+  .btn-danger{background:#fff;color:#dc2626;border:1px solid #fecaca;}
+  .btn-danger:hover{background:#fef2f2;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;transform:none;background:#f9fafb;border-color:#e5e7eb;color:#9ca3af;}
+  .cloud-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:5px;font-size:13px;font-weight:600;background:#f6f8fa;color:#4b5563;border:1px solid #d0d7de;white-space:nowrap;transition:.15s;flex-shrink:0;height:28px;box-sizing:border-box;}
+  .cloud-pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 0 2px rgba(75,85,99,.12);}
+  .card{background:#fff;border:1px solid #d0d7de;border-radius:0;padding:10px 16px;margin-bottom:10px;box-shadow:none;}
+  .card h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:700;letter-spacing:0;color:#1f2328;}
+  .card h2::before{content:"";width:4px;height:18px;background:#2563eb;display:inline-block;}
+  .card h2 .tag{font-size:11.5px;background:var(--soft);color:var(--brand-d);padding:4px 12px;border-radius:999px;font-weight:700;border:1px solid #dbe6ff;}
+  .folded-dates{display:inline-flex;flex-wrap:wrap;gap:3px 4px;align-items:center;margin-left:auto;}
+  .folded-dates:empty{display:none;}
+  .folded-date-btn{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:5px;padding:4px 10px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap;transition:.15s;height:28px;box-sizing:border-box;}
+  .folded-date-btn:hover{background:#dbeafe;border-color:#2563eb;}
+  .hint{font-size:12px;color:#6b7280;}
+  /* ===== 发货计划单（WPS 清晰风） ===== */
+  /* overflow 必须为 visible，否则表头 sticky 冻结会失效（父级 overflow:hidden 会截断 sticky） */
+  .doc{border:none;border-radius:0;overflow:visible;background:#fff;box-shadow:none;width:100%;max-width:100%;}
+  .doc-head{display:none;}
+  .doc-head .t{font-size:18px;font-weight:700;letter-spacing:0;display:inline-flex;align-items:center;gap:8px;color:#1f2328;}
+  .doc-head .meta{display:none;}
+  .tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;background:#fff;}
+  /* 表头冻结：吸附在「顶栏 + 工具栏」下方（--head-top 由 JS 动态计算） */
+  /* z-index:20 让表头始终盖在行内悬浮元素（复制按钮等 z-index:1~2）之上，避免被挡住 */
+  .tbl thead th{background:#4472c4;color:#fff;font-weight:700;padding:7px 4px;text-align:center;border:1px solid #000;white-space:nowrap;position:sticky;top:var(--head-top,0px);z-index:20;font-size:15px;letter-spacing:0;}
+  .tbl thead th .req{color:#ffd24d;font-weight:800;margin-left:1px;}  /* 必填项红/黄星号标记 */
+  .tbl td{padding:0;border:1px solid #000;text-align:center;vertical-align:middle;min-height:26px;}
+  .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:14px;font-weight:600;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:26px;line-height:1.35;}
+  .tbl td input{padding:2px 3px;height:26px;text-align:center;}
+  .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:2px 3px;white-space:pre-wrap;word-break:break-word;display:block;text-align:center;}
+  .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"]{text-align:center;}
+  .tbl td input:focus,.tbl td textarea:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.15);}
+  @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
-  .tbl td.calc{padding:4px 2px;text-align:center;vertical-align:middle;}
-  .tbl tr.subtotal td{background:#f3f7ff;border-top:2px solid #cbd5e1;font-weight:700;color:#1e3a8a;padding:5px 6px;font-size:12px;}
-  .tbl tr.subtotal .sub-label{text-align:left;padding-left:10px;}
-  .tbl tr.subtotal .sub-ton{text-align:center;color:var(--brand);}
-  .tbl tbody tr{border-bottom:1px solid #dfe4ec;}
-  .tbl tbody tr:nth-child(even){background:#fafbff;}
-  .tbl tr:hover td{background:#eef3ff;}
-  .tbl tr.group-end td{border-bottom:2px solid #cbd5e1;}
-  .col-idx{width:4%;color:var(--muted);}
+  .tbl td.calc{padding:3px 4px;text-align:center;vertical-align:middle;}
+  .tbl tr.subtotal td{background:#f6f8fa;border-top:1px solid #000;font-weight:700;color:#1f2328;padding:2px 3px;font-size:14px;}
+  .tbl tr.subtotal .sub-label{text-align:left;padding-left:8px;}
+  .tbl tr.subtotal .sub-ton{text-align:center;color:var(--purple-d);}
+  /* 隔离区分隔带：位于「明日」计划之后，视觉隔离其后（后天及以后）的计划 */
+  .tbl tbody tr.isolation-band > td{padding:0 !important;border:none;background:transparent;height:auto;}
+  .tbl tbody tr.isolation-band .isolation-cell{height:30px;line-height:30px;text-align:center;background:linear-gradient(90deg,#fff7ed,#fed7aa 50%,#fff7ed);border-top:2px solid #fb923c;border-bottom:2px solid #fb923c;box-shadow:inset 0 1px 0 rgba(255,255,255,.7);}
+  .tbl tbody tr.isolation-band .isolation-label{display:inline-block;background:#ea580c;color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;padding:3px 16px;border-radius:999px;box-shadow:0 1px 3px rgba(234,88,12,.3);}
+  .tbl tbody tr{transition:none;}
+  .tbl tbody tr:nth-child(even){background:#fafafa;}
+  .tbl tbody tr:hover td{background:var(--purple-bg);}
+  .tbl tr.group-end td{border-bottom:1px solid #000;}
+  .col-idx{width:3%;color:#6b7280;}
+  .col-check{width:3%;text-align:center;vertical-align:middle;padding:0!important;}
+  .row-check{width:16px;height:16px;margin:0 auto;padding:0;cursor:pointer;accent-color:#2563eb;display:block;}
+  #checkAll{width:16px;height:16px;margin:0 auto;padding:0;cursor:pointer;accent-color:#2563eb;display:block;}
   .hide-col{width:0!important;max-width:0!important;padding:0!important;border:0!important;overflow:hidden;visibility:hidden;white-space:nowrap;font-size:0;line-height:0;}
   .hide-col input,.hide-col textarea{display:none!important;}
-  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:10%;}   /* 发货日期 */
-  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:11%;}   /* 客户 */
+  .tbl th:nth-child(1),.tbl tbody td:nth-child(1){width:2%;}    /* 序号 */
+  .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:10%;}   /* 发货日期 */
+  .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 送达方（原客户） */
   .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
-  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:9%;}    /* 发货数量 */
-  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:8%;}    /* 吨位 */
-  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 交货单 */
-  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:8%;}  /* 箱数 */
-  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:15%;} /* 备注 */
-  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 操作 */
-  .tbl td input[data-f="shipdate"]{color:#2563eb;font-weight:600;}
+  .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:5%;}    /* 发货数量 */
+  .tbl th:nth-child(7),.tbl tbody td:nth-child(7){width:6%;}    /* 发货点 */
+  .tbl th:nth-child(8),.tbl tbody td:nth-child(8){width:5%;}    /* 交货单（可换行） */
+  .tbl th:nth-child(9),.tbl tbody td:nth-child(9){width:3%;}    /* 箱数 */
+  .tbl th:nth-child(10),.tbl tbody td:nth-child(10){width:8%;}  /* 时效要求 */
+  .tbl th:nth-child(11),.tbl tbody td:nth-child(11){width:5%;}  /* 箱重T */
+  .tbl th:nth-child(12),.tbl tbody td:nth-child(12){width:5%;}  /* 产品重量T(可改可恢复) */
+  .tbl th:nth-child(13),.tbl tbody td:nth-child(13){width:5%;}  /* 客户吨位 */
+  .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:3%;}  /* 物流（按客户自动带出） */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:5%;}  /* 物料编码 */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4%!important;}  /* 操作 */
+  /* 交货单：按字数自动换行（textarea 自适应高度，列宽不够自动折行且撑高行） */
+  .tbl td.col-delivery textarea{white-space:pre-wrap!important;word-break:break-word;overflow-wrap:anywhere;min-height:26px;height:auto;line-height:1.25;padding:2px 3px;font-size:12px;font-weight:500;text-align:center;display:block;}
+  .tbl td.col-delivery{vertical-align:middle;overflow:visible;padding:0;}
+  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:9px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;}  /* 物料编码：小字体单行显示 */
+  .tbl tbody td:nth-child(14) input{font-size:10px;font-weight:600;}  /* 物流：窄列小字体单行 */
+  .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
+  .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
+  /* 发货点：单选下拉 */
+  .tbl td.col-shippt{vertical-align:middle;padding:0;}
+  .tbl td.col-shippt select{width:100%;border:1px solid transparent;background:#fff;font-size:12px;font-weight:600;color:#1f2328;height:26px;padding:1px 2px;text-align:center;text-align-last:center;outline:none;cursor:pointer;box-sizing:border-box;transition:.15s;font-family:inherit;}
+  .tbl td.col-shippt select:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.15);}
+  .tbl td.col-shippt select option{text-align:center;}
+  .tbl td.col-ton{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;}
+  /* 产品重量T：可编辑输入框 + 恢复按钮（仅手填过时显示，样式同客户吨位/箱重T） */
+  .tbl td.col-ton .ton-wrap{display:flex;align-items:center;gap:2px;justify-content:center;}
+  .tbl td.col-ton .ton-wrap .ton-in{flex:1 1 auto;min-width:0;}
+  .tbl td.col-ton .ton-reset{
+    flex:0 0 auto;margin-left:2px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;
+    cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;
+    display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;
+  }
+  .tbl td.col-ton .ton-reset:hover{background:#f59e0b;color:#fff;border-color:#d97706;}
+  @media print{ .tbl td.col-ton .ton-reset{display:none;} }
+  input.ton-in{
+    width:100%;min-width:28px;box-sizing:border-box;text-align:center;
+    font:inherit;font-weight:600;color:#1f2328;
+    border:1px solid transparent;background:transparent;
+    padding:2px 3px;border-radius:4px;
+  }
+  input.ton-in:hover{border-color:#c4b5fd;background:#fff;}
+  input.ton-in:focus{outline:none;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.12);}
+  input.ton-in.edited{border-color:#f59e0b;background:#fffbeb;color:#b45309;}
+  @media print{ input.ton-in{border:none;background:transparent;padding:0;} }
+  .tbl td.col-cwt{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:center;}
+  .tbl td.col-cwt .cwt-val{font-weight:600;color:#1f2328;font-size:13px;}
+  .tbl td.col-cwt .cwt-toggle{margin-left:4px;border:1px solid #cfd4da;background:#fff;color:#6b7280;cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;}
+  .tbl td.col-cwt .cwt-toggle:hover{background:#eef2f7;color:#2563eb;border-color:#2563eb;}
+  .tbl td input[data-f="shipdate"]{color:#1f2328;font-weight:600;text-align:center;padding-left:18px;padding-right:1px;font-size:12.5px;height:30px;min-height:30px;background:#fff;border-color:transparent;}
+  /* 日期选择器（日历小图标）加大，方便点击弹出日期面板 */
+  .tbl td input[data-f="shipdate"]::-webkit-calendar-picker-indicator{width:22px;height:22px;padding:2px;margin-left:2px;cursor:pointer;opacity:.75;background-size:20px 20px;}
+  .tbl td input[data-f="shipdate"]::-webkit-calendar-picker-indicator:hover{opacity:1;background-color:var(--purple-bg);border-radius:4px;}
+  .tbl td input[data-f="shipdate"]::-webkit-datetime-edit{font-size:12.5px;letter-spacing:0;}
+  .tbl td input[data-f="shipdate"]::-webkit-datetime-edit-fields-wrapper{padding:0;}
+  .tbl td input[data-f="shipdate"].jinling{font-family:inherit;font-weight:700;color:#1f2328;}
+  .tbl td input[data-f="shipdate"]:focus{background:#fff;border-color:var(--purple);}
+  .tbl td.col-shipdate{position:relative;padding:0;vertical-align:middle;}
+  .tbl td.col-shipdate .fold-btn{position:absolute;left:1px;top:50%;transform:translateY(-50%);width:14px;height:14px;padding:0;border:none;background:var(--purple-bg);color:var(--purple-d);border-radius:2px;cursor:pointer;font-size:9px;line-height:14px;text-align:center;z-index:1;transition:.15s;}
+  .tbl td.col-shipdate .fold-btn:hover{background:#ede9fe;}
+  .tbl td.col-shipdate input[data-f="shipdate"]{padding-left:18px;padding-right:1px;height:30px;min-height:30px;}
+  .tbl th:nth-child(3){padding:6px 4px;}
+  .tbl tr.date-fold-hidden{display:none;}
+  .tbl tr.has-folded td{background:#eef4ff!important;}  /* 折叠日期首行：浅蓝底色提示「后续 N 行被折叠」 */
+  .tbl tr.has-folded .col-shipdate{position:relative;}
+  .tbl tr.filter-hidden{display:none;}
+  .tbl tr.date-fold-placeholder{height:24px;background:#fafafa;}
+  .tbl tr.date-fold-placeholder td{padding:3px 8px;text-align:left;border:1px dashed var(--purple-l);background:#fafafa;}
+  .date-fold-placeholder-btn{border:1px solid var(--purple-l);background:#fff;color:var(--purple-d);border-radius:4px;padding:4px 12px;font-size:13px;cursor:pointer;font-weight:600;}
+  .date-fold-placeholder-btn:hover{background:var(--purple-bg);}
   .col-customer,.col-remark{text-align:center;vertical-align:middle;}
-  .col-customer textarea,.col-remark textarea{min-height:34px;height:34px;display:block;margin:0 auto;}
-  .col-customer.merged-cell,.col-remark.merged-cell{position:relative;display:flex;align-items:center;justify-content:center;padding:0!important;}
-  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:calc(100% - 8px);min-height:0;padding:6px 4px;margin:0;}
-  .col-act{width:5%;}
+  .col-customer textarea,.col-remark textarea{min-height:26px;height:auto;display:block;margin:0 auto;overflow:hidden;white-space:pre-wrap;word-break:break-word;}
+  .col-customer.merged-cell,.col-remark.merged-cell{position:relative;padding:0!important;vertical-align:middle;background:#fff;}
+  .col-customer.merged-cell textarea,.col-remark.merged-cell textarea{position:static;height:auto;width:100%;min-height:26px;padding:2px 3px;margin:0 auto;display:block;background:#fff;border-color:transparent;overflow:hidden;white-space:pre-wrap;word-break:break-word;}
+  .col-customer.merged-cell textarea:focus,.col-remark.merged-cell textarea:focus{background:#fff;border-color:var(--purple);}
+  .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
+  .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#f6f8fa;text-align:center;}
+  /* 「客户吨位」单元格：输入框 + 恢复按钮（仅在手填过时出现，样式同箱子重量T） */
+  .col-subton .subton-wrap{display:flex;align-items:center;gap:2px;justify-content:center;}
+  .col-subton .subton-wrap .subton-in{flex:1 1 auto;min-width:0;}
+  .col-subton .subton-reset{
+    flex:0 0 auto;margin-left:2px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;
+    cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;
+    display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;
+  }
+  .col-subton .subton-reset:hover{background:#f59e0b;color:#fff;border-color:#d97706;}
+  @media print{ .col-subton .subton-reset{display:none;} }
+  /* 客户吨位：可手动修改 */
+  input.subton-in{
+    width:100%;min-width:34px;box-sizing:border-box;text-align:center;
+    font:inherit;font-weight:700;color:var(--purple-d);
+    border:1px solid transparent;background:transparent;
+    padding:2px 3px;border-radius:4px;
+  }
+  input.subton-in:hover{border-color:#c4b5fd;background:#fff;}
+  input.subton-in:focus{outline:none;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.12);}
+  input.subton-in.edited{border-color:#f59e0b;background:#fffbeb;color:#b45309;}
+  @media print{ input.subton-in{border:none;background:transparent;padding:0;} }
+  .col-act{width:4%;white-space:nowrap;padding:3px 2px;}
+  /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
+  .tbl tbody tr.row-overdue > td{ color:var(--red); }
+  .tbl tbody tr.row-overdue > td input,
+  .tbl tbody tr.row-overdue > td textarea{ color:var(--red); }
+  .tbl tbody tr.row-overdue > td.col-idx{ border-left:5px solid var(--red); }
+  .tbl tbody tr.row-overdue .col-shipdate::after{ content:"滞后"; position:absolute; right:3px; top:3px; font-size:7px; line-height:1; color:#fff; background:var(--red); padding:2px 6px; border-radius:8px; font-weight:700; letter-spacing:.4px; box-shadow:0 1px 2px rgba(185,28,28,.18); text-transform:uppercase; }
+  /* 明天之后的计划：蓝色区分（与滞后红色对称）：整行文字变蓝，无底色 */
+  .tbl tbody tr.row-future > td{ color:var(--blue); }
+  .tbl tbody tr.row-future > td input,
+  .tbl tbody tr.row-future > td textarea{ color:var(--blue); }
+  .tbl tbody tr.row-future > td.col-idx{ border-left:5px solid var(--blue); }
+  .tbl tbody tr.row-future .col-shipdate::after{ content:"待发"; position:absolute; right:3px; top:3px; font-size:7px; line-height:1; color:#fff; background:var(--blue); padding:2px 6px; border-radius:8px; font-weight:700; letter-spacing:.4px; box-shadow:0 1px 2px rgba(3,105,161,.18); text-transform:uppercase; }
+  /* 物料编码：只读（不可编辑，但可选中复制）；不加列底色，复制按钮在格右上角 */
+  .tbl td textarea[data-f="code"][readonly]{ background:transparent; color:#334155; cursor:text; }
+  .col-code .code-wrap{ position:relative; }
+  .copy-code{ position:absolute; top:1px; right:1px; z-index:1; font-size:9px; line-height:1; padding:1px 4px; border:1px solid var(--purple-l); background:#fff; color:var(--purple-d); border-radius:3px; cursor:pointer; user-select:none; }
+  .copy-code:hover{ background:var(--purple-bg); border-color:var(--purple); }
+  .copy-code.copied{ background:var(--green); color:#fff; border-color:var(--green); }
   input[data-f="qty"]{min-width:0;}
-  .tbl td input[data-f="delivery"]{color:#2563eb!important;font-weight:700!important;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%);border-color:#93c5fd!important;}
-  .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:15px;line-height:1;width:24px;height:24px;border-radius:7px;transition:.15s;}
-  .del-x:hover{background:#fdecea;}
-  .tbl tfoot td{font-weight:800;color:#1e3a8a;background:#eef2ff;border:1px solid #dfe4ec;border-top:2px solid #cbd5e1;padding:9px 6px;font-size:12.5px;}
+  .tbl td input[data-f="delivery"]{color:var(--purple-d)!important;font-weight:700!important;background:#fff;border-color:transparent!important;text-align:center;font-size:13px;}
+  .tbl td input[data-f="delivery"]:focus{background:#fff;border-color:var(--purple)!important;}
+  .del-x,.ins-x{border:1px solid var(--purple-l);cursor:pointer;line-height:1;width:13px;height:16px;border-radius:3px;transition:.15s;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:9px;background:#fff;margin:0;flex-shrink:0;}
+  .del-x{color:#dc2626;}
+  .del-x:hover{background:#fee2e2;border-color:#dc2626;}
+  .ins-x{color:var(--purple-d);}
+  .ins-x:hover{background:var(--purple-bg);border-color:var(--purple);}
+  .tbl tfoot td{font-weight:700;color:#1f2328;background:#f6f8fa;border:1px solid #000;border-top:1px solid #000;padding:2px 3px;font-size:14px;}
   .num-cell{font-variant-numeric:tabular-nums;}
-  .doc-foot{padding:12px 22px;font-size:12px;color:#8a94a8;background:#fbfcfe;border-top:1px dashed #e3e8f2;}
-  .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;}
-  .records{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
-  .rec{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;}
-  .rec .info{padding:11px 13px;font-size:12px;color:var(--muted);line-height:1.7;}
-  .rec .info b{color:var(--txt);font-size:13px;}
-  .rec .acts{display:flex;gap:8px;padding:0 12px 12px;}
+  .doc-foot{padding:10px 20px;font-size:13px;color:#4b5563;background:#fff;border-top:1px solid #000;letter-spacing:0;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;}
+  .records{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+  .rec{background:#fff;border:1px solid #d0d7de;border-radius:0;overflow:hidden;display:flex;flex-direction:column;transition:none;box-shadow:none;}
+  .rec:hover{border-color:#9ca3af;}
+  .rec .info{padding:14px 16px;font-size:13px;color:#4b5563;line-height:1.75;}
+  .rec .info b{color:#1f2328;font-size:14px;}
+  .rec .acts{display:flex;gap:10px;padding:0 14px 14px;}
   .rec .acts .btn{flex:1;padding:7px 0;font-size:12px;}
-  .empty{color:var(--muted);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
-  .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
-  .toast.show{opacity:1;}
-  .req::after{content:"*";color:var(--red);margin-left:2px;}
-  .ac{position:fixed;z-index:200;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(20,40,80,.18);max-height:300px;overflow-y:auto;}
-  .ac-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f4f9;font-size:13px;}
+  .empty{color:#6b7280;font-size:13px;padding:28px;text-align:center;border:1px dashed #d0d7de;background:#fff;}
+  /* 发布记录分4区（今天之前/今天/明天/明天之后） */
+  .cat-sec{margin-bottom:18px;background:#fff;border:1px solid #d0d7de;border-radius:0;overflow:hidden;}
+  .cat-head{display:flex;align-items:center;gap:10px;padding:11px 16px;background:#f8fafc;border-bottom:1px solid #e5e7eb;font-size:14px;font-weight:700;color:#1f2328;}
+  .cat-sec.collapsed .cat-head{border-bottom:0;}
+  .cat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .cat-past     .cat-dot{background:#9ca3af;}
+  .cat-today    .cat-dot{background:#2563eb;}
+  .cat-tomorrow .cat-dot{background:#16a34a;}
+  .cat-future   .cat-dot{background:#f59e0b;}
+  .cat-title{flex:1;letter-spacing:0;}
+  .cat-fold{background:#fff;border:1px solid #d0d7de;color:#1f2328;padding:4px 12px;font-size:12px;cursor:pointer;border-radius:0;font-weight:400;}
+  .cat-fold:hover{background:#eef2ff;border-color:#2563eb;color:#1e3a8a;}
+  .cat-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:14px;}
+  .cat-sec.collapsed .cat-body{display:none;}
+  /* 提示气泡：必须盖在顶部导航栏(210)/工具栏(200)之上，并位于它们下方，否则会被遮住只剩一条黑杠 */
+  .toast{position:fixed;left:50%;top:calc(var(--head-top, 92px) + 12px);transform:translateX(-50%) translateY(-8px);
+    background:#1f2328;color:#fff;padding:10px 18px;border-radius:0;font-size:13px;line-height:1.5;
+    opacity:0;pointer-events:none;transition:.2s;z-index:3000;
+    box-shadow:0 8px 24px rgba(0,0,0,.22);border-left:4px solid #2563eb;
+    max-width:min(720px,92vw);white-space:normal;word-break:break-word;text-align:left;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .req::after{content:"*";color:#dc2626;margin-left:2px;}
+  .ac{position:fixed;z-index:200;background:#fff;border:1px solid #d0d7de;border-radius:0;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:300px;overflow-y:auto;}
+  .ac-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid #e5e7eb;font-size:13px;transition:.12s;border-left:4px solid transparent;}
   .ac-item:last-child{border-bottom:none;}
-  .ac-item.active,.ac-item:hover{background:var(--soft);}
-  .ac-model{font-weight:700;}
-  .ac-code{color:var(--brand);font-size:12px;}
-  .ac-meta{color:var(--muted);font-size:12px;display:block;margin-top:2px;}
-  @media(max-width:600px){.tbl{font-size:12px}.doc-head .t{font-size:16px}}
+  /* 高亮更显眼：渐变底 + 左侧粗色条 + 模型字加色加下划线（保持 padding-left 不抖） */
+  .ac-item.active,.ac-item:hover{background:linear-gradient(90deg,#dbeafe,#eff6ff);border-left:4px solid #2563eb;color:#1e3a8a;box-shadow:inset 0 0 0 1px #93c5fd;}
+  .ac-item.active .ac-model{color:#1d4ed8;text-decoration:underline;}
+  .ac-item.active .ac-code{color:#1d4ed8;font-weight:700;}
+  .ac-model{font-weight:700;color:#1f2328;}
+  .ac-code{color:#2563eb;font-size:12px;}
+  .ac-meta{color:#6b7280;font-size:12px;display:block;margin-top:2px;}
+  /* 多送达方选择弹窗 */
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;display:flex;align-items:center;justify-content:center;}
+  .modal-box{background:#fff;border-radius:8px;box-shadow:0 16px 48px rgba(0,0,0,.28);min-width:320px;max-width:90vw;max-height:80vh;overflow:auto;padding:18px 18px 14px;}
+  .modal-title{font-size:15px;font-weight:700;color:#1f2328;margin-bottom:12px;line-height:1.4;}
+  .modal-list{display:flex;flex-direction:column;gap:8px;}
+  .modal-opt{padding:11px 14px;border:1px solid #d0d7de;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:14px;text-align:left;transition:.12s;color:#1f2328;}
+  .modal-opt:hover{background:#dbeafe;border-color:#2563eb;color:#1e3a8a;}
+  .modal-skip{margin-top:10px;font-size:12px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline;padding:4px 0;}
+  @media(max-width:600px){.tbl{font-size:12px}.doc-head .t{font-size:16px}.wrap{padding:16px 14px 48px;}}
 </style>
 </head>
-<body>
-<div class="wrap">
-  <h1><span class="dot"></span>发货计划系统</h1>
-  <div class="sub">做计划时只需填<b>型号 + 发货数量</b>，其余信息从「物料数据库」自动带出。</div>
-
-  <nav class="nav">
-    <a href="发货计划系统.html" class="nav-link active">📋 发货计划</a>
-    <a href="排产计划表.html" class="nav-link" target="_blank">📅 排产计划表</a>
-    <a href="物料数据库.html" class="nav-link" target="_blank">📦 物料数据库</a>
-    <span id="dbStatus" style="margin-left:6px;align-self:center;color:var(--muted);font-size:13px"></span>
-  </nav>
-
-  <div class="topbar">
-    <div class="field"><label class="req">发货日期</label><input type="date" id="shipDate"></div>
-    <div class="field"><label>计划单号</label><input type="text" id="planNo" placeholder="自动生成" style="width:160px"></div>
+<body data-page-node-id="4fFYxxpjT3p7fKOAOYlX5n">
+<div class="wrap" data-page-node-id="FidnSL9YObjQpW6utUTEtZ">
+  <!-- 顶部应用导航栏：恢复导航标签页与动态时钟 -->
+  <div class="appbar" id="appbar">
+    <a class="logo" href="生产管理客户端.html"><span class="dot"></span>生产管理客户端</a>
+    <div class="tabs">
+      <a class="tab active" href="发货计划系统.html">📋 发货计划</a>
+      <a class="tab" href="仪表盘.html">📊 仪表盘</a>
+      <a class="tab" href="订单管理系统.html">🧾 订单管理</a>
+      <a class="tab" href="物料数据库.html">📦 物料数据库</a>
+    </div>
     <div class="spacer"></div>
-    <button class="btn btn-line" id="addRow">＋ 添加一行</button>
-    <button class="btn btn-line" id="exportCsv">导出 CSV</button>
-    <button class="btn btn-line" id="exportImg">导出图片</button>
-    <button class="btn btn-line" id="clearAll">清空</button>
-    <button class="btn btn-primary" id="publish">发布</button>
+    <div class="clock" id="clock"><span class="date"></span><span class="sep">|</span><span class="time"></span></div>
   </div>
 
-  <div class="card">
-    <h2>发货明细 <span class="tag" id="rowCount">0 行</span></h2>
-    <div class="doc" id="doc">
-      <div class="doc-head">
-        <div class="t">发货计划单</div>
-        <div class="meta">
-          <span id="docDate">发货日期：-</span> ｜ <span id="docNo">单号：-</span>
-        </div>
+  <!-- 工具栏置顶冻结：红框内所有控件合并为一条紧凑工具栏，滚动时钉在顶部 -->
+  <div class="topbar" data-page-node-id="mLVhGHij2XOvRObQdAwSkj">
+    <div class="btn-group">
+      <button class="btn btn-add" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
+      <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
+    </div>
+    <button class="btn btn-line" id="cleanEmptyBtn" title="一键删除所有空白行（送达方/型号/发货数量/发货点/交货单/时效要求/物料编码 全都没填的行）">删空行</button>
+    <div class="btn-group">
+      <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
+      <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">当天前</button>
+    </div>
+    <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
+    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制</button>
+    <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
+    <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
+      <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
+      <input type="text" id="filterCustomer" placeholder="送达方" data-page-node-id="jbSCvvxDbHmcbD7N5N9GFI">
+      <input type="text" id="filterModel" placeholder="型号" data-page-node-id="tVuG2Lo6cGeZIsLBXJSXar">
+      <input type="date" id="filterDate" placeholder="日期" data-page-node-id="N3cxJ8rtBlzVBLvIYNA4BK">
+      <button class="btn btn-ghost" id="clearFilter" title="清除筛选" data-page-node-id="xJ3haUAQWyfxJiLPfMooCp">清除</button>
+      <span class="hint" id="filterCount" data-page-node-id="foOgEoZ9iuLIiG1J2VPkfT"></span>
+    </div>
+    <span id="dbStatus" style="align-self:center;color:var(--muted);font-size:13px;white-space:nowrap;flex-shrink:0;" data-page-node-id="D6I3XsoXc8hQ7XMePwtuCS"></span>
+    <!-- 顶部「日期」筛选器：按要求隐藏（每行仍可单独选发货日期） -->
+    <div class="field field-inline" style="display:none" data-page-node-id="JRTJthRi8qC8cFtq2kiCZh"><label class="req" data-page-node-id="7CyioJAv3Gfd5MwsPKtaQ9">日期</label><input type="date" id="shipDate" data-page-node-id="VIyPobA9uE4cc1k690eeRK"></div>
+    <div class="field field-inline" id="plannerWrap" title="点击修改需密码"><label>计划员</label><input type="text" id="planner" placeholder="名字" maxlength="20" autocomplete="off"></div>
+    <span id="foldedDates" class="folded-dates" data-page-node-id="WcTPMj6nFAHpHmFIIuqAqw"></span>
+    <input type="hidden" id="planNo" data-page-node-id="Lj6AeJWsNI5r3zz49b248l">
+  </div>
+
+  <!-- KPI 统计卡片区（明细行数/发货数量/总吨位/待发布）：按要求隐藏，元素保留不影响计算 -->
+  <div class="kpi-grid" id="kpiGrid" style="display:none" data-page-node-id="WveniqAGEU6eEDUhDuDSzC">
+    <div class="kpi-card" data-page-node-id="LgWGSevpmatKuQN272vssm"><div class="kpi-icon blue" data-page-node-id="AFDyO8TvKy3KwLex42CJxP">📋</div><div data-page-node-id="Fx8MCtYAY1SLtfq7ShBjUx"><div class="kpi-label" data-page-node-id="vSinIweQbHoVif4iSsOV2H">明细行数</div><div class="kpi-value" id="kpiRows" data-page-node-id="wA4sFqsIKfCIvdlWpY5x33">0<span class="kpi-unit" data-page-node-id="H6VaBGH83An1Fs3x6aCFpZ">行</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="ChKdpmhbw90qJyxcHxDMnJ"><div class="kpi-icon violet" data-page-node-id="dGhAUgcydfIzp00cOqiMXT">📦</div><div data-page-node-id="aNIMfybl44VlMW0txFTbOk"><div class="kpi-label" data-page-node-id="eoNNB7z8qBXi2d06rAOmDV">发货数量</div><div class="kpi-value" id="kpiQty" data-page-node-id="AaTcqWSjBF0zDnVIGG13xZ">0<span class="kpi-unit" data-page-node-id="MFIaOTpjxMT6kYMj64PDBx">件</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="dFH1p9jIR1imFSYRrgg9eg"><div class="kpi-icon green" data-page-node-id="CB2EoqROpY8Zuw4ts5GBvp">⚖️</div><div data-page-node-id="5LWJA4YTMSG2kq0P5sndtK"><div class="kpi-label" data-page-node-id="zu4GCD4tyT9n0Ie9ABbe1G">总吨位</div><div class="kpi-value" id="kpiTon" data-page-node-id="bwcOOUXxtfXHIZ3dg0Eoc7">0.0<span class="kpi-unit" data-page-node-id="FQYLf6vTgqpAbF1JEvwbcL">t</span></div></div></div>
+    <div class="kpi-card" data-page-node-id="nJJNn0w0sFOceFkgGKLmzb"><div class="kpi-icon orange" data-page-node-id="UeHWXvef4PnyInh431j1DQ">✓</div><div data-page-node-id="A2VgX94wuP5KXtTRTb7xOK"><div class="kpi-label" data-page-node-id="X1N0ZqCUA2Sk32j2B2c3FT">待发布</div><div class="kpi-value" id="kpiChecked" data-page-node-id="leBTEWwcHXhwrmhxae0Yic">0<span class="kpi-unit" data-page-node-id="rKMqVoV2IHaaQPjZB4Ol04">行</span></div></div></div>
+  </div>
+
+  <div class="card" data-page-node-id="8lEKJwsQUYOFb6pcml3ZLg">
+    <h2 class="section-head" data-page-node-id="dbuO0FZ4P21qhgqyfFkkMc"><span class="tag" id="rowCount" style="display:none" data-page-node-id="JZ6DTAawAuER2FoY9CFgHm">0 行</span></h2>
+    <div class="doc" id="doc" data-page-node-id="q2oCcvrmsWHNCsqcMeMR0G">
+      <div class="doc-head" data-page-node-id="xUeaBODxHoAASjEiOyYtZo">
+        <div class="t" id="docTitle" data-page-node-id="51l0Ug7MqgsRtTsskLRS6R">发货计划</div>
       </div>
-      <table class="tbl" id="tbl">
-        <thead><tr>
-          <th class="col-idx">#</th><th>发货日期</th><th>客户</th><th class="hide-col">物料编码</th><th>型号</th>
-          <th>发货数量</th><th class="hide-col">单重(kg)</th><th>吨位(t)</th><th class="hide-col">一箱多少件</th>
-          <th>交货单</th><th>箱数</th><th>备注</th><th class="col-act">操作</th>
+      <table class="tbl" id="tbl" data-page-node-id="69L5K4pUkgTxWzvReeDoNT">
+        <thead data-page-node-id="mUgEodBiUM6NWcXtxTrp9l"><tr data-page-node-id="F75NOOsiWiw1BCWU5JQN0G">
+          <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">送达方<span class="req">*</span></th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求<span class="req">*</span></th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱重T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">产品重量T</th>
+          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位<span class="req">*</span></th><th data-page-node-id="thLogistics">物流</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
         </tr></thead>
-        <tbody id="tbody"></tbody>
-        <tfoot><tr>
-          <td colspan="5" style="text-align:right">合计</td>
-          <td class="num-cell" id="sumQty">0</td>
-          <td class="hide-col"></td>
-          <td class="num-cell" id="sumTon">0.0</td>
-          <td class="hide-col"></td>
-          <td></td>
-          <td class="num-cell" id="sumBox">/</td>
-          <td></td>
-          <td></td>
+        <tbody id="tbody" data-page-node-id="WDX43OMxgTtv8EJnrsbiTR"></tbody>
+        <tfoot data-page-node-id="uq5gLKyGotjTgoSk8SzjZi"><tr data-page-node-id="dF3IOFpw1aCa9MWbYud3M0">
+          <td colspan="5" style="text-align:right" data-page-node-id="o118KKTwRfd9YABLDkuHzc">合计</td>
+          <td class="num-cell" id="sumQty" data-page-node-id="QEkoU342W7oEE0TApXXyhK">0</td>
+          <td data-page-node-id="q5Jtj27QHEZ2p5dCMckiXM"></td>
+          <td data-page-node-id="WrqUujBi8HBDrITJMBe3jF"></td>
+          <td class="num-cell" id="sumBox" data-page-node-id="6XsMoDMT8IOi4Y7cEfAXZL">/</td>
+          <td data-page-node-id="QUbmNrQ5h09PCNFtoeEF35"></td>
+          <td class="num-cell" id="sumCwt" data-page-node-id="a4BpVJ8FndT3UiojF2K1qL">/</td>
+          <td class="num-cell" id="sumTon" data-page-node-id="aCGbECX2QCIzaTF8OZ96TY">0.0</td>
+          <td class="num-cell" id="sumSubTon" data-page-node-id="oHPZjgLLC5hheJ46sZ23qK">/</td>
+          <td data-page-node-id="tdLogisticsFoot"></td>
+          <td data-page-node-id="5wWyKK46NDKWWK8CeJ8bNh"></td>
+          <td data-page-node-id="X7djEs9vZnlSSikbepJyxi"></td>
         </tr></tfoot>
       </table>
-      <div class="doc-foot" id="docFoot">共 0 行 ｜ 发布时间：-</div>
+      <div class="doc-foot" id="docFoot" data-page-node-id="cyWPLDT0uWFXvaOD5iYSrC">共 0 行 ｜ 发布时间：-</div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>发布记录 <span class="tag" id="recCount">0 条</span>
-      <span class="hint">（发布时仅存档文本数据，不自动截图）</span></h2>
-    <div class="records" id="records"></div>
-    <div class="empty" id="recEmpty">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
+  <div class="card" data-page-node-id="BV8XiL3IyhT0qaoC07Eb2q">
+    <h2 data-page-node-id="FJhl5XDx5GmPt6aDog2nHa">发布记录 <span class="tag" id="recCount" data-page-node-id="lkfw98ZQMtMF2jeY0fOOqc">0 条</span>
+      <button class="dup-clean" id="dupCleanBtn" style="display:none" title="找出内容完全相同的重复发布记录，保留最新一条"></button>
+      <span class="hint" data-page-node-id="gl6Q8P7GVyLip0iWqojslf">（发布后自动同步到发货员链接，同时存档文本数据）</span></h2>
+    <div class="records" id="records" data-page-node-id="PSYP66F5Wp3HLBJ7O0jCYg"></div>
+    <div class="empty" id="recEmpty" data-page-node-id="Rgr8hoUUTet2HFzdexnlr9">暂无发布记录。填写明细后点击「发布」即可生成（最多保留 200 条）。</div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" data-page-node-id="6IWcDiFqPExwMe60DNczp0"></div>
 
 <script>
 const LS_DB = "shipping_db_v1";
 const LS_REC = "shipping_plans_v1";
 const LS_DRAFT = "shipping_draft_v1";   // 未发布明细自动草稿，刷新/重开不丢
+const LS_ARCHIVE = "shipping_plans_archive_v1"; // 超出保留上限的老发布记录 → 归档（不再直接丢弃）
+const LS_SNAP = "shipping_snapshots_v1";        // 关键操作前的自动快照（滚动保留最近 3 份）
+const LS_CT = "shipping_custton_v1";            // 客户吨位手动修改值
+const LS_DEL = "shipping_plans_del_v1";         // 已删除发布记录的 id 墓碑（防止被别的端同步时"复活"）
+const BACKUP_KEYS = [LS_DB, LS_REC, LS_ARCHIVE, LS_DEL, LS_DRAFT, LS_CT, "shipping_fold_dates_v1", "shipping_show_folded_v1"];
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+
+// ===================== 存储安全层 =====================
+// ① 写入不再静默失败：localStorage 可能因「空间满 / 被浏览器禁用」写入失败，
+//    旧写法 try/catch 吞掉异常，用户以为存上了其实没存 → 统一走 safeSet，失败必提示。
+// ② 关键操作自动快照：发布 / 删除记录 / 导入备份 / 云端覆盖 之前先留一份，随时可回滚。
+// ③ 超量归档：发布记录超过 200 条时，老记录转入归档区而不是被丢弃。
+let _quotaWarned = false;
+function safeSet(key, val){
+  try{ localStorage.setItem(key, val); return true; }
+  catch(e){
+    if(!_quotaWarned){
+      _quotaWarned = true;
+      try{ toast("⚠ 本地存储写入失败（空间可能已满），请立即到「数据备份」导出文件"); }catch(_){}
+    }
+    return false;
+  }
+}
+function getSnapshots(){ try{ return JSON.parse(localStorage.getItem(LS_SNAP)) || []; }catch(e){ return []; } }
+// 关键操作前留快照。最多 3 份、总体积约 1.2MB 以内；快照本身写不下就安静放弃，绝不影响主流程。
+function snapshot(key, tag){
+  try{
+    const cur = localStorage.getItem(key);
+    if(cur == null) return;
+    const list = getSnapshots();
+    list.unshift({ key:key, tag:(tag||"自动"), at:new Date().toISOString(), size:cur.length, data:cur });
+    const picked = []; let total = 0;
+    for(const s of list){
+      if(picked.length >= 3) break;
+      if(picked.length > 0 && total + s.size > 1200000) break;
+      picked.push(s); total += s.size;
+    }
+    if(!picked.length) return;
+    let arr = picked;
+    for(let i=0;i<3 && arr.length;i++){
+      try{ localStorage.setItem(LS_SNAP, JSON.stringify(arr)); return; }
+      catch(e){ if(arr.length <= 1) return; arr = arr.slice(1); }
+    }
+  }catch(e){}
+}
+// 恢复到某份自动快照（0 = 最近一份）。恢复前会把「当前数据」也存成一份快照，可再退回来。
+function restoreSnapshot(idx){
+  const list = getSnapshots(), s = list[idx|0];
+  if(!s){ try{ toast("没有可用的自动快照"); }catch(e){} return false; }
+  const when = String(s.at||"").replace("T"," ").slice(0,19);
+  if(!confirm("确定恢复到 "+when+" 的自动快照？\n（快照内容："+(s.tag||"自动")+" · "+(s.key||"")+"）\n当前数据会先自动备份一份，可再次恢复。")) return false;
+  snapshot(s.key, "恢复前");
+  safeSet(s.key, s.data);
+  if(window.CloudSync){
+    // 恢复发布记录后走「合并推送」（只增不减）：恢复本来就是为了找回不见的记录，整份覆盖会把云端别的计划冲掉。
+    // 下面 700ms 就会刷新页面，所以先记「待补传」再推 —— 推送被打断也不会留下"本机有、云端没有"的不一致。
+    if(s.key === LS_REC){ markPending(true); flushRec(false); }
+    else { let v=s.data; try{ v=JSON.parse(v); }catch(e){} CloudSync.push(s.key, v); }
+  }
+  try{ toast("已恢复到 "+when+"，正在刷新…"); }catch(e){}
+  setTimeout(()=>location.reload(), 700);
+  return true;
+}
+function loadArchive(){ try{ return JSON.parse(localStorage.getItem(LS_ARCHIVE)) || []; }catch(e){ return []; } }
+function archiveRecs(recs){   // 超出上限的老记录转入归档区（归档区最多 500 条），避免"静默丢数据"
+  if(!recs || !recs.length) return;
+  const a = loadArchive().concat(recs);
+  try{ localStorage.setItem(LS_ARCHIVE, JSON.stringify(a.slice(-500))); }catch(e){}
+}
+
+// ===================== 发布记录"只增不减"合并 =====================
+// 背景：发布记录以前是「谁最后写谁覆盖整份列表」。只要有一端拿的是稍早的旧副本
+// （例如发货员端 30 秒才拉一次、或拉取失败退回本地旧数据），它一保存就会把期间
+// 新发布的计划整份盖掉 —— 本地和云端同时消失。改成按 id 取并集后就不可能再丢。
+function loadDeletedIds(){ try{ const a=JSON.parse(localStorage.getItem(LS_DEL)); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function markDeleted(id){
+  if(id == null) return;
+  const a = loadDeletedIds(), s = String(id);
+  if(!a.some(x=>String(x)===s)) a.push(s);
+  try{ localStorage.setItem(LS_DEL, JSON.stringify(a.slice(-800))); }catch(e){}
+}
+function recKeyOf(r){ return (r && r.id != null) ? ("i"+r.id) : (r && r.no ? ("n"+r.no) : null); }
+// base=云端（底） extra=本地（优先）。两边都有的记录 —— 就地复用本地对象（保住调用方持有的引用），
+// 只把客户吨位覆盖表做并集，这样两边各自改的吨位都不会丢。
+function mergeRecords(base, extra){
+  const map = new Map();
+  (base||[]).forEach(r=>{ const k=recKeyOf(r); if(k) map.set(k,r); });
+  (extra||[]).forEach(r=>{
+    const k=recKeyOf(r); if(!k) return;
+    const b = map.get(k);
+    if(b && r){
+      try{
+        r.custTon = Object.assign({}, b.custTon||{}, r.custTon||{});
+        if(b.sumSubTon && !r.sumSubTon) r.sumSubTon = b.sumSubTon;
+      }catch(e){}
+    }
+    map.set(k, r);
+  });
+  const del = new Set(loadDeletedIds().map(String));
+  let out = [...map.values()].filter(r=>!(r && r.id != null && del.has(String(r.id))));
+  out.sort((x,y)=>((Number(y && y.id)||0) - (Number(x && x.id)||0)));   // 置顶最新的
+  if(out.length > 200){ archiveRecs(out.slice(200)); out = out.slice(0,200); }
+  return out;
+}
+
+// ===================== 安全推送：先跟云端合并，再上传 =====================
+// 以前发布/删除是「把本机这份清单整份推上云」。如果这台电脑是刚用的（本机只有刚发布的
+// 那一条），或者开机拉取还没跑完，这一推就把云端上别人的计划全盖掉了 —— 表现就是
+// 「新人员一发布，其他几条被删了」。
+// 现在统一走这里：拉云端 → 按 id 合并（只增不减、剔除墓碑）→ 写回本机 → 再推合并结果。
+// ★ 拉不到云端就绝不推送（那只说明网络不通，不能拿本机这份"可能不完整"的清单去覆盖）。
+const LS_PENDING = "shipping_plans_pending_v1";   // 有改动还没推上云（本机私有标记，不参与同步/备份）
+function markPending(on){ try{ on ? localStorage.setItem(LS_PENDING,"1") : localStorage.removeItem(LS_PENDING); }catch(e){} }
+function isPending(){ try{ return localStorage.getItem(LS_PENDING)==="1"; }catch(e){ return false; } }
+async function flushRec(silent){
+  const run = () => doFlushRec(silent);
+  __flushChain = __flushChain.then(run, run);      // 串行化：连点两次发布也不会互相盖
+  return __flushChain;
+}
+let __flushChain = Promise.resolve();
+async function doFlushRec(silent){
+  if(!window.CloudSync || !CloudSync.ready()){ markPending(true); return false; }
+  let cloud = null;
+  // ★ 用 pullResult 拿「本次拉取自己的结果」。
+  //   以前用引擎的 lastPullFailed 判断——那是全局共享状态，页面上任何一个
+  //   别的拉取（60 秒自动校对、切回前台、发货员端轮询…）成功都会把它刷成 false。
+  //   于是「这次我没拉到」被误判成「云端真的没有这条」→ 拿本机那份不完整的清单推上去，
+  //   把云端上别人发布的计划整份盖掉。而且只在恰好有并发拉取成功时才发生 —— 所以是「有时候」。
+  let pr = null;
+  try{ pr = await CloudSync.pullResult(LS_REC); }catch(e){ pr = null; }
+  if(!pr || !pr.ok){ markPending(true); return false; }    // 拉不到 → 只记一笔待补传，绝不覆盖云端
+  cloud = pr.value;
+  if(cloud === null) cloud = [];                           // 云端确实还没有这条（首次使用）→ 以本机为准建起来
+  let cloudArr = [], localArr = [];
+  try{ cloudArr = (typeof cloud==="string") ? (JSON.parse(cloud)||[]) : (Array.isArray(cloud)?cloud:[]); }catch(e){ cloudArr = []; }
+  try{ localArr = loadRec(); }catch(e){ localArr = []; }
+  let merged = null;
+  try{ merged = mergeRecords(cloudArr, localArr); }catch(e){ merged = null; }
+  if(!merged){ markPending(true); return false; }        // 合并出错 → 宁可不推，也不拿本机这份去覆盖
+  const mergedStr = JSON.stringify(merged);
+  if(mergedStr !== JSON.stringify(localArr)){            // 云端独有的记录先落到本机
+    safeSet(LS_REC, mergedStr);
+    try{ renderRecords(); }catch(e){}
+  }
+  let ok = false;
+  try{ ok = await CloudSync.push(LS_REC, merged); }catch(e){ ok = false; }
+  try{ CloudSync.push(LS_DEL, loadDeletedIds()); }catch(e){}       // 墓碑一起同步，删掉的不会被别的端"复活"
+  try{ if(loadArchive().length) CloudSync.push(LS_ARCHIVE, loadArchive()); }catch(e){}   // 归档一起同步（超过上限转归档的记录在别的端也能看到）
+  markPending(!ok);
+  if(!ok && !silent){ try{ toast("⚠ 没能同步到云端，已存本机，稍后自动补传"); }catch(e){} }
+  return ok;
+}
+
+// ===================== 与云端"校对并同步"（人工一键 / 每 60 秒自动） =====================
+// 作用：把云端的删除墓碑并过来 → 双向合并（只增不减）→ 本机补全 → 推回云端。
+// 只要两边条数不一致（例如本机有记录没传上去），就会被发现并追平 —— 避免"编辑器和发货员看到的不是同一份"。
+async function reconcileNow(manual){
+  if(!window.CloudSync || !CloudSync.ready()){
+    if(manual){ try{ toast("这个页面没有连上云端，请刷新后重试（或看右上角状态）"); }catch(e){} }
+    return false;
+  }
+  let cloud = null;
+  let pr2 = null;                                  // ★ 同上：用 pullResult 取本次结果，不用全局共享状态
+  try{ pr2 = await CloudSync.pullResult(LS_REC); }catch(e){ pr2 = null; }
+  if(!pr2 || !pr2.ok){
+    if(manual){ try{ toast("暂时连不上云端，请稍后再试"); }catch(e){} }
+    return false;
+  }
+  cloud = pr2.value;
+  if(cloud === null) cloud = [];                   // 云端确实还没有这条
+  const cloudArr = Array.isArray(cloud) ? cloud : [];
+  const before = loadRec().length;
+  // 先把云端的墓碑并到本机（取并集），否则会把别人删掉的记录又推回去
+  try{
+    const cd = await CloudSync.pull(LS_DEL);
+    if(Array.isArray(cd) && cd.length){
+      const mine = loadDeletedIds(), set = new Set(mine.map(String));
+      cd.forEach(x=>{ if(!set.has(String(x))){ set.add(String(x)); mine.push(x); } });
+      try{ localStorage.setItem(LS_DEL, JSON.stringify(mine.slice(-800))); }catch(e){}
+    }
+  }catch(e){}
+  // 自动校对：条数一致且没有待补传 → 不用折腾（省流量、少写库）
+  if(!manual && before === cloudArr.length && !isPending()) return true;
+  const ok = await flushRec(true);
+  if(manual){
+    const after = loadRec().length;
+    try{ toast("校对完成：本机 " + before + " 条 ｜ 云端 " + cloudArr.length + " 条 ｜ 合并后 " + after + " 条"
+      + (ok ? " · 已同步到云端 ✓" : " · 未上传，已记待补传（稍后自动重试）")); }catch(e){}
+  }
+  return ok;
+}
+setInterval(()=>{ try{ if(!document.hidden) reconcileNow(false); }catch(e){} }, 60000);
+document.addEventListener("visibilitychange", ()=>{ try{ if(!document.hidden) reconcileNow(false); }catch(e){} });
+
+// ===================== 清理「内容完全相同」的重复发布记录 =====================
+// 同一批货被发了两次（单号不同、内容一模一样）时，只保留最新的一条，重复的转入归档并打删除墓碑。
+function findDupRecs(){
+  const seen = new Set(), dups = [];
+  loadRec().forEach(r=>{
+    const f = r && r.fingerprint;
+    if(!f) return;                                   // 老记录没有指纹，不动它
+    // ★ 分组键带上"计划员"：内容相同但由不同人发布，很可能是两笔真实业务
+    //   （同一客户/同一型号的正常重复发货），绝不能当成"重复记录"删掉。
+    const key = String(r.planner||"") + "\u0000" + f;
+    if(seen.has(key)) dups.push(r); else seen.add(key);
+  });
+  return dups;
+}
+function cleanDupRecs(){
+  const dups = findDupRecs();
+  if(!dups.length){ try{ toast("没有发现重复的发布记录"); }catch(e){} return; }
+  const lines = dups.map(r=>"· "+(r.no||"?")+(r.planner?("（"+r.planner+"）"):"")+"　"+(r.publishedAt||"")).join("\n");
+  if(!confirm("发现 "+dups.length+" 条【同一计划员】内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？")) return;
+  snapshot(LS_REC, "清理重复前");
+  const dupIds = new Set(dups.map(r=>String(r.id)));
+  dups.forEach(r=>{ if(r && r.id!=null) markDeleted(r.id); });
+  archiveRecs(dups);
+  safeSet(LS_REC, JSON.stringify(loadRec().filter(r=>!(r && r.id!=null && dupIds.has(String(r.id))))));
+  try{ renderRecords(); }catch(e){}
+  flushRec(true);
+  toast("已清理 "+dups.length+" 条重复记录（已归档，可恢复）");
+}
+
+// 顶部导航栏动态时钟（精确到秒）
+(function(){
+  function pad(n){return String(n).padStart(2,"0");}
+  function updateClock(){
+    const clock=$("clock"); if(!clock) return;
+    const now=new Date();
+    const dateEl=clock.querySelector(".date");
+    const timeEl=clock.querySelector(".time");
+    if(dateEl) dateEl.textContent=now.getFullYear()+"/"+pad(now.getMonth()+1)+"/"+pad(now.getDate());
+    if(timeEl) timeEl.textContent=pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+  }
+  if($("clock")){ updateClock(); setInterval(updateClock,1000); }
+})();
+// 顶部吸附位置：工具栏钉在导航栏下方，表头再钉在工具栏下方（高度变化时自动重算）
+function syncTopbarOffset(){
+  const ab=$("appbar"), tb=document.querySelector(".topbar");
+  if(!tb) return;
+  const ah = ab ? ab.offsetHeight : 0;
+  tb.style.top = ah + "px";
+  // --head-top = 导航栏高度 + 工具栏高度，供 .tbl thead th 的 sticky 使用
+  document.documentElement.style.setProperty("--head-top", (ah + tb.offsetHeight) + "px");
+}
+syncTopbarOffset();
+window.addEventListener("resize", syncTopbarOffset);
+window.addEventListener("load", syncTopbarOffset);
+if(window.ResizeObserver){
+  const ro=new ResizeObserver(()=>syncTopbarOffset());
+  const ab=$("appbar"); if(ab) ro.observe(ab);
+  const tb=document.querySelector(".topbar"); if(tb) ro.observe(tb);
+}
+// 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区）
+function shipptOptions(val){
+  const v=(val&&val!=="/")?String(val):"";
+  const opts=["汽零铸造","汽零机加工","北区"];
+  let html='<option value=""></option>';
+  opts.forEach(o=>{ html+=`<option value="${esc(o)}"${v===o?" selected":""}>${esc(o)}</option>`; });
+  return html;
+}
 
 // ===================== 物料库（与物料数据库页共享 localStorage） =====================
 let DB = loadDB();
@@ -213,8 +738,8 @@ function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }c
 function updateDbStatus(){
   const el=$("dbStatus");
   if(!el) return;
-  if(!DB.length) el.innerHTML="（物料库为空，<a href=\"物料数据库.html\" target=\"_blank\" style=\"color:var(--brand)\">去导入</a>）";
-  else el.textContent="（物料库共 "+DB.length+" 条）";
+  if(!DB.length) el.innerHTML="库空，<a href=\"物料数据库.html\" target=\"_blank\" style=\"color:var(--brand)\">去导入</a>";
+  else el.textContent="库 "+DB.length+" 条";
 }
 // 从物料库页面切回时刷新，保证待选最新
 window.addEventListener("focus", ()=>{
@@ -224,14 +749,49 @@ window.addEventListener("focus", ()=>{
 });
 
 // ===================== 型号模糊待选（自动带出） =====================
-let acEl=null, acList=[], acActive=-1, acRow=null;
-function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1; }
+let acEl=null, acList=[], acActive=-1, acRow=null, acTyped=false, acSnap=null, lastApplied=null;   // acTyped：待选是否由用户主动输入触发；acSnap：打开待选前的整行快照；lastApplied：最近一次「物料带出」前的快照（供 Esc 整行撤销）
+function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1; acTyped=false; }
+// 记录整行会被「物料带出」改写的字段，供按 Esc 时恢复原数据
+function snapRow(row){
+  if(!row) return null;
+  const g=f=>(row.querySelector(`[data-f="${f}"]`)?.value)||"";
+  return { row, model:g("model"), code:g("code"), unit:g("unit"), perbox:g("perbox"), customer:g("customer"), remark:g("remark"), logistics:g("logistics") };
+}
+function restoreRowSnap(){
+  if(!acSnap || !acSnap.row || !acSnap.row.parentNode) return false;
+  const row=acSnap.row;
+  const set=(f,v)=>{ const el=row.querySelector(`[data-f="${f}"]`); if(el) el.value=v||""; };
+  set("model",acSnap.model); set("code",acSnap.code); set("unit",acSnap.unit);
+  set("perbox",acSnap.perbox); set("customer",acSnap.customer); set("remark",acSnap.remark); set("logistics",acSnap.logistics);
+  recalc(); mergeCustomerCells(); fitTextareas();
+  acSnap=null;
+  return true;
+}
+// 记录可编辑框聚焦时的原始值，供按 Esc 恢复（隐藏字段无需记录）
+function trackOrig(el){
+  if(!el || el.type==="hidden") return;
+  el.addEventListener("focus", ()=>{ if(el.dataset.orig===undefined) el.dataset.orig=el.value; });
+  el.addEventListener("blur", ()=>{ delete el.dataset.orig; });
+}
 function matchDB(q){
   q=q.trim().toLowerCase();
-  return DB.filter(r => !q ||
+  if(!q) return [];                                  // 空输入不匹配任何物料：避免把整库当成待选项被误填入行
+  return DB.filter(r =>
     (r.model||"").toLowerCase().includes(q) ||
     (r.code||"").toLowerCase().includes(q) ||
     (r.customer||"").toLowerCase().includes(q)).slice(0,8);
+}
+// 待选项优先顺序：含「机加工」=1 > 含「毛坯」=2 > 含「粗抛」=3 > 其他=4；任一字段（型号/编码/客户）命中即取该优先级，数字越小越靠前
+function rankPriority(r){
+  const fields=[r.model,r.code,r.customer];
+  let p=4;
+  for(const f of fields){
+    const s=(f||"").toString();
+    if(s.includes("机加工")) return 1;       // 数字越小越靠前，命中最高级直接返回
+    if(s.includes("毛坯") && p>2) p=2;
+    if(s.includes("粗抛") && p>3) p=3;
+  }
+  return p;
 }
 // 某型号（或编码）在物料库里对应的不同客户集合（用于提示多客户）
 function customersForModel(model, code){
@@ -243,8 +803,11 @@ function customersForModel(model, code){
   });
   return [...set];
 }
-function showAC(input, row){
+function showAC(input, row, typed){
   acRow=row; closeAC();
+  // 型号栏为空时不弹待选：否则按 Tab/Enter 会把物料库第一条误填进整行（客户列被莫名填上）
+  if(!(input.value||"").trim()) return;
+  acTyped=!!typed;                    // 只有用户打字唤出的待选才允许被填入，单纯聚焦路过时不填入
   if(!DB.length){
     acEl=document.createElement("div"); acEl.className="ac";
     acEl.innerHTML=`<div class="ac-item" style="color:var(--muted)">物料库为空，请先导入或打开「物料数据库」添加</div>`;
@@ -254,6 +817,8 @@ function showAC(input, row){
     return;
   }
   acList=matchDB(input.value);
+  // 待选项优先顺序：含「机加工」=P1 > 含「毛坯」=P2 > 含「粗抛」=P3 > 其他=P4（数字越小越靠前，Array.sort 稳定同级保持原顺序）
+  acList.sort((a,b)=>rankPriority(a)-rankPriority(b));
   if(!acList.length){
     acEl=document.createElement("div"); acEl.className="ac";
     acEl.innerHTML=`<div class="ac-item" style="color:var(--muted)">无匹配物料：${esc(input.value)}</div>`;
@@ -276,6 +841,7 @@ function showAC(input, row){
   acEl.style.left=rect.left+"px"; acEl.style.top=rect.bottom+4+"px"; acEl.style.width=Math.max(rect.width,340)+"px";
 }
 function applyDb(row, r){
+  lastApplied={ row, snap: acSnap || snapRow(row) };   // 记录带出前的整行数据，带出后按 Esc 可整行撤销
   row.querySelector('[data-f="model"]').value=r.model||"";
   row.querySelector('[data-f="code"]').value=r.code||"";
   row.querySelector('[data-f="unit"]').value=r.unit||"";
@@ -283,6 +849,7 @@ function applyDb(row, r){
   // 避免物料库中客户与型号相同（常见导入错位）时把型号填进客户列
   row.querySelector('[data-f="customer"]').value=(r.customer && r.customer!==r.model)?r.customer:"";
   row.querySelector('[data-f="remark"]').value=r.remark||"";
+  row.querySelector('[data-f="logistics"]').value=r.logistics||"";   // 物流随客户带出
   recalc(); mergeCustomerCells(); fitTextareas(); toast("已带出："+(r.model||r.code));
   // 一个型号发多个客户：带出后提示用户确认/修改
   const cs=customersForModel(r.model, r.code);
@@ -294,7 +861,140 @@ function applyDb(row, r){
   // 自动聚焦到发货数量，避免光标跳到客户列
   setTimeout(()=>{ const q=row.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
 }
+// 按「客户」从物料库反查物流（取第一个匹配且有物流值的记录）
+function logisticsForCustomer(customer){
+  const c=(customer||"").trim();
+  if(!c || !DB.length) return "";
+  for(const r of DB){
+    if((r.customer||"").trim()===c){
+      const lg=(r.logistics||"").trim();
+      if(lg) return lg;
+    }
+  }
+  return "";
+}
+// 客户列变更时自动带出物流（手填过则不覆盖）
+function autoFillLogistics(tr){
+  const lgInp=tr.querySelector('[data-f="logistics"]');
+  if(!lgInp || lgInp.dataset.manual==="1") return;
+  const cust=tr.querySelector('[data-f="customer"]')?.value||"";
+  const lg=logisticsForCustomer(cust);
+  if(lg) lgInp.value=lg;
+}
 function autoResizeTa(ta){ fitTextarea(ta); }
+// 按型号（或物料编码）从物料库反查送达方集合：同型号可能发多个送达方
+function customersForModelExactly(model, code){
+  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
+  const set=[];
+  DB.forEach(r=>{
+    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
+    if((mk && m===mk) || (ck && c===ck)){
+      const cu=(r.customer||"").trim();
+      if(cu && !set.includes(cu)) set.push(cu);
+    }
+  });
+  return set;
+}
+// 多送达方选择弹窗（队列化，避免多行同时弹多个）
+let custModalQueue=[]; let custModalOpen=false;
+function chooseCustomerModal(customers, model, cb){
+  custModalQueue.push({customers, model, cb});
+  if(!custModalOpen) processCustModalQueue();
+}
+function processCustModalQueue(){
+  if(!custModalQueue.length){ custModalOpen=false; return; }
+  custModalOpen=true;
+  const {customers, model, cb}=custModalQueue.shift();
+  const overlay=document.createElement("div"); overlay.className="modal-overlay";
+  const box=document.createElement("div"); box.className="modal-box";
+  const title=document.createElement("div"); title.className="modal-title";
+  title.textContent=`型号「${model}」在物料库中发往 ${customers.length} 个送达方，请选择：`;
+  box.appendChild(title);
+  const hint=document.createElement("div");
+  hint.style.cssText="font-size:12px;color:#6b7280;margin:-6px 0 10px;";
+  hint.textContent="（本次选择自动用于本型号的所有行，一个型号只需确认一次）";
+  box.appendChild(hint);
+  const list=document.createElement("div"); list.className="modal-list";
+  customers.forEach(cu=>{
+    const b=document.createElement("button"); b.className="modal-opt"; b.textContent=cu;
+    b.onclick=()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); cb(cu); processCustModalQueue(); };
+    list.appendChild(b);
+  });
+  box.appendChild(list);
+  const skip=document.createElement("button"); skip.className="modal-skip"; skip.textContent="跳过（不填送达方）";
+  skip.onclick=()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); cb(null); processCustModalQueue(); };
+  box.appendChild(skip);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+// 已确认过的「型号 → 送达方」记忆（本次页面会话内有效，一个型号只确认一次）
+let modelCustChoice={};
+// 等待选择的「型号 → 行」列表：同型号多行只弹一次，选定后统一应用到所有这些行
+let pendingModelRows={};
+function applyCustomerToRow(tr, cust){
+  const custInp=tr.querySelector('[data-f="customer"]');
+  if(!custInp) return;
+  if(!custInp.value.trim()) custInp.value=cust;   // 已有手填值则保留
+  autoFillLogistics(tr);
+  // 型号/物料已填时，自动带出客户后聚焦到发货数量列
+  const modelInp=tr.querySelector('[data-f="model"]');
+  const codeInp=tr.querySelector('[data-f="code"]');
+  if((modelInp&&modelInp.value.trim()) || (codeInp&&codeInp.value.trim())){
+    setTimeout(()=>{ const q=tr.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
+  }
+}
+// 根据当前行的型号自动带出送达方：唯一则直接填入；多个则弹窗选择，同型号只确认一次
+function autoFillCustomerByModel(tr){
+  const modelInp=tr.querySelector('[data-f="model"]');
+  const custInp=tr.querySelector('[data-f="customer"]');
+  if(!modelInp||!custInp) return;
+  const model=(modelInp.value||"").trim();
+  if(!model) return;
+  const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
+  const custs=customersForModelExactly(model, code);
+  if(!custs.length) return;
+  if(custs.length===1){ applyCustomerToRow(tr, custs[0]); return; }
+  const remembered=modelCustChoice[model];
+  if(remembered && custs.includes(remembered)){ applyCustomerToRow(tr, remembered); return; }   // 已确认过 → 直接沿用，不再弹窗
+  if(pendingModelRows[model]){ pendingModelRows[model].push(tr); return; }   // 正在等待本型号的选择 → 本行排队，不重复弹窗
+  pendingModelRows[model]=[tr];
+  chooseCustomerModal(custs, model, (chosen)=>{
+    const rows=pendingModelRows[model]||[]; delete pendingModelRows[model];
+    if(!chosen) return;                     // 跳过：不填也不记忆，下次仍会询问
+    modelCustChoice[model]=chosen;          // 记住选择，后续同型号不再询问
+    rows.forEach(r=>applyCustomerToRow(r, chosen));
+    recalc(); mergeCustomerCells(); saveDraftNow();
+  });
+}
+// 按型号/物料编码取物料库中所有候选记录（完全一致匹配）
+function dbRecordsForModel(model, code){
+  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
+  return DB.filter(r=>{
+    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
+    return (mk && m===mk) || (ck && c===ck);
+  });
+}
+// 从物料库带出「物料编码 + 单重 + 每箱件数」：
+// 单重(kg/件) → 产品重量T；每箱件数 → 箱数 → 箱重T；客户吨位 = 产品重量T + 箱重T 由合并逻辑汇总
+function fillDbFieldsForRow(tr){
+  const modelInp=tr.querySelector('[data-f="model"]');
+  const codeInp=tr.querySelector('[data-f="code"]');
+  if(!modelInp) return;
+  const model=(modelInp.value||"").trim();
+  const code=(codeInp?.value||"").trim();
+  if(!model && !code) return;
+  const recs=dbRecordsForModel(model, code);
+  if(!recs.length) return;
+  // 多条候选：优先与当前行送达方一致的，其次本型号已记住的选择，最后首条
+  const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
+  let r=(cust && recs.find(x=>(x.customer||"").trim()===cust))||null;
+  if(!r && model){ const rm=modelCustChoice[model]; if(rm) r=recs.find(x=>(x.customer||"").trim()===rm)||null; }
+  if(!r) r=recs[0];
+  if(codeInp && !(codeInp.value||"").trim()) codeInp.value=r.code||"";   // 物料编码：空才带出，不覆盖已填
+  const setH=(f,v)=>{ const el=tr.querySelector(`[data-f="${f}"]`); if(el) el.value=(v==null?"":String(v)); };
+  setH("unit", r.unit);        // 单重 kg/件
+  setH("perbox", r.perbox);    // 每箱件数
+}
 function moveAC(d){
   if(!acEl) return;
   const items=acEl.querySelectorAll(".ac-item");
@@ -307,161 +1007,921 @@ document.addEventListener("keydown", e=>{
   if(!acEl) return;
   if(e.key==="ArrowDown"){ e.preventDefault(); moveAC(1); }
   else if(e.key==="ArrowUp"){ e.preventDefault(); moveAC(-1); }
-  else if(e.key==="Enter"){ e.preventDefault(); if(acActive>=0) applyDb(acRow, acList[acActive]); closeAC(); }
-  else if(e.key==="Tab"){ e.preventDefault(); if(acActive>=0) applyDb(acRow, acList[acActive]); closeAC(); }
-  else if(e.key==="Escape"){ closeAC(); }
+  // 只有「用户打字唤出的待选」才允许 Enter/Tab 填入；单纯聚焦弹出的待选仅作提示，Tab 只关闭并跳格，绝不改数据
+  else if(e.key==="Enter"){ if(acTyped && acList.length && acActive>=0){ e.preventDefault(); applyDb(acRow, acList[acActive]); } closeAC(); }
+  else if(e.key==="Tab"){ if(acTyped && acList.length && acActive>=0){ e.preventDefault(); applyDb(acRow, acList[acActive]); } closeAC(); }
+  else if(e.key==="Escape"){ const done=restoreRowSnap(); closeAC(); if(done) toast("已恢复原数据"); }
+});
+// Esc（无待选面板时）：把当前正在编辑的单元格恢复成聚焦时的值
+document.addEventListener("keydown", e=>{
+  if(e.key!=="Escape" || acEl) return;
+  const el=e.target;
+  // 刚带出过数据（焦点已被移到数量列）：Esc 整行撤销到带出前
+  if(lastApplied && lastApplied.row && el && el.closest && el.closest("tr")===lastApplied.row){
+    const s=lastApplied.snap;
+    const set=(f,v)=>{ const x=lastApplied.row.querySelector(`[data-f="${f}"]`); if(x) x.value=v||""; };
+    set("model",s.model); set("code",s.code); set("unit",s.unit); set("perbox",s.perbox); set("customer",s.customer); set("remark",s.remark); set("logistics",s.logistics);
+    lastApplied=null;
+    recalc(); mergeCustomerCells(); fitTextareas(); saveDraftNow();
+    toast("已恢复原数据");
+    return;
+  }
+  if(!el || !el.dataset || el.dataset.orig===undefined) return;
+  el.value=el.dataset.orig; delete el.dataset.orig;
+  recalc(); mergeCustomerCells(); fitTextareas(); saveDraftNow();
+  el.blur(); toast("已恢复原数据");
 });
 
 // ===================== 发货计划单 =====================
 function todayStr(){ const d=new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function realTodayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 $("shipDate").value=todayStr();
 function genPlanNo(){ const d=$("shipDate").value||todayStr(); const p=s=>String(s).padStart(2,"0"); const ymd=d.split("-"); return "FH"+ymd[0]+p(+ymd[1])+p(+ymd[2])+"-"+String(Math.floor(Math.random()*9000)+1000); }
 $("planNo").value=genPlanNo();
 
-function addRow(data={}){
+function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
   const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
-  const tonVal=(data.ton!==undefined&&data.ton!==null&&data.ton!=='/'&&String(data.ton).trim()!=='')?data.ton:((_q>0&&_u>0)?(_q*_u/1000).toFixed(1):'');
+  // 产品重量T：默认按 数量×单重÷1000 自动；可手填（tonManual 标记）；无单重的历史行保留原 ton 值兜底
+  const tonManual=(data.tonManual===true||data.tonManual==="1");
+  const _tonFb=(data.ton&&data.ton!=='/'&&String(data.ton).trim()!=='')?String(data.ton).trim():'';
+  const tonAuto=(_q>0&&_u>0)?(_q*_u/1000).toFixed(1):'';
+  const tonVal=tonManual?_tonFb:(tonAuto||_tonFb);
+  // 箱子重量T：始终按 箱数×0.07 自动；仅支持「删除 / 恢复」，不允许手填数字
+  const _boxNum=(boxVal!==''&&!isNaN(parseFloat(boxVal)))?parseFloat(boxVal):0;
+  const cwtDeleted=!!data.cwtDeleted;
+  const cwtVal=cwtDeleted?'':(_boxNum>0?(_boxNum*0.07).toFixed(1):'');
+  const cwtBtnHtml=cwtDeleted
+    ? '<button type="button" class="cwt-toggle" title="点击恢复（按箱数重新计算）">↺</button>'
+    : (cwtVal?'<button type="button" class="cwt-toggle" title="点击删除">×</button>':'');
   tr.innerHTML=`
     <td class="col-idx num-cell">${idx}</td>
+    <td class="col-check"><input type="checkbox" class="row-check"></td>
     <td class="col-shipdate"><input type="date" data-f="shipdate" value="${esc(data.shipdate ?? $("shipDate").value)}" placeholder="/"></td>
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
-    <td class="hide-col"><input data-f="code" value="${esc(data.code)}" placeholder="/"></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
-    <td><input data-f="qty" type="number" min="0" value="${esc(data.qty)}" placeholder="/"></td>
-    <td class="hide-col"><input data-f="unit" type="number" min="0" step="0.0001" value="${esc(data.unit)}" placeholder="/"></td>
-    <td class="num-cell"><input data-f="ton" type="number" min="0" step="0.0001" value="${esc(tonVal)}" placeholder="/"></td>
-    <td class="hide-col"><input data-f="perbox" type="number" min="1" value="${esc(data.perbox)}" placeholder="/"></td>
-    <td><input data-f="delivery" value="${esc(data.delivery)}" placeholder="/"></td>
+    <td><input data-f="qty" type="text" inputmode="decimal" value="${esc(data.qty)}" placeholder="/" title="支持算式：10*20、100/4、10*(20+5)，失焦自动算出结果"></td>
+    <td class="col-shippt"><select data-f="shippt" title="发货点">${shipptOptions(data.shippt)}</select></td>
+    <td class="col-delivery"><textarea data-f="delivery" placeholder="/" rows="1">${esc(data.delivery)}</textarea></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
-    <td class="col-act"><button class="del-x" title="删除">✕</button></td>`;
-  tr.querySelector(".del-x").onclick=()=>{ tr.remove(); reindex(); recalc(); saveDraft(); };
+    <td class="col-cwt num-cell"><span class="cwt-val">${esc(cwtVal)}</span><input type="hidden" data-f="cwt" value="${esc(cwtVal)}"${cwtDeleted?' data-deleted="1"':''}>${cwtBtnHtml}</td>
+    <td class="col-ton num-cell"><div class="ton-wrap"><input type="text" class="ton-in${tonManual?' edited':''}" data-f="ton" inputmode="decimal" value="${esc(tonVal)}"${tonManual?' data-manual="1"':''} title="产品重量T：默认按 数量×单重÷1000 自动，可直接修改"><button type="button" class="ton-reset" title="恢复自动带出">↺</button></div></td>
+    <td class="col-subton num-cell"></td>
+    <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}" placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
+    <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" title="物料编码（支持粘贴/编辑，也可点右侧按钮复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
+    <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
+  tr.querySelector(".del-x").onclick=()=>delRow(tr);
+  const rc=tr.querySelector(".row-check");
+  if(rc) rc.addEventListener("change", updateCheckAll);
+  const spSel=tr.querySelector('[data-f="shippt"]');
+  if(spSel) spSel.addEventListener("change", ()=>{ saveDraft(); });
+  tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraftNow(); };
   tr.querySelectorAll("input").forEach(inp=>{
-    if(inp.dataset.f==="box"||inp.dataset.f==="ton"){
+    inp.addEventListener("keydown", onCellKey);
+    trackOrig(inp);
+    if(inp.dataset.f==="box"){
       inp.addEventListener("input", ()=>{
         if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
         else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
+        scheduleRefresh(recalcLite, saveDraft);
+      });
+    } else if(inp.dataset.f==="shipdate"){
+      inp.addEventListener("input", ()=>scheduleRefresh(recalc, saveDraft, styleShipdate));
+      inp.addEventListener("change", ()=>{ sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
+    } else if(inp.dataset.f==="qty"){
+      inp.addEventListener("input", ()=>scheduleRefresh(recalcLite, saveDraft));   // 打字时实时按算式更新吨位/箱数
+      inp.addEventListener("change", ()=>{   // 失焦/回车时把算式换成结果：10*20 → 200
+        const r=evalQtyExpr(inp.value);
+        if(r!==null&&r!=="") inp.value=r;
         recalc(); saveDraft();
       });
-    } else {
-      inp.addEventListener("input", ()=>{ recalc(); saveDraft(); });
+    } else if(inp.dataset.f==="logistics"){
+      inp.addEventListener("input", ()=>{   // 物流：手填则标记，清空则恢复自动带出
+        if(inp.value.trim()==="") delete inp.dataset.manual;
+        else inp.dataset.manual="1";
+        saveDraft();
+      });
+    } else if(inp.dataset.f==="ton"){   // 产品重量T：手填则标记，清空则恢复自动带出
+      inp.addEventListener("input", ()=>{
+        if(inp.value.trim()==="") delete inp.dataset.manual;
+        else inp.dataset.manual="1";
+        scheduleRefresh(recalcLite, saveDraft);
+      });
+    } else if(inp.dataset.f!=="ton"){   // 其余可编辑列
+      inp.addEventListener("input", ()=>scheduleRefresh(recalcLite, saveDraft));
     }
   });
-  // 载入已有箱数/吨位时标记为手填值，避免被自动计算覆盖
-  ["box","ton"].forEach(k=>{
+  // 载入已有箱数时标记为手填值，避免被自动计算覆盖（吨位、箱子重量T 始终自动，不在此列）
+  ["box"].forEach(k=>{
     if(data[k]!==undefined&&data[k]!==null&&data[k]!=='/'&&String(data[k]).trim()!==''){
       const inp=tr.querySelector(`[data-f="${k}"]`); if(inp) inp.dataset.manual="1";
     }
   });
+  // 箱子重量T：仅「删除 / 恢复」按钮，不允许手填数字
+  const cwtToggle=tr.querySelector(".cwt-toggle");
+  if(cwtToggle){
+    cwtToggle.addEventListener("click", ()=>{
+      const cwtInp=tr.querySelector('[data-f="cwt"]');
+      if(cwtInp.dataset.deleted==="1") delete cwtInp.dataset.deleted;   // 恢复 → 重新按箱数自动计算
+      else { cwtInp.dataset.deleted="1"; cwtInp.value=""; }             // 删除 → 立即清空，不再自动带出
+      recalc(); mergeCustomerCells(); saveDraftNow();
+    });
+  }
+  // 产品重量T：↺ 恢复按钮 → 清除手填，重新按 数量×单重÷1000 自动带出
+  const tonReset=tr.querySelector(".ton-reset");
+  if(tonReset){
+    tonReset.addEventListener("mousedown", e=>e.preventDefault());   // 避免输入框失焦
+    tonReset.addEventListener("click", ()=>{
+      const tonInp=tr.querySelector('[data-f="ton"]');
+      if(tonInp) delete tonInp.dataset.manual;
+      recalc(); mergeCustomerCells(); saveDraftNow();
+      toast("已恢复产品重量T自动带出 ✓");
+    });
+  }
   tr.querySelectorAll("textarea").forEach(ta=>{
-    ta.addEventListener("input", ()=>{ recalc(); mergeCustomerCells(); fitTextarea(ta); saveDraft(); });
+    ta.addEventListener("keydown", onCellKey);
+    trackOrig(ta);
+    ta.addEventListener("input", ()=>{ fitTextarea(ta); scheduleRefresh(recalcLite, mergeCustomerCells, saveDraft); });
   });
-  tr.querySelector('[data-f="customer"]').addEventListener("input", mergeCustomerCells);
-  tr.querySelector('[data-f="remark"]').addEventListener("input", mergeCustomerCells);
-  ["model","code"].forEach(k=>{
+  tr.querySelector('[data-f="customer"]').addEventListener("input", ()=>{ autoFillLogistics(tr); scheduleRefresh(mergeCustomerCells, saveDraft); });
+  tr.querySelector('[data-f="customer"]').addEventListener("change", ()=>{   // 手动改送达方 → 记为该型号的选择，后续不再重复询问
+    const m=(tr.querySelector('[data-f="model"]')?.value||"").trim();
+    const cu=(tr.querySelector('[data-f="customer"]').value||"").trim();
+    if(!m||!cu) return;
+    const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
+    if(customersForModelExactly(m, code).includes(cu)) modelCustChoice[m]=cu;
+  });
+  tr.querySelector('[data-f="remark"]').addEventListener("input", ()=>scheduleRefresh(mergeCustomerCells, saveDraft));
+  ["model"].forEach(k=>{
     const inp=tr.querySelector(`[data-f="${k}"]`);
-    inp.addEventListener("focus", ()=>{ if(DB.length) showAC(inp, tr); });
-    inp.addEventListener("input", ()=>showAC(inp, tr));
+    inp.addEventListener("focus", ()=>{ acSnap=snapRow(tr); lastApplied=null; if(DB.length) showAC(inp, tr, false); });   // 聚焦即记录整行快照，供 Esc 恢复；路过聚焦只提示不自动填
+    inp.addEventListener("input", ()=>showAC(inp, tr, true));                       // 主动输入：允许 Enter/Tab 填入选中项
+    inp.addEventListener("change", ()=>autoFillCustomerByModel(tr));                 // 失焦时若型号锁定唯一送达方则自动带出；多送达方弹窗
   });
-  tb.appendChild(tr); reindex(); recalc(); fitTextareas();
+  // 物料编码复制按钮
+  const copyBtn=tr.querySelector(".copy-code");
+  if(copyBtn) copyBtn.onclick=()=>copyToClipboard(tr.querySelector('[data-f="code"]').value||"", copyBtn);
+  if(beforeRow && beforeRow.parentNode===tb) beforeRow.before(tr);
+  else if(refRow && refRow.parentNode===tb) refRow.after(tr);
+  else {
+    // 默认（添加行）：按发货日期升序插入到正确位置，不放到最后
+    const nd=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    let inserted=false;
+    for(const r of tb.children){
+      if(r.classList.contains("subtotal")) continue;
+      const rd=r.querySelector('[data-f="shipdate"]')?.value||"";
+      if(rd && rd>nd){ r.before(tr); inserted=true; break; }
+    }
+    if(!inserted) tb.appendChild(tr);
+  }
+  if(!skipRefresh){ reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates(); }
+  return tr;   // 返回新建的行（粘贴/批量添加时需要拿到它）
+}
+function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛选隐藏行跳过）
+  let idx=0;
+  [...$("tbody").children].forEach(tr=>{
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return;
+    const c=tr.querySelector(".col-idx");
+    if(c) c.textContent=++idx;
+  });
 }
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
-  [...$("tbody").children].forEach((tr,i)=>tr.querySelector(".col-idx").textContent=i+1);
-  $("rowCount").textContent=$("tbody").children.length+" 行"; mergeCustomerCells();
+  renumberVisible();
+  $("rowCount").textContent=[...$("tbody").children].filter(isDataRow).length+" 行"; foldByDate();
 }
-function fitTextarea(ta){ if(!ta) return; ta.style.height="auto"; ta.style.height=Math.max(34,ta.scrollHeight)+"px"; }
-function fitTextareas(){ [...$("tbody").querySelectorAll("textarea")].forEach(fitTextarea); }
-function mergeCustomerCells(){
-  // 先移除旧的小计行，再按客户分组重建
-  [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
-  const rows=[...$("tbody").children];
-  rows.forEach(tr=>{
-    tr.classList.remove("group-end");
-    const c=tr.querySelector(".col-customer"), r=tr.querySelector(".col-remark");
-    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); }
-    if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); }
+// ===================== 客户吨位：手动修改覆盖值 =====================
+// 覆盖值按「客户|发货日期」存，全局生效；发布时打包进 rec.custTon，发货员端自动同步
+const CT_KEY="shipping_custton_v1";
+function loadCT(){ try{ return JSON.parse(localStorage.getItem(CT_KEY))||{}; }catch(e){ return {}; } }
+function saveCT(o){
+  try{ localStorage.setItem(CT_KEY, JSON.stringify(o)); }catch(e){}
+  try{ if(window.CloudSync) CloudSync.autoPush(CT_KEY); }catch(e){}
+}
+function ctKeyOf(cust,date){ return String(cust==null?"":cust).trim()+"|"+String(date==null?"":date).trim(); }
+// 返回手动覆盖值；没改过返回 null
+function ctOverride(cust,date){
+  const o=loadCT(), k=ctKeyOf(cust,date);
+  if(o[k]===undefined||o[k]===null||String(o[k]).trim()==="") return null;
+  const v=parseFloat(o[k]); return isNaN(v)?null:v;
+}
+// 提交一次修改（已在调用处做过校验与确认）
+function commitSubTon(inp){
+  const cust=inp.dataset.cust||"", date=inp.dataset.date||"";
+  const old=inp.dataset.shown||"";
+  const nv=String(inp.value).trim();
+  const o=loadCT(), k=ctKeyOf(cust,date);
+  if(nv==="") delete o[k];               // 清空 = 恢复自动合计
+  else o[k]=parseFloat(nv);
+  saveCT(o);
+  if(typeof recalc==="function") recalc();
+  if(typeof toast==="function") toast(nv===""?"已恢复自动合计 ✓":"客户吨位已修改 ✓");
+}
+// 绑定一个客户吨位输入框的交互：回车确认、Esc 放弃、右键撤回
+function bindSubTonInput(inp){
+  if(inp.dataset.bound==="1") return;
+  inp.dataset.bound="1";
+  inp.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){ e.preventDefault(); inp.blur(); }
+    else if(e.key==="Escape"){ inp.value=inp.dataset.shown||""; inp.blur(); }
   });
+  inp.addEventListener("change",()=>{
+    const old=inp.dataset.shown||"";
+    let nv=String(inp.value).trim();
+    if(nv===old) return;                                  // 没改，忽略
+    if(nv!=="" && !/^-?\d+(\.\d+)?$/.test(nv)){            // 非法输入
+      alert("客户吨位只能填数字（可带小数点），请重新填写。");
+      inp.value=old; return;
+    }
+    const cust=inp.dataset.cust||"";
+    const newTxt=(nv===""?"（清空，恢复自动合计）":nv);
+    const ok=confirm(
+      "确认修改客户吨位？\n\n"+
+      "客户："+cust+"\n"+
+      "原值："+old+"\n"+
+      "新值："+newTxt+"\n\n"+
+      "说明：该客户同一发货日期的所有行会一起更新，并同步到导出、打印与发货员端。"
+    );
+    if(!ok){ inp.value=old; return; }
+    commitSubTon(inp);
+  });
+  inp.addEventListener("contextmenu",e=>{
+    const cust=inp.dataset.cust||"", date=inp.dataset.date||"";
+    if(ctOverride(cust,date)===null) return;              // 没改过，不拦截右键
+    e.preventDefault();
+    if(confirm("撤回【"+cust+"】的客户吨位修改，恢复为系统自动合计？")){
+      const o=loadCT(); delete o[ctKeyOf(cust,date)]; saveCT(o);
+      if(typeof recalc==="function") recalc();
+      if(typeof toast==="function") toast("已恢复自动合计 ✓");
+    }
+  });
+}
+
+// 「↺ 恢复」小按钮：把手填的客户吨位恢复为系统自动带出的值
+function bindSubTonReset(btn, cust, date, autoTxt){
+  if(!btn) return;
+  // 按下时不要让输入框失焦（否则会先弹「修改确认」框，变成两次弹窗）
+  btn.addEventListener("mousedown", e=>e.preventDefault());
+  btn.addEventListener("click", ()=>{
+    const wrap=btn.closest(".subton-wrap");
+    const inp=wrap && wrap.querySelector(".subton-in");
+    if(inp) inp.value=inp.dataset.shown||"";        // 丢弃未提交的编辑，避免重复确认
+    if(!confirm(
+      "恢复【"+cust+"】的客户吨位为系统自动带出？\n\n"+
+      "当前值："+(inp?inp.dataset.shown:"")+"\n"+
+      "恢复后："+autoTxt
+    )) return;
+    const o=loadCT(); delete o[ctKeyOf(cust,date)]; saveCT(o);
+    if(typeof recalc==="function") recalc();
+    if(typeof toast==="function") toast("已恢复自动带出 ✓");
+  });
+}
+
+function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
+  const tb=$("tbody");
+  const rows=[...tb.children].filter(isDataRow);
+  rows.sort((a,b)=>{
+    const da=a.querySelector('[data-f="shipdate"]')?.value||"";
+    const db=b.querySelector('[data-f="shipdate"]')?.value||"";
+    return da<db?-1:(da>db?1:0);
+  });
+  rows.forEach(r=>tb.appendChild(r));
+}
+function fitTextarea(ta){
+  if(!ta) return;
+  ta.style.height="auto";
+  const h=Math.max(26,ta.scrollHeight);
+  ta.style.height=h+"px";
+  // 合并单元格：同时给 td 设最小高度，让 rowspan 组随内容撑开
+  const td=ta.closest("td");
+  if(td && td.rowSpan>1) td.style.height=(h+4)+"px";
+}
+// 批量自适应高度：读写分离（先统一置 auto → 统一读 scrollHeight → 统一写回），
+// 把 N 次「强制同步布局」压到 1~2 次，折叠展开后几百行也不卡
+function fitTextareas(){
+  const tas=[...$("tbody").querySelectorAll("textarea")];
+  if(!tas.length) return;
+  tas.forEach(ta=>{ if(ta.style.height!=="auto") ta.style.height="auto"; });
+  const hs=tas.map(ta=>Math.max(26, ta.scrollHeight));
+  tas.forEach((ta,i)=>{ const v=hs[i]+"px"; if(ta.style.height!==v) ta.style.height=v; });
+  tas.forEach((ta,i)=>{ const td=ta.closest("td"); if(td && td.rowSpan>1){ const v=(hs[i]+4)+"px"; if(td.style.height!==v) td.style.height=v; } });
+}
+// —— 性能优化：输入时的全表刷新合批。打字会连续触发 recalc / 合并 / 折叠 / 高亮等多轮全表遍历，
+//    用微任务队列合并成一次执行，重复调用只跑一遍。
+function recalcLite(){ recalc(true); }   // 具名包装：便于合批调度器按引用去重
+let _rq=0, _rjobs=null, _rqRAF=false;
+function flushRefresh(){
+  if(!_rq) return;
+  if(typeof cancelAnimationFrame==="function" && _rqRAF) cancelAnimationFrame(_rq); else clearTimeout(_rq);
+  _rq=0; _rqRAF=false;
+  const j=_rjobs; _rjobs=null;
+  if(j) j.forEach(f=>{ try{ f(); }catch(e){} });
+}
+function scheduleRefresh(){
+  for(let i=0;i<arguments.length;i++){
+    if(!_rjobs) _rjobs=new Set();
+    _rjobs.add(arguments[i]);
+  }
+  if(_rq) return;
+  if(typeof requestAnimationFrame==="function"){ _rqRAF=true; _rq=requestAnimationFrame(flushRefresh); }
+  else { _rqRAF=false; _rq=setTimeout(flushRefresh, 16); }
+}
+// ===================== 误删撤回 + WPS 式单元格导航 =====================
+let undoStack=[];
+const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12,14,15];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱重T/客户吨位/操作；12=产品重量T 14=物流 15=物料编码）
+function collectRowData(tr){
+  const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
+  const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
+  return {
+    shipdate:g("shipdate"), customer:g("customer"), code:g("code"), model:g("model"),
+    qty:g("qty"), shippt:g("shippt"), unit:g("unit"), perbox:g("perbox"),
+    ton:tonI?tonI.value:"", tonManual:(tonI&&tonI.dataset.manual==="1"),
+    delivery:g("delivery"), box:boxI?boxI.value:"", boxManual:(boxI&&boxI.dataset.manual==="1"),
+    cwt:g("cwt"), cwtDeleted:(tr.querySelector('[data-f="cwt"]')?.dataset.deleted==="1"),
+    remark:g("remark")
+  };
+}
+function visibleRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("isolation-band")&&!r.classList.contains("date-fold-hidden")&&!r.classList.contains("filter-hidden")&&!r.classList.contains("date-fold-placeholder")); }
+function allRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("isolation-band")&&!r.classList.contains("date-fold-placeholder")); }   // 全部数据行（含折叠隐藏），用于删除/撤回等结构性操作
+function delRow(tr){
+  if(!tr || !tr.parentNode) return;
+  const list=allRows();
+  const idx=list.indexOf(tr);
+  if(idx<0) return;
+  const model=tr.querySelector('[data-f="model"]')?.value?.trim()||"";
+  const customer=tr.querySelector('[data-f="customer"]')?.value?.trim()||"";
+  if(!confirm(`确认删除第 ${idx+1} 行${model?"（型号："+model+"）":""}？\n删除后可通过「撤回」按钮或 Ctrl+Z 恢复。`)) return;
+  const data=collectRowData(tr);
+  tr.remove();
+  undoStack.push({rows:[data], atIndex:idx});
+  if(undoStack.length>50) undoStack.shift();
+  reindex(); recalc(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
+  toast("已删除 1 行，可点「撤回」恢复");
+}
+function undo(){
+  const item=undoStack.pop();
+  if(!item){ toast("没有可撤回的操作"); return; }
+  if(item.positions && item.positions.length){
+    // 批量删除（删空行）：按原行号从小到大回插，恢复到原来的位置
+    [...item.positions].sort((a,b)=>a.atIndex-b.atIndex).forEach(p=>{
+      const list=allRows();
+      addRow(p.data, null, list[p.atIndex]||null, true);
+    });
+  } else {
+    const list=allRows();
+    const ref=list[item.atIndex]||null;
+    item.rows.forEach(d=>{ addRow(d, null, ref, true); });
+  }
+  reindex(); recalc(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
+  toast("已撤回删除，恢复 "+(item.positions?item.positions.length:item.rows.length)+" 行");
+}
+// ===================== 一键删除空白行 =====================
+// 空白行判定：这些「计划员会填」的列全空 = 空白行
+// （发货日期默认带明天、箱重/产品重量T 是自动计算、物流是自动带出，都不算内容）
+const BLANK_FIELDS=["customer","model","qty","shippt","delivery","remark","code"];
+function rowIsBlank(tr){
+  if(!tr) return false;
+  // 手动改过的产品重量T / 箱数 / 物流 视为有内容
+  const manual=["ton","box","logistics"];
+  for(const f of manual){
+    const el=tr.querySelector(`[data-f="${f}"]`);
+    if(el && el.dataset.manual==="1" && String(el.value).trim()!=="") return false;
+  }
+  return BLANK_FIELDS.every(f=>{
+    const el=tr.querySelector(`[data-f="${f}"]`);
+    return !el || String(el.value||"").trim()==="";
+  });
+}
+function cleanEmptyRows(){
+  const list=allRows();
+  const blanks=list.filter(rowIsBlank);
+  if(!blanks.length){ toast("没有空白行，当前数据都是有效的 ✓"); return; }
+  if(!confirm(`检测到 ${blanks.length} 行空白行（送达方、型号、发货数量等全都没填），确认一键删除？\n\n删除后可通过「撤回」按钮或 Ctrl+Z 一次性恢复。`)) return;
+  const positions=blanks.map(tr=>({data:collectRowData(tr), atIndex:list.indexOf(tr)}));
+  blanks.forEach(tr=>tr.remove());
+  undoStack.push({rows:positions.map(p=>p.data), positions});
+  if(undoStack.length>50) undoStack.shift();
+  reindex(); recalc(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
+  toast(`已删除 ${blanks.length} 行空白行，可点「撤回」恢复`);
+}
+function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=undoStack.length===0; }
+function findCell(tr, colNum){
+  const td=tr.children[colNum-1];
+  if(!td) return null;
+  if(td.style.display==="none") return null;
+  const el=td.querySelector("input,textarea");
+  return el||null;
+}
+function navigateFrom(el, ci, dCol, dRow){
+  const rows=visibleRows();
+  const tr=el.closest("tr");
+  const rIdx=rows.indexOf(tr);
+  if(rIdx<0) return;
+  let newCi=ci+dCol, newRi=rIdx+dRow;
+  if(newRi<0||newRi>=rows.length) return;          // 行越界：不导航
+  const targetRow=rows[newRi];
+  let target=findCell(targetRow, EDITABLE_COLS[newCi]);
+  if(!target){                                    // 目标列被合并隐藏：就近找同行可见单元格
+    for(let off=1; off<EDITABLE_COLS.length; off++){
+      const a=EDITABLE_COLS[newCi-off], b=EDITABLE_COLS[newCi+off];
+      if(a){ const t=findCell(targetRow,a); if(t){ target=t; break; } }
+      if(b){ const t=findCell(targetRow,b); if(t){ target=t; break; } }
+    }
+  }
+  if(target){ target.focus(); try{ if(target.select) target.select(); }catch(_){} }
+}
+function onCellKey(e){
+  if(!e.target || !e.target.closest) return;
+  // 回车仅确认当前单元格并离开，不再下移；textarea 中 Shift+Enter 保留默认换行
+  if(e.key==="Enter"){
+    if(e.shiftKey) return;
+    e.preventDefault();
+    e.target.blur();
+    return;
+  }
+  let dCol=0, dRow=0, handled=false;
+  if(e.key==="ArrowUp"){ dRow=-1; handled=true; }
+  else if(e.key==="ArrowDown"){ dRow=1; handled=true; }
+  else if(e.key==="Tab"){ dCol=e.shiftKey?-1:1; handled=true; }
+  else if(e.key==="ArrowLeft"){ dCol=-1; handled=true; }
+  else if(e.key==="ArrowRight"){ dCol=1; handled=true; }
+  if(!handled) return;
+  if(acEl) return;                                // 自动补全打开时交给它处理
+  e.preventDefault();
+  const ci=EDITABLE_COLS.indexOf(e.target.closest("td").cellIndex+1);
+  if(ci<0) return;
+  navigateFrom(e.target, ci, dCol, dRow);
+}
+function unmergeRow(tr){
+  // 取消单行的客户/时效要求/客户吨位合并
+  ["col-customer","col-remark","col-subton"].forEach(cls=>{
+    const c=tr.querySelector("."+cls);
+    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
+  });
+}
+let __merging = false;
+function mergeCustomerCells(){
+  if(__merging) return;          // 防止同步 input.value 触发 input 事件导致死循环
+  __merging = true;
+  try {
+  // 按「客户+发货日期」分组，合并客户、时效要求、客户吨位合计三列；基于全部数据行合并
+  const allRows=[...$("tbody").children].filter(isDataRow);
+  // 1) 清除所有数据行的合并状态
+  allRows.forEach(tr=>{
+    tr.classList.remove("group-end");
+    const R=rowRefs(tr);
+    const c=R.cellCustomer;
+    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
+    const r=R.cellRemark;
+    if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); r.style.height=""; }
+    const sub=R.cellSubton;
+    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; sub.style.height="";
+      sub._key=null; sub._val=null; sub._ov=0; }   // 内容已清空，缓存标记必须一并失效，否则会误判「无变化」而不重建
+  });
+  // 2) 只合并当前可见的数据行（排除筛选隐藏 + 折叠隐藏），否则 rowSpan 会按隐藏行数撑出幽灵行，导致下方整表错位
+  const rows=allRows.filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
   let i=0;
   while(i<rows.length){
-    const cust=rows[i].querySelector('[data-f="customer"]')?.value.trim()||"";
+    const first=rows[i];
+    const Rf=rowRefs(first);
+    const cust=(Rf.customer?.value||"").trim();
+    const date=(Rf.shipdate?.value||"").trim();
+    if(!cust){ i++; continue; }  // 空客户不合并
+    const key=cust+"|"+date;
     let j=i+1;
-    while(j<rows.length && (rows[j].querySelector('[data-f="customer"]')?.value.trim()||"")===cust) j++;
+    while(j<rows.length){
+      const R2=rowRefs(rows[j]);
+      const cust2=(R2.customer?.value||"").trim();
+      const date2=(R2.shipdate?.value||"").trim();
+      if(cust2+"|"+date2!==key) break;
+      j++;
+    }
     const len=j-i;
-    if(len>1 && cust){
-      const c=rows[i].querySelector(".col-customer"), r=rows[i].querySelector(".col-remark");
+    // 3) 计算该组合计吨位（只要客户非空就显示合计，即使吨位为0）
+    let subTon=0;
+    for(let k=i;k<j;k++){ const Rk=rowRefs(rows[k]); subTon+=(parseFloat(Rk.ton?.value)||0)+(parseFloat(Rk.cwt?.value)||0); }
+    const subCell=Rf.cellSubton;
+    if(subCell){
+      // 客户吨位可手动修改：有覆盖值用覆盖值，否则用自动合计
+      const ov=ctOverride(cust,date);
+      const shown=(ov!==null?ov:subTon).toFixed(1);
+      const autoTxt=subTon.toFixed(1);
+      // 值与上次完全一样则跳过 innerHTML 重建（全表重建 input + 绑事件是合并的大头）
+      if(subCell._key===cust+"|"+date && subCell._val===shown && subCell._ov===(ov!==null?1:0)){
+        subCell.classList.add("merged-cell");
+        if(len>1) subCell.rowSpan=len;
+        rows[j-1].classList.add("group-end");
+        i=j; continue;
+      }
+      subCell._key=cust+"|"+date; subCell._val=shown; subCell._ov=(ov!==null?1:0);
+      subCell.innerHTML='<span class="subton-wrap">'
+        +'<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
+        +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
+        +' title="可直接修改，回车确认">'
+        // 手填过才显示「↺ 恢复」小按钮，位置与样式同「箱子重量T」那一列
+        +(ov!==null?'<button type="button" class="subton-reset" title="恢复自动带出（'+esc(autoTxt)+'）">↺</button>':'')
+        +'</span>';
+      bindSubTonInput(subCell.querySelector(".subton-in"));
+      bindSubTonReset(subCell.querySelector(".subton-reset"), cust, date, autoTxt);
+      subCell.classList.add("merged-cell");
+    }
+    if(len>1){
+      const c=Rf.cellCustomer, r=Rf.cellRemark;
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
+      // 时效要求列与客户列保持同组合并：同一客户+同一日期下自动合并，只显示首行时效要求
       if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
+      if(subCell) subCell.rowSpan=len;
       for(let k=i+1;k<j;k++){
-        const c2=rows[k].querySelector(".col-customer"), r2=rows[k].querySelector(".col-remark");
-        if(c2) c2.style.display="none"; if(r2) r2.style.display="none";
+        const Rk2=rowRefs(rows[k]);
+        const c2=Rk2.cellCustomer, r2=Rk2.cellRemark, s2=Rk2.cellSubton;
+        if(c2){ c2.style.display="none"; c2.rowSpan=1; }
+        if(r2){ r2.style.display="none"; r2.rowSpan=1; }
+        if(s2){ s2.style.display="none"; s2.rowSpan=1; }
       }
     }
     rows[j-1].classList.add("group-end");
-    // 每个客户下面加「吨位合计」小计行（吨位取当前各格实际值累加）
-    if(cust){
-      let subTon=0;
-      for(let k=i;k<j;k++){ subTon+=parseFloat(rows[k].querySelector('[data-f="ton"]')?.value)||0; }
-      const sub=document.createElement("tr"); sub.className="subtotal";
-      sub.innerHTML='<td colspan="7" class="sub-label">「'+esc(cust)+'」吨位合计</td>'+
-        '<td class="sub-ton">'+(subTon?subTon.toFixed(1):"/")+'</td>'+
-        '<td colspan="5"></td>';
-      rows[j-1].after(sub);
-    }
     i=j;
   }
   fitTextareas();
+  } finally { __merging = false; }
 }
-function recalc(){
-  let sq=0,st=0,sb=0;
+
+const FOLD_STATE_KEY="shipping_fold_dates_v1";
+const SHOW_FOLDED_KEY="shipping_show_folded_v1";
+function getFoldState(){ try{ return JSON.parse(localStorage.getItem(FOLD_STATE_KEY))||{}; }catch(e){ return {}; } }
+function setFoldState(date,collapsed){ const s=getFoldState(); s[date]=collapsed?1:0; localStorage.setItem(FOLD_STATE_KEY,JSON.stringify(s)); }
+function getShowFolded(){ try{ return localStorage.getItem(SHOW_FOLDED_KEY)==="1"; }catch(e){ return false; } }
+function setShowFolded(show){ try{ localStorage.setItem(SHOW_FOLDED_KEY, show?"1":"0"); }catch(e){} }
+// 折叠隐藏某行时同步取消其勾选，确保折叠日期不会被全选/发布带入
+function hideFoldedRow(tr){ tr.classList.add("date-fold-hidden"); const b=tr.querySelector(".row-check"); if(b) b.checked=false; }
+
+function foldByDate(){
+  // 清理旧的折叠标记与按钮，并移除上一次插入的隔离带（确保按最新数据重新计算位置）
+  [...$("tbody").querySelectorAll("tr.isolation-band")].forEach(r=>r.remove());
   [...$("tbody").children].forEach(tr=>{
-    if(tr.classList.contains("subtotal")) return;   // 跳过客户小计行
-    const qty=parseFloat(tr.querySelector('[data-f="qty"]').value)||0;
-    const unit=parseFloat(tr.querySelector('[data-f="unit"]').value)||0;
-    const perbox=parseFloat(tr.querySelector('[data-f="perbox"]').value)||0;
-    // 吨位：自动带出（数量×单重/1000），除非手填
-    const tonInput=tr.querySelector('[data-f="ton"]');
+    if(!isDataRow(tr)) return;
+    tr.classList.remove("date-fold-hidden","has-folded","has-expanded");
+    const sd=tr.querySelector(".col-shipdate");
+    if(sd){
+      sd.classList.remove("date-expanded","date-collapsed");
+      const btn=sd.querySelector(".fold-btn");
+      if(btn) btn.remove();
+      sd.style.display=""; sd.rowSpan=1;
+    }
+  });
+
+  const rows=[...$("tbody").children];
+  const groups=[];
+  let cur=null;
+  rows.forEach(tr=>{
+    if(!isDataRow(tr)){ if(cur) cur.rows.push(tr); return; }
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    if(!cur||cur.date!==d){ cur={date:d, rows:[tr]}; groups.push(cur); }
+    else cur.rows.push(tr);
+  });
+
+  const today=realTodayStr();
+  const state=getFoldState();
+  const showFolded=getShowFolded();
+  const foldedDates=[];
+
+  groups.forEach(g=>{
+    if(!g.rows.length) return;
+    const first=g.rows[0];
+    const sd=first.querySelector(".col-shipdate");
+    if(!sd) return;
+
+    let collapsed=state[g.date];
+    if(collapsed===undefined) collapsed=!(g.date>today);  // 当天及之前的日期默认折叠，明天及以后默认展开
+    else collapsed=!!collapsed;
+
+    const btn=document.createElement("button");
+    btn.type="button"; btn.className="fold-btn";
+    btn.textContent=collapsed?"▶":"▼"; btn.title=collapsed?"展开":"折叠";
+    btn.onclick=(e)=>{ e.stopPropagation(); toggleDateFold(g.date); };
+    sd.insertBefore(btn, sd.firstChild);
+    sd.classList.add(collapsed?"date-collapsed":"date-expanded");
+    first.classList.add(collapsed?"has-folded":"has-expanded");
+
+    if(collapsed){
+      foldedDates.push(g.date);
+      if(showFolded){
+        // 保留第一行作为折叠控制，方便单独展开
+        for(let k=1;k<g.rows.length;k++) hideFoldedRow(g.rows[k]);
+      }else{
+        // 截图模式：折叠的日期整组隐藏，入口改到「发货明细」标题处
+        g.rows.forEach(tr=>hideFoldedRow(tr));
+      }
+    }
+  });
+
+  // 在「发货明细」标题右侧渲染折叠日期入口
+  const fd=$("foldedDates");
+  fd.innerHTML="";
+  if(!showFolded && foldedDates.length){
+    // 按要求：不再渲染「当天之前」的折叠展开入口（当天之前默认折叠，想展开点工具栏「当天前」）
+    const future=foldedDates.filter(d=>d>today);
+    if(future.length){
+      const b=document.createElement("button");
+      b.type="button"; b.className="folded-date-btn";
+      b.textContent="▶ 当天之后已折叠";
+      b.title="展开 "+future.join("、");
+      b.onclick=()=>{ future.forEach(d=>setFoldState(d,0)); foldByDate(); fitTextareas(); };
+      fd.appendChild(b);
+    }
+  }
+
+  // 3) 先合并所有数据行，再取消被折叠隐藏行的合并，避免 rowSpan 撑出空白
+  mergeCustomerCells();
+  groups.forEach(g=>{
+    if(!g.rows.length) return;
+    let collapsed=state[g.date];
+    if(collapsed===undefined) collapsed=!(g.date>today);  // 当天及之前的日期默认折叠，明天及以后默认展开
+    else collapsed=!!collapsed;
+    if(collapsed){
+      if(showFolded){
+        // 保留第一行作为折叠控制；只取消后续隐藏行的合并
+        for(let k=1;k<g.rows.length;k++) unmergeRow(g.rows[k]);
+      }else{
+        // 整组隐藏：取消该组所有行的合并
+        g.rows.forEach(tr=>unmergeRow(tr));
+      }
+    }
+  });
+
+  // 行数只统计可见行（同时排除筛选隐藏）
+  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")&&!tr.classList.contains("isolation-band")).length;
+  $("rowCount").textContent=visible+" 行";
+  renumberVisible();  // 折叠状态变化后重新编号，保证可见行序号始终连续
+  updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
+  updatePastButton(); // 同步「当天之前」按钮文字
+  markRowStates();   // 刷新滞后/之后计划高亮
+  renderIsolationBand();   // 在「明日」计划之后插入视觉隔离带（隔离其后计划）
+}
+
+function toggleDateFold(date){
+  flushRefresh();
+  const state=getFoldState();
+  setFoldState(date, state[date]?0:1);
+  foldByDate();
+  fitTextareas();
+}
+
+// 一键折叠/展开「当天之前」所有日期的分组
+function getPastDates(){
+  const today=realTodayStr();
+  const set=new Set();
+  [...$("tbody").children].forEach(tr=>{
+    if(!isDataRow(tr)) return;
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    if(d) set.add(d);
+  });
+  return [...set].filter(d=>d<=today).sort();
+}
+function allPastCollapsed(){
+  const dates=getPastDates();
+  if(!dates.length) return true;
+  const state=getFoldState();
+  const today=realTodayStr();
+  return dates.every(d=>{ const c=state[d]===undefined?!(d>today):!!state[d]; return !!c; });
+}
+function togglePast(){
+  const collapse=!allPastCollapsed();   // 还有展开的就全部折叠，已全折叠则全部展开
+  getPastDates().forEach(d=>setFoldState(d, collapse?1:0));
+  foldByDate(); fitTextareas();
+}
+function updatePastButton(){
+  const btn=$("togglePast"); if(!btn) return;
+  const collapsed=allPastCollapsed();
+  btn.textContent= collapsed ? "展开当天前" : "折叠当天前";
+  btn.title= collapsed ? "一键展开当天之前的计划" : "一键折叠当天之前的计划";
+}
+
+// ===================== 筛选（客户 / 型号 / 发货日期） =====================
+function isFilterActive(){ return !!((($("filterCustomer").value||"").trim()) || (($("filterModel").value||"").trim()) || ($("filterDate").value||"")); }
+// 数据行判定：排除「客户小计」与「隔离区分隔带」这类非数据行（避免被统计/导出/合并当成普通计划行）
+function isDataRow(tr){ return tr && !tr.classList.contains("subtotal") && !tr.classList.contains("isolation-band"); }
+// 在「明日」计划组之后插入视觉隔离带，隔离其后（后天及以后）的计划；数据不变，纯展示
+function renderIsolationBand(){
+  [...$("tbody").querySelectorAll("tr.isolation-band")].forEach(r=>r.remove());   // 幂等：先清后插
+  if(isFilterActive()) return;                                                   // 筛选状态下不显示分隔带
+  const tomorrow=todayStr();                                                     // 系统里 todayStr()=日历明天=用户的“明日”
+  const rows=[...$("tbody").children].filter(isDataRow);
+  let lastTomorrow=null, hasAfter=false;
+  rows.forEach(tr=>{
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    if(d===tomorrow) lastTomorrow=tr;
+    else if(d>tomorrow) hasAfter=true;
+  });
+  if(!lastTomorrow || !hasAfter) return;                                         // 无“明日”组，或明日之后无计划则不显示
+  // 明日组本身被折叠/筛选隐藏时，隔离带会悬空显示，此时不渲染
+  if(lastTomorrow.classList.contains("date-fold-hidden")||lastTomorrow.classList.contains("filter-hidden")) return;
+  const tr=document.createElement("tr"); tr.className="isolation-band";
+  const td=document.createElement("td"); td.colSpan=14; td.className="isolation-cell";
+  td.innerHTML='<span class="isolation-label">隔离区 · 明日之后</span>';
+  tr.appendChild(td); lastTomorrow.after(tr);
+}
+function applyFilter(){
+  const cust=($("filterCustomer").value||"").trim().toLowerCase();
+  const model=($("filterModel").value||"").trim().toLowerCase();
+  const date=$("filterDate").value||"";
+  const active=!!(cust||model||date);
+  let shown=0, total=0;
+  [...$("tbody").children].forEach(tr=>{
+    if(!isDataRow(tr)) return;
+    total++;
+    const trCust=(tr.querySelector('[data-f="customer"]')?.value||"").trim().toLowerCase();
+    const trModel=(tr.querySelector('[data-f="model"]')?.value||"").trim().toLowerCase();
+    const trDate=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    const match=(!cust || trCust.includes(cust)) &&
+                (!model || trModel.includes(model)) &&
+                (!date || trDate===date);
+    if(match){
+      // 匹配即显示：同时清除筛选隐藏与折叠隐藏，让被折叠/隐藏的计划也能被筛出来
+      tr.classList.remove("filter-hidden","date-fold-hidden");
+      shown++;
+    }else{
+      tr.classList.add("filter-hidden");
+    }
+  });
+  const hint=$("filterCount");
+  if(hint) hint.textContent=active?`显示 ${shown}/${total} 行`:"";
+  recalc();                 // 重新计算吨位/箱数；recalc 内部按筛选状态决定：无筛选→恢复折叠，有筛选→保持穿透显示并刷新合并/编号
+  updateCheckAll();
+  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")&&!tr.classList.contains("isolation-band")).length;
+  $("rowCount").textContent=visible+" 行";
+  renderIsolationBand();   // 筛选结束后刷新隔离带（筛选态下自动隐藏）
+}
+function clearFilter(){
+  $("filterCustomer").value="";
+  $("filterModel").value="";
+  $("filterDate").value="";
+  applyFilter();
+}
+
+function evalQtyExpr(v){   // 发货数量支持算式：10*20 → 200；支持 + - * / × ÷ 和括号
+  const s=String(v==null?"":v).trim().replace(/×/g,"*").replace(/÷/g,"/");
+  if(s==="") return "";
+  if(/^[0-9]+(\.[0-9]+)?$/.test(s)) return s;                 // 纯数字原样返回
+  if(!/^[0-9+\-*/().\s]+$/.test(s)) return null;              // 含非法字符 → 不处理
+  try{
+    const r=Function('"use strict";return ('+s+')')();
+    if(typeof r!=="number"||!isFinite(r)) return null;
+    return Number.isInteger(r)?String(r):String(Math.round(r*100)/100);
+  }catch(e){ return null; }                                   // 残缺算式（如 10*）→ 不处理
+}
+// 快路径：绝大多数数量是纯数字，直接 parseFloat，避免每行都 new Function 编译算式（全表重算的主要开销）
+const PURE_NUM=/^\d+(\.\d+)?$/;
+function qtyNum(v){          // 取数量数值：能算就按算式算，算不了退回 parseFloat
+  if(v==null) return 0;
+  const s=String(v).trim();
+  if(PURE_NUM.test(s)) return parseFloat(s);
+  const e=evalQtyExpr(s);
+  return parseFloat(e!==null&&e!==""?e:s)||0;
+}
+// 只在值真的变化时才写 DOM（程序化赋值虽不触发事件，但仍会让浏览器重排，全表逐字写入是卡顿源之一）
+function setValIfChanged(el, v){ if(el && el.value!==v) el.value=v; }
+// 行内元素引用缓存：recalc / 合并 每次都要全表逐行 querySelector，行多时开销巨大。
+// 行结构创建后不再变动，缓存一次即可；节点被替换（isConnected=false）时自动重建。
+function rowRefs(tr){
+  let c=tr._refs;
+  if(c && c.qty && c.qty.isConnected) return c;
+  c = tr._refs = {
+    shipdate:tr.querySelector('[data-f="shipdate"]'),
+    customer:tr.querySelector('[data-f="customer"]'),
+    code:tr.querySelector('[data-f="code"]'),
+    model:tr.querySelector('[data-f="model"]'),
+    qty:tr.querySelector('[data-f="qty"]'),
+    unit:tr.querySelector('[data-f="unit"]'),
+    perbox:tr.querySelector('[data-f="perbox"]'),
+    ton:tr.querySelector('[data-f="ton"]'),
+    box:tr.querySelector('[data-f="box"]'),
+    cwt:tr.querySelector('[data-f="cwt"]'),
+    remark:tr.querySelector('[data-f="remark"]'),
+    tonReset:tr.querySelector(".ton-reset"),
+    cwtShow:tr.querySelector(".cwt-val"),
+    cwtTog:tr.querySelector(".cwt-toggle"),
+    cellCustomer:tr.querySelector(".col-customer"),
+    cellRemark:tr.querySelector(".col-remark"),
+    cellSubton:tr.querySelector(".col-subton"),
+    rowCheck:tr.querySelector(".row-check")
+  };
+  return c;
+}
+// skipFold=true：本次不重跑折叠（改数量/箱数/吨位不会改变日期分组，省掉一整轮全表折叠+高亮+隔离带重排）
+function recalc(skipFold){
+  let sq=0,st=0,sb=0,scwt=0;
+  [...$("tbody").children].forEach(tr=>{
+    if(!isDataRow(tr)) return;   // 跳过客户小计行 / 隔离带，避免非数据行读取 data-f 字段报错
+    const R=rowRefs(tr);
+    const qty=qtyNum(R.qty.value);
+    const unit=parseFloat(R.unit.value)||0;
+    const perbox=parseFloat(R.perbox.value)||0;
+    // 产品重量T：未手填时按 数量×单重/1000 自动计算；手填(manual)保留；无单重保留既有值兜底
+    const tonInput=R.ton;
     const autoTon=(qty>0&&unit>0)?qty*unit/1000:0;
-    if(tonInput.dataset.manual!=="1") tonInput.value=autoTon>0?autoTon.toFixed(1):"";
+    if(tonInput.dataset.manual!=="1") setValIfChanged(tonInput, autoTon>0?autoTon.toFixed(1):"");
+    const tonReset=R.tonReset;
+    if(tonReset){
+      const m=tonInput.dataset.manual==="1";
+      const d=m?"":"none";
+      if(tonReset.style.display!==d) tonReset.style.display=d;
+      tonInput.classList.toggle("edited", m);
+    }
     const ton=parseFloat(tonInput.value)||0;
     // 箱数：自动带出（数量÷每箱件数），除非手填
-    const boxInput=tr.querySelector('[data-f="box"]');
+    const boxInput=R.box;
     const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
-    if(boxInput.dataset.manual!=="1") boxInput.value=autoBox>0?autoBox:"";
+    if(boxInput.dataset.manual!=="1") setValIfChanged(boxInput, autoBox>0?autoBox:"");
     const box=parseFloat(boxInput.value)||0;
-    sq+=qty; st+=ton; sb+=box;
+    // 箱子重量T：按 箱数×0.07 自动；保留 2 位小数；被「删除」的行保持空，不自动带出
+    const cwtInput=R.cwt;
+    const autoCwt=box>0?(box*0.07).toFixed(2):"";
+    if(cwtInput.dataset.deleted==="1") setValIfChanged(cwtInput, "");   // 已删除：保持空
+    else setValIfChanged(cwtInput, autoCwt);                            // 未删除：按箱数自动计算
+    const cwtShow=R.cwtShow;
+    if(cwtShow){ const t=cwtInput.value||""; if(cwtShow.textContent!==t) cwtShow.textContent=t; }
+    const cwtTog=R.cwtTog;
+    if(cwtTog){
+      let d="", txt="", title="";
+      if(cwtInput.dataset.deleted==="1"){ d=""; txt="↺"; title="点击恢复（按箱数重新计算）"; }
+      else if(cwtInput.value){ d=""; txt="×"; title="点击删除"; }
+      else { d="none"; }   // 无箱数、也无值：不显示按钮
+      if(cwtTog.style.display!==d) cwtTog.style.display=d;
+      if(d!=="none"){
+        if(cwtTog.textContent!==txt) cwtTog.textContent=txt;
+        if(cwtTog.title!==title) cwtTog.title=title;
+      }
+    }
+    const cwt=parseFloat(cwtInput.value)||0;
+    // 表尾合计只统计当前可见行（被折叠或筛选隐藏的行不计入）
+    if(!tr.classList.contains("date-fold-hidden") && !tr.classList.contains("filter-hidden")){
+      sq+=qty; st+=ton; sb+=box; scwt+=cwt;
+    }
   });
   $("sumQty").textContent=sq;
   $("sumTon").textContent=st.toFixed(1);
   $("sumBox").textContent=(sb>0)?sb:"/";
-  mergeCustomerCells();
+  $("sumCwt").textContent=scwt>0?scwt.toFixed(1):"/";
+  // 有筛选时不再重新折叠（否则会把刚穿透显示的折叠行又折回去）；改为保持穿透显示并刷新合并/编号
+  if(skipFold && !isFilterActive()){ mergeCustomerCells(); }
+  else if(!isFilterActive()){ foldByDate(); }
+  else { renumberVisible(); mergeCustomerCells(); markRowStates(); }
+  // 客户吨位合计：只累加当前可见的分组合计单元格（合并后每个组只显示一个）
+  let sst=0, subCells=0;
+  $("tbl").querySelectorAll("tbody .col-subton").forEach(td=>{
+    if(td.style.display==="none") return;
+    if(td.closest("tr.date-fold-hidden") || td.closest("tr.filter-hidden")) return;
+    subCells++;
+    const inp=td.querySelector(".subton-in");              // 现在是输入框，读 value 而非 textContent
+    sst+=parseFloat(inp?inp.value:td.textContent)||0;
+  });
+  $("sumSubTon").textContent=subCells?(sst>0?sst.toFixed(1):"0.0"):"/";
+  updateKPIs();
 }
 function collectRows(){
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
-  return [...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal")).map(tr=>({
+  return [...$("tbody").children].filter(isDataRow).map(tr=>({
     shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
     customer:f(tr.querySelector('[data-f="customer"]').value),
     code:f(tr.querySelector('[data-f="code"]').value),
     model:f(tr.querySelector('[data-f="model"]').value),
     qty:f(tr.querySelector('[data-f="qty"]').value),
-    unit:f(tr.querySelector('[data-f="unit"]').value),
+    shippt:f(tr.querySelector('[data-f="shippt"]').value),
     perbox:f(tr.querySelector('[data-f="perbox"]').value),
     ton:f(tr.querySelector('[data-f="ton"]').value),
     box:f(tr.querySelector('[data-f="box"]').value),
+    cwt:f(tr.querySelector('[data-f="cwt"]').value),
     delivery:f(tr.querySelector('[data-f="delivery"]').value),
-    remark:f(tr.querySelector('[data-f="remark"]').value)
+    remark:f(tr.querySelector('[data-f="remark"]').value),
+    logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
   }));
 }
 function syncDocHead(){
-  $("docDate").textContent="发货日期："+($("shipDate").value||"/");
-  $("docNo").textContent="单号："+($("planNo").value||"/");
+  const d=$("shipDate").value;
+  if(d){
+    const [y,m,day]=d.split("-");
+    $("docTitle").textContent=`${+m}月${+day}发货计划`;
+  }
 }
 // ===================== 草稿自动保存（刷新/重开页面不丢未发布数据） =====================
+// —— 性能优化：草稿写入防抖。打字时每敲一个字都全量序列化 + 同步写 localStorage 是主要卡顿源，
+//    改成停手 250ms 后写一次；关页面/切后台前强制 flush，保证不丢数据。
+let _draftTimer=0, _draftDirty=false;
+function flushDraft(){ if(!_draftDirty) return; _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
+window.addEventListener("beforeunload", flushDraft);
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden) flushDraft(); });
 function saveDraft(){
+  _draftDirty=true;
+  clearTimeout(_draftTimer);
+  _draftTimer=setTimeout(()=>{ _draftTimer=0; if(_draftDirty){ _draftDirty=false; writeDraftNow(); } }, 250);
+}
+function saveDraftNow(){ _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
+function writeDraftNow(){
   try{
-    const rows=[...$("tbody").children].filter(tr=>!tr.classList.contains("subtotal")).map(tr=>{
+    const rows=[...$("tbody").children].filter(isDataRow).map(tr=>{
       const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
       return {
         shipdate:tr.querySelector('[data-f="shipdate"]').value,
@@ -469,152 +1929,701 @@ function saveDraft(){
         code:tr.querySelector('[data-f="code"]').value,
         model:tr.querySelector('[data-f="model"]').value,
         qty:tr.querySelector('[data-f="qty"]').value,
+        shippt:tr.querySelector('[data-f="shippt"]').value,
         unit:tr.querySelector('[data-f="unit"]').value,
         perbox:tr.querySelector('[data-f="perbox"]').value,
         ton:tonI.value, tonManual:(tonI.dataset.manual==="1"),
         delivery:tr.querySelector('[data-f="delivery"]').value,
         box:boxI.value, boxManual:(boxI.dataset.manual==="1"),
-        remark:tr.querySelector('[data-f="remark"]').value
+        cwt:tr.querySelector('[data-f="cwt"]').value, cwtDeleted:(tr.querySelector('[data-f="cwt"]').dataset.deleted==="1"),
+        remark:tr.querySelector('[data-f="remark"]').value,
+        logistics:(tr.querySelector('[data-f="logistics"]')||{}).value||""
       };
     });
     if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
-    localStorage.setItem(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows}));
+    safeSet(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows}));
   }catch(e){}
 }
 function loadDraft(){ try{ return JSON.parse(localStorage.getItem(LS_DRAFT))||null; }catch(e){ return null; } }
 function clearDraft(){ try{ localStorage.removeItem(LS_DRAFT); }catch(e){} }
-$("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); saveDraft(); });
-$("planNo").addEventListener("input",()=>{ syncDocHead(); saveDraft(); });
+$("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); saveDraft(); foldByDate(); });
 
-// ===================== 发布：自动截图下载 + 文本存档（存档不带图片） =====================
+// ===================== 发布：文本存档 + 同步到发货员链接（不再截图下载） =====================
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+// 复制到剪贴板（优先 navigator.clipboard，老环境/iframe/本地文件回退到 execCommand）
+function copyToClipboard(text, btn, onResult){
+  const ok=()=>{
+    if(btn){ const o=btn.textContent; btn.textContent="已复制"; btn.classList.add("copied"); setTimeout(()=>{ btn.textContent=o; btn.classList.remove("copied"); },1200); }
+    if(onResult) onResult(true);
+    else toast("已复制 ✓");
+  };
+  const fail=(reason)=>{ if(onResult) onResult(false, reason); else toast("复制失败："+(reason||"请重试")); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(ok).catch(()=>fallbackCopy(text, ok, fail));
+  } else fallbackCopy(text, ok, fail);
+}
+function fallbackCopy(text, onOk, onFail){
+  let ok=false;
+  try{
+    const ta=document.createElement("textarea"); ta.value=text; ta.setAttribute("readonly",""); ta.style.cssText="position:fixed;top:-1000px;left:-1000px;opacity:0;";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    ok=document.execCommand("copy");
+    document.body.removeChild(ta);
+  }catch(e){ ok=false; }
+  if(ok) onOk&&onOk(); else onFail&&onFail("浏览器阻止了剪贴板写入");
+}
+// 复制勾选行的「型号 + 发货数量」（制表符分隔，Excel 可直接粘贴）
+function copyModelCode(){
+  const rows=[...$("tbody").children].filter(isDataRow).filter(tr=>tr.querySelector(".row-check")?.checked);
+  if(!rows.length){ toast("请先勾选要复制的行（✓ 列）"); return; }
+  const lines=[];
+  rows.forEach(tr=>{
+    const model=(tr.querySelector('[data-f="model"]')?.value||"").trim();
+    const qty=(tr.querySelector('[data-f="qty"]')?.value||"").trim();
+    if(!model && !qty) return;   // 跳过空行
+    lines.push(model+"\t"+qty);
+  });
+  if(!lines.length){ toast("勾选的行中没有可复制的型号/发货数量"); return; }
+  copyToClipboard(lines.join("\n"), this, (ok, err)=>{
+    if(ok) toast("已复制 "+lines.length+" 行型号/发货数量 ✓");
+    else toast("复制失败："+(err||"请重试")+"，可尝试按 Ctrl+C 手动复制");
+  });
+}
+$("copyModelCode").onclick=copyModelCode;
+// 内容指纹：把勾选行的关键字段归一化后排序拼接再哈希，用于发布前与已发布记录比对（与行顺序无关）
+function fingerprintRows(rows){
+  const norm = r => [r.shipdate,r.customer,r.code,r.model,r.qty,r.shippt,r.ton,r.box,r.cwt,r.delivery,r.remark,r.logistics]
+    .map(v=>(v==null?"":String(v)).trim()).join("");
+  const parts = rows.map(norm).sort();
+  const s = parts.join("|");
+  let h=0; for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))>>>0; }
+  return h.toString(36);
+}
 function publish(){
-  const rows=collectRows();
-  if(!rows.length){ toast("请先添加发货明细"); return; }
-  if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
+  flushRefresh();   // 先把待处理的全表刷新跑完，确保发布读到的是最新值
+  const allTrs=[...$("tbody").children].filter(isDataRow);
+  if(!allTrs.length){ toast("请先添加发货明细"); return; }
+  // 发布前必须勾选确认：仅发布已勾选的行
+  const checkedTrs=allTrs.filter(tr=>tr.querySelector(".row-check")?.checked);
+  if(!checkedTrs.length){ toast("发布前请先勾选要发布的行（✓ 列）"); return; }
 
-  // 仅存档文本数据（不截图、不下载图片）
+  // ===== 必填项校验：送达方 / 时效要求 / 客户吨位 必须填写才能发布 =====
+  // 计算各「送达方|发货日期」组的客户吨位（与表格显示一致：手动覆盖值优先，否则自动合计 产品重量T+箱重T）
+  const subMap={};
+  const visRows=[...$("tbody").children].filter(isDataRow)
+    .filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
+  (function(){
+    let i=0;
+    while(i<visRows.length){
+      const first=visRows[i];
+      const cust=(first.querySelector('[data-f="customer"]')?.value||"").trim();
+      const date=(first.querySelector('[data-f="shipdate"]')?.value||"").trim();
+      if(!cust){ i++; continue; }
+      const key=cust+"|"+date;
+      let j=i+1;
+      while(j<visRows.length){
+        const c2=(visRows[j].querySelector('[data-f="customer"]')?.value||"").trim();
+        const d2=(visRows[j].querySelector('[data-f="shipdate"]')?.value||"").trim();
+        if(c2+"|"+d2!==key) break;
+        j++;
+      }
+      let subTon=0;
+      for(let k=i;k<j;k++){ subTon+=(parseFloat(visRows[k].querySelector('[data-f="ton"]')?.value)||0)+(parseFloat(visRows[k].querySelector('[data-f="cwt"]')?.value)||0); }
+      const ov=ctOverride(cust,date);
+      subMap[key]=ov!==null?ov:subTon;
+      i=j;
+    }
+  })();
+  // 兼容合并单元格：按「送达方|发货日期」取组内首个非空时效要求作为该组合规值
+  const remarkMap={};
+  (function(){
+    let i=0;
+    while(i<visRows.length){
+      const first=visRows[i];
+      const cust=(first.querySelector('[data-f="customer"]')?.value||"").trim();
+      const date=(first.querySelector('[data-f="shipdate"]')?.value||"").trim();
+      if(!cust){ i++; continue; }
+      const key=cust+"|"+date;
+      let j=i+1;
+      while(j<visRows.length){
+        const c2=(visRows[j].querySelector('[data-f="customer"]')?.value||"").trim();
+        const d2=(visRows[j].querySelector('[data-f="shipdate"]')?.value||"").trim();
+        if(c2+"|"+d2!==key) break;
+        j++;
+      }
+      let remark="";
+      for(let k=i;k<j;k++){
+        const v=(visRows[k].querySelector('[data-f="remark"]')?.value||"").trim();
+        if(v && v!=="/"){ remark=v; break; }
+      }
+      remarkMap[key]=remark;
+      i=j;
+    }
+  })();
+
+  const miss=[];
+  checkedTrs.forEach((tr,idx)=>{
+    const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
+    const shipdate=(tr.querySelector('[data-f="shipdate"]')?.value||"").trim();
+    const key=cust+"|"+shipdate;
+    // 优先读当前行 input；若为空则取合并组的首个非空值
+    let remark=(tr.querySelector('[data-f="remark"]')?.value||"").trim();
+    if(!remark || remark==="/") remark=remarkMap[key]||"";
+    const msgs=[];
+    if(!cust||cust==="/") msgs.push("送达方未填");
+    if(!remark||remark==="/") msgs.push("时效要求未填");
+    const st=subMap[key];
+    if(st===undefined||st===""||isNaN(parseFloat(st))||parseFloat(st)<=0) msgs.push("客户吨位为空或为0（请填产品重量T/箱重T，或手动填客户吨位）");
+    if(msgs.length) miss.push("第"+(idx+1)+"行【"+(cust||"空")+"】："+msgs.join("、"));
+  });
+  if(miss.length){
+    toast("⚠ 必填项未填，无法发布");
+    alert("以下必填项未填写，请补全后再发布：\n\n"+miss.slice(0,15).join("\n")+(miss.length>15?"\n…等共 "+miss.length+" 处":""));
+    return;
+  }
+
+  const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
+  const rows=checkedTrs.map(tr=>{
+    const cust=f(tr.querySelector('[data-f="customer"]').value);
+    const shipdate=f(tr.querySelector('[data-f="shipdate"]').value);
+    const key=(cust==="/"?"":cust)+"|"+(shipdate==="/"?"":shipdate);
+    let remark=f(tr.querySelector('[data-f="remark"]').value);
+    if(remark==="/") remark=remarkMap[key]||"/";
+    return {
+      shipdate,
+      customer:cust,
+      code:f(tr.querySelector('[data-f="code"]').value),
+      model:f(tr.querySelector('[data-f="model"]').value),
+      qty:f(tr.querySelector('[data-f="qty"]').value),
+      shippt:f(tr.querySelector('[data-f="shippt"]').value),
+      perbox:f(tr.querySelector('[data-f="perbox"]').value),
+      ton:f(tr.querySelector('[data-f="ton"]').value),
+      box:f(tr.querySelector('[data-f="box"]').value),
+      cwt:f(tr.querySelector('[data-f="cwt"]').value),
+      delivery:f(tr.querySelector('[data-f="delivery"]').value),
+      remark,
+      logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
+    };
+  });
+  // ===== 内容防重：与已发布记录比对，完全相同则提醒确认 =====
+  const fp = fingerprintRows(rows);
+  const dup = loadRec().filter(r=>r.fingerprint && r.fingerprint===fp);
+  if(dup.length){
+    const nos = dup.map(r=>r.no).join("、");
+    if(!confirm("⚠ 这批内容与已发布的计划单（"+nos+"）完全相同。\n\n确定要再次发布吗？\n（如为修改后重发，请先改动内容或换一个单号）")) return;
+  }
+  if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
+  if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
+
+  // 把本次发布涉及的「客户吨位」手动修改打包进记录，发货员端自动同步显示
+  const _ct=loadCT(), _raw=v=>String(v==null||v==="/"?"":v).trim(), custTon={};
+  rows.forEach(r=>{ const k=ctKeyOf(_raw(r.customer),_raw(r.shipdate)); if(_ct[k]!==undefined) custTon[k]=_ct[k]; });
+
+  // 汇总：只统计本次实际发布的行（不再用全局合计，避免把未勾选/其它计划也算进来）
+  const _n = v => parseFloat(String(v==null||v==="/"?"":v).trim())||0;
+  const sumQty = rows.reduce((a,r)=>a+_n(r.qty), 0);
+  const sumTon = rows.reduce((a,r)=>a+_n(r.ton), 0);
+  const sumBox = rows.reduce((a,r)=>a+_n(r.box), 0);
+  const sumSubTon = rows.reduce((a,r)=>a+_n(r.ton)+_n(r.cwt), 0);
+  // 存档文本数据
   const rec={id:Date.now(),date:$("shipDate").value,no:$("planNo").value,
+    planner:($("planner")?.value||"").trim(),
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
-    sumQty:$("sumQty").textContent,sumTon:$("sumTon").textContent,sumBox:$("sumBox").textContent};
+    sumQty:sumQty||"0",sumTon:sumTon.toFixed(1),sumBox:sumBox>0?sumBox:"/",
+    sumSubTon:sumSubTon>0?sumSubTon.toFixed(1):"0.0",custTon,fingerprint:fp};
+  snapshot(LS_REC, "发布前");   // 发布前留档：万一发错/发重，可整批退回
   saveRec(rec); renderRecords();
-  toast("已发布存档 ✓（单号 "+rec.no+"）");
+  toast("已发布 ✓（单号 "+(rec.planner?rec.no+" · "+rec.planner:rec.no)+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
+  // 发布后自动取消勾选，避免顺手重复发布同一批
+  [...$("tbody").querySelectorAll(".row-check")].forEach(b=>b.checked=false);
+  updateCheckAll();
   $("planNo").value=genPlanNo(); syncDocHead();
-  saveDraft();
+  saveDraftNow();
   try{ if(window.__clientBackup) window.__clientBackup(); }catch(e){}
+}
+
+function styleShipdate(){
+  document.querySelectorAll('[data-f="shipdate"]').forEach(inp=>{
+    const v=(inp.value||"").trim();
+    if(v.includes("自提")) inp.classList.add("jinling");
+    else inp.classList.remove("jinling");
+  });
+}
+// 按发货日期标记行的状态：<边界=滞后(红)  >边界=之后(蓝)  边界当天=正常
+function markRowStates(){
+  const today=$("shipDate").value||todayStr();
+  [...$("tbody").children].forEach(tr=>{
+    if(!isDataRow(tr)) return;
+    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    tr.classList.toggle("row-overdue", !!(d && d<today));
+    tr.classList.toggle("row-future", !!(d && d>today));
+  });
+}
+function updateCheckAll(){
+  // 仅统计可见行（排除被折叠或筛选隐藏的行），否则隐藏行永远不勾选会让表头全选框恒为半选
+  const boxes=[...$("tbody").querySelectorAll(".row-check")].filter(b=>{
+    const tr=b.closest("tr");
+    return !tr.classList.contains("date-fold-hidden") && !tr.classList.contains("filter-hidden");
+  });
+  const checked=boxes.filter(b=>b.checked).length;
+  const all=$("checkAll");
+  all.checked = boxes.length>0 && checked===boxes.length;
+  all.indeterminate = checked>0 && checked<boxes.length;
+  updateKPIs();
+}
+function updateKPIs(){
+  const rows=[...$("tbody").children].filter(isDataRow);
+  const visibleRows=rows.filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden"));
+  let qty=0, ton=0, checked=0;
+  visibleRows.forEach(tr=>{
+    qty+=qtyNum(tr.querySelector('[data-f="qty"]')?.value);
+    ton+=parseFloat(tr.querySelector('[data-f="ton"]')?.value)||0;
+    if(tr.querySelector('.row-check')?.checked) checked++;
+  });
+  const kpiRows=$("kpiRows"), kpiQty=$("kpiQty"), kpiTon=$("kpiTon"), kpiChecked=$("kpiChecked");
+  if(kpiRows) kpiRows.innerHTML=visibleRows.length+'<span class="kpi-unit">行</span>';
+  if(kpiQty) kpiQty.innerHTML=qty+'<span class="kpi-unit">件</span>';
+  if(kpiTon) kpiTon.innerHTML=ton.toFixed(1)+'<span class="kpi-unit">t</span>';
+  if(kpiChecked) kpiChecked.innerHTML=checked+'<span class="kpi-unit">行</span>';
 }
 function saveRec(rec){
   let list=loadRec(); list.unshift(rec);
-  if(list.length>200) list=list.slice(0,200);   // 文本数据体积小，可保留更多
-  try{ localStorage.setItem(LS_REC, JSON.stringify(list)); }
-  catch(e){ localStorage.setItem(LS_REC, JSON.stringify(list.slice(0,50))); toast("存储空间不足，仅保留最近 50 条"); }
-  if(window.CloudSync) CloudSync.autoPush(LS_REC);
+  // 超出上限的老记录转归档，而不是直接丢弃（归档内容随备份文件一起导出）
+  if(list.length>200){ archiveRecs(list.slice(200)); list=list.slice(0,200); }
+  let ok = safeSet(LS_REC, JSON.stringify(list));
+  if(!ok){
+    // 空间不足：把较早的一半先转入归档，保证最新记录一定能存下
+    archiveRecs(list.slice(50));
+    const keep = list.slice(0,50);
+    ok = safeSet(LS_REC, JSON.stringify(keep));
+    if(ok) toast("存储空间不足，较早记录已转入归档（导出备份可取回）");
+  }
+  // 发布是关键操作：立刻同步云端（不走 900ms 防抖）。走 flushRec —— 它会先拉云端、
+  // 按 id 合并（只增不减）再上传，绝不会把本机这份不完整的清单整份盖到云端。
+  // 这里不静默：万一没传上去必须让用户看见（否则就会出现"编辑器和发货员看到的不一样"）。
+  if(window.CloudSync) flushRec(false);
+  return ok;
 }
 function loadRec(){ try{ return JSON.parse(localStorage.getItem(LS_REC))||[]; }catch(e){ return []; } }
+// ===== 删除发布记录：密码保护 =====
+const DEL_PWD_KEY="shipping_delpwd_v1", DEFAULT_DEL_PWD="123456";
+function getDelPwd(){ try{ return localStorage.getItem(DEL_PWD_KEY)||DEFAULT_DEL_PWD; }catch(e){ return DEFAULT_DEL_PWD; } }
+function setDelPwd(p){ try{ localStorage.setItem(DEL_PWD_KEY, String(p)); }catch(e){} }
+function askDeletePwd(rec, onOk){
+  const overlay=document.createElement("div"); overlay.className="modal-overlay";
+  overlay.innerHTML=`
+    <div class="modal-box" style="min-width:340px">
+      <div class="modal-title">⚠ 删除发布记录需要密码<br><span style="font-weight:400;font-size:13px;color:#6b7280">单号：${esc(rec.no||"")}（共 ${(rec.rows||[]).length} 行）</span></div>
+      <input type="password" class="modal-pwd" id="delPwdInp" placeholder="请输入删除密码" autocomplete="off">
+      <div class="modal-err" id="delPwdErr"></div>
+      <div class="modal-btns">
+        <button type="button" class="modal-btn" id="delPwdCancel">取消</button>
+        <button type="button" class="modal-btn primary" id="delPwdOk">确定删除</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const inp=overlay.querySelector("#delPwdInp"), err=overlay.querySelector("#delPwdErr");
+  const close=()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+  const submit=()=>{
+    if(inp.value.trim()!==getDelPwd()){ err.textContent="密码错误，删除已取消，请重新输入"; inp.value=""; inp.focus(); return; }
+    close(); onOk();
+  };
+  overlay.querySelector("#delPwdCancel").onclick=close;
+  overlay.querySelector("#delPwdOk").onclick=submit;
+  inp.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); submit(); } };
+  inp.focus();
+}
+
+// 取一份计划的「真实发货日期」：优先用明细行里的发货日期（第一行有值即采用），没有再退回计划顶部日期
+function recShipDate(rec){
+  const rows = rec.rows || [];
+  for (const r of rows){ if (r && r.shipdate && String(r.shipdate).trim()) return String(r.shipdate).trim(); }
+  return rec.date || "";
+}
+// 发布记录按发货日期分类：今天之前 / 今天 / 明天 / 明天之后（用 realTodayStr 真今天，todayStr() 是真明天）
+function classifyRec(shipdate){
+  const today = realTodayStr();
+  const tmr   = todayStr();
+  const s = String(shipdate == null ? "" : shipdate).trim();
+  if (!s) return "future";
+  if (s < today)        return "past";
+  if (s === today)      return "today";
+  if (s === tmr)        return "tomorrow";
+  return "future";
+}
+
 function renderRecords(){
   const list=loadRec(); $("recCount").textContent=list.length+" 条";
+  const dupBtn=$("dupCleanBtn");
+  if(dupBtn){ const dn=findDupRecs().length; dupBtn.style.display=dn?"":"none"; dupBtn.textContent=dn?("⚠ 清理重复 "+dn):""; }
   const box=$("records"); box.innerHTML="";
   $("recEmpty").style.display=list.length?"none":"block";
-  list.forEach(rec=>{
-    const div=document.createElement("div"); div.className="rec";
-    div.innerHTML=`
-      <div class="info"><b>${rec.no}</b><br>日期：${rec.date}${rec.maker?' ｜ 制单：'+rec.maker:''}<br>
-        共 ${rec.rows.length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ ${rec.sumBox}箱<br>发布：${rec.publishedAt}</div>
-      <div class="acts">
-        <button class="btn btn-line" data-act="csv">导出CSV</button>
-        <button class="btn btn-danger" data-act="del">删除</button>
-      </div>`;
-    div.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows, rec.no);
-    div.querySelector('[data-act="del"]').onclick=()=>{
-      if(confirm("确认删除该发布记录？")){ localStorage.setItem(LS_REC, JSON.stringify(loadRec().filter(r=>r.id!==rec.id))); renderRecords(); if(window.CloudSync) CloudSync.autoPush(LS_REC); }
+  if(!list.length){ updateKPIs(); return; }
+  // 分4区：今天之前/今天/明天/明天之后（折叠策略沿用 viewer 习惯，明天默认展开，其余折叠）
+  const groups=[
+    { key:"past",     label:"今天之前发货计划", collapsed:true  },
+    { key:"today",    label:"今天发货计划",     collapsed:true  },
+    { key:"tomorrow", label:"明天发货计划",     collapsed:false },
+    { key:"future",   label:"明天之后发货计划", collapsed:true  }
+  ];
+  const buckets={ past:[], today:[], tomorrow:[], future:[] };
+  list.forEach(rec=>buckets[classifyRec(recShipDate(rec))].push(rec));
+  groups.forEach(g=>{
+    const arr=buckets[g.key];
+    if(!arr.length) return;
+    const sec=document.createElement("div");
+    sec.className="cat-sec cat-"+g.key+(g.collapsed?" collapsed":"");
+    sec.innerHTML=`
+      <div class="cat-head">
+        <span class="cat-dot"></span>
+        <span class="cat-title">${g.label}</span><b>(${arr.length})</b>
+        <button type="button" class="cat-fold" data-fold>${g.collapsed?"▸ 展开":"▾ 折叠"}</button>
+      </div>
+      <div class="cat-body"></div>`;
+    const body=sec.querySelector(".cat-body");
+    arr.forEach(rec=>{
+      const card=document.createElement("div"); card.className="rec";
+      const noText=esc(rec.no||"")+(rec.planner?` · ${esc(rec.planner)}`:"");
+      card.innerHTML=`
+        <div class="info"><b>${noText}</b><br>日期：${esc(rec.date||"")}${rec.maker?' ｜ 制单：'+esc(rec.maker):''}<br>
+          共 ${rec.rows.length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")}</div>
+        <div class="acts">
+          <button class="btn btn-line" data-act="csv">导出CSV</button>
+          <button class="btn btn-danger" data-act="del">删除</button>
+        </div>`;
+      card.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows, rec.no);
+      card.querySelector('[data-act="del"]').onclick=()=>{
+        askDeletePwd(rec, ()=>{
+          snapshot(LS_REC, "删除记录前");   // 删除前自动留档，误删可从「数据备份 → 恢复自动快照」找回
+          markDeleted(rec.id);              // 记墓碑：别的端合并时不会再把它"复活"
+          const keep = loadRec().filter(r=>r.id!==rec.id);
+          safeSet(LS_REC, JSON.stringify(keep));
+          renderRecords();
+          // 删除是关键操作，立刻同步（墓碑随 flushRec 一起推；合并时会剔除墓碑，删除在所有端都生效）
+          if(window.CloudSync) flushRec(false);
+          toast("已删除发布记录 "+(rec.no||"")+"（已留档可恢复）");
+        });
+      };
+      body.appendChild(card);
+    });
+    sec.querySelector("[data-fold]").onclick=()=>{
+      sec.classList.toggle("collapsed");
+      sec.querySelector("[data-fold]").textContent=sec.classList.contains("collapsed")?"▸ 展开":"▾ 折叠";
     };
-    box.appendChild(div);
+    box.appendChild(sec);
   });
+  updateKPIs();
 }
 
 // ===================== 导出 =====================
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function rowsToCsv(rows){ 
-  const head=["发货日期","客户","型号","发货数量","吨位(t)","交货单","箱数","备注"];
+  const head=["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","物流"];
   const lines=[head.join(",")];
-  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.ton,r.delivery,r.box,r.remark].map(csvCell).join(",")));
+  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark,r.logistics].map(csvCell).join(",")));
   return "﻿"+lines.join("\n");
 }
 function exportRowsCsv(rows, name){
   const blob=new Blob([rowsToCsv(rows)],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`发货计划_${name}.csv`; a.click();
 }
-$("exportCsv").onclick=()=>{ const rows=collectRows(); if(!rows.length){ toast("暂无数据可导出"); return; } exportRowsCsv(rows, $("planNo").value); };
-// 导出图片（手动，仅下载不存档，不占内存）
-function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+src+'"]')){res();return;} const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("加载失败")); document.head.appendChild(s); }); }
-$("exportImg").onclick=async ()=>{
-  if(!$("tbody").children.length){ toast("暂无数据"); return; }
-  toast("正在准备导出…");
-  try{
-    if(!window.html2canvas){ await loadScript("html2canvas.min.js"); }
-    fitTextareas();
-    const canvas=await html2canvas($("doc"),{
-      scale:1.6,backgroundColor:"#fff",useCORS:true,scrollX:0,scrollY:0,
-      onclone:(doc)=>{
-        // 导出图片时隐藏操作列
-        doc.querySelectorAll("#doc .col-act").forEach(el=>el.style.display="none");
-        // 只保留与顶部“发货日期”同一天的行，其他日期不截入图片
-        const shipDate = doc.querySelector("#shipDate")?.value || doc.querySelector("#docDate")?.textContent?.replace(/^发货日期：/,"") || "";
-        if(!shipDate) return;
-        const rows = doc.querySelectorAll("#tbody tr");
-        let groupVisible = false;
-        rows.forEach(tr=>{
-          if(tr.classList.contains("subtotal")){
-            tr.style.display = groupVisible ? "" : "none";
-            groupVisible = false;
-          }else{
-            const d = tr.querySelector('input[data-f="shipdate"]')?.value || "";
-            const visible = d === shipDate;
-            tr.style.display = visible ? "" : "none";
-            if(visible) groupVisible = true;
-          }
-        });
-      }
-    });
-    const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=`发货计划_${$("planNo").value}.png`; a.click();
-    toast("图片已导出（未存档）");
-  }catch(e){
-    toast("导出失败："+e.message); console.error(e);
-  }
-};
 
 // ===================== 其它按钮 =====================
-$("addRow").onclick=()=>{ addRow(); saveDraft(); };
-$("clearAll").onclick=()=>{ if($("tbody").children.length && !confirm("确认清空当前所有明细行？")) return; $("tbody").innerHTML=""; clearDraft(); reindex(); recalc(); };
+$("addRow").onclick=()=>{ addRow(); saveDraftNow(); };
+$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); };
 $("publish").onclick=publish;
+$("filterCustomer").oninput=applyFilter;
+$("filterModel").oninput=applyFilter;
+$("filterDate").onchange=applyFilter;
+$("clearFilter").onclick=clearFilter;
 
+function updateFoldedButton(){
+  const show=getShowFolded();
+  const btn=$("toggleFolded");
+  btn.textContent=show?"隐藏折叠日期":"显示折叠日期";
+  btn.title=show?"点击隐藏已折叠的历史日期":"截图时关闭，可彻底隐藏已折叠的历史日期";
+}
+$("toggleFolded").onclick=()=>{ setShowFolded(!getShowFolded()); updateFoldedButton(); foldByDate(); fitTextareas(); };
+$("togglePast").onclick=()=>{ togglePast(); };
+
+// ===================== 数据备份（本地文件 ↔ 网站互导） =====================
+function exportBackup(){
+  const data={};
+  BACKUP_KEYS.forEach(k=>{ const v=localStorage.getItem(k); if(v!=null){ try{ data[k]=JSON.parse(v); }catch(e){ data[k]=v; } } });
+  if(!Object.keys(data).length){ toast("没有可导出的数据"); return; }
+  const blob=new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url;
+  const d=$("shipDate").value||todayStr();
+  a.download="发货计划备份_"+d+".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  toast("备份已导出（含草稿、发布记录、折叠状态）");
+}
+function importBackup(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      // 导入会整片覆盖本机数据 → 先给每个将被覆盖的键留一份快照，导错可原样退回
+      BACKUP_KEYS.forEach(k=>{ if(k in data) snapshot(k, "导入备份前"); });
+      BACKUP_KEYS.forEach(k=>{ if(k in data){ const v=data[k]; safeSet(k, typeof v==="string"?v:JSON.stringify(v)); } });
+      if(window.CloudSync){ BACKUP_KEYS.forEach(k=>{
+        if(k === LS_REC){ markPending(true); flushRec(true); return; }     // 发布记录一律走"合并推送"，不整份覆盖云端（先记待补传，防止下面的刷新打断）
+        let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); }
+      }); }
+      toast("备份已导入，正在刷新…");
+      setTimeout(()=>location.reload(),700);
+    }catch(e){ toast("备份文件解析失败："+e.message); }
+  };
+  reader.readAsText(file);
+}
+$("undoBtn").onclick=undo;
+$("cleanEmptyBtn").onclick=cleanEmptyRows;
+if($("dupCleanBtn")) $("dupCleanBtn").onclick=cleanDupRecs;
+updateUndoBtn();
+document.addEventListener("keydown", e=>{
+  if((e.ctrlKey||e.metaKey) && (e.key==="z"||e.key==="Z")){
+    const ae=document.activeElement;
+    if(ae && (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")) return;   // 让浏览器处理文本内撤销
+    e.preventDefault(); undo();
+  }
+});
+
+// ===================== 复制粘贴（Ctrl+V，从 Excel 等按列填入表格） =====================
+// 展示列顺序（与表头/每行单元格 data-f 一一对应）；箱重T/产品重量T/客户吨位 为自动列，只占位不填充
+const PASTE_COLS=["shipdate","customer","model","qty","shippt","delivery","box","remark","cwt","ton","subton","logistics","code"];
+const PASTE_AUTO={cwt:1,ton:1,subton:1};
+const PASTE_LABEL={shipdate:"发货日期",customer:"送达方",model:"型号",qty:"发货数量",shippt:"发货点",delivery:"交货单",box:"箱数",remark:"时效要求",logistics:"物流",code:"物料编码"};
+// 往单元格写值（下拉框自动补选项；箱数手填要打 manual 标记，避免被自动计算覆盖）
+function pasteFill(tr,f,v){
+  if(!tr||PASTE_AUTO[f]) return;
+  const el=tr.querySelector(`[data-f="${f}"]`);
+  if(!el) return;
+  const val=(v==null?"":String(v)).trim();
+  if(el.tagName==="SELECT"){
+    if(!val) return;
+    let hit=null;
+    [...el.options].forEach(o=>{ if(o.value===val||o.textContent.trim()===val) hit=o; });
+    if(!hit){ hit=document.createElement("option"); hit.value=val; hit.textContent=val; el.appendChild(hit); }
+    el.value=hit.value;
+    return;
+  }
+  if(f==="shipdate"){                                   // 日期：格式不对就跳过，不覆盖原值
+    const m=val.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if(!m) return;
+    el.value=m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");
+    return;
+  }
+  el.value=val;
+  if(f==="box"){ if(val==="") delete el.dataset.manual; else el.dataset.manual="1"; }
+}
+// 从「落点行」开始取 count 行（不够就自动补行）
+function pasteTargetRows(anchorTr, count){
+  const rows=allRows();
+  let start=anchorTr?rows.indexOf(anchorTr):-1;
+  if(start<0) start=rows.length-1;
+  if(start<0) start=0;
+  const out=[];
+  for(let i=0;i<count;i++){
+    let tr=rows[start+i];
+    if(!tr){ tr=addRow({}, null, null, true); rows.push(tr); }
+    out.push(tr);
+  }
+  return out;
+}
+// 粘贴后统一收尾：补物料库字段 → 重算 → 合并 → 存草稿 → 按型号带出送达方
+function pasteFinish(rows){
+  rows.forEach(tr=>fillDbFieldsForRow(tr));
+  reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
+  rows.forEach(tr=>autoFillCustomerByModel(tr));   // 型号能唯一锁定送达方就自动带出，多个则弹窗
+  recalc(); mergeCustomerCells(); saveDraftNow();
+}
+function onTablePaste(e){
+  const cd=e.clipboardData||window.clipboardData;
+  if(!cd) return;
+  const txt=cd.getData("text");
+  if(!txt) return;
+  const lines=txt.replace(/\r/g,"").split("\n").filter(r=>r.trim()!=="");
+  if(!lines.length) return;
+  const grid=lines.map(l=>l.split("\t").map(v=>v.trim()));
+  const maxCols=Math.max(...grid.map(r=>r.length));
+  const cell=(e.target&&e.target.closest)?e.target.closest("[data-f]"):null;
+  const startField=cell?cell.dataset.f:null;
+  const tr0=(e.target&&e.target.closest)?e.target.closest("tr"):null;
+  const finish=(rows,msg)=>{ pasteFinish(rows); toast(msg); };
+
+  // ① 型号 / 发货数量（两列以内）：从当前行往下铺，第二列互为另一列
+  if((startField==="model"||startField==="qty") && maxCols<=2){
+    e.preventDefault();
+    const rows=pasteTargetRows(tr0, grid.length);
+    grid.forEach((vals,i)=>{
+      const tr=rows[i];
+      if(startField==="model"){
+        pasteFill(tr,"model",vals[0]);
+        if(vals[1]!==undefined) pasteFill(tr,"qty",vals[1]);   // 第二列视为发货数量
+      } else {
+        pasteFill(tr,"qty",vals[0]);
+        if(vals[1]!==undefined) pasteFill(tr,"model",vals[1]); // 第二列视为型号
+      }
+    });
+    finish(rows, "已粘贴 "+grid.length+" 行（型号/发货数量）");
+    return;
+  }
+  // ② 物料编码：单列向下铺；两列时只取第一列
+  if(startField==="code" && maxCols<=2){
+    e.preventDefault();
+    const rows=pasteTargetRows(tr0, grid.length);
+    grid.forEach((vals,i)=>pasteFill(rows[i],"code",vals[0]));
+    finish(rows, "已粘贴 "+grid.length+" 行（物料编码）");
+    return;
+  }
+  // ③ 单列多行：向下填充「当前这一列」（只复制一列数据时用）
+  if(maxCols<=1){
+    if(!startField || !tr0 || lines.length<2 || PASTE_AUTO[startField]) return;   // 单行/没落点 → 交给浏览器默认粘贴
+    const list=grid.map(r=>r[0]).filter(v=>v!=="");
+    if(!list.length) return;
+    e.preventDefault();
+    const rows=pasteTargetRows(tr0, list.length);
+    rows.forEach((tr,i)=>pasteFill(tr, startField, list[i]));
+    finish(rows, "已粘贴 "+list.length+" 行到「"+(PASTE_LABEL[startField]||startField)+"」");
+    return;
+  }
+  // ④ 多列：以「落点所在列」为起点，向右按列填入，第一行落在当前行
+  e.preventDefault();
+  let a=PASTE_COLS.indexOf(startField);
+  if(a<0) a=0;
+  const rows=pasteTargetRows(tr0, grid.length);
+  grid.forEach((vals,ri)=>{
+    const tr=rows[ri];
+    vals.forEach((v,ci)=>{ const f=PASTE_COLS[a+ci]; if(f) pasteFill(tr,f,v); });
+    const d=tr.querySelector('[data-f="shipdate"]');
+    if(d && !d.value) d.value=$("shipDate").value||todayStr();   // 没带日期 → 补默认「明天」，避免落进「当天之前」被折叠
+  });
+  finish(rows, "已粘贴 "+grid.length+" 行");
+}
+$("tbody").addEventListener("paste", onTablePaste);
 // ===================== 启动 =====================
 syncDocHead();
+updateFoldedButton();
+updatePastButton();
 updateDbStatus();
 if(!DB.length) toast("提示：物料库为空，请先到「物料数据库」页导入");
 const _draft=loadDraft();
 if(_draft && (_draft.rows.length || _draft.date)){
-  if(_draft.date) $("shipDate").value=_draft.date;
+  if(_draft.date){
+    // 草稿日期如果是当天或更早，默认改为当天+1天（计划明天及以后的 shipment）
+    $("shipDate").value = (_draft.date <= realTodayStr()) ? todayStr() : _draft.date;
+  }
   $("planNo").value=_draft.no||genPlanNo();
-  _draft.rows.forEach(r=>addRow(r));
+  _draft.rows.forEach(r=>addRow(r, null, null, true));
   syncDocHead();
+  styleShipdate();
 }else{
   addRow(); addRow();
 }
+reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
+// 计划员：首次设置无需密码，设置后自动锁定；再次修改需输入密码 123456
+const PLANNER_KEY="shipping_planner_v1";
+const PLANNER_PWD="123456";
+const PLANNER_UNLOCK_SESS_KEY="shipping_planner_unlock_session_v1";
+function plannerUnlockedThisSession(){
+  try{ return sessionStorage.getItem(PLANNER_UNLOCK_SESS_KEY)==="1"; }catch(e){ return false; }
+}
+function markPlannerUnlocked(){
+  try{ sessionStorage.setItem(PLANNER_UNLOCK_SESS_KEY,"1"); }catch(e){}
+}
+function applyPlannerLock(){
+  const el=$("planner");
+  const saved=(localStorage.getItem(PLANNER_KEY)||"").trim();
+  el.value=saved;
+  if(plannerUnlockedThisSession()){
+    el.readOnly=false;
+    el.title="当前页面已解锁，离开输入框自动保存";
+  }else if(saved){
+    el.readOnly=true;
+    el.title="计划员已锁定，点击修改需输入密码";
+  }else{
+    el.readOnly=false;
+    el.title="首次设置无需密码，设置后会自动锁定";
+  }
+}
+try{ applyPlannerLock(); }catch(e){}
+$("planner").addEventListener("focus", function(){
+  if(this.readOnly && !plannerUnlockedThisSession()){
+    const pwd=window.prompt("修改计划员需要密码：");
+    if(pwd===PLANNER_PWD){
+      this.readOnly=false;
+      this.title="当前页面已解锁，离开输入框自动保存";
+      markPlannerUnlocked();
+    }else{
+      this.blur();
+      if(pwd!==null) toast("密码错误");
+    }
+  }
+});
+$("planner").addEventListener("blur", function(){
+  const val=this.value.trim();
+  try{ localStorage.setItem(PLANNER_KEY, val); }catch(e){}
+  applyPlannerLock();
+});
 renderRecords();
 
 // ===================== 云端同步 =====================
 if(window.CloudSync){
   CloudSync.init();
-  const CLOUD_KEYS=[LS_DB, LS_REC];
-  const nav=document.querySelector('.nav');
+  // 注意顺序：LS_DEL 必须排在 LS_REC 前面 —— 合并发布记录时要先用最新的墓碑剔除，
+  // 否则会把别的端已经删掉的记录又合回来。
+  const CLOUD_KEYS=[LS_DB, LS_DEL, LS_REC, LS_ARCHIVE];
+  // 发布记录走「按 id 合并」而不是覆盖：云端已有 + 本地独有 = 并集，任何一端都不会因为一次同步而少记录
+  const CLOUD_MERGE={};
+  CLOUD_MERGE[LS_REC]=(localStr, cloudStr)=>{
+    let a=[], b=[];
+    try{ a=JSON.parse(localStr)||[]; }catch(e){ a=[]; }
+    try{ b=JSON.parse(cloudStr)||[]; }catch(e){ b=[]; }
+    return JSON.stringify(mergeRecords(b, a));
+  };
+  // 墓碑取并集：本地这次没记录到的删除不能因为"云端的那份更短"被抹掉
+  CLOUD_MERGE[LS_DEL]=(localStr, cloudStr)=>{
+    let a=[], b=[];
+    try{ a=JSON.parse(localStr)||[]; }catch(e){ a=[]; }
+    try{ b=JSON.parse(cloudStr)||[]; }catch(e){ b=[]; }
+    const set=new Set((Array.isArray(a)?a:[]).map(String));
+    (Array.isArray(b)?b:[]).forEach(x=>set.add(String(x)));
+    return JSON.stringify([...set].slice(-800));
+  };
+  // 归档区也取并集：合并时超过 200 条的记录会转入归档，归档如果不跟着同步，
+  // 别的端就会认为"这些记录被删掉了"（表现同样是"发布后别人记录少了"）。
+  CLOUD_MERGE[LS_ARCHIVE]=(localStr, cloudStr)=>{
+    const arr = v => { let a=[]; try{ a=JSON.parse(v)||[]; }catch(e){} return Array.isArray(a)?a:[]; };
+    const map = new Map();
+    arr(cloudStr).forEach(r=>{ const k=recKeyOf(r); if(k) map.set(k,r); });
+    arr(localStr).forEach(r=>{ const k=recKeyOf(r); if(k) map.set(k,r); });   // 本地优先
+    return JSON.stringify([...map.values()].slice(-600));
+  };
+
+  // ★★ 上传护栏（根治"别人发布把别人记录删了"）★★
+  // 以前「不覆盖云端」全靠每个调用方自觉：发布要走安全通道、删除要走安全通道、恢复快照要走…
+  // 只要漏掉一条路径（或者某个人的浏览器还在跑旧版页面 —— 旧版是直接 push 本机清单的），
+  // 云端上别人的记录就被整份盖掉。现在把这件事下沉到同步引擎：
+  // 任何一次 push 这些键，引擎都会「先拉云端 → 合并（只增不减、剔墓碑）→ 再上传」，
+  // 拉不到云端就不推。哪怕有人直接 push 本机那几条，也只可能合并，不可能覆盖。
+  try{
+    CloudSync.guard(LS_REC,     CLOUD_MERGE[LS_REC]);
+    CloudSync.guard(LS_DEL,     CLOUD_MERGE[LS_DEL]);
+    CloudSync.guard(LS_ARCHIVE, CLOUD_MERGE[LS_ARCHIVE]);
+  }catch(e){}
+  const nav=document.querySelector('.topbar');
   const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
-  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
-  if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }); }
+  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 校对同步'; btn.title='与云端校对并同步：两边合并（只增不减），并显示本机/云端/合并后的条数';
+  if(nav){ const dbStatus=nav.querySelector('#dbStatus'); const anchor=dbStatus?dbStatus.nextSibling:null; nav.insertBefore(pill, anchor); nav.insertBefore(btn, pill.nextSibling); CloudSync.bindStatus(pill);
+    // 手动点：拉云端 → 并墓碑 → 双向合并（只增不减）→ 推回云端，并明确报告条数，方便发现"哪一边少了"
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true, CLOUD_MERGE).then(()=>reconcileNow(true)); }
   if(CloudSync.ready()){
-    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }).then(()=>{
-      CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, false, CLOUD_MERGE).then(()=>{
+      // ★ 启动时不再无条件「把本地回写云端」：万一某个键这次没拉到，回写就会用本机旧数据冲掉云端。
+      //   改成：有待补传就补推；本机比云端多也补推（否则两边会长期不一致）。
+      reconcileNow(false);
     });
   } else { CloudSync.setStatus('未配置云端','off'); }
 }

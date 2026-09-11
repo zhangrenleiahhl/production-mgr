@@ -89,10 +89,19 @@ function scanLocal(){
     let preview=v.slice(0,120).replace(/</g,'&lt;').replace(/>/g,'&gt;');
     if(v.length>120) preview+='…';
     let mark='';
-    if(k==='shipping_db_v1') mark=tag('warn','物料库');
-    if(k==='shipping_rec_v1') mark=tag('warn','发布记录');
-    if(k==='shipping_schedule_v1') mark=tag('warn','排产表');
-    if(k==='shipping_makers_v1') mark=tag('warn','制单人');
+    const LBL={
+      'shipping_db_v1':'物料库',
+      'shipping_plans_v1':'发布记录',
+      'shipping_plans_archive_v1':'发布记录归档',
+      'shipping_draft_v1':'未发布草稿',
+      'shipping_custton_v1':'客户吨位修改',
+      'shipping_planner_v1':'计划员',
+      'shipping_snapshots_v1':'自动快照',
+      'shipping_rec_v1':'旧版发布记录',
+      'shipping_schedule_v1':'旧版排产表',
+      'shipping_makers_v1':'旧版制单人'
+    };
+    if(LBL[k]) mark=tag(/旧版/.test(LBL[k])?'err':'warn',LBL[k]);
     html+=`<tr><td>${k} ${mark}</td><td>${len} 字符</td><td>${preview}</td></tr>`;
   });
   tbl.innerHTML=html;
@@ -152,11 +161,27 @@ $('pullDbBtn').onclick=async()=>{
 
 $('pullAllBtn').onclick=async()=>{
   $('cloudResult').textContent='';
-  const keys=['shipping_db_v1','shipping_rec_v1','shipping_schedule_v1','shipping_makers_v1'];
+  const keys=['shipping_db_v1','shipping_plans_v1','shipping_plans_archive_v1','shipping_draft_v1','shipping_custton_v1','shipping_planner_v1'];
   let ok=0;
   for(const k of keys){
     const v=await fetchCloud(k,'拉取 '+k);
-    if(v!=null){ localStorage.setItem(k, JSON.stringify(v)); ok++; }
+    if(v!=null){
+      if(k==='shipping_plans_v1' || k==='shipping_plans_archive_v1'){
+        // ★ 急救也必须"只增不减"：云端偶尔会偏少（被别的端误覆盖过），整份写下来
+        //   会把本机还能用的记录一起冲掉 —— 那急救反而成了丢数据。
+        const keyOf=r=>r&&(r.id!=null?('i'+r.id):(r.no?('n'+r.no):null));
+        let cur=[]; try{ cur=JSON.parse(localStorage.getItem(k))||[]; }catch(e){}
+        const map=new Map();
+        (Array.isArray(v)?v:[]).forEach(r=>{ const kk=keyOf(r); if(kk) map.set(kk,r); });
+        (Array.isArray(cur)?cur:[]).forEach(r=>{ const kk=keyOf(r); if(kk) map.set(kk,r); });   // 本机优先
+        const out=[...map.values()].sort((a,b)=>((Number(b&&b.id)||0)-(Number(a&&a.id)||0)));
+        localStorage.setItem(k, JSON.stringify(out));
+        log('cloudResult','ℹ '+k+'：云端 '+(Array.isArray(v)?v.length:0)+' 条 ｜ 本机原有 '+cur.length+' 条 → 合并后 '+out.length+' 条（只增不减，不会冲掉本机记录）');
+      } else {
+        localStorage.setItem(k, JSON.stringify(v));
+      }
+      ok++;
+    }
   }
   log('cloudResult',`✅ 共恢复 ${ok}/${keys.length} 项到本地，请刷新原系统页面。`);
   scanLocal();
