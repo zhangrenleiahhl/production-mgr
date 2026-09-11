@@ -2537,7 +2537,10 @@ function applyPlannerLock(){
   const el=$("planner");
   const saved=(localStorage.getItem(PLANNER_KEY)||"").trim();
   el.value=saved;
-  if(saved){
+  if(plannerUnlockedThisSession()){
+    el.readOnly=false;
+    el.title="当前页面已解锁，离开输入框自动保存";
+  }else if(saved){
     el.readOnly=true;
     el.title="计划员已锁定，点击修改需输入密码";
   }else{
@@ -2551,7 +2554,7 @@ $("planner").addEventListener("focus", function(){
     const pwd=window.prompt("修改计划员需要密码：");
     if(pwd===PLANNER_PWD){
       this.readOnly=false;
-      this.title="修改完成后离开输入框自动保存并锁定";
+      this.title="当前页面已解锁，离开输入框自动保存";
       markPlannerUnlocked();
     }else{
       this.blur();
