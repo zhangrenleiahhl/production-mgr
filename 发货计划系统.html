@@ -936,6 +936,12 @@ function applyCustomerToRow(tr, cust){
   if(!custInp) return;
   if(!custInp.value.trim()) custInp.value=cust;   // 已有手填值则保留
   autoFillLogistics(tr);
+  // 型号/物料已填时，自动带出客户后聚焦到发货数量列
+  const modelInp=tr.querySelector('[data-f="model"]');
+  const codeInp=tr.querySelector('[data-f="code"]');
+  if((modelInp&&modelInp.value.trim()) || (codeInp&&codeInp.value.trim())){
+    setTimeout(()=>{ const q=tr.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
+  }
 }
 // 根据当前行的型号自动带出送达方：唯一则直接填入；多个则弹窗选择，同型号只确认一次
 function autoFillCustomerByModel(tr){
@@ -1428,10 +1434,16 @@ function navigateFrom(el, ci, dCol, dRow){
 }
 function onCellKey(e){
   if(!e.target || !e.target.closest) return;
+  // 回车仅确认当前单元格并离开，不再下移；textarea 中 Shift+Enter 保留默认换行
+  if(e.key==="Enter"){
+    if(e.shiftKey) return;
+    e.preventDefault();
+    e.target.blur();
+    return;
+  }
   let dCol=0, dRow=0, handled=false;
   if(e.key==="ArrowUp"){ dRow=-1; handled=true; }
   else if(e.key==="ArrowDown"){ dRow=1; handled=true; }
-  else if(e.key==="Enter"){ if(e.shiftKey) return; dRow=1; handled=true; }   // Shift+Enter 保留换行
   else if(e.key==="Tab"){ dCol=e.shiftKey?-1:1; handled=true; }
   else if(e.key==="ArrowLeft"){ dCol=-1; handled=true; }
   else if(e.key==="ArrowRight"){ dCol=1; handled=true; }
@@ -2514,13 +2526,20 @@ reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowS
 // 计划员：首次设置无需密码，设置后自动锁定；再次修改需输入密码 123456
 const PLANNER_KEY="shipping_planner_v1";
 const PLANNER_PWD="123456";
+const PLANNER_UNLOCK_SESS_KEY="shipping_planner_unlock_session_v1";
+function plannerUnlockedThisSession(){
+  try{ return sessionStorage.getItem(PLANNER_UNLOCK_SESS_KEY)==="1"; }catch(e){ return false; }
+}
+function markPlannerUnlocked(){
+  try{ sessionStorage.setItem(PLANNER_UNLOCK_SESS_KEY,"1"); }catch(e){}
+}
 function applyPlannerLock(){
   const el=$("planner");
   const saved=(localStorage.getItem(PLANNER_KEY)||"").trim();
   el.value=saved;
   if(saved){
     el.readOnly=true;
-    el.title="计划员已锁定，点击修改需输入密码 "+PLANNER_PWD;
+    el.title="计划员已锁定，点击修改需输入密码";
   }else{
     el.readOnly=false;
     el.title="首次设置无需密码，设置后会自动锁定";
@@ -2528,11 +2547,12 @@ function applyPlannerLock(){
 }
 try{ applyPlannerLock(); }catch(e){}
 $("planner").addEventListener("focus", function(){
-  if(this.readOnly){
+  if(this.readOnly && !plannerUnlockedThisSession()){
     const pwd=window.prompt("修改计划员需要密码：");
     if(pwd===PLANNER_PWD){
       this.readOnly=false;
       this.title="修改完成后离开输入框自动保存并锁定";
+      markPlannerUnlocked();
     }else{
       this.blur();
       if(pwd!==null) toast("密码错误");
