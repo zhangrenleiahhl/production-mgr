@@ -944,10 +944,10 @@ function rememberModelCust(model, cust){
 const modelCustSkip={};
 // 等待选择的「型号 → 行」列表：同型号多行只弹一次，选定后统一应用到所有这些行
 let pendingModelRows={};
-function applyCustomerToRow(tr, cust){
+function applyCustomerToRow(tr, cust, overwrite){
   const custInp=tr.querySelector('[data-f="customer"]');
   if(!custInp) return;
-  if(!custInp.value.trim()) custInp.value=cust;   // 已有手填值则保留
+  if(overwrite===true || !custInp.value.trim()) custInp.value=cust;   // 粘贴并确认选择时允许覆盖；其余情况保留已有手填值
   autoFillLogistics(tr);
   // 型号/物料已填时，自动带出客户后聚焦到发货数量列
   const modelInp=tr.querySelector('[data-f="model"]');
@@ -956,8 +956,13 @@ function applyCustomerToRow(tr, cust){
     setTimeout(()=>{ const q=tr.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
   }
 }
-// 根据当前行的型号自动带出送达方：唯一则直接填入；多个则弹窗选择，同型号只确认一次
-function autoFillCustomerByModel(tr){
+// 根据当前行的型号自动带出送达方：唯一则直接填入；多个则弹窗选择
+// opts.force = true：粘贴批量数据时使用——只要该型号有 2 个以上送达方，就重新询问一次
+//                  （无视本机记忆、无视本次「跳过」、无视行里残留的旧值；同型号只弹一个窗）
+// opts.respectFilled = true：这次粘贴的内容里自带「送达方」列 → 以粘贴进来的值为准，不再多问
+function autoFillCustomerByModel(tr, opts){
+  const force=!!(opts&&opts.force);
+  const respectFilled=!!(opts&&opts.respectFilled);
   const modelInp=tr.querySelector('[data-f="model"]');
   const custInp=tr.querySelector('[data-f="customer"]');
   if(!modelInp||!custInp) return;
@@ -966,23 +971,30 @@ function autoFillCustomerByModel(tr){
   const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
   const custs=customersForModelExactly(model, code);
   if(!custs.length) return;
-  // ★ 本行已经有送达方 → 视为已确认，直接返回，绝不再弹窗（重复询问的根源就在这里）
   const filled=(custInp.value||"").trim();
-  if(filled){
-    if(custs.includes(filled) && !modelCustChoice[model]) rememberModelCust(model, filled);
-    return;
+  const filledIsCandidate=!!filled && custs.includes(filled);   // 行里已是一个有效候选 → 视为已确认
+  if(!force){
+    // 手动逐格录入：行里已有送达方 → 不再打扰（重复询问的根源就在这里）
+    if(filled){
+      if(filledIsCandidate && !modelCustChoice[model]) rememberModelCust(model, filled);
+      return;
+    }
+    if(custs.length===1){ applyCustomerToRow(tr, custs[0]); return; }
+    const remembered=modelCustChoice[model];
+    if(remembered && custs.includes(remembered)){ applyCustomerToRow(tr, remembered); return; }   // 已确认过 → 直接沿用，不再弹窗
+    if(modelCustSkip[model]) return;                                                              // 本型号本次已选「跳过」→ 不再询问
+  }else{
+    if(custs.length===1){ applyCustomerToRow(tr, custs[0]); return; }   // 唯一送达方无需选择
+    if(respectFilled && filled) return;                                // 粘贴内容自带送达方列且写了值 → 以粘贴为准
+    // 其余情况（空着 / 只是被旧记忆或残留带出来的）→ 一律重新询问一次
   }
-  if(custs.length===1){ applyCustomerToRow(tr, custs[0]); return; }
-  const remembered=modelCustChoice[model];
-  if(remembered && custs.includes(remembered)){ applyCustomerToRow(tr, remembered); return; }   // 已确认过 → 直接沿用，不再弹窗
-  if(modelCustSkip[model]) return;                                                              // 本型号本次已选「跳过」→ 不再询问
   if(pendingModelRows[model]){ pendingModelRows[model].push(tr); return; }   // 正在等待本型号的选择 → 本行排队，不重复弹窗
   pendingModelRows[model]=[tr];
   chooseCustomerModal(custs, model, (chosen)=>{
     const rows=pendingModelRows[model]||[]; delete pendingModelRows[model];
     if(!chosen){ modelCustSkip[model]=1; return; }   // 跳过：本次会话不再重复询问
-    rememberModelCust(model, chosen);                // 记住选择（跨刷新保留），后续同型号不再询问
-    rows.forEach(r=>applyCustomerToRow(r, chosen));
+    rememberModelCust(model, chosen);                // 记住选择（跨刷新保留），后续手动录入同型号不再询问
+    rows.forEach(r=>applyCustomerToRow(r, chosen, true));   // 粘贴场景需覆盖旧值，确保选择真实生效
     recalc(); mergeCustomerCells(); saveDraftNow();
   });
 }
@@ -2453,10 +2465,12 @@ function pasteTargetRows(anchorTr, count){
   return out;
 }
 // 粘贴后统一收尾：补物料库字段 → 重算 → 合并 → 存草稿 → 按型号带出送达方
-function pasteFinish(rows){
+// custPasted：这次粘贴的内容里是否自带「送达方」列（带了就以粘贴值为准）
+function pasteFinish(rows, custPasted){
   rows.forEach(tr=>fillDbFieldsForRow(tr));
   reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
-  rows.forEach(tr=>autoFillCustomerByModel(tr));   // 型号能唯一锁定送达方就自动带出，多个则弹窗
+  // 粘贴进来的数据：型号有 2 个以上送达方 → 重新询问选择（不再被旧记忆/残留值静默跳过）
+  rows.forEach(tr=>autoFillCustomerByModel(tr, {force:true, respectFilled:!!custPasted}));
   recalc(); mergeCustomerCells(); saveDraftNow();
 }
 function onTablePaste(e){
@@ -2471,7 +2485,7 @@ function onTablePaste(e){
   const cell=(e.target&&e.target.closest)?e.target.closest("[data-f]"):null;
   const startField=cell?cell.dataset.f:null;
   const tr0=(e.target&&e.target.closest)?e.target.closest("tr"):null;
-  const finish=(rows,msg)=>{ pasteFinish(rows); toast(msg); };
+  const finish=(rows,msg,custPasted)=>{ pasteFinish(rows, !!custPasted); toast(msg); };
 
   // ① 型号 / 发货数量（两列以内）：从当前行往下铺，第二列互为另一列
   if((startField==="model"||startField==="qty") && maxCols<=2){
@@ -2506,13 +2520,14 @@ function onTablePaste(e){
     e.preventDefault();
     const rows=pasteTargetRows(tr0, list.length);
     rows.forEach((tr,i)=>pasteFill(tr, startField, list[i]));
-    finish(rows, "已粘贴 "+list.length+" 行到「"+(PASTE_LABEL[startField]||startField)+"」");
+    finish(rows, "已粘贴 "+list.length+" 行到「"+(PASTE_LABEL[startField]||startField)+"」", startField==="customer");
     return;
   }
   // ④ 多列：以「落点所在列」为起点，向右按列填入，第一行落在当前行
   e.preventDefault();
   let a=PASTE_COLS.indexOf(startField);
   if(a<0) a=0;
+  const custPasted=PASTE_COLS.slice(a, a+maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
   const rows=pasteTargetRows(tr0, grid.length);
   grid.forEach((vals,ri)=>{
     const tr=rows[ri];
@@ -2520,7 +2535,7 @@ function onTablePaste(e){
     const d=tr.querySelector('[data-f="shipdate"]');
     if(d && !d.value) d.value=$("shipDate").value||todayStr();   // 没带日期 → 补默认「明天」，避免落进「当天之前」被折叠
   });
-  finish(rows, "已粘贴 "+grid.length+" 行");
+  finish(rows, "已粘贴 "+grid.length+" 行", custPasted);
 }
 $("tbody").addEventListener("paste", onTablePaste);
 // ===================== 启动 =====================
