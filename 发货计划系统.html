@@ -799,12 +799,8 @@ function rankPriority(r){
 }
 // 某型号（或编码）在物料库里对应的不同客户集合（用于提示多客户）
 function customersForModel(model, code){
-  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
   const set=new Set();
-  DB.forEach(r=>{
-    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
-    if((mk && m===mk) || (ck && c===ck)){ const cu=(r.customer||"").trim(); if(cu) set.add(cu); }
-  });
+  matchDb(model, code).forEach(r=>{ const cu=(r.customer||"").trim(); if(cu) set.add(cu); });
   return [...set];
 }
 function showAC(input, row, typed){
@@ -886,16 +882,29 @@ function autoFillLogistics(tr){
   if(lg) lgInp.value=lg;
 }
 function autoResizeTa(ta){ fitTextarea(ta); }
+// 统一匹配物料库：型号 / 物料编码
+// ★ 型号和编码都有时，必须「两者都一致」；都对不上（常见于改过型号、编码还是旧物料的）
+//   就退回「只按型号」查——绝不用「或」把两个不同物料的客户/单重混进来
+//   （「或」是备选里冒出无关送达方的根源：编码撞上别的物料，那条记录的客户也被算进来了）
+function matchDb(model, code){
+  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
+  const byModel=mk?DB.filter(r=>(r.model||"").trim().toLowerCase()===mk):[];
+  if(mk && ck){
+    const both=byModel.filter(r=>(r.code||"").trim().toLowerCase()===ck);
+    if(both.length) return both;                       // 型号+编码完全一致 → 最准
+    if(byModel.length) return byModel;                 // 编码对不上 → 以型号为准
+    return DB.filter(r=>(r.code||"").trim().toLowerCase()===ck);
+  }
+  if(mk) return byModel;
+  if(ck) return DB.filter(r=>(r.code||"").trim().toLowerCase()===ck);
+  return [];
+}
 // 按型号（或物料编码）从物料库反查送达方集合：同型号可能发多个送达方
 function customersForModelExactly(model, code){
-  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
   const set=[];
-  DB.forEach(r=>{
-    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
-    if((mk && m===mk) || (ck && c===ck)){
-      const cu=(r.customer||"").trim();
-      if(cu && !set.includes(cu)) set.push(cu);
-    }
+  matchDb(model, code).forEach(r=>{
+    const cu=(r.customer||"").trim();
+    if(cu && !set.includes(cu)) set.push(cu);
   });
   return set;
 }
@@ -998,13 +1007,9 @@ function autoFillCustomerByModel(tr, opts){
     recalc(); mergeCustomerCells(); saveDraftNow();
   });
 }
-// 按型号/物料编码取物料库中所有候选记录（完全一致匹配）
+// 按型号/物料编码取物料库中所有候选记录
 function dbRecordsForModel(model, code){
-  const mk=(model||"").trim().toLowerCase(), ck=(code||"").trim().toLowerCase();
-  return DB.filter(r=>{
-    const m=(r.model||"").trim().toLowerCase(), c=(r.code||"").trim().toLowerCase();
-    return (mk && m===mk) || (ck && c===ck);
-  });
+  return matchDb(model, code);
 }
 // 从物料库带出「物料编码 + 单重 + 每箱件数」：
 // 单重(kg/件) → 产品重量T；每箱件数 → 箱数 → 箱重T；客户吨位 = 产品重量T + 箱重T 由合并逻辑汇总
@@ -1022,7 +1027,25 @@ function fillDbFieldsForRow(tr){
   let r=(cust && recs.find(x=>(x.customer||"").trim()===cust))||null;
   if(!r && model){ const rm=modelCustChoice[model]; if(rm) r=recs.find(x=>(x.customer||"").trim()===rm)||null; }
   if(!r) r=recs[0];
-  if(codeInp && !(codeInp.value||"").trim()) codeInp.value=r.code||"";   // 物料编码：空才带出，不覆盖已填
+  if(codeInp){
+    const cur=(codeInp.value||"").trim();
+    if(!cur){
+      codeInp.value=r.code||"";                     // 空 → 按型号带出
+    }else if(model){
+      // 已填的编码若与本行型号不是同一个物料（改了型号、编码还是旧的）→ 以型号为准纠正，
+      // 否则这行会「型号 A + 编码 B」，反查客户/单重时把 B 的客户也带出来，备选里就冒出无关送达方
+      const mk=model.toLowerCase(), ck=cur.toLowerCase();
+      const exact=DB.some(x=>(x.model||"").trim().toLowerCase()===mk && (x.code||"").trim().toLowerCase()===ck);
+      if(!exact){
+        const codes=[...new Set(DB.filter(x=>(x.model||"").trim().toLowerCase()===mk)
+                                 .map(x=>(x.code||"").trim()).filter(Boolean))];
+        if(codes.length===1 && codes[0]!==cur){     // 该型号只有一个编码才敢改，多个编码时不猜
+          codeInp.value=codes[0];
+          toast("已按型号纠正物料编码："+cur+" → "+codes[0]);
+        }
+      }
+    }
+  }
   const setH=(f,v)=>{ const el=tr.querySelector(`[data-f="${f}"]`); if(el) el.value=(v==null?"":String(v)); };
   setH("unit", r.unit);        // 单重 kg/件
   setH("perbox", r.perbox);    // 每箱件数
