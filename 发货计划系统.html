@@ -931,8 +931,17 @@ function processCustModalQueue(){
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
-// 已确认过的「型号 → 送达方」记忆（本次页面会话内有效，一个型号只确认一次）
+// 已确认过的「型号 → 送达方」记忆：一个型号只确认一次，且跨刷新保留（存本机）
+const MODEL_CUST_KEY="shipping_modelcust_v1";
 let modelCustChoice={};
+try{ modelCustChoice=JSON.parse(localStorage.getItem(MODEL_CUST_KEY)||"{}")||{}; }catch(e){ modelCustChoice={}; }
+function rememberModelCust(model, cust){
+  const m=(model||"").trim(); if(!m||!cust) return;
+  modelCustChoice[m]=cust;
+  try{ localStorage.setItem(MODEL_CUST_KEY, JSON.stringify(modelCustChoice)); }catch(e){}
+}
+// 本次会话内被「跳过」的型号：不再重复弹窗（不存本机，刷新后重置）
+const modelCustSkip={};
 // 等待选择的「型号 → 行」列表：同型号多行只弹一次，选定后统一应用到所有这些行
 let pendingModelRows={};
 function applyCustomerToRow(tr, cust){
@@ -957,15 +966,22 @@ function autoFillCustomerByModel(tr){
   const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
   const custs=customersForModelExactly(model, code);
   if(!custs.length) return;
+  // ★ 本行已经有送达方 → 视为已确认，直接返回，绝不再弹窗（重复询问的根源就在这里）
+  const filled=(custInp.value||"").trim();
+  if(filled){
+    if(custs.includes(filled) && !modelCustChoice[model]) rememberModelCust(model, filled);
+    return;
+  }
   if(custs.length===1){ applyCustomerToRow(tr, custs[0]); return; }
   const remembered=modelCustChoice[model];
   if(remembered && custs.includes(remembered)){ applyCustomerToRow(tr, remembered); return; }   // 已确认过 → 直接沿用，不再弹窗
+  if(modelCustSkip[model]) return;                                                              // 本型号本次已选「跳过」→ 不再询问
   if(pendingModelRows[model]){ pendingModelRows[model].push(tr); return; }   // 正在等待本型号的选择 → 本行排队，不重复弹窗
   pendingModelRows[model]=[tr];
   chooseCustomerModal(custs, model, (chosen)=>{
     const rows=pendingModelRows[model]||[]; delete pendingModelRows[model];
-    if(!chosen) return;                     // 跳过：不填也不记忆，下次仍会询问
-    modelCustChoice[model]=chosen;          // 记住选择，后续同型号不再询问
+    if(!chosen){ modelCustSkip[model]=1; return; }   // 跳过：本次会话不再重复询问
+    rememberModelCust(model, chosen);                // 记住选择（跨刷新保留），后续同型号不再询问
     rows.forEach(r=>applyCustomerToRow(r, chosen));
     recalc(); mergeCustomerCells(); saveDraftNow();
   });
@@ -1155,7 +1171,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     const cu=(tr.querySelector('[data-f="customer"]').value||"").trim();
     if(!m||!cu) return;
     const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
-    if(customersForModelExactly(m, code).includes(cu)) modelCustChoice[m]=cu;
+    if(customersForModelExactly(m, code).includes(cu)) rememberModelCust(m, cu);
   });
   tr.querySelector('[data-f="remark"]').addEventListener("input", ()=>scheduleRefresh(mergeCustomerCells, saveDraft));
   ["model"].forEach(k=>{
