@@ -745,10 +745,25 @@ function cleanDupRecs(){
     const now=new Date();
     const dateEl=clock.querySelector(".date");
     const timeEl=clock.querySelector(".time");
-    if(dateEl) dateEl.textContent=now.getFullYear()+"/"+pad(now.getMonth()+1)+"/"+pad(now.getDate());
-    if(timeEl) timeEl.textContent=pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+    const ds=now.getFullYear()+"/"+pad(now.getMonth()+1)+"/"+pad(now.getDate());
+    const ts=pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+    if(dateEl && dateEl.textContent!==ds) dateEl.textContent=ds;   // ★ 值没变就不动 DOM
+    if(timeEl && timeEl.textContent!==ts) timeEl.textContent=ts;
   }
-  if($("clock")){ updateClock(); setInterval(updateClock,1000); }
+  if($("clock")){
+    updateClock();
+    // ★ 性能：① 对齐到整秒触发（原来固定 1 秒一次的漂移会累积成重复渲染）；
+    //          ② 切到后台就不再跑（后台标签页每秒刷时钟纯属浪费）。
+    let __clockTimer=0;
+    const tick=()=>{
+      clearTimeout(__clockTimer);
+      if(document.hidden) return;
+      updateClock();
+      __clockTimer=setTimeout(tick, 1000-(Date.now()%1000)+5);
+    };
+    tick();
+    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tick(); });
+  }
 })();
 // ===================== 「非本系统」占用识别 =====================
 // 浏览器是按「网址」分配存储额度的，不按页面 —— 同一个网址下别的工具（答题助手、
@@ -872,7 +887,7 @@ function openForeignClean(){
     const fname = downloadStoreBackup(picked);
     let ok = 0;
     picked.forEach(o=>{ try{ localStorage.removeItem(o.k); ok++; }catch(e){} });
-    try{ updateStorageMeter(); }catch(e){}
+    try{ invalidateStoreCache(); updateStorageMeter(); }catch(e){}   // 键被删了 → 缓存的统计必须作废，否则水位不动
     close();
     try{ toast("已清理 " + ok + " 项，释放约 " + storeSizeText(sum) + " 字符" + (fname ? "；备份已下载：" + fname : "")); }catch(e){}
   };
@@ -903,7 +918,13 @@ const STORE_LABELS = {
   "auto_sched_v2":"自动排产系统",
   "order_mgmt_data_v1":"订单管理系统"
 };
+// ★ 性能：全量统计要遍历所有键、把每个值整个读出来（几百万字符的备份键尤其贵）。
+//   结果缓存起来，只有真的发生写入/删除才失效 —— 这样 3 秒一次的定时刷新几乎零成本。
+let __storeCache=null;
+function invalidateStoreCache(){ __storeCache=null; }
 function storageBreakdown(){
+  // 键的数量变了（别的页面删了键）也要重算 —— 这条判据几乎零成本，能兜住"外部删除"
+  if(__storeCache && __storeCache.n === localStorage.length) return __storeCache;
   let used = 0; const byKey = [];
   try{
     for(let i=0;i<localStorage.length;i++){
@@ -913,13 +934,18 @@ function storageBreakdown(){
     }
   }catch(e){}
   byKey.sort((a,b)=>b.n-a.n);
-  return { used:used, limit:STORE_LIMIT, byKey:byKey };
+  __storeCache = { used:used, limit:STORE_LIMIT, byKey:byKey, n:localStorage.length };
+  return __storeCache;
 }
 function updateStorageMeter(){
   const el = $("storeMeter"); if(!el) return;
   const r = storageBreakdown();
   const pct = Math.min(100, r.used / r.limit * 100);
   const cls = pct >= 85 ? "danger" : (pct >= 60 ? "warn" : "");
+  // ★ 数值没变就直接返回：原来每 3 秒无条件重建浮层 HTML、改进度条宽度（无谓的样式重算）
+  const sig = r.used + "|" + r.byKey.length + "|" + (r.byKey[0]?r.byKey[0].n:0);
+  if(el._storeSig === sig) return;
+  el._storeSig = sig;
   const bar = $("storeBar"), pctEl = $("storePct"), pop = $("storePop");
   if(bar){ bar.style.width = Math.max(0.8, pct).toFixed(2)+"%"; bar.className = cls; }
   if(pctEl){ pctEl.textContent = pct.toFixed(1)+"%"; pctEl.className = "pct "+cls; }
@@ -939,7 +965,19 @@ function updateStorageMeter(){
   el.title = "本机存储占用 " + pct.toFixed(1) + "%（鼠标悬停看明细）";
 }
 try{ updateStorageMeter(); }catch(e){}
-setInterval(()=>{ try{ updateStorageMeter(); }catch(e){} }, 3000);
+// ★ 性能：原来固定每 3 秒无条件全量统计一次，而且切到后台标签页也照跑。
+//   现在：① 后台不跑；② 平时用缓存（几乎零成本），每约 21 秒才真正重算一次，
+//         以防同一个网址下别的页面/工具改了存储而本页不知道；③ 数据一变立即刷新（touchStorageMeter）。
+let __storeSweep = 0;
+setInterval(()=>{
+  if(document.hidden) return;                       // 后台标签页不做任何事
+  if((++__storeSweep % 7) === 0) invalidateStoreCache();
+  try{ updateStorageMeter(); }catch(e){}
+}, 3000);
+// 从后台切回前台：立刻校正一次（后台期间可能被别处改动过）
+document.addEventListener("visibilitychange", ()=>{
+  if(!document.hidden){ invalidateStoreCache(); try{ updateStorageMeter(); }catch(e){} }
+});
 // 浮层里的「清理」按钮用事件委托绑定：浮层内容每次刷新都会重建，直接绑会丢
 (function(){
   const pop = $("storePop"); if(!pop) return;
@@ -954,6 +992,7 @@ setInterval(()=>{ try{ updateStorageMeter(); }catch(e){} }, 3000);
 // 后几次改动会被直接丢掉、水位停在旧值上，直到 3 秒定时器才追上。这里补一个尾调用。
 let __storeTick = 0, __storeTimer = 0;
 function touchStorageMeter(){
+  invalidateStoreCache();          // 有写入 → 缓存的统计作废，下次刷新才真正重算
   const now = Date.now();
   if(now - __storeTick >= 1200){
     __storeTick = now;
@@ -1478,11 +1517,16 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   else if(refRow && refRow.parentNode===tb) refRow.after(tr);
   else {
     // 默认（添加行）：按发货日期升序插入到正确位置，不放到最后
-    const nd=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    // ★ 性能：原来每插入一行都要对已有行逐个 querySelector 取日期（行数一多就是 O(n²) 次深搜，
+    //   批量加载 100+ 行时是主要耗时）。改用行引用缓存后，循环里基本没有 DOM 查询。
+    const nd=(tr.querySelector('[data-f="shipdate"]')||{}).value||"";
     let inserted=false;
-    for(const r of tb.children){
+    const list=tb.children;
+    for(let k=0;k<list.length;k++){
+      const r=list[k];
       if(r.classList.contains("subtotal")) continue;
-      const rd=r.querySelector('[data-f="shipdate"]')?.value||"";
+      const rs=rowRefs(r).shipdate;
+      const rd=rs?(rs.value||""):"";
       if(rd && rd>nd){ r.before(tr); inserted=true; break; }
     }
     if(!inserted) tb.appendChild(tr);
@@ -1492,11 +1536,13 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 }
 function renumberVisible(){   // 对可见行做全局连续编号（折叠/筛选隐藏行跳过）
   let idx=0;
-  [...$("tbody").children].forEach(tr=>{
-    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return;
-    const c=tr.querySelector(".col-idx");
-    if(c) c.textContent=++idx;
-  });
+  const kids=$("tbody").children;
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) continue;
+    const c=rowRefs(tr).colIdx;                     // ★ 复用行引用，省掉逐行 querySelector
+    if(c){ const t=String(++idx); if(c.textContent!==t) c.textContent=t; }
+  }
 }
 function reindex(){
   [...$("tbody").querySelectorAll("tr.subtotal")].forEach(tr=>tr.remove());
@@ -1532,7 +1578,7 @@ function commitSubTon(inp){
 }
 // 绑定一个客户吨位输入框的交互：回车确认、Esc 放弃、右键撤回
 function bindSubTonInput(inp){
-  if(inp.dataset.bound==="1") return;
+  if(!inp || inp.dataset.bound==="1") return;
   inp.dataset.bound="1";
   inp.addEventListener("keydown",e=>{
     if(e.key==="Enter"){ e.preventDefault(); inp.blur(); }
@@ -1602,6 +1648,7 @@ function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客
 }
 function fitTextarea(ta){
   if(!ta) return;
+  ta._fitVal=ta.value;                 // 与全量版共享缓存，避免下次全量测量时又白测一遍
   ta.style.height="auto";
   const h=Math.max(26,ta.scrollHeight);
   ta.style.height=h+"px";
@@ -1611,13 +1658,36 @@ function fitTextarea(ta){
 }
 // 批量自适应高度：读写分离（先统一置 auto → 统一读 scrollHeight → 统一写回），
 // 把 N 次「强制同步布局」压到 1~2 次，折叠展开后几百行也不卡
-function fitTextareas(){
-  const tas=[...$("tbody").querySelectorAll("textarea")];
+function fitTextareas(force){
+  // ★ 性能：原来是无条件全表测量。120 行的表里光 textarea 就有 500+ 个，
+  //   每个都要「写 height:auto → 读 scrollHeight」——而读 scrollHeight 会强制浏览器同步重排，
+  //   一次调用就是几百次强制布局，是最大的一处卡顿源。
+  //   实际上 textarea 的高度只由它自己的文字决定：内容没变就不需要重新测量。
+  //   最常做的「改数量 / 改箱数」根本不碰 textarea，所以这里能整段跳过（一次布局都不做）。
+  const tas=$("tbody").querySelectorAll("textarea");
   if(!tas.length) return;
-  tas.forEach(ta=>{ if(ta.style.height!=="auto") ta.style.height="auto"; });
-  const hs=tas.map(ta=>Math.max(26, ta.scrollHeight));
-  tas.forEach((ta,i)=>{ const v=hs[i]+"px"; if(ta.style.height!==v) ta.style.height=v; });
-  tas.forEach((ta,i)=>{ const td=ta.closest("td"); if(td && td.rowSpan>1){ const v=(hs[i]+4)+"px"; if(td.style.height!==v) td.style.height=v; } });
+  let anyChanged=!!force;
+  if(!anyChanged){
+    for(let i=0;i<tas.length;i++){ const ta=tas[i]; if(ta._fitVal!==ta.value){ anyChanged=true; break; } }
+  }
+  if(!anyChanged) return;
+  // 只测量真正需要的那几行（首次 / 文字变了 / 强制全量）
+  const dirty=[];
+  for(let i=0;i<tas.length;i++){
+    const ta=tas[i];
+    if(force || ta._fitVal!==ta.value || !ta.style.height){ ta._fitVal=ta.value; dirty.push(ta); }
+  }
+  if(!dirty.length) return;
+  // 读写分离：先批量写 auto，再批量读高度（这样浏览器只会做一次布局）
+  for(let i=0;i<dirty.length;i++) dirty[i].style.height="auto";
+  const hs=[];
+  for(let i=0;i<dirty.length;i++) hs.push(Math.max(26, dirty[i].scrollHeight));
+  for(let i=0;i<dirty.length;i++){
+    const v=hs[i]+"px";
+    if(dirty[i].style.height!==v) dirty[i].style.height=v;
+    const td=dirty[i].closest("td");
+    if(td && td.rowSpan>1){ const tv=(hs[i]+4)+"px"; if(td.style.height!==tv) td.style.height=tv; }
+  }
 }
 // —— 性能优化：输入时的全表刷新合批。打字会连续触发 recalc / 合并 / 折叠 / 高亮等多轮全表遍历，
 //    用微任务队列合并成一次执行，重复调用只跑一遍。
@@ -1643,14 +1713,16 @@ function scheduleRefresh(){
 let undoStack=[];
 const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12,14,15];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱重T/客户吨位/操作；12=产品重量T 14=物流 15=物料编码）
 function collectRowData(tr){
-  const g=f=>{ const el=tr.querySelector(`[data-f="${f}"]`); return el?el.value:""; };
-  const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
+  // ★ 性能：撤回需要在删除每行前快照一次，原来一次 15 次 querySelector；改用行引用缓存
+  const R=rowRefs(tr);
+  const g=f=>R[f]?R[f].value:"";
+  const tonI=R.ton, boxI=R.box, cwtI=R.cwt;
   return {
     shipdate:g("shipdate"), customer:g("customer"), code:g("code"), model:g("model"),
     qty:g("qty"), shippt:g("shippt"), unit:g("unit"), perbox:g("perbox"),
     ton:tonI?tonI.value:"", tonManual:(tonI&&tonI.dataset.manual==="1"),
     delivery:g("delivery"), box:boxI?boxI.value:"", boxManual:(boxI&&boxI.dataset.manual==="1"),
-    cwt:g("cwt"), cwtDeleted:(tr.querySelector('[data-f="cwt"]')?.dataset.deleted==="1"),
+    cwt:cwtI?cwtI.value:"", cwtDeleted:(cwtI&&cwtI.dataset.deleted==="1"),
     remark:g("remark")
   };
 }
@@ -1766,11 +1838,13 @@ function onCellKey(e){
   navigateFrom(e.target, ci, dCol, dRow);
 }
 function unmergeRow(tr){
-  // 取消单行的客户/时效要求/客户吨位合并
-  ["col-customer","col-remark","col-subton"].forEach(cls=>{
-    const c=tr.querySelector("."+cls);
+  // 取消单行的客户/时效要求/客户吨位合并（★ 复用行引用缓存，不再逐列 querySelector）
+  const R=rowRefs(tr);
+  const cells=[R.cellCustomer, R.cellRemark, R.cellSubton];
+  for(let i=0;i<cells.length;i++){
+    const c=cells[i];
     if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
-  });
+  }
 }
 let __merging = false;
 function mergeCustomerCells(){
@@ -1780,6 +1854,10 @@ function mergeCustomerCells(){
   // 按「客户+发货日期」分组，合并客户、时效要求、客户吨位合计三列；基于全部数据行合并
   const allRows=[...$("tbody").children].filter(isDataRow);
   // 1) 清除所有数据行的合并状态
+  // ★ 性能：原来这里还会把「客户吨位」格子的内容清空、并顺手让它的缓存标记失效 ——
+  //   结果是下一段分组逻辑「必定」对全部合并组重建 innerHTML + 重新绑事件（每次输入都是一两百次 DOM 重建）。
+  //   现在只复位合并属性、内容留着：分组时只要「客户 + 日期 + 显示值」都没变就直接复用现有格子，
+  //   只有真正变化的组才重建。不可见的格子（display:none）留着旧内容不会有任何影响。
   allRows.forEach(tr=>{
     tr.classList.remove("group-end");
     const R=rowRefs(tr);
@@ -1788,8 +1866,7 @@ function mergeCustomerCells(){
     const r=R.cellRemark;
     if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); r.style.height=""; }
     const sub=R.cellSubton;
-    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.textContent=""; sub.style.height="";
-      sub._key=null; sub._val=null; sub._ov=0; }   // 内容已清空，缓存标记必须一并失效，否则会误判「无变化」而不重建
+    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.style.height=""; }
   });
   // 2) 只合并当前可见的数据行（排除筛选隐藏 + 折叠隐藏），否则 rowSpan 会按隐藏行数撑出幽灵行，导致下方整表错位
   const rows=allRows.filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
@@ -1819,23 +1896,29 @@ function mergeCustomerCells(){
       const ov=ctOverride(cust,date);
       const shown=(ov!==null?ov:subTon).toFixed(1);
       const autoTxt=subTon.toFixed(1);
-      // 值与上次完全一样则跳过 innerHTML 重建（全表重建 input + 绑事件是合并的大头）
-      if(subCell._key===cust+"|"+date && subCell._val===shown && subCell._ov===(ov!==null?1:0)){
-        subCell.classList.add("merged-cell");
-        if(len>1) subCell.rowSpan=len;
-        rows[j-1].classList.add("group-end");
-        i=j; continue;
+      // 值与上次完全一样则跳过 innerHTML 重建（重建 input + 重新绑事件是这里的大头）
+      // ★ 额外校验 firstChild：万一内容被别处清空，不能被缓存标记骗过去而不重建
+      // ★ 注意：跳过重建时**不能**提前 continue —— 下面「合并隐藏后续行」的逻辑必须照跑，
+      //   否则第二行及以后的格子不会被隐藏（表现为"该合并的没合并"）。
+      const reusable = (subCell._key===cust+"|"+date && subCell._val===shown
+                        && subCell._ov===(ov!==null?1:0) && subCell.firstChild);
+      if(!reusable){
+        subCell._key=cust+"|"+date; subCell._val=shown; subCell._ov=(ov!==null?1:0);
+        subCell.innerHTML='<span class="subton-wrap">'
+          +'<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
+          +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
+          +' title="可直接修改，回车确认">'
+          // 手填过才显示「↺ 恢复」小按钮，位置与样式同「箱子重量T」那一列
+          +(ov!==null?'<button type="button" class="subton-reset" title="恢复自动带出（'+esc(autoTxt)+'）">↺</button>':'')
+          +'</span>';
+        // ★ 一次查询取全（原来是 2 次 querySelector，每组重建都要付一次）
+        const parts=subCell.querySelectorAll("input,button");
+        let sIn=null, sRs=null;
+        for(let q=0;q<parts.length;q++){ if(parts[q].classList.contains("subton-in")) sIn=parts[q]; else sRs=parts[q]; }
+        subCell._subtonIn=sIn;                 // 同步缓存，供 recalc 读取时免查询
+        bindSubTonInput(sIn);
+        bindSubTonReset(sRs, cust, date, autoTxt);
       }
-      subCell._key=cust+"|"+date; subCell._val=shown; subCell._ov=(ov!==null?1:0);
-      subCell.innerHTML='<span class="subton-wrap">'
-        +'<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
-        +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
-        +' title="可直接修改，回车确认">'
-        // 手填过才显示「↺ 恢复」小按钮，位置与样式同「箱子重量T」那一列
-        +(ov!==null?'<button type="button" class="subton-reset" title="恢复自动带出（'+esc(autoTxt)+'）">↺</button>':'')
-        +'</span>';
-      bindSubTonInput(subCell.querySelector(".subton-in"));
-      bindSubTonReset(subCell.querySelector(".subton-reset"), cust, date, autoTxt);
       subCell.classList.add("merged-cell");
     }
     if(len>1){
@@ -1847,9 +1930,9 @@ function mergeCustomerCells(){
       for(let k=i+1;k<j;k++){
         const Rk2=rowRefs(rows[k]);
         const c2=Rk2.cellCustomer, r2=Rk2.cellRemark, s2=Rk2.cellSubton;
-        if(c2){ c2.style.display="none"; c2.rowSpan=1; }
-        if(r2){ r2.style.display="none"; r2.rowSpan=1; }
-        if(s2){ s2.style.display="none"; s2.rowSpan=1; }
+        if(c2 && c2.style.display!=="none"){ c2.style.display="none"; c2.rowSpan=1; }
+        if(r2 && r2.style.display!=="none"){ r2.style.display="none"; r2.rowSpan=1; }
+        if(s2 && s2.style.display!=="none"){ s2.style.display="none"; s2.rowSpan=1; }
       }
     }
     rows[j-1].classList.add("group-end");
@@ -1868,30 +1951,55 @@ function setShowFolded(show){ try{ localStorage.setItem(SHOW_FOLDED_KEY, show?"1
 // 折叠隐藏某行时同步取消其勾选，确保折叠日期不会被全选/发布带入
 function hideFoldedRow(tr){ tr.classList.add("date-fold-hidden"); const b=tr.querySelector(".row-check"); if(b) b.checked=false; }
 
+let __foldSig=null;   // 折叠指纹：输入完全没变就整段跳过（见下面的说明）
 function foldByDate(){
-  // 清理旧的折叠标记与按钮，并移除上一次插入的隔离带（确保按最新数据重新计算位置）
-  [...$("tbody").querySelectorAll("tr.isolation-band")].forEach(r=>r.remove());
-  [...$("tbody").children].forEach(tr=>{
-    if(!isDataRow(tr)) return;
+  // ★ 性能：这段是「改日期 / 筛选 / 加删行」时最重的一环 —— 原来每行要查 2 次
+  //   （.col-shipdate、.fold-btn），120 行就是 240+ 次深搜，还要整组重建折叠按钮。
+  //   这里先算一个指纹：各行发货日期的排列顺序 + 折叠状态 + 显示模式 + 筛选态 + 明日边界。
+  //   指纹完全没变说明折叠结果一定是现在这样，直接返回（打字改数量之类的场景本就不走这里）。
+  const sigParts=[];
+  {
+    const ks=$("tbody").children;
+    for(let i=0;i<ks.length;i++){
+      const t=ks[i];
+      if(!isDataRow(t)) continue;
+      const R=rowRefs(t);
+      // 指纹必须包含「客户 + 发货日期」：分组是按这两列做的，
+      // 只放日期的话「改了客户」会被误判成没变化而整段跳过，导致合并逻辑不执行。
+      const c=R.customer?R.customer.value:"";
+      const d=R.shipdate?R.shipdate.value:"";
+      sigParts.push(c+"\u0001"+d);
+    }
+  }
+  const __sig = sigParts.join("|") + "~" + JSON.stringify(getFoldState()) + "~" + (getShowFolded()?1:0)
+              + "~" + (isFilterActive()?1:0) + "~" + todayStr();
+  if(__sig===__foldSig) return;
+  __foldSig=__sig;
+
+  // 清理旧的折叠标记与按钮（隔离带位置由末尾的 renderIsolationBand 负责校正，这里不再删了重建）
+  const kids=$("tbody").children;
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)) continue;
     tr.classList.remove("date-fold-hidden","has-folded","has-expanded");
-    const sd=tr.querySelector(".col-shipdate");
+    const sd=rowRefs(tr).cellShipdate;          // ★ 复用行引用，省掉逐行 querySelector
     if(sd){
       sd.classList.remove("date-expanded","date-collapsed");
-      const btn=sd.querySelector(".fold-btn");
+      const btn=sd.querySelector(".fold-btn");  // 只在单元格内找，搜索范围比整行小一个数量级
       if(btn) btn.remove();
       sd.style.display=""; sd.rowSpan=1;
     }
-  });
+  }
 
-  const rows=[...$("tbody").children];
   const groups=[];
   let cur=null;
-  rows.forEach(tr=>{
-    if(!isDataRow(tr)){ if(cur) cur.rows.push(tr); return; }
-    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)){ if(cur) cur.rows.push(tr); continue; }
+    const d=rowRefs(tr).shipdate ? (rowRefs(tr).shipdate.value||"") : "";
     if(!cur||cur.date!==d){ cur={date:d, rows:[tr]}; groups.push(cur); }
     else cur.rows.push(tr);
-  });
+  }
 
   const today=realTodayStr();
   const state=getFoldState();
@@ -1901,7 +2009,7 @@ function foldByDate(){
   groups.forEach(g=>{
     if(!g.rows.length) return;
     const first=g.rows[0];
-    const sd=first.querySelector(".col-shipdate");
+    const sd=rowRefs(first).cellShipdate;      // ★ 复用行引用
     if(!sd) return;
 
     let collapsed=state[g.date];
@@ -1963,7 +2071,14 @@ function foldByDate(){
   });
 
   // 行数只统计可见行（同时排除筛选隐藏）
-  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")&&!tr.classList.contains("isolation-band")).length;
+  // ★ 性能：原来是 filter + 分配新数组，这里改成一次循环计数
+  let visible=0;
+  const kk=$("tbody").children;
+  for(let i=0;i<kk.length;i++){
+    const tr=kk[i];
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")||tr.classList.contains("isolation-band")) continue;
+    visible++;
+  }
   $("rowCount").textContent=visible+" 行";
   renumberVisible();  // 折叠状态变化后重新编号，保证可见行序号始终连续
   updateCheckAll();   // 折叠会取消隐藏行勾选，刷新表头全选框状态
@@ -2016,23 +2131,35 @@ function isFilterActive(){ return !!((($("filterCustomer").value||"").trim()) ||
 function isDataRow(tr){ return tr && !tr.classList.contains("subtotal") && !tr.classList.contains("isolation-band"); }
 // 在「明日」计划组之后插入视觉隔离带，隔离其后（后天及以后）的计划；数据不变，纯展示
 function renderIsolationBand(){
-  [...$("tbody").querySelectorAll("tr.isolation-band")].forEach(r=>r.remove());   // 幂等：先清后插
-  if(isFilterActive()) return;                                                   // 筛选状态下不显示分隔带
+  // ★ 性能：原来是「先删掉所有隔离带，再插一条」——每次折叠/筛选都产生 DOM 增删与重排。
+  //   现在先算出位置，已经贴在正确位置就什么都不做（直接复用现有节点）。
+  const filterOn=isFilterActive();
   const tomorrow=todayStr();                                                     // 系统里 todayStr()=日历明天=用户的“明日”
-  const rows=[...$("tbody").children].filter(isDataRow);
+  const kids=$("tbody").children;
   let lastTomorrow=null, hasAfter=false;
-  rows.forEach(tr=>{
-    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)) continue;
+    const d=rowRefs(tr).shipdate?(rowRefs(tr).shipdate.value||""):"";
     if(d===tomorrow) lastTomorrow=tr;
     else if(d>tomorrow) hasAfter=true;
-  });
-  if(!lastTomorrow || !hasAfter) return;                                         // 无“明日”组，或明日之后无计划则不显示
-  // 明日组本身被折叠/筛选隐藏时，隔离带会悬空显示，此时不渲染
-  if(lastTomorrow.classList.contains("date-fold-hidden")||lastTomorrow.classList.contains("filter-hidden")) return;
-  const tr=document.createElement("tr"); tr.className="isolation-band";
-  const td=document.createElement("td"); td.colSpan=14; td.className="isolation-cell";
-  td.innerHTML='<span class="isolation-label">隔离区 · 明日之后</span>';
-  tr.appendChild(td); lastTomorrow.after(tr);
+  }
+  // 筛选状态下不显示分隔带；明日组被折叠/筛选隐藏时隔离带会悬空 → 也不显示
+  const need = !filterOn && !!lastTomorrow && hasAfter
+    && !lastTomorrow.classList.contains("date-fold-hidden")
+    && !lastTomorrow.classList.contains("filter-hidden");
+  const cur=$("tbody").querySelector("tr.isolation-band");
+  if(need){
+    if(cur && cur.previousElementSibling===lastTomorrow) return;   // 已在正确位置 → 不重建
+    if(cur) cur.remove();
+    const tr=document.createElement("tr"); tr.className="isolation-band";
+    const td=document.createElement("td"); td.colSpan=14; td.className="isolation-cell";
+    td.innerHTML='<span class="isolation-label">隔离区 · 明日之后</span>';
+    tr.appendChild(td); lastTomorrow.after(tr);
+  }else if(cur){
+    const all=$("tbody").querySelectorAll("tr.isolation-band");
+    for(let i=all.length-1;i>=0;i--) all[i].remove();              // 兜底：清掉所有残留
+  }
 }
 function applyFilter(){
   const cust=($("filterCustomer").value||"").trim().toLowerCase();
@@ -2040,12 +2167,15 @@ function applyFilter(){
   const date=$("filterDate").value||"";
   const active=!!(cust||model||date);
   let shown=0, total=0;
-  [...$("tbody").children].forEach(tr=>{
-    if(!isDataRow(tr)) return;
+  const fkids=$("tbody").children;
+  for(let i=0;i<fkids.length;i++){
+    const tr=fkids[i];
+    if(!isDataRow(tr)) continue;
     total++;
-    const trCust=(tr.querySelector('[data-f="customer"]')?.value||"").trim().toLowerCase();
-    const trModel=(tr.querySelector('[data-f="model"]')?.value||"").trim().toLowerCase();
-    const trDate=tr.querySelector('[data-f="shipdate"]')?.value||"";
+    const R=rowRefs(tr);                                        // ★ 复用行引用（原来每行 3 次 querySelector）
+    const trCust=(R.customer?R.customer.value:"").trim().toLowerCase();
+    const trModel=(R.model?R.model.value:"").trim().toLowerCase();
+    const trDate=(R.shipdate?R.shipdate.value:"")||"";
     const match=(!cust || trCust.includes(cust)) &&
                 (!model || trModel.includes(model)) &&
                 (!date || trDate===date);
@@ -2056,12 +2186,18 @@ function applyFilter(){
     }else{
       tr.classList.add("filter-hidden");
     }
-  });
+  }
   const hint=$("filterCount");
   if(hint) hint.textContent=active?`显示 ${shown}/${total} 行`:"";
   recalc();                 // 重新计算吨位/箱数；recalc 内部按筛选状态决定：无筛选→恢复折叠，有筛选→保持穿透显示并刷新合并/编号
   updateCheckAll();
-  const visible=[...$("tbody").children].filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden")&&!tr.classList.contains("isolation-band")).length;
+  let visible=0;
+  const vkids=$("tbody").children;
+  for(let i=0;i<vkids.length;i++){
+    const tr=vkids[i];
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")||tr.classList.contains("isolation-band")) continue;
+    visible++;
+  }
   $("rowCount").textContent=visible+" 行";
   renderIsolationBand();   // 筛选结束后刷新隔离带（筛选态下自动隐藏）
 }
@@ -2094,38 +2230,48 @@ function qtyNum(v){          // 取数量数值：能算就按算式算，算不
 }
 // 只在值真的变化时才写 DOM（程序化赋值虽不触发事件，但仍会让浏览器重排，全表逐字写入是卡顿源之一）
 function setValIfChanged(el, v){ if(el && el.value!==v) el.value=v; }
-// 行内元素引用缓存：recalc / 合并 每次都要全表逐行 querySelector，行多时开销巨大。
+// 行内元素引用缓存：recalc / 合并 / 草稿 每次都要全表逐行 querySelector，行多时开销巨大。
 // 行结构创建后不再变动，缓存一次即可；节点被替换（isConnected=false）时自动重建。
+// ★ 性能要点：原来是 18 次 querySelector（每次都深搜整行子树，约 40+ 节点），
+//   现在改成「1 次 querySelectorAll 取全部字段 + 1 次遍历单元格取带类名的容器」，约 5 次调用。
 function rowRefs(tr){
   let c=tr._refs;
   if(c && c.qty && c.qty.isConnected) return c;
-  c = tr._refs = {
-    shipdate:tr.querySelector('[data-f="shipdate"]'),
-    customer:tr.querySelector('[data-f="customer"]'),
-    code:tr.querySelector('[data-f="code"]'),
-    model:tr.querySelector('[data-f="model"]'),
-    qty:tr.querySelector('[data-f="qty"]'),
-    unit:tr.querySelector('[data-f="unit"]'),
-    perbox:tr.querySelector('[data-f="perbox"]'),
-    ton:tr.querySelector('[data-f="ton"]'),
-    box:tr.querySelector('[data-f="box"]'),
-    cwt:tr.querySelector('[data-f="cwt"]'),
-    remark:tr.querySelector('[data-f="remark"]'),
-    tonReset:tr.querySelector(".ton-reset"),
-    cwtShow:tr.querySelector(".cwt-val"),
-    cwtTog:tr.querySelector(".cwt-toggle"),
-    cellCustomer:tr.querySelector(".col-customer"),
-    cellRemark:tr.querySelector(".col-remark"),
-    cellSubton:tr.querySelector(".col-subton"),
-    rowCheck:tr.querySelector(".row-check")
+  const R = tr._refs = {
+    shipdate:null, customer:null, code:null, model:null, qty:null, unit:null, perbox:null,
+    ton:null, box:null, cwt:null, remark:null, logistics:null, shippt:null, delivery:null,
+    tonReset:null, cwtShow:null, cwtTog:null,
+    cellShipdate:null, cellCustomer:null, cellRemark:null, cellSubton:null, colIdx:null,
+    rowCheck:null
   };
-  return c;
+  // ① 一次拿全部 [data-f] 字段
+  const fs = tr.querySelectorAll("[data-f]");
+  for(let i=0;i<fs.length;i++){ const el=fs[i], f=el.dataset.f; if(f && (f in R)) R[f]=el; }
+  // ② 一次扫单元格，取带类名的容器 / 按钮（避免逐行多次深搜）
+  const kids = tr.children;
+  for(let i=0;i<kids.length;i++){
+    const td=kids[i], cl=td.classList;
+    if(cl.contains("col-shipdate")) R.cellShipdate=td;
+    else if(cl.contains("col-customer")) R.cellCustomer=td;
+    else if(cl.contains("col-remark")) R.cellRemark=td;
+    else if(cl.contains("col-subton")) R.cellSubton=td;
+    else if(cl.contains("col-idx")) R.colIdx=td;
+    else if(cl.contains("col-check")) R.rowCheck=td.querySelector("input");
+    else if(cl.contains("col-cwt")){ R.cwtShow=td.querySelector(".cwt-val"); R.cwtTog=td.querySelector(".cwt-toggle"); }
+    else if(cl.contains("col-ton")) R.tonReset=td.querySelector(".ton-reset");
+  }
+  return R;
 }
 // skipFold=true：本次不重跑折叠（改数量/箱数/吨位不会改变日期分组，省掉一整轮全表折叠+高亮+隔离带重排）
 function recalc(skipFold){
   let sq=0,st=0,sb=0,scwt=0;
-  [...$("tbody").children].forEach(tr=>{
-    if(!isDataRow(tr)) return;   // 跳过客户小计行 / 隔离带，避免非数据行读取 data-f 字段报错
+  // ★ 性能：原来这一趟遍历完，updateKPIs 还要再遍历一趟全表。
+  //   现在同一趟里把「顶部 KPI（行数/件数/吨位/勾选数）」也一起算好，省掉一整轮遍历。
+  let kpiRows=0, kpiQty=0, kpiTon=0, kpiChecked=0;
+  const kids=$("tbody").children;
+  for(let ti=0; ti<kids.length; ti++){
+    const tr=kids[ti];
+    if(!isDataRow(tr)) continue;   // 跳过客户小计行 / 隔离带，避免非数据行读取 data-f 字段报错
     const R=rowRefs(tr);
     const qty=qtyNum(R.qty.value);
     const unit=parseFloat(R.unit.value)||0;
@@ -2170,8 +2316,10 @@ function recalc(skipFold){
     // 表尾合计只统计当前可见行（被折叠或筛选隐藏的行不计入）
     if(!tr.classList.contains("date-fold-hidden") && !tr.classList.contains("filter-hidden")){
       sq+=qty; st+=ton; sb+=box; scwt+=cwt;
+      kpiRows++; kpiQty+=qty; kpiTon+=ton;
+      if(R.rowCheck && R.rowCheck.checked) kpiChecked++;
     }
-  });
+  }
   $("sumQty").textContent=sq;
   $("sumTon").textContent=st.toFixed(1);
   $("sumBox").textContent=(sb>0)?sb:"/";
@@ -2181,34 +2329,52 @@ function recalc(skipFold){
   else if(!isFilterActive()){ foldByDate(); }
   else { renumberVisible(); mergeCustomerCells(); markRowStates(); }
   // 客户吨位合计：只累加当前可见的分组合计单元格（合并后每个组只显示一个）
+  // ★ 性能：不再用 `$("tbl").querySelectorAll(".col-subton")` + 每格 closest() 向上找行，
+  //   改为遍历行、用行引用直接取该行的合计格（合并后只有组首格可见，实际取值次数远小于行数）。
   let sst=0, subCells=0;
-  $("tbl").querySelectorAll("tbody .col-subton").forEach(td=>{
-    if(td.style.display==="none") return;
-    if(td.closest("tr.date-fold-hidden") || td.closest("tr.filter-hidden")) return;
+  const kids2=$("tbody").children;
+  for(let ti=0; ti<kids2.length; ti++){
+    const tr=kids2[ti];
+    if(!isDataRow(tr)) continue;
+    const cell=rowRefs(tr).cellSubton;
+    if(!cell || cell.style.display==="none") continue;          // 被 rowSpan 合并覆盖的格子
+    if(tr.classList.contains("date-fold-hidden") || tr.classList.contains("filter-hidden")) continue;
     subCells++;
-    const inp=td.querySelector(".subton-in");              // 现在是输入框，读 value 而非 textContent
-    sst+=parseFloat(inp?inp.value:td.textContent)||0;
-  });
+    // ★ 缓存该格子里的输入框引用（原来是每次都 querySelector，每个合并组一次）
+    let inp=cell._subtonIn;
+    if(!inp || !inp.isConnected) inp=cell._subtonIn=cell.querySelector(".subton-in");
+    sst+=parseFloat(inp?inp.value:cell.textContent)||0;
+  }
   $("sumSubTon").textContent=subCells?(sst>0?sst.toFixed(1):"0.0"):"/";
-  updateKPIs();
+  writeKPIs(kpiRows, kpiQty, kpiTon, kpiChecked);   // 直接用上面那趟遍历的结果，不再单独再扫一遍全表
 }
 function collectRows(){
+  // ★ 性能：改用行引用缓存，避免每行 13 次 querySelector（发布/导出时会全表扫）
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
-  return [...$("tbody").children].filter(isDataRow).map(tr=>({
-    shipdate:f(tr.querySelector('[data-f="shipdate"]').value),
-    customer:f(tr.querySelector('[data-f="customer"]').value),
-    code:f(tr.querySelector('[data-f="code"]').value),
-    model:f(tr.querySelector('[data-f="model"]').value),
-    qty:f(tr.querySelector('[data-f="qty"]').value),
-    shippt:f(tr.querySelector('[data-f="shippt"]').value),
-    perbox:f(tr.querySelector('[data-f="perbox"]').value),
-    ton:f(tr.querySelector('[data-f="ton"]').value),
-    box:f(tr.querySelector('[data-f="box"]').value),
-    cwt:f(tr.querySelector('[data-f="cwt"]').value),
-    delivery:f(tr.querySelector('[data-f="delivery"]').value),
-    remark:f(tr.querySelector('[data-f="remark"]').value),
-    logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
-  }));
+  const out=[];
+  const kids=$("tbody").children;
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)) continue;
+    const R=rowRefs(tr);
+    const val=k=>R[k]?R[k].value:"";
+    out.push({
+      shipdate:f(val("shipdate")),
+      customer:f(val("customer")),
+      code:f(val("code")),
+      model:f(val("model")),
+      qty:f(val("qty")),
+      shippt:f(val("shippt")),
+      perbox:f(val("perbox")),
+      ton:f(val("ton")),
+      box:f(val("box")),
+      cwt:f(val("cwt")),
+      delivery:f(val("delivery")),
+      remark:f(val("remark")),
+      logistics:f(val("logistics"))
+    });
+  }
+  return out;
 }
 function syncDocHead(){
   const d=$("shipDate").value;
@@ -2232,25 +2398,32 @@ function saveDraft(){
 function saveDraftNow(){ _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
 function writeDraftNow(){
   try{
-    const rows=[...$("tbody").children].filter(isDataRow).map(tr=>{
-      const tonI=tr.querySelector('[data-f="ton"]'), boxI=tr.querySelector('[data-f="box"]');
-      return {
-        shipdate:tr.querySelector('[data-f="shipdate"]').value,
-        customer:tr.querySelector('[data-f="customer"]').value,
-        code:tr.querySelector('[data-f="code"]').value,
-        model:tr.querySelector('[data-f="model"]').value,
-        qty:tr.querySelector('[data-f="qty"]').value,
-        shippt:tr.querySelector('[data-f="shippt"]').value,
-        unit:tr.querySelector('[data-f="unit"]').value,
-        perbox:tr.querySelector('[data-f="perbox"]').value,
+    // ★ 性能：原来是「每行 12 次 querySelector」—— 打字停手 250ms 就写一次草稿，
+    //   120 行就是 1440 次查询，是打字卡顿的最大单一来源。改用行引用缓存后降到 0 次。
+    const rows=[];
+    const kids=$("tbody").children;
+    for(let i=0;i<kids.length;i++){
+      const tr=kids[i];
+      if(!isDataRow(tr)) continue;
+      const R=rowRefs(tr);
+      const tonI=R.ton, boxI=R.box, cwtI=R.cwt;
+      rows.push({
+        shipdate:R.shipdate.value,
+        customer:R.customer.value,
+        code:R.code?R.code.value:"",
+        model:R.model.value,
+        qty:R.qty.value,
+        shippt:R.shippt?R.shippt.value:"",
+        unit:R.unit.value,
+        perbox:R.perbox.value,
         ton:tonI.value, tonManual:(tonI.dataset.manual==="1"),
-        delivery:tr.querySelector('[data-f="delivery"]').value,
+        delivery:R.delivery?R.delivery.value:"",
         box:boxI.value, boxManual:(boxI.dataset.manual==="1"),
-        cwt:tr.querySelector('[data-f="cwt"]').value, cwtDeleted:(tr.querySelector('[data-f="cwt"]').dataset.deleted==="1"),
-        remark:tr.querySelector('[data-f="remark"]').value,
-        logistics:(tr.querySelector('[data-f="logistics"]')||{}).value||""
-      };
-    });
+        cwt:cwtI.value, cwtDeleted:(cwtI.dataset.deleted==="1"),
+        remark:R.remark?R.remark.value:"",
+        logistics:R.logistics?R.logistics.value:""
+      });
+    }
     if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
     safeSet(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows}));
   }catch(e){}
@@ -2483,48 +2656,77 @@ function publish(){
 }
 
 function styleShipdate(){
-  document.querySelectorAll('[data-f="shipdate"]').forEach(inp=>{
+  // ★ 性能：原来每次都用 document.querySelectorAll 全局找日期框（还包含表外的元素），
+  //   现在只遍历表格行、复用行引用；并记住上次的值，值没变就不碰 class（少触发样式重算）。
+  const kids=$("tbody").children;
+  for(let i=0;i<kids.length;i++){
+    const inp=rowRefs(kids[i]).shipdate;
+    if(!inp) continue;
     const v=(inp.value||"").trim();
+    if(inp._sdv===v) continue;
+    inp._sdv=v;
     if(v.includes("自提")) inp.classList.add("jinling");
     else inp.classList.remove("jinling");
-  });
+  }
 }
 // 按发货日期标记行的状态：<边界=滞后(红)  >边界=之后(蓝)  边界当天=正常
 function markRowStates(){
   const today=$("shipDate").value||todayStr();
-  [...$("tbody").children].forEach(tr=>{
-    if(!isDataRow(tr)) return;
-    const d=tr.querySelector('[data-f="shipdate"]')?.value||"";
+  const kids=$("tbody").children;
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)) continue;
+    const d=rowRefs(tr).shipdate ? rowRefs(tr).shipdate.value : "";
     tr.classList.toggle("row-overdue", !!(d && d<today));
     tr.classList.toggle("row-future", !!(d && d>today));
-  });
+  }
 }
 function updateCheckAll(){
   // 仅统计可见行（排除被折叠或筛选隐藏的行），否则隐藏行永远不勾选会让表头全选框恒为半选
-  const boxes=[...$("tbody").querySelectorAll(".row-check")].filter(b=>{
-    const tr=b.closest("tr");
-    return !tr.classList.contains("date-fold-hidden") && !tr.classList.contains("filter-hidden");
-  });
-  const checked=boxes.filter(b=>b.checked).length;
+  // ★ 性能：原来 querySelectorAll(".row-check") + 每个框 closest("tr") 向上找行；
+  //   现在直接遍历行、用行引用缓存拿勾选框 —— 一次遍历同时刷新全选框与顶部 KPI。
+  let rows=0, qty=0, ton=0, checked=0;
+  const kids=$("tbody").children;
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)) continue;
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) continue;
+    const R=rowRefs(tr);
+    rows++;
+    qty+=qtyNum(R.qty?R.qty.value:"");
+    ton+=parseFloat(R.ton?R.ton.value:"")||0;
+    if(R.rowCheck && R.rowCheck.checked) checked++;
+  }
   const all=$("checkAll");
-  all.checked = boxes.length>0 && checked===boxes.length;
-  all.indeterminate = checked>0 && checked<boxes.length;
-  updateKPIs();
+  if(all){
+    all.checked = rows>0 && checked===rows;
+    all.indeterminate = checked>0 && checked<rows;
+  }
+  writeKPIs(rows, qty, ton, checked);
 }
-function updateKPIs(){
-  const rows=[...$("tbody").children].filter(isDataRow);
-  const visibleRows=rows.filter(tr=>!tr.classList.contains("date-fold-hidden")&&!tr.classList.contains("filter-hidden"));
-  let qty=0, ton=0, checked=0;
-  visibleRows.forEach(tr=>{
-    qty+=qtyNum(tr.querySelector('[data-f="qty"]')?.value);
-    ton+=parseFloat(tr.querySelector('[data-f="ton"]')?.value)||0;
-    if(tr.querySelector('.row-check')?.checked) checked++;
-  });
+// 只负责把 KPI 写进 DOM（数据由调用方给）—— recalc / updateCheckAll 都已遍历过，不必再扫全表
+function writeKPIs(rows, qty, ton, checked){
   const kpiRows=$("kpiRows"), kpiQty=$("kpiQty"), kpiTon=$("kpiTon"), kpiChecked=$("kpiChecked");
-  if(kpiRows) kpiRows.innerHTML=visibleRows.length+'<span class="kpi-unit">行</span>';
+  if(kpiRows) kpiRows.innerHTML=rows+'<span class="kpi-unit">行</span>';
   if(kpiQty) kpiQty.innerHTML=qty+'<span class="kpi-unit">件</span>';
   if(kpiTon) kpiTon.innerHTML=ton.toFixed(1)+'<span class="kpi-unit">t</span>';
   if(kpiChecked) kpiChecked.innerHTML=checked+'<span class="kpi-unit">行</span>';
+}
+// 独立计算版（供不走 recalc 的场合使用）；同样复用行引用缓存，避免逐行 querySelector
+function updateKPIs(){
+  let rows=0, qty=0, ton=0, checked=0;
+  const kids=$("tbody").children;
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)) continue;
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) continue;
+    const R=rowRefs(tr);
+    rows++;
+    qty+=qtyNum(R.qty?R.qty.value:"");
+    ton+=parseFloat(R.ton?R.ton.value:"")||0;
+    if(R.rowCheck && R.rowCheck.checked) checked++;
+  }
+  writeKPIs(rows, qty, ton, checked);
 }
 function saveRec(rec){
   let list=loadRec(); list.unshift(rec);
