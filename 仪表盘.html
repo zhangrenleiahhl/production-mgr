@@ -1049,13 +1049,26 @@ function initReveal(){
 }
 
 // ================= 时钟 =================
+var __clockEl=null, __cdateEl=null, __clockTimer=0;
 function tickClock(){
+  // ★ 性能：元素引用只查一次并缓存；文本没变就不写 DOM（原来每秒无条件写两次）
+  if(!__clockEl) __clockEl=document.getElementById("clock");
+  if(!__cdateEl) __cdateEl=document.getElementById("cdate");
   var d=new Date();
-  var el=document.getElementById("clock");
-  if(el) el.textContent=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");
-  var wd=["周日","周一","周二","周三","周四","周五","周六"][d.getDay()];
-  var de=document.getElementById("cdate");
-  if(de) de.textContent=d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" "+wd;
+  var t=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");
+  if(__clockEl && __clockEl.textContent!==t) __clockEl.textContent=t;
+  if(__cdateEl){
+    var wd=["周日","周一","周二","周三","周四","周五","周六"][d.getDay()];
+    var ds=d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" "+wd;
+    if(__cdateEl.textContent!==ds) __cdateEl.textContent=ds;
+  }
+}
+// ★ 性能：对齐整秒触发 + 切到后台停表
+function startClockLoop(){
+  clearTimeout(__clockTimer);
+  if(document.hidden) return;
+  tickClock();
+  __clockTimer=setTimeout(startClockLoop, 1000-(Date.now()%1000)+5);
 }
 
 // ================= 主渲染 =================
@@ -1071,7 +1084,8 @@ document.getElementById("src").onchange=render;
 document.getElementById("refresh").onclick=render;
 render();
 initReveal();
-tickClock(); setInterval(tickClock,1000);
+startClockLoop();
+document.addEventListener("visibilitychange", function(){ if(!document.hidden) startClockLoop(); });
 // 数据可能由其它页面写入，回到本页时自动刷新
 window.addEventListener("focus", render);
 </script>
