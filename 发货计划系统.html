@@ -62,6 +62,28 @@
   .appbar .clock .sep{animation:blink 1s step-end infinite;color:#38bdf8;}
   @keyframes blink{50%{opacity:0}}
   @media (max-width:900px){.appbar .clock{display:none;}}
+  /* ===== 本机存储水位（导航栏实时监控）：一眼看出还能装多少 ===== */
+  .appbar .store{display:inline-flex;flex-direction:column;gap:5px;padding:6px 13px;border-radius:10px;
+    background:#f8fafc;border:1px solid #e2e8f0;position:relative;cursor:default;flex-shrink:0;}
+  .appbar .store .row1{display:flex;align-items:baseline;gap:6px;font-size:12px;color:#64748b;white-space:nowrap;line-height:1;}
+  .appbar .store .pct{font-weight:700;font-size:13px;color:#1f2328;font-variant-numeric:tabular-nums;}
+  .appbar .store .pct.warn{color:#b45309;}
+  .appbar .store .pct.danger{color:#dc2626;}
+  .appbar .store .bar{width:170px;height:7px;border-radius:999px;background:#e5e7eb;overflow:hidden;}
+  .appbar .store .bar>i{display:block;height:100%;width:0;border-radius:999px;background:#2563eb;transition:width .35s ease,background .35s ease;}
+  .appbar .store .bar>i.warn{background:#f59e0b;}
+  .appbar .store .bar>i.danger{background:#dc2626;}
+  .appbar .store .pop{display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:400;background:#fff;
+    border:1px solid #d0d7de;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.14);padding:11px 14px;
+    font-size:12.5px;color:#334155;white-space:nowrap;min-width:230px;}
+  .appbar .store:hover .pop{display:block;}
+  .appbar .store .pop .hd{font-weight:700;color:#1f2328;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eef2f7;}
+  .appbar .store .pop .li{display:flex;justify-content:space-between;gap:22px;padding:2.5px 0;}
+  .appbar .store .pop .li b{font-weight:700;color:#1f2328;font-variant-numeric:tabular-nums;}
+  .appbar .store .pop .li.total{border-top:1px solid #eef2f7;margin-top:6px;padding-top:7px;}
+  .appbar .store .pop .ft{margin-top:6px;padding-top:6px;border-top:1px solid #eef2f7;color:#94a3b8;font-size:12px;}
+  @media (max-width:1280px){.appbar .store .bar{width:110px;}}
+  @media (max-width:1000px){.appbar .store{display:none;}}
   /* ===== KPI 统计卡片 ===== */
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;}
   .kpi-card{background:#fff;border:1px solid #d0d7de;border-radius:0;padding:14px 16px;box-shadow:none;display:flex;align-items:center;gap:12px;transition:none;}
@@ -386,6 +408,11 @@
       <a class="tab" href="物料数据库.html">📦 物料数据库</a>
     </div>
     <div class="spacer"></div>
+    <div class="store" id="storeMeter">
+      <div class="row1"><span>本机存储</span><span class="pct" id="storePct">--</span></div>
+      <div class="bar"><i id="storeBar"></i></div>
+      <div class="pop" id="storePop"></div>
+    </div>
     <div class="clock" id="clock"><span class="date"></span><span class="sep">|</span><span class="time"></span></div>
   </div>
 
@@ -487,10 +514,14 @@ const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&
 // ② 关键操作自动快照：发布 / 删除记录 / 导入备份 / 云端覆盖 之前先留一份，随时可回滚。
 // ③ 超量归档：发布记录超过 200 条时，老记录转入归档区而不是被丢弃。
 let _quotaWarned = false;
-function safeSet(key, val){
-  try{ localStorage.setItem(key, val); return true; }
+function safeSet(key, val, quiet){
+  try{
+    localStorage.setItem(key, val);
+    try{ if(window.touchStorageMeter) touchStorageMeter(); }catch(_){}   // 写入后刷新导航栏水位
+    return true;
+  }
   catch(e){
-    if(!_quotaWarned){
+    if(!quiet && !_quotaWarned){
       _quotaWarned = true;
       try{ toast("⚠ 本地存储写入失败（空间可能已满），请立即到「数据备份」导出文件"); }catch(_){}
     }
@@ -541,7 +572,12 @@ function loadArchive(){ try{ return JSON.parse(localStorage.getItem(LS_ARCHIVE))
 function archiveRecs(recs){   // 超出上限的老记录转入归档区（归档区最多 500 条），避免"静默丢数据"
   if(!recs || !recs.length) return;
   const a = loadArchive().concat(recs);
-  try{ localStorage.setItem(LS_ARCHIVE, JSON.stringify(a.slice(-500))); }catch(e){}
+  // ★ 这里以前用裸 setItem + try/catch 吞异常：空间满时归档会「静默失败」，记录真丢且用户毫不知情。
+  //   改走 safeSet（quiet：提示信息自己给，更具体），失败必须让用户看见。
+  const ok = safeSet(LS_ARCHIVE, JSON.stringify(a.slice(-500)), true);
+  if(!ok){
+    try{ toast("⚠ 本机空间不足，" + recs.length + " 条较早的发布记录无法转入归档，请立即到「数据备份」导出文件"); }catch(e){}
+  }
 }
 
 // ===================== 发布记录"只增不减"合并 =====================
@@ -710,6 +746,71 @@ function cleanDupRecs(){
   }
   if($("clock")){ updateClock(); setInterval(updateClock,1000); }
 })();
+// ===================== 本机存储水位（导航栏实时监控） =====================
+// 浏览器给每个站点约 5,242,880 个字符的存储额度，而且是按「字符数」算，不是字节数。
+// 这里直接遍历 localStorage 统计真实占用（不估算）——物料库是最大头，一眼看出还能装多少。
+const STORE_LIMIT = 5242880;
+const STORE_LABELS = {
+  "shipping_db_v1":"物料库",
+  "shipping_plans_v1":"发布记录",
+  "shipping_plans_archive_v1":"归档区",
+  "shipping_snapshots_v1":"自动快照",
+  "shipping_draft_v1":"未发布草稿",
+  "shipping_plans_del_v1":"删除墓碑",
+  "shipping_custton_v1":"客户吨位"
+};
+function storageBreakdown(){
+  let used = 0; const byKey = [];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i); if(!k) continue;
+      const n = k.length + (localStorage.getItem(k)||"").length;
+      used += n; byKey.push({ k:k, n:n });
+    }
+  }catch(e){}
+  byKey.sort((a,b)=>b.n-a.n);
+  return { used:used, limit:STORE_LIMIT, byKey:byKey };
+}
+function updateStorageMeter(){
+  const el = $("storeMeter"); if(!el) return;
+  const r = storageBreakdown();
+  const pct = Math.min(100, r.used / r.limit * 100);
+  const cls = pct >= 85 ? "danger" : (pct >= 60 ? "warn" : "");
+  const bar = $("storeBar"), pctEl = $("storePct"), pop = $("storePop");
+  if(bar){ bar.style.width = Math.max(0.8, pct).toFixed(2)+"%"; bar.className = cls; }
+  if(pctEl){ pctEl.textContent = pct.toFixed(1)+"%"; pctEl.className = "pct "+cls; }
+  if(pop){
+    const fmt = n => n >= 1024 ? (n/1024).toFixed(0)+" K" : String(n);
+    const rows = r.byKey.filter(o=>o.n>0).slice(0,6)
+      .map(o=>`<div class="li"><span>${STORE_LABELS[o.k]||esc(o.k)}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
+    const tip = pct>=85 ? "已接近上限，请立即导出备份并清理无用记录"
+              : pct>=60 ? "占用偏高，建议导出备份并清理"
+              : "空间充足，可放心使用";
+    pop.innerHTML = `<div class="hd">本机存储占用</div>${rows||'<div class="li"><span>暂无数据</span><b>—</b></div>'}
+      <div class="li total"><span>合计</span><b>${(r.used/1024).toFixed(0)} K 字符 / 上限约 5,120 K</b></div>
+      <div class="ft">${tip}</div>`;
+  }
+  el.title = "本机存储占用 " + pct.toFixed(1) + "%（鼠标悬停看明细）";
+}
+try{ updateStorageMeter(); }catch(e){}
+setInterval(()=>{ try{ updateStorageMeter(); }catch(e){} }, 3000);
+// 数据变动时也立即刷新（节流 1.2 秒，避免高频写入时反复全量统计）
+// 注意「尾部补一次」：连续写入（发布 → 删除 → 归档）时如果只做前向节流，
+// 后几次改动会被直接丢掉、水位停在旧值上，直到 3 秒定时器才追上。这里补一个尾调用。
+let __storeTick = 0, __storeTimer = 0;
+function touchStorageMeter(){
+  const now = Date.now();
+  if(now - __storeTick >= 1200){
+    __storeTick = now;
+    try{ updateStorageMeter(); }catch(e){}
+    return;
+  }
+  if(__storeTimer) return;                      // 已有待补的刷新 → 不重复排队
+  __storeTimer = setTimeout(()=>{
+    __storeTimer = 0; __storeTick = Date.now();
+    try{ updateStorageMeter(); }catch(e){}
+  }, 1200 - (now - __storeTick));
+}
 // 顶部吸附位置：工具栏钉在导航栏下方，表头再钉在工具栏下方（高度变化时自动重算）
 function syncTopbarOffset(){
   const ab=$("appbar"), tb=document.querySelector(".topbar");
