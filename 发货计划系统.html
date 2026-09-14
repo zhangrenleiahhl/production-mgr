@@ -2456,8 +2456,46 @@ function fallbackCopy(text, onOk, onFail){
   }catch(e){ ok=false; }
   if(ok) onOk&&onOk(); else onFail&&onFail("浏览器阻止了剪贴板写入");
 }
-// 形如 2026-09-15 / 2026/9/15 / 2026.9.15（可带时间）→ 视为「发货日期」
-function isDateLike(v){ return /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}([ T].*)?$/.test(String(v==null?"":v).trim()); }
+// ===== 发货日期解析（宽容版）=====
+// 把从 Excel / 别的系统复制来的各种日期写法，统一成 yyyy-mm-dd；认不出来返回 null。
+// 认不出来时调用方「不覆盖、不补默认值」，绝不会把日期偷偷改成别的日子。
+// 支持：2026-9-14 / 2026/9/14 / 2026.9.14 / 2026年9月14日 / 9月14日 / 9/14 / 9-14 / 20260914
+//       带时间的（2026/9/14 0:00、2026-09-14 12:30:00）、带括注的（2026/9/14(周一)）、Excel 日期序列号（如 46265）
+function parseDateLoose(v){
+  let s=String(v==null?"":v).trim();
+  if(!s) return null;
+  s=s.replace(/[（(][^)）]*[)）]/g,"").trim();                    // 去掉 “(周一)” 之类的括注
+  const pad=n=>String(n).padStart(2,"0");
+  const build=(y,m,d)=>{
+    y=+y; m=+m; d=+d;
+    if(!(y>=1900&&y<=2999)||m<1||m>12||d<1||d>31) return null;
+    const dt=new Date(y,m-1,d);
+    if(dt.getFullYear()!==y||dt.getMonth()!==m-1||dt.getDate()!==d) return null;   // 挡掉 2月30日 这类假日期
+    return y+"-"+pad(m)+"-"+pad(d);
+  };
+  let m;
+  // ① 带年份：2026-9-14 / 2026/9/14 / 2026.9.14 / 2026年9月14日（后面允许跟时间等多余内容）
+  if((m=s.match(/^(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?/))) return build(m[1],m[2],m[3]);
+  if((m=s.match(/^(\d{4})(\d{2})(\d{2})$/))) return build(m[1],m[2],m[3]);        // ② 20260914
+  // ③ 不带年份：9/14、9-14、9.14、9月14日 → 按「今年」；比今天早半年以上（跨年，如 12月里填 1/5）→ 算明年
+  if((m=s.match(/^(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?$/))){
+    const now=new Date(); const y=now.getFullYear();
+    const out=build(y,m[1],m[2]); if(!out) return null;
+    const diff=(now-new Date(y,+m[1]-1,+m[2]))/86400000;
+    return diff>180?build(y+1,m[1],m[2]):out;
+  }
+  // ④ Excel 日期序列号：单元格没设成日期格式时，复制出来就是这种 5 位数
+  if(/^\d{5}$/.test(s)){
+    const n=+s;
+    if(n>=40000&&n<=65000){
+      const dt=new Date(Date.UTC(1899,11,30)+n*86400000);
+      return build(dt.getUTCFullYear(),dt.getUTCMonth()+1,dt.getUTCDate());
+    }
+  }
+  return null;
+}
+// 复制过来的内容是不是「发货日期」（含 Excel 各种写法 / 序列号）
+function isDateLike(v){ return parseDateLoose(v)!==null; }
 // 读一行的「客户吨位」：合并单元格里只有首行有值，被合并隐藏的行向上找同组首行
 function rowSubtonText(tr){
   const cell=tr.querySelector(".col-subton");
@@ -2951,10 +2989,10 @@ function pasteFill(tr,f,v){
     el.value=hit.value;
     return;
   }
-  if(f==="shipdate"){                                   // 日期：格式不对就跳过，不覆盖原值
-    const m=val.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-    if(!m) return;
-    el.value=m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");
+  if(f==="shipdate"){                                   // 日期：宽容解析（Excel 各种写法都认）；认不出来就跳过，不覆盖原值
+    const d=parseDateLoose(val);
+    if(!d) return;
+    el.value=d;
     return;
   }
   el.value=val;
@@ -2975,6 +3013,35 @@ function pasteTargetRows(anchorTr, count, appendIfNoAnchor){
   }
   return out;
 }
+// 粘贴内容里的「发货日期」认不出来时：把该行日期留空（绝不沿用或改成别的日期），并把原始文本收集起来提示用户。
+// colIdx：本次粘贴区域里「发货日期」落在第几列（-1 = 这次粘贴没带日期列 → 完全不动）
+function scrubPastedDates(rows, grid, colIdx){
+  const bad=[];
+  if(colIdx<0) return bad;
+  rows.forEach((tr,ri)=>{
+    const raw=(grid[ri]||[])[colIdx];
+    if(raw==null || String(raw).trim()==="") return;      // 粘的就是空 → 保持原样
+    if(parseDateLoose(raw)) return;                       // 认出来了 → pasteFill 已经写入正确日期
+    const el=tr.querySelector('[data-f="shipdate"]');
+    if(!el) return;
+    el.value="";                                          // 认不出 → 留空（比默默显示成「明天」诚实）
+    bad.push(String(raw).trim());
+  });
+  return bad;
+}
+// 粘贴进来的行必须看得见：把这些行所在的日期分组强制展开。
+// （以前是靠「把日期改成明天」躲开折叠区，那是在改用户的数据；现在只动折叠状态，绝不碰日期）
+function expandPastedDateGroups(rows){
+  const st=getFoldState(); const today=realTodayStr(); let hit=false;
+  rows.forEach(tr=>{
+    const el=tr.querySelector('[data-f="shipdate"]');
+    const d=el?String(el.value||"").trim():"";
+    const collapsed=(st[d]===1) || (st[d]===undefined && !(d>today));   // 显式折叠 或 默认折叠（当天及之前/空日期）
+    if(collapsed){ st[d]=0; hit=true; }
+  });
+  if(hit){ localStorage.setItem(FOLD_STATE_KEY, JSON.stringify(st)); foldByDate(); fitTextareas(); }
+  return hit;
+}
 // 粘贴后统一收尾：补物料库字段 → 重算 → 合并 → 存草稿 → 按型号带出送达方
 // custPasted：这次粘贴的内容里是否自带「送达方」列（带了就以粘贴值为准）
 function pasteFinish(rows, custPasted){
@@ -2992,11 +3059,20 @@ function onTablePaste(e){
   const lines=txt.replace(/\r/g,"").split("\n").filter(r=>r.trim()!=="");
   if(!lines.length) return;
   const grid=lines.map(l=>l.split("\t").map(v=>v.trim()));
+  // 有的来源（比如从本页勾选列开始框选复制）会多带一个「全空的勾选框列」→ 去掉最左全空列，免得整行数据整体错位
+  while(grid.length && grid.every(r=>r.length>1 && (r[0]||"")==="")) grid.forEach(r=>r.shift());
   const maxCols=Math.max(...grid.map(r=>r.length));
   const cell=(e.target&&e.target.closest)?e.target.closest("[data-f]"):null;
   const startField=cell?cell.dataset.f:null;
   const tr0=(e.target&&e.target.closest)?e.target.closest("tr"):null;
-  const finish=(rows,msg,custPasted)=>{ pasteFinish(rows, !!custPasted); toast(msg); };
+  const finish=(rows,msg,custPasted,badDates)=>{
+    pasteFinish(rows, !!custPasted);
+    expandPastedDateGroups(rows);                        // 粘进来的行必须看得见（只展开折叠，不改日期）
+    if(badDates&&badDates.length){
+      const show=badDates.slice(0,3).join("、")+(badDates.length>3?"…":"");
+      toast(msg+"；"+badDates.length+" 个日期没认出来（"+show+"），已留空请手动填");
+    } else toast(msg);
+  };
 
   // ⓪ 「整行」粘贴：首列是发货日期（或落点就在「发货日期」列且≥3列）→ 视为整行数据，从「发货日期」开始按列对齐
   //    这样「复制」按钮复制出来的内容（13 列）就能原样粘回表格，整行还原
@@ -3009,7 +3085,8 @@ function onTablePaste(e){
     });
     sortRowsByDate();                                  // 带货日期 → 按日期归位（同日期保持原有先后）
     const custPasted=PASTE_COLS.slice(0,maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
-    finish(rows, "已粘贴 "+grid.length+" 行（整行信息）", custPasted);
+    const badDates=scrubPastedDates(rows, grid, PASTE_COLS.indexOf("shipdate"));   // 认不出的日期 → 留空提示，不补明天
+    finish(rows, "已粘贴 "+grid.length+" 行（整行信息）", custPasted, badDates);
     return;
   }
   // ① 型号 / 发货数量（两列以内）：从当前行往下铺，第二列互为另一列
@@ -3057,10 +3134,12 @@ function onTablePaste(e){
   grid.forEach((vals,ri)=>{
     const tr=rows[ri];
     vals.forEach((v,ci)=>{ const f=PASTE_COLS[a+ci]; if(f) pasteFill(tr,f,v); });
-    const d=tr.querySelector('[data-f="shipdate"]');
-    if(d && !d.value) d.value=$("shipDate").value||todayStr();   // 没带日期 → 补默认「明天」，避免落进「当天之前」被折叠
   });
-  finish(rows, "已粘贴 "+grid.length+" 行", custPasted);
+  // ★ 这里以前会给「没带日期」的行补上表头默认日期（表头默认=明天），用户看到的就是
+  //   「粘贴后日期自动变成明天」。现在不再碰日期：粘了日期就按日期、认不出就留空提示，
+  //   需要可见性由 expandPastedDateGroups 展开折叠来解决。
+  const badDates=scrubPastedDates(rows, grid, PASTE_COLS.indexOf("shipdate")-a);
+  finish(rows, "已粘贴 "+grid.length+" 行", custPasted, badDates);
 }
 $("tbody").addEventListener("paste", onTablePaste);
 // 表格外粘贴（焦点不在表格里，例如刚点过页面空白处）：整行数据自动追加到表尾，免得粘了没反应
@@ -3073,6 +3152,7 @@ function onDocPaste(e){
   const txt=cd.getData("text"); if(!txt) return;
   const grid=txt.replace(/\r/g,"").split("\n").filter(r=>r.trim()!=="").map(l=>l.split("\t").map(v=>v.trim()));
   if(!grid.length) return;
+  while(grid.length && grid.every(r=>r.length>1 && (r[0]||"")==="")) grid.forEach(r=>r.shift());   // 去掉最左全空列（勾选框列）
   const maxCols=Math.max(...grid.map(r=>r.length));
   if(maxCols<3 || !isDateLike(grid[0][0])) return;                       // 不像整行数据（首列不是日期）→ 放行
   e.preventDefault();
@@ -3080,8 +3160,12 @@ function onDocPaste(e){
   const custPasted=PASTE_COLS.slice(0,maxCols).indexOf("customer")>=0;
   grid.forEach((vals,ri)=>vals.forEach((v,ci)=>{ const f=PASTE_COLS[ci]; if(f) pasteFill(rows[ri],f,v); }));
   sortRowsByDate();
+  const badDates=scrubPastedDates(rows, grid, PASTE_COLS.indexOf("shipdate"));
   pasteFinish(rows, custPasted);
-  toast("已粘贴 "+grid.length+" 行（整行信息，追加到表尾）");
+  expandPastedDateGroups(rows);
+  toast(badDates.length
+    ? "已粘贴 "+grid.length+" 行（追加到表尾）；"+badDates.length+" 个日期没认出来，已留空请手动填"
+    : "已粘贴 "+grid.length+" 行（整行信息，追加到表尾）");
 }
 document.addEventListener("paste", onDocPaste);
 // ===================== 启动 =====================
