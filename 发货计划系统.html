@@ -758,15 +758,33 @@ const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_"];
 const OWN_KEYS = ["last_client_tab", "last_backup", "auto_backup"];
 const FOREIGN_KEEP_DEFAULT = { "auto_sched_v2": 1 };   // 可能还在别的工具里用着 → 默认不勾
 const LEGACY_KEYS = { "shipping_schedule_v1": 1 };     // 旧版排产表功能已删除，数据属于残留
+// 冗余留底：云端来数据覆盖本机前，cloud-sync 会先把本机旧值存一份到 key+"__bak"；
+// 云端数据明显偏少被拒绝时，把云端那份存到 key+"__cloud"。体积和主键一样大。
+// 能删（不影响运行），但删掉就失去"那次覆盖"的回退底 → 默认不勾。
+const REDUNDANT_KEYS = {
+  "shipping_db_v1__bak":1,        "shipping_db_v1_bak":1,
+  "shipping_db_v1__cloud":1,      "shipping_db_v1_cloud":1,
+  "shipping_plans_v1__bak":1,     "shipping_plans_v1_bak":1,
+  "shipping_plans_v1__cloud":1,   "shipping_plans_v1_cloud":1,
+  "shipping_plans_archive_v1__bak":1, "shipping_draft_v1__bak":1, "shipping_custton_v1__bak":1
+};
 const FOREIGN_LABELS = {
   "shipping_schedule_v1":"旧版排产表 · 残留数据",
   "auto_sched_v2":"生产自动排产系统 · 存档",
   "answer_helper_bank_v2":"答题助手 · 题库",
   "answer_helper_floating_pos":"答题助手 · 悬浮窗位置",
-  "answer_helper_first_run_v2":"答题助手 · 使用提示"
+  "answer_helper_first_run_v2":"答题助手 · 使用提示",
+  "shipping_db_v1__bak":"物料库 · 覆盖留底",
+  "shipping_db_v1_bak":"物料库 · 覆盖留底",
+  "shipping_db_v1__cloud":"物料库 · 被拒的云端旧数据",
+  "shipping_db_v1_cloud":"物料库 · 被拒的云端旧数据",
+  "shipping_plans_v1__bak":"发布记录 · 覆盖留底",
+  "shipping_plans_v1_bak":"发布记录 · 覆盖留底",
+  "shipping_plans_v1__cloud":"发布记录 · 被拒的云端旧数据",
+  "shipping_plans_v1_cloud":"发布记录 · 被拒的云端旧数据"
 };
 function isOwnKey(k){
-  if(LEGACY_KEYS[k]) return false;                     // 旧版残留 → 算外来
+  if(LEGACY_KEYS[k] || REDUNDANT_KEYS[k]) return false;  // 旧版残留 / 冗余留底 → 都可清理
   if(OWN_KEYS.indexOf(k) >= 0) return true;
   return OWN_KEY_PREFIX.some(p => k.indexOf(p) === 0);
 }
@@ -779,7 +797,9 @@ function foreignEntries(){
       if(isOwnKey(k)) continue;
       const n = k.length + (localStorage.getItem(k)||"").length;
       if(n <= 0) continue;
-      out.push({ k:k, n:n, label:FOREIGN_LABELS[k] || ("未知： " + k), keep:!!FOREIGN_KEEP_DEFAULT[k] });
+      out.push({ k:k, n:n, label:FOREIGN_LABELS[k] || ("未知： " + k),
+        kind: REDUNDANT_KEYS[k] ? "redundant" : "foreign",
+        keep: !!(FOREIGN_KEEP_DEFAULT[k] || REDUNDANT_KEYS[k]) });
     }
   }catch(e){}
   out.sort((a,b)=>b.n-a.n);
@@ -806,9 +826,9 @@ function openForeignClean(){
   const overlay = document.createElement("div"); overlay.className = "modal-overlay";
   overlay.innerHTML = `
     <div class="modal-box" style="min-width:430px;max-width:580px">
-      <div class="modal-title">清理不是发货系统的占用
+      <div class="modal-title">清理占用空间的数据
         <div style="font-weight:400;font-size:13px;color:#6b7280;margin-top:5px;line-height:1.6">
-          浏览器按「网址」分配存储额度，不按页面 —— 同一个网址下别的工具会和发货系统挤在同一份额度里。下面这些都不属于发货系统，清理前会先自动导出备份文件。
+          两类：①<b>外来</b> —— 同一个网址下别的工具（答题助手、排产系统…），它们和发货系统挤在同一份额度里；②<b>留底</b> —— 云端数据覆盖本机前自动存下的旧副本，体积和主数据一样大。清理前都会先导出备份文件。
         </div>
       </div>
       <div id="fcList" style="max-height:300px;overflow:auto;border:1px solid #eef2f7;border-radius:8px;padding:2px 12px"></div>
@@ -829,7 +849,7 @@ function openForeignClean(){
   listEl.innerHTML = items.map((o,i)=>`
     <label style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #f4f6f9;font-size:13px;cursor:pointer">
       <input type="checkbox" data-i="${i}" ${o.keep?"":"checked"} style="margin:0;flex:none">
-      <span style="flex:1;min-width:0;color:#1f2328">${esc(o.label)}${o.keep?'<span style="color:#b45309;font-size:12px">（可能还在用，默认没勾）</span>':''}</span>
+      <span style="flex:1;min-width:0;color:#1f2328"><span style="display:inline-block;margin-right:5px;padding:1px 5px;border-radius:4px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700;vertical-align:1px">${o.kind==="redundant"?"留底":"外来"}</span>${esc(o.label)}${o.kind==="redundant"?'<span style="color:#b45309;font-size:12px">（删掉就不能回退那一次覆盖）</span>':(o.keep?'<span style="color:#b45309;font-size:12px">（可能还在用，默认没勾）</span>':'')}</span>
       <b style="color:#64748b;font-variant-numeric:tabular-nums">${storeSizeText(o.n)}</b>
     </label>`).join("");
   const refreshSum = ()=>{
@@ -864,8 +884,14 @@ function openForeignClean(){
 const STORE_LIMIT = 5242880;
 const STORE_LABELS = {
   "shipping_db_v1":"物料库",
-  "shipping_db_v1_bak":"物料库 · 云同步备份",
-  "shipping_db_v1_cloud":"物料库 · 云端副本",
+  "shipping_db_v1_bak":"物料库 · 覆盖留底",
+  "shipping_db_v1__bak":"物料库 · 覆盖留底",
+  "shipping_db_v1_cloud":"物料库 · 被拒的云端旧数据",
+  "shipping_db_v1__cloud":"物料库 · 被拒的云端旧数据",
+  "shipping_plans_v1_bak":"发布记录 · 覆盖留底",
+  "shipping_plans_v1__bak":"发布记录 · 覆盖留底",
+  "shipping_plans_v1_cloud":"发布记录 · 被拒的云端旧数据",
+  "shipping_plans_v1__cloud":"发布记录 · 被拒的云端旧数据",
   "shipping_plans_v1":"发布记录",
   "shipping_plans_archive_v1":"归档区",
   "shipping_snapshots_v1":"自动快照",
@@ -900,12 +926,12 @@ function updateStorageMeter(){
   if(pop){
     const fmt = n => n >= 1024 ? (n/1024).toFixed(0)+" K" : String(n);
     const rows = r.byKey.filter(o=>o.n>0).slice(0,6)
-      .map(o=>`<div class="li"><span>${STORE_LABELS[o.k]||FOREIGN_LABELS[o.k]||esc(o.k)}${isOwnKey(o.k)?"":'<span class="tagf">外来</span>'}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
+      .map(o=>`<div class="li"><span>${STORE_LABELS[o.k]||FOREIGN_LABELS[o.k]||esc(o.k)}${isOwnKey(o.k)?"":`<span class="tagf">${REDUNDANT_KEYS[o.k]?"留底":"外来"}</span>`}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
     const tip = pct>=85 ? "已接近上限，请立即导出备份并清理无用记录"
               : pct>=60 ? "占用偏高，建议导出备份并清理"
               : "空间充足，可放心使用";
     const fe = foreignEntries(), feSum = fe.reduce((s,o)=>s+o.n,0);
-    const act = fe.length ? `<div class="act"><button type="button" data-store-act="clean-foreign">清理非本系统占用 ${fe.length} 项 · ${fmt(feSum)}</button></div>` : "";
+    const act = fe.length ? `<div class="act"><button type="button" data-store-act="clean-foreign">清理可释放占用 ${fe.length} 项 · ${fmt(feSum)}</button></div>` : "";
     pop.innerHTML = `<div class="hd">本机存储占用</div>${rows||'<div class="li"><span>暂无数据</span><b>—</b></div>'}
       <div class="li total"><span>合计</span><b>${(r.used/1024).toFixed(0)} K 字符 / 上限约 5,120 K</b></div>
       <div class="ft">${tip}</div>${act}`;
