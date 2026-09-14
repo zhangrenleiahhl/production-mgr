@@ -258,14 +258,28 @@ function init(){
 
 function startClock(){
   const pad2 = n => String(n).padStart(2,"0");
+  const clock = $("clock");
+  const dateEl = clock ? clock.querySelector(".date") : null;
+  const timeEl = clock ? clock.querySelector(".time") : null;
   function update(){
-    const clock = $("clock"); if(!clock) return;
+    if(!clock) return;
     const now = new Date();
-    clock.querySelector(".date").textContent = `${now.getFullYear()}/${pad2(now.getMonth()+1)}/${pad2(now.getDate())}`;
-    clock.querySelector(".time").textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+    const d = `${now.getFullYear()}/${pad2(now.getMonth()+1)}/${pad2(now.getDate())}`;
+    const t = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+    // ★ 性能：元素引用缓存一次（原来每秒查两次 DOM）；值没变就不写（无谓的样式重算）
+    if(dateEl && dateEl.textContent!==d) dateEl.textContent=d;
+    if(timeEl && timeEl.textContent!==t) timeEl.textContent=t;
   }
-  update();
-  setInterval(update, 1000);
+  // ★ 性能：对齐整秒触发 + 切到后台就停表（发货员可能把页面挂在后台一整天）
+  let __clockTimer=0;
+  const tick=()=>{
+    clearTimeout(__clockTimer);
+    if(document.hidden) return;
+    update();
+    __clockTimer=setTimeout(tick, 1000-(Date.now()%1000)+5);
+  };
+  tick();
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tick(); });
 }
 
 // ===================== 拉取云端数据 =====================
