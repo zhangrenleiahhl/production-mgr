@@ -23,10 +23,52 @@
   .btn-primary{background:var(--brand);color:#fff;border-color:var(--brand);}
   .btn-primary:hover{background:var(--brand-d);}
   .spacer{flex:1;}
-  .hint{font-size:12px;color:var(--muted);}
   .frame{flex:1 1 auto;width:100%;border:none;background:#fff;display:block;}
   .toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
   .toast.show{opacity:1;}
+  /* ===== 顶部时钟（与发货计划页同一套样式）===== */
+  .appbar .clock{display:inline-flex;align-items:center;gap:9px;padding:8px 18px;border-radius:999px;
+    background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+    border:1px solid rgba(56,189,248,.35);
+    box-shadow:0 0 10px rgba(56,189,248,.18), inset 0 0 8px rgba(56,189,248,.08);
+    color:#38bdf8;font-family:"SF Mono","Consolas","Monaco","Microsoft YaHei",monospace;
+    font-size:16px;font-weight:700;letter-spacing:1px;text-shadow:0 0 6px rgba(56,189,248,.5);
+    position:relative;overflow:hidden;white-space:nowrap;}
+  .appbar .clock::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(56,189,248,.18),transparent);
+    animation:scan 2.4s linear infinite;pointer-events:none;}
+  @keyframes scan{0%{left:-100%}100%{left:100%}}
+  .appbar .clock .date{color:#94a3b8;font-size:14px;font-weight:600;letter-spacing:0;text-shadow:none;}
+  .appbar .clock .time{color:#e0f2fe;}
+  .appbar .clock .sep{animation:blink 1s step-end infinite;color:#38bdf8;}
+  @keyframes blink{50%{opacity:0}}
+  @media (max-width:900px){.appbar .clock{display:none;}}
+  /* ===== 本机存储水位（导航栏实时监控）：一眼看出还能装多少 ===== */
+  .appbar .store{display:inline-flex;flex-direction:column;gap:5px;padding:6px 13px;border-radius:10px;
+    background:#f8fafc;border:1px solid #e2e8f0;position:relative;cursor:default;flex-shrink:0;}
+  .appbar .store .row1{display:flex;align-items:baseline;gap:6px;font-size:12px;color:#64748b;white-space:nowrap;line-height:1;}
+  .appbar .store .pct{font-weight:700;font-size:13px;color:#1f2328;font-variant-numeric:tabular-nums;}
+  .appbar .store .pct.warn{color:#b45309;}
+  .appbar .store .pct.danger{color:#dc2626;}
+  .appbar .store .bar{width:170px;height:7px;border-radius:999px;background:#e5e7eb;overflow:hidden;}
+  .appbar .store .bar>i{display:block;height:100%;width:0;border-radius:999px;background:#2563eb;transition:width .35s ease,background .35s ease;}
+  .appbar .store .bar>i.warn{background:#f59e0b;}
+  .appbar .store .bar>i.danger{background:#dc2626;}
+  .appbar .store .pop{display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:400;background:#fff;
+    border:1px solid #d0d7de;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.14);padding:11px 14px;
+    font-size:12.5px;color:#334155;white-space:nowrap;min-width:230px;}
+  .appbar .store:hover .pop{display:block;}
+  .appbar .store .pop .hd{font-weight:700;color:#1f2328;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eef2f7;}
+  .appbar .store .pop .li{display:flex;justify-content:space-between;gap:22px;padding:2.5px 0;}
+  .appbar .store .pop .li b{font-weight:700;color:#1f2328;font-variant-numeric:tabular-nums;}
+  .appbar .store .pop .li.total{border-top:1px solid #eef2f7;margin-top:6px;padding-top:7px;}
+  .appbar .store .pop .ft{margin-top:6px;padding-top:6px;border-top:1px solid #eef2f7;color:#94a3b8;font-size:12px;}
+  .appbar .store .pop .li .tagf{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:4px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700;vertical-align:1px;}
+  .appbar .store .pop .act{margin-top:8px;padding-top:8px;border-top:1px solid #eef2f7;}
+  .appbar .store .pop .act button{width:100%;height:28px;border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;}
+  .appbar .store .pop .act button:hover{background:#fef2f2;border-color:#fca5a5;}
+  @media (max-width:1280px){.appbar .store .bar{width:110px;}}
+  @media (max-width:1000px){.appbar .store{display:none;}}
   /* 备份面板 */
   .bpanel{position:absolute;right:16px;top:54px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(20,40,80,.18);padding:12px;width:230px;z-index:120;display:none;}
   .bpanel.show{display:block;}
@@ -43,12 +85,18 @@
     <div class="logo"><span class="dot"></span>发货计划系统</div>
     <div class="tabs">
       <button class="tab active" data-page="发货计划系统.html">📋 发货计划</button>
-      <button class="tab" data-page="排产计划表.html">📅 排产计划表</button>
+      <button class="tab" data-page="仪表盘.html">📊 仪表盘</button>
+      <button class="tab" data-page="订单管理系统.html">🧾 订单管理</button>
       <button class="tab" data-page="物料数据库.html">📦 物料数据库</button>
     </div>
     <div class="spacer"></div>
+    <div class="store" id="storeMeter">
+      <div class="row1"><span>本机存储</span><span class="pct" id="storePct">--</span></div>
+      <div class="bar"><i id="storeBar"></i></div>
+      <div class="pop" id="storePop"></div>
+    </div>
+    <div class="clock" id="clock"><span class="date"></span><span class="sep">|</span><span class="time"></span></div>
     <button class="btn" id="backupBtn">💾 数据备份</button>
-    <div class="hint">数据存本机，建议定期导出备份</div>
     <div class="bpanel" id="bpanel">
       <div class="ttl">数据备份与恢复</div>
       <div class="brow"><button class="bbtn" id="expBtn">⬇ 导出备份文件</button></div>
@@ -64,16 +112,132 @@
   const frame=document.getElementById("frame");
   const tabs=document.querySelectorAll(".tab");
   const $=id=>document.getElementById(id);
+  const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+  const PAGES=[...tabs].map(t=>t.dataset.page);
   function switchTo(page){
-    frame.src=page;
+    // 加时间戳防止 iframe 缓存旧页面
+    const sep=page.includes("?")?"&":"?";
+    frame.src=page+sep+"_t="+Date.now();
     tabs.forEach(t=>t.classList.toggle("active",t.dataset.page===page));
     try{localStorage.setItem("last_client_tab",page);}catch(e){}
   }
   tabs.forEach(t=>t.addEventListener("click",()=>switchTo(t.dataset.page)));
   try{
     const last=localStorage.getItem("last_client_tab");
-    if(last && [...tabs].some(t=>t.dataset.page===last)) switchTo(last);
+    if(last && PAGES.indexOf(last)>=0) switchTo(last);
   }catch(e){}
+
+  // ===================== 本机存储水位（与发货计划页同一套口径）=====================
+  const STORE_LIMIT = 5242880;
+  const STORE_LABELS = {
+    "shipping_db_v1":"物料库",
+    "shipping_db_v1_bak":"物料库 · 覆盖留底","shipping_db_v1__bak":"物料库 · 覆盖留底",
+    "shipping_db_v1_cloud":"物料库 · 被拒的云端旧数据","shipping_db_v1__cloud":"物料库 · 被拒的云端旧数据",
+    "shipping_plans_v1_bak":"发布记录 · 覆盖留底","shipping_plans_v1__bak":"发布记录 · 覆盖留底",
+    "shipping_plans_v1_cloud":"发布记录 · 被拒的云端旧数据","shipping_plans_v1__cloud":"发布记录 · 被拒的云端旧数据",
+    "shipping_plans_v1":"发布记录",
+    "shipping_plans_archive_v1":"归档区",
+    "shipping_snapshots_v1":"自动快照",
+    "shipping_draft_v1":"未发布草稿",
+    "shipping_plans_del_v1":"删除墓碑",
+    "shipping_custton_v1":"客户吨位",
+    "shipping_modelcust_v1":"送达方记忆",
+    "shipping_schedule_v1":"旧版排产表残留",
+    "auto_sched_v2":"自动排产系统",
+    "order_mgmt_data_v1":"订单管理系统"
+  };
+  const OWN_PREFIX=["shipping_","order_mgmt_"];
+  const OWN_KEYS=["last_client_tab","last_backup","auto_backup"];
+  const LEGACY_KEYS={"shipping_schedule_v1":1};
+  const REDUNDANT_KEYS={
+    "shipping_db_v1__bak":1,"shipping_db_v1_bak":1,"shipping_db_v1__cloud":1,"shipping_db_v1_cloud":1,
+    "shipping_plans_v1__bak":1,"shipping_plans_v1_bak":1,"shipping_plans_v1__cloud":1,"shipping_plans_v1_cloud":1,
+    "shipping_plans_archive_v1__bak":1,"shipping_draft_v1__bak":1,"shipping_custton_v1__bak":1
+  };
+  function isOwnKey(k){
+    if(LEGACY_KEYS[k]||REDUNDANT_KEYS[k]) return false;
+    if(OWN_KEYS.indexOf(k)>=0) return true;
+    return OWN_PREFIX.some(p=>k.indexOf(p)===0);
+  }
+  function storeSizeText(n){ return n>=1024 ? (n/1024).toFixed(0)+" K" : String(n)+" 字符"; }
+  function storageBreakdown(){
+    let used=0; const byKey=[];
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i); if(!k) continue;
+        const n=k.length+(localStorage.getItem(k)||"").length;
+        used+=n; byKey.push({k:k,n:n});
+      }
+    }catch(e){}
+    byKey.sort((a,b)=>b.n-a.n);
+    return {used:used,limit:STORE_LIMIT,byKey:byKey};
+  }
+  function foreignEntries(){
+    const out=[];
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i); if(!k||isOwnKey(k)) continue;
+        const n=k.length+(localStorage.getItem(k)||"").length;
+        if(n>0) out.push({k:k,n:n});
+      }
+    }catch(e){}
+    return out.sort((a,b)=>b.n-a.n);
+  }
+  function updateStorageMeter(){
+    const el=$("storeMeter"); if(!el) return;
+    const r=storageBreakdown();
+    const pct=Math.min(100, r.used/r.limit*100);
+    const cls=pct>=85?"danger":(pct>=60?"warn":"");
+    const bar=$("storeBar"), pctEl=$("storePct"), pop=$("storePop");
+    if(bar){ bar.style.width=Math.max(0.8,pct).toFixed(2)+"%"; bar.className=cls; }
+    if(pctEl){ pctEl.textContent=pct.toFixed(1)+"%"; pctEl.className="pct "+cls; }
+    if(pop){
+      const fmt=n=>n>=1024?(n/1024).toFixed(0)+" K":String(n);
+      const rows=r.byKey.filter(o=>o.n>0).slice(0,6)
+        .map(o=>`<div class="li"><span>${esc(STORE_LABELS[o.k]||o.k)}${isOwnKey(o.k)?"":`<span class="tagf">${REDUNDANT_KEYS[o.k]?"留底":"外来"}</span>`}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
+      const tip=pct>=85?"已接近上限，请立即导出备份并清理无用记录"
+              :pct>=60?"占用偏高，建议导出备份并清理"
+              :"空间充足，可放心使用";
+      const fe=foreignEntries(), feSum=fe.reduce((s,o)=>s+o.n,0);
+      const act=fe.length?`<div class="act"><button type="button" data-store-act="clean-foreign">清理可释放占用 ${fe.length} 项 · ${fmt(feSum)}</button></div>`:"";
+      pop.innerHTML=`<div class="hd">本机存储占用</div>${rows||'<div class="li"><span>暂无数据</span><b>—</b></div>'}
+        <div class="li total"><span>合计</span><b>${(r.used/1024).toFixed(0)} K 字符 / 上限约 5,120 K</b></div>
+        <div class="ft">${tip}</div>${act}`;
+    }
+    el.title="本机存储占用 "+pct.toFixed(1)+"%（鼠标悬停看明细）";
+  }
+  try{ updateStorageMeter(); }catch(e){}
+  setInterval(()=>{ try{ updateStorageMeter(); }catch(e){} }, 3000);
+  // 清理动作不在这里实现（避免和发货计划页两套代码），直接把活交给 iframe 里的发货计划页
+  (function(){
+    const pop=$("storePop"); if(!pop) return;
+    pop.addEventListener("click", e=>{
+      const btn=(e.target&&e.target.closest)?e.target.closest("[data-store-act]"):null;
+      if(!btn||btn.getAttribute("data-store-act")!=="clean-foreign") return;
+      e.preventDefault();
+      const call=()=>{ try{
+        if(typeof frame.contentWindow.openForeignClean==="function"){ frame.contentWindow.openForeignClean(); return true; }
+      }catch(err){} return false; };
+      if(!call()){
+        toast("正在打开「发货计划」页，请把鼠标移到「本机存储」上再点一次");
+        const done=()=>{ frame.removeEventListener("load",done); setTimeout(()=>{ if(!call()) toast("请把鼠标移到「本机存储」上再点一次清理"); },400); };
+        frame.addEventListener("load",done);
+        switchTo("发货计划系统.html");
+      }
+    });
+  })();
+  // 顶部导航栏动态时钟（精确到秒）
+  (function(){
+    function pad(n){return String(n).padStart(2,"0");}
+    function updateClock(){
+      const clock=$("clock"); if(!clock) return;
+      const now=new Date();
+      const dateEl=clock.querySelector(".date"), timeEl=clock.querySelector(".time");
+      if(dateEl) dateEl.textContent=now.getFullYear()+"/"+pad(now.getMonth()+1)+"/"+pad(now.getDate());
+      if(timeEl) timeEl.textContent=pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+    }
+    updateClock(); setInterval(updateClock,1000);
+  })();
 
   // ===== 备份 / 恢复 =====
   function gatherData(){
@@ -85,30 +249,84 @@
     return data;
   }
   function ts(){const d=new Date();const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;}
+  function downloadFile(name, text){
+    const blob=new Blob([text],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  }
   function downloadBackup(){
     const data=gatherData();
     data.__meta={app:"发货计划系统",exported:new Date().toISOString()};
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=`生产管理备份_${ts()}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(a.href);
+    downloadFile(`发货计划备份_${ts()}.json`, JSON.stringify(data,null,2));
     const now=new Date().toLocaleString();
     try{localStorage.setItem("last_backup",now);}catch(e){}
     $("lastBk").textContent="上次备份："+now;
     toast("已导出备份文件");
   }
+  // ★ 导入改成「只增不减」：备份文件里没有的、本机已有的东西（尤其发布记录）不会被冲掉。
+  //   以前是 for(k in obj) 直接 setItem 整份覆盖 —— 拿另一台机器的备份导进来会把本机清单一并换掉。
+  const MERGE_PREFIX="shipping_";   // 用 json 存数组/对象的键才走合并
+  function mergeJsonValue(curStr, incStr){
+    let cur=null, inc=null;
+    try{ cur=JSON.parse(curStr); }catch(e){}
+    try{ inc=JSON.parse(incStr); }catch(e){}
+    if(Array.isArray(cur)&&Array.isArray(inc)){
+      const keyOf=r=>{
+        if(r&&typeof r==="object"){
+          if(r.id!=null) return "i"+r.id;
+          if(r.no!=null&&r.no!=="") return "n"+r.no;
+          try{ return "j"+JSON.stringify(r); }catch(e){ return "j?"; }
+        }
+        return "v"+String(r);
+      };
+      const map=new Map();
+      inc.forEach(r=>map.set(keyOf(r),r));
+      let added=0;
+      cur.forEach(r=>{ const q=keyOf(r); if(map.has(q)) map.delete(q); });
+      added=map.size;
+      let arr=[...map.values()].concat(cur);
+      if(arr.length&&arr.every(r=>r&&typeof r==="object"&&r.id!=null)) arr.sort((a,b)=>(Number(b.id)||0)-(Number(a.id)||0));
+      return { text:JSON.stringify(arr), added:added };
+    }
+    if(cur&&inc&&typeof cur==="object"&&typeof inc==="object"){
+      const out=Object.assign({},cur); let added=0;
+      Object.keys(inc).forEach(k=>{ if(!(k in out)) added++; out[k]=inc[k]; });
+      return { text:JSON.stringify(out), added:added };
+    }
+    return { text:incStr, added:0 };
+  }
   function importBackup(file){
     const r=new FileReader();
     r.onload=()=>{
+      let obj=null;
+      try{ obj=JSON.parse(r.result); }catch(e){ toast("备份文件格式错误"); return; }
+      const keys=Object.keys(obj).filter(k=>k!=="__meta");
+      if(!keys.length){ toast("备份文件里没有数据"); return; }
+      // ① 覆盖前先把本机当前值下载一份（导错了能退回去）
       try{
-        const obj=JSON.parse(r.result);
-        let n=0;
-        for(const k in obj){ if(k==="__meta")continue; try{localStorage.setItem(k,obj[k]);n++;}catch(e){} }
-        toast("已恢复 "+n+" 项数据，正在刷新…");
-        setTimeout(()=>{try{frame.contentWindow.location.reload();}catch(e){frame.src=frame.src;}},500);
-      }catch(e){ toast("备份文件格式错误"); }
+        const cur={};
+        keys.forEach(k=>{ const v=localStorage.getItem(k); if(v!=null) cur[k]=v; });
+        cur.__meta={app:"发货计划系统",note:"导入备份前的本机数据",exported:new Date().toISOString()};
+        downloadFile(`导入前本机备份_${ts()}.json`, JSON.stringify(cur,null,2));
+      }catch(e){}
+      // ② 只增不减地并进去
+      let n=0, added=0;
+      keys.forEach(k=>{
+        const inc=obj[k];
+        const incStr=(typeof inc==="string")?inc:JSON.stringify(inc);
+        const cur=localStorage.getItem(k);
+        let text=incStr;
+        if(cur!=null && k.indexOf(MERGE_PREFIX)===0){
+          const m=mergeJsonValue(cur, incStr);
+          text=m.text; added+=m.added;
+        }
+        try{ localStorage.setItem(k,text); n++; }catch(e){}
+      });
+      try{ updateStorageMeter(); }catch(e){}
+      toast("已导入 "+n+" 项"+(added?("，其中新增 "+added+" 条"):"")+"，正在刷新…");
+      setTimeout(()=>{ try{ frame.contentWindow.location.reload(); }catch(e){ frame.src=frame.src; } },600);
     };
     r.readAsText(file);
   }
@@ -126,7 +344,7 @@
   frame.addEventListener("load",()=>{
     try{
       const src=frame.contentWindow.location.pathname.split("/").pop();
-      if(src && [...tabs].some(t=>t.dataset.page===src)) switchTo(src);
+      if(src && PAGES.indexOf(src)>=0) switchTo(src);
       const nav=frame.contentDocument.querySelector(".nav");
       if(nav) nav.style.display="none";
       const bar=frame.contentDocument.querySelector(".appbar");
@@ -135,6 +353,7 @@
       if(localStorage.getItem("auto_backup")==="1") frame.contentWindow.__clientBackup=downloadBackup;
       else frame.contentWindow.__clientBackup=null;
     }catch(e){}
+    try{ updateStorageMeter(); }catch(e){}
   });
 
   function toast(msg){const el=$("toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),1800);}
