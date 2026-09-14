@@ -432,7 +432,7 @@
       <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">当天前</button>
     </div>
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
-    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的「型号 + 发货数量」（Excel 可粘贴，制表符分隔）">复制</button>
+    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的整行信息（发货日期/送达方/型号/发货数量/发货点/交货单/箱数/时效要求/箱重T/产品重量T/客户吨位/物流/物料编码，制表符分隔；可直接粘回表格，也可粘到 Excel）">复制</button>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
       <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
@@ -2283,20 +2283,49 @@ function fallbackCopy(text, onOk, onFail){
   }catch(e){ ok=false; }
   if(ok) onOk&&onOk(); else onFail&&onFail("浏览器阻止了剪贴板写入");
 }
-// 复制勾选行的「型号 + 发货数量」（制表符分隔，Excel 可直接粘贴）
+// 形如 2026-09-15 / 2026/9/15 / 2026.9.15（可带时间）→ 视为「发货日期」
+function isDateLike(v){ return /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}([ T].*)?$/.test(String(v==null?"":v).trim()); }
+// 读一行的「客户吨位」：合并单元格里只有首行有值，被合并隐藏的行向上找同组首行
+function rowSubtonText(tr){
+  const cell=tr.querySelector(".col-subton");
+  let inp=cell?cell.querySelector(".subton-in"):null;
+  if(!inp && cell && cell.style.display==="none"){
+    const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
+    const date=(tr.querySelector('[data-f="shipdate"]')?.value||"").trim();
+    let p=tr.previousElementSibling;
+    while(p){
+      const pc=(p.querySelector('[data-f="customer"]')?.value||"").trim();
+      const pd=(p.querySelector('[data-f="shipdate"]')?.value||"").trim();
+      if(pc!==cust || pd!==date) break;                       // 走出本合并组 → 不再向上找
+      const hit=p.querySelector(".col-subton .subton-in");
+      if(hit){ inp=hit; break; }
+      p=p.previousElementSibling;
+    }
+  }
+  return inp?(inp.value||"").trim():(cell?(cell.textContent||"").trim():"");
+}
+// 一行 → 按 PASTE_COLS 顺序取全部列的值（与粘贴逻辑同一套列顺序，所以复制出来的内容可直接粘回表格还原整行）
+function readRowCells(tr){
+  return PASTE_COLS.map(f=>{
+    if(f==="subton") return rowSubtonText(tr).replace(/[\t\r\n]+/g," ");
+    const el=tr.querySelector(`[data-f="${f}"]`);
+    if(!el) return "";
+    return String(el.value==null?"":el.value).trim().replace(/[\t\r\n]+/g," ");
+  });
+}
+// 复制勾选行的「整行全部信息」（制表符分隔：可直接粘回表格，也可粘到 Excel）
 function copyModelCode(){
-  const rows=[...$("tbody").children].filter(isDataRow).filter(tr=>tr.querySelector(".row-check")?.checked);
+  const rows=[...$("tbody").children].filter(tr=>isDataRow(tr)&&!tr.classList.contains("date-fold-placeholder"))
+                                    .filter(tr=>{ const c=tr.querySelector(".row-check"); return !!(c&&c.checked); });
   if(!rows.length){ toast("请先勾选要复制的行（✓ 列）"); return; }
   const lines=[];
   rows.forEach(tr=>{
-    const model=(tr.querySelector('[data-f="model"]')?.value||"").trim();
-    const qty=(tr.querySelector('[data-f="qty"]')?.value||"").trim();
-    if(!model && !qty) return;   // 跳过空行
-    lines.push(model+"\t"+qty);
+    if(rowIsBlank(tr)) return;               // 空行（与「删空行」同一套判定）→ 跳过
+    lines.push(readRowCells(tr).join("\t"));
   });
-  if(!lines.length){ toast("勾选的行中没有可复制的型号/发货数量"); return; }
+  if(!lines.length){ toast("勾选的行都是空白行，没有可复制的信息"); return; }
   copyToClipboard(lines.join("\n"), this, (ok, err)=>{
-    if(ok) toast("已复制 "+lines.length+" 行型号/发货数量 ✓");
+    if(ok) toast("已复制 "+lines.length+" 行的整行信息（"+PASTE_COLS.length+" 列）✓");
     else toast("复制失败："+(err||"请重试")+"，可尝试按 Ctrl+C 手动复制");
   });
 }
@@ -2730,10 +2759,11 @@ function pasteFill(tr,f,v){
   if(f==="box"){ if(val==="") delete el.dataset.manual; else el.dataset.manual="1"; }
 }
 // 从「落点行」开始取 count 行（不够就自动补行）
-function pasteTargetRows(anchorTr, count){
+// appendIfNoAnchor=true：没有落点行时在表格末尾「追加新行」（而不是覆盖最后一行）
+function pasteTargetRows(anchorTr, count, appendIfNoAnchor){
   const rows=allRows();
   let start=anchorTr?rows.indexOf(anchorTr):-1;
-  if(start<0) start=rows.length-1;
+  if(start<0) start=appendIfNoAnchor?rows.length:rows.length-1;
   if(start<0) start=0;
   const out=[];
   for(let i=0;i<count;i++){
@@ -2766,6 +2796,20 @@ function onTablePaste(e){
   const tr0=(e.target&&e.target.closest)?e.target.closest("tr"):null;
   const finish=(rows,msg,custPasted)=>{ pasteFinish(rows, !!custPasted); toast(msg); };
 
+  // ⓪ 「整行」粘贴：首列是发货日期（或落点就在「发货日期」列且≥3列）→ 视为整行数据，从「发货日期」开始按列对齐
+  //    这样「复制」按钮复制出来的内容（13 列）就能原样粘回表格，整行还原
+  if(isDateLike(grid[0][0]) && (maxCols>=3 || startField==="shipdate" || !startField)){
+    e.preventDefault();
+    const rows=pasteTargetRows(tr0, grid.length, !tr0);
+    grid.forEach((vals,ri)=>{
+      const tr=rows[ri];
+      vals.forEach((v,ci)=>{ const f=PASTE_COLS[ci]; if(f) pasteFill(tr,f,v); });
+    });
+    sortRowsByDate();                                  // 带货日期 → 按日期归位（同日期保持原有先后）
+    const custPasted=PASTE_COLS.slice(0,maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
+    finish(rows, "已粘贴 "+grid.length+" 行（整行信息）", custPasted);
+    return;
+  }
   // ① 型号 / 发货数量（两列以内）：从当前行往下铺，第二列互为另一列
   if((startField==="model"||startField==="qty") && maxCols<=2){
     e.preventDefault();
@@ -2817,6 +2861,27 @@ function onTablePaste(e){
   finish(rows, "已粘贴 "+grid.length+" 行", custPasted);
 }
 $("tbody").addEventListener("paste", onTablePaste);
+// 表格外粘贴（焦点不在表格里，例如刚点过页面空白处）：整行数据自动追加到表尾，免得粘了没反应
+function onDocPaste(e){
+  if(e.defaultPrevented) return;
+  const t=e.target;
+  if(t && t.closest && t.closest("#tbl")) return;                       // 表格内已有专门处理
+  if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName||"")) return;       // 正在别的输入框里粘贴 → 不打扰
+  const cd=e.clipboardData||window.clipboardData; if(!cd) return;
+  const txt=cd.getData("text"); if(!txt) return;
+  const grid=txt.replace(/\r/g,"").split("\n").filter(r=>r.trim()!=="").map(l=>l.split("\t").map(v=>v.trim()));
+  if(!grid.length) return;
+  const maxCols=Math.max(...grid.map(r=>r.length));
+  if(maxCols<3 || !isDateLike(grid[0][0])) return;                       // 不像整行数据（首列不是日期）→ 放行
+  e.preventDefault();
+  const rows=pasteTargetRows(null, grid.length, true);                   // 末尾追加新行
+  const custPasted=PASTE_COLS.slice(0,maxCols).indexOf("customer")>=0;
+  grid.forEach((vals,ri)=>vals.forEach((v,ci)=>{ const f=PASTE_COLS[ci]; if(f) pasteFill(rows[ri],f,v); }));
+  sortRowsByDate();
+  pasteFinish(rows, custPasted);
+  toast("已粘贴 "+grid.length+" 行（整行信息，追加到表尾）");
+}
+document.addEventListener("paste", onDocPaste);
 // ===================== 启动 =====================
 syncDocHead();
 updateFoldedButton();
