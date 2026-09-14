@@ -82,6 +82,10 @@
   .appbar .store .pop .li b{font-weight:700;color:#1f2328;font-variant-numeric:tabular-nums;}
   .appbar .store .pop .li.total{border-top:1px solid #eef2f7;margin-top:6px;padding-top:7px;}
   .appbar .store .pop .ft{margin-top:6px;padding-top:6px;border-top:1px solid #eef2f7;color:#94a3b8;font-size:12px;}
+  .appbar .store .pop .li .tagf{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:4px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700;vertical-align:1px;}
+  .appbar .store .pop .act{margin-top:8px;padding-top:8px;border-top:1px solid #eef2f7;}
+  .appbar .store .pop .act button{width:100%;height:28px;border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;}
+  .appbar .store .pop .act button:hover{background:#fef2f2;border-color:#fca5a5;}
   @media (max-width:1280px){.appbar .store .bar{width:110px;}}
   @media (max-width:1000px){.appbar .store{display:none;}}
   /* ===== KPI 统计卡片 ===== */
@@ -746,18 +750,132 @@ function cleanDupRecs(){
   }
   if($("clock")){ updateClock(); setInterval(updateClock,1000); }
 })();
+// ===================== 「非本系统」占用识别 =====================
+// 浏览器是按「网址」分配存储额度的，不按页面 —— 同一个网址下别的工具（答题助手、
+// 自动排产系统…）的数据会和发货系统挤在同一份额度里。下面把不属于本套系统的键挑出来，
+// 让用户一眼看清是谁在占地方。★ 清理永远「先导出备份、再删除」，绝不静默清数据。
+const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_"];
+const OWN_KEYS = ["last_client_tab", "last_backup", "auto_backup"];
+const FOREIGN_KEEP_DEFAULT = { "auto_sched_v2": 1 };   // 可能还在别的工具里用着 → 默认不勾
+const LEGACY_KEYS = { "shipping_schedule_v1": 1 };     // 旧版排产表功能已删除，数据属于残留
+const FOREIGN_LABELS = {
+  "shipping_schedule_v1":"旧版排产表 · 残留数据",
+  "auto_sched_v2":"生产自动排产系统 · 存档",
+  "answer_helper_bank_v2":"答题助手 · 题库",
+  "answer_helper_floating_pos":"答题助手 · 悬浮窗位置",
+  "answer_helper_first_run_v2":"答题助手 · 使用提示"
+};
+function isOwnKey(k){
+  if(LEGACY_KEYS[k]) return false;                     // 旧版残留 → 算外来
+  if(OWN_KEYS.indexOf(k) >= 0) return true;
+  return OWN_KEY_PREFIX.some(p => k.indexOf(p) === 0);
+}
+function storeSizeText(n){ return n >= 1024 ? (n/1024).toFixed(0) + " K" : String(n); }
+function foreignEntries(){
+  const out = [];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i); if(!k) continue;
+      if(isOwnKey(k)) continue;
+      const n = k.length + (localStorage.getItem(k)||"").length;
+      if(n <= 0) continue;
+      out.push({ k:k, n:n, label:FOREIGN_LABELS[k] || ("未知： " + k), keep:!!FOREIGN_KEEP_DEFAULT[k] });
+    }
+  }catch(e){}
+  out.sort((a,b)=>b.n-a.n);
+  return out;
+}
+// 把要清掉的键原样打包成 JSON 下载 —— 数据急救.html 可直接导入还原
+function downloadStoreBackup(items){
+  const obj = { __meta:{ exportedAt:new Date().toISOString(), from:"发货计划系统 · 清理非本系统占用" } };
+  items.forEach(o=>{ try{ obj[o.k] = localStorage.getItem(o.k); }catch(e){} });
+  try{
+    const d = new Date(), p = n => String(n).padStart(2,"0");
+    const name = "存储备份_" + d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + "_" + p(d.getHours()) + p(d.getMinutes()) + ".json";
+    const blob = new Blob([JSON.stringify(obj)], { type:"application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>{ try{ URL.revokeObjectURL(a.href); }catch(e){} }, 8000);
+    return name;
+  }catch(e){ return ""; }
+}
+function openForeignClean(){
+  const items = foreignEntries();
+  if(!items.length){ try{ toast("没有发现非本系统的占用，很干净"); }catch(e){} return; }
+  const overlay = document.createElement("div"); overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-box" style="min-width:430px;max-width:580px">
+      <div class="modal-title">清理不是发货系统的占用
+        <div style="font-weight:400;font-size:13px;color:#6b7280;margin-top:5px;line-height:1.6">
+          浏览器按「网址」分配存储额度，不按页面 —— 同一个网址下别的工具会和发货系统挤在同一份额度里。下面这些都不属于发货系统，清理前会先自动导出备份文件。
+        </div>
+      </div>
+      <div id="fcList" style="max-height:300px;overflow:auto;border:1px solid #eef2f7;border-radius:8px;padding:2px 12px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:#6b7280;margin-top:10px">
+        <span>勾选项合计可释放</span><b id="fcSum" style="color:#1f2328;font-size:14px;font-variant-numeric:tabular-nums">—</b>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.6">
+        点「备份并清理」会先把勾选项导出成 JSON 存到你电脑（浏览器下载栏），再删除。
+        万一以后要恢复，打开 <b>数据急救.html</b> 导入那个文件即可。
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button type="button" class="btn btn-line" id="fcCancel">取消</button>
+        <button type="button" class="btn btn-danger" id="fcOk">备份并清理</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const listEl = overlay.querySelector("#fcList"), sumEl = overlay.querySelector("#fcSum");
+  listEl.innerHTML = items.map((o,i)=>`
+    <label style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #f4f6f9;font-size:13px;cursor:pointer">
+      <input type="checkbox" data-i="${i}" ${o.keep?"":"checked"} style="margin:0;flex:none">
+      <span style="flex:1;min-width:0;color:#1f2328">${esc(o.label)}${o.keep?'<span style="color:#b45309;font-size:12px">（可能还在用，默认没勾）</span>':''}</span>
+      <b style="color:#64748b;font-variant-numeric:tabular-nums">${storeSizeText(o.n)}</b>
+    </label>`).join("");
+  const refreshSum = ()=>{
+    let s = 0;
+    overlay.querySelectorAll("input[type=checkbox]").forEach(cb=>{ if(cb.checked) s += items[+cb.dataset.i].n; });
+    sumEl.textContent = storeSizeText(s) + " 字符";
+  };
+  refreshSum();
+  listEl.addEventListener("change", refreshSum);
+  const close = ()=>{ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+  overlay.querySelector("#fcCancel").onclick = close;
+  overlay.querySelector("#fcOk").onclick = ()=>{
+    const picked = [];
+    overlay.querySelectorAll("input[type=checkbox]").forEach(cb=>{ if(cb.checked) picked.push(items[+cb.dataset.i]); });
+    if(!picked.length){ try{ toast("没有勾选任何项"); }catch(e){} return; }
+    const sum = picked.reduce((s,o)=>s+o.n, 0);
+    if(!confirm("即将清理以下 " + picked.length + " 项，共 " + storeSizeText(sum) + " 字符：\n\n"
+      + picked.map(o=>"· " + o.label + "（" + storeSizeText(o.n) + "）").join("\n")
+      + "\n\n确定后会先自动导出备份文件到你的下载目录，再删除。\n发货系统自己的数据不受影响。\n\n确定清理吗？")) return;
+    const fname = downloadStoreBackup(picked);
+    let ok = 0;
+    picked.forEach(o=>{ try{ localStorage.removeItem(o.k); ok++; }catch(e){} });
+    try{ updateStorageMeter(); }catch(e){}
+    close();
+    try{ toast("已清理 " + ok + " 项，释放约 " + storeSizeText(sum) + " 字符" + (fname ? "；备份已下载：" + fname : "")); }catch(e){}
+  };
+}
+
 // ===================== 本机存储水位（导航栏实时监控） =====================
 // 浏览器给每个站点约 5,242,880 个字符的存储额度，而且是按「字符数」算，不是字节数。
 // 这里直接遍历 localStorage 统计真实占用（不估算）——物料库是最大头，一眼看出还能装多少。
 const STORE_LIMIT = 5242880;
 const STORE_LABELS = {
   "shipping_db_v1":"物料库",
+  "shipping_db_v1_bak":"物料库 · 云同步备份",
+  "shipping_db_v1_cloud":"物料库 · 云端副本",
   "shipping_plans_v1":"发布记录",
   "shipping_plans_archive_v1":"归档区",
   "shipping_snapshots_v1":"自动快照",
   "shipping_draft_v1":"未发布草稿",
   "shipping_plans_del_v1":"删除墓碑",
-  "shipping_custton_v1":"客户吨位"
+  "shipping_custton_v1":"客户吨位",
+  "shipping_modelcust_v1":"送达方记忆",
+  "shipping_schedule_v1":"旧版排产表残留",
+  "auto_sched_v2":"自动排产系统",
+  "order_mgmt_data_v1":"订单管理系统"
 };
 function storageBreakdown(){
   let used = 0; const byKey = [];
@@ -782,18 +900,29 @@ function updateStorageMeter(){
   if(pop){
     const fmt = n => n >= 1024 ? (n/1024).toFixed(0)+" K" : String(n);
     const rows = r.byKey.filter(o=>o.n>0).slice(0,6)
-      .map(o=>`<div class="li"><span>${STORE_LABELS[o.k]||esc(o.k)}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
+      .map(o=>`<div class="li"><span>${STORE_LABELS[o.k]||FOREIGN_LABELS[o.k]||esc(o.k)}${isOwnKey(o.k)?"":'<span class="tagf">外来</span>'}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
     const tip = pct>=85 ? "已接近上限，请立即导出备份并清理无用记录"
               : pct>=60 ? "占用偏高，建议导出备份并清理"
               : "空间充足，可放心使用";
+    const fe = foreignEntries(), feSum = fe.reduce((s,o)=>s+o.n,0);
+    const act = fe.length ? `<div class="act"><button type="button" data-store-act="clean-foreign">清理非本系统占用 ${fe.length} 项 · ${fmt(feSum)}</button></div>` : "";
     pop.innerHTML = `<div class="hd">本机存储占用</div>${rows||'<div class="li"><span>暂无数据</span><b>—</b></div>'}
       <div class="li total"><span>合计</span><b>${(r.used/1024).toFixed(0)} K 字符 / 上限约 5,120 K</b></div>
-      <div class="ft">${tip}</div>`;
+      <div class="ft">${tip}</div>${act}`;
   }
   el.title = "本机存储占用 " + pct.toFixed(1) + "%（鼠标悬停看明细）";
 }
 try{ updateStorageMeter(); }catch(e){}
 setInterval(()=>{ try{ updateStorageMeter(); }catch(e){} }, 3000);
+// 浮层里的「清理」按钮用事件委托绑定：浮层内容每次刷新都会重建，直接绑会丢
+(function(){
+  const pop = $("storePop"); if(!pop) return;
+  pop.addEventListener("click", e=>{
+    const t = e.target;
+    const btn = (t && t.closest) ? t.closest("[data-store-act]") : null;
+    if(btn && btn.getAttribute("data-store-act") === "clean-foreign"){ e.preventDefault(); openForeignClean(); }
+  });
+})();
 // 数据变动时也立即刷新（节流 1.2 秒，避免高频写入时反复全量统计）
 // 注意「尾部补一次」：连续写入（发布 → 删除 → 归档）时如果只做前向节流，
 // 后几次改动会被直接丢掉、水位停在旧值上，直到 3 秒定时器才追上。这里补一个尾调用。
@@ -2442,12 +2571,12 @@ function renderRecords(){
       const noText=esc(rec.no||"")+(rec.planner?` · ${esc(rec.planner)}`:"");
       card.innerHTML=`
         <div class="info"><b>${noText}</b><br>日期：${esc(rec.date||"")}${rec.maker?' ｜ 制单：'+esc(rec.maker):''}<br>
-          共 ${rec.rows.length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")}</div>
+          共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")}</div>
         <div class="acts">
           <button class="btn btn-line" data-act="csv">导出CSV</button>
           <button class="btn btn-danger" data-act="del">删除</button>
         </div>`;
-      card.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows, rec.no);
+      card.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows||[], rec.no);
       card.querySelector('[data-act="del"]').onclick=()=>{
         askDeletePwd(rec, ()=>{
           snapshot(LS_REC, "删除记录前");   // 删除前自动留档，误删可从「数据备份 → 恢复自动快照」找回
@@ -2669,13 +2798,13 @@ updatePastButton();
 updateDbStatus();
 if(!DB.length) toast("提示：物料库为空，请先到「物料数据库」页导入");
 const _draft=loadDraft();
-if(_draft && (_draft.rows.length || _draft.date)){
+if(_draft && ((_draft.rows||[]).length || _draft.date)){
   if(_draft.date){
     // 草稿日期如果是当天或更早，默认改为当天+1天（计划明天及以后的 shipment）
     $("shipDate").value = (_draft.date <= realTodayStr()) ? todayStr() : _draft.date;
   }
   $("planNo").value=_draft.no||genPlanNo();
-  _draft.rows.forEach(r=>addRow(r, null, null, true));
+  (_draft.rows||[]).forEach(r=>addRow(r, null, null, true));
   syncDocHead();
   styleShipdate();
 }else{
