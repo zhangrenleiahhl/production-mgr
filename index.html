@@ -160,7 +160,12 @@
     return OWN_PREFIX.some(p=>k.indexOf(p)===0);
   }
   function storeSizeText(n){ return n>=1024 ? (n/1024).toFixed(0)+" K" : String(n)+" 字符"; }
+  // ★ 性能：全量统计要遍历所有键、把每个值整个读出来（几百 K 的备份键尤其贵）。
+  //   结果缓存起来，键数变化或数据写入时才重算 —— 这样 3 秒一次的定时刷新几乎零成本。
+  let __storeCache=null;
+  function invalidateStoreCache(){ __storeCache=null; }
   function storageBreakdown(){
+    if(__storeCache && __storeCache.n===localStorage.length) return __storeCache;
     let used=0; const byKey=[];
     try{
       for(let i=0;i<localStorage.length;i++){
@@ -170,24 +175,28 @@
       }
     }catch(e){}
     byKey.sort((a,b)=>b.n-a.n);
-    return {used:used,limit:STORE_LIMIT,byKey:byKey};
+    __storeCache={used:used,limit:STORE_LIMIT,byKey:byKey,n:localStorage.length};
+    return __storeCache;
   }
   function foreignEntries(){
+    // 复用已算好的明细，不再为「清理」按钮单独全量扫一遍
+    const src=storageBreakdown().byKey;
     const out=[];
-    try{
-      for(let i=0;i<localStorage.length;i++){
-        const k=localStorage.key(i); if(!k||isOwnKey(k)) continue;
-        const n=k.length+(localStorage.getItem(k)||"").length;
-        if(n>0) out.push({k:k,n:n});
-      }
-    }catch(e){}
-    return out.sort((a,b)=>b.n-a.n);
+    for(let i=0;i<src.length;i++){
+      const o=src[i];
+      if(!isOwnKey(o.k) && o.n>0) out.push({k:o.k,n:o.n});
+    }
+    return out;
   }
   function updateStorageMeter(){
     const el=$("storeMeter"); if(!el) return;
     const r=storageBreakdown();
     const pct=Math.min(100, r.used/r.limit*100);
     const cls=pct>=85?"danger":(pct>=60?"warn":"");
+    // ★ 数值没变就不写 DOM：原来每 3 秒无条件重建浮层 HTML、改进度条宽度（无谓的样式重算）
+    const sig=r.used+"|"+r.byKey.length+"|"+(r.byKey[0]?r.byKey[0].n:0);
+    if(el._storeSig===sig) return;
+    el._storeSig=sig;
     const bar=$("storeBar"), pctEl=$("storePct"), pop=$("storePop");
     if(bar){ bar.style.width=Math.max(0.8,pct).toFixed(2)+"%"; bar.className=cls; }
     if(pctEl){ pctEl.textContent=pct.toFixed(1)+"%"; pctEl.className="pct "+cls; }
@@ -207,7 +216,18 @@
     el.title="本机存储占用 "+pct.toFixed(1)+"%（鼠标悬停看明细）";
   }
   try{ updateStorageMeter(); }catch(e){}
-  setInterval(()=>{ try{ updateStorageMeter(); }catch(e){} }, 3000);
+  // ★ 性能：原来固定每 3 秒无条件全量统计一次，切到后台标签页也照跑。
+  //   现在：① 后台不做任何事；② 平时走缓存，每约 21 秒才真正重算一次（防止同网址下别的页面改了存储）；
+  //         ③ 从后台切回前台立刻校正一次。
+  let __storeSweep=0;
+  setInterval(()=>{
+    if(document.hidden) return;
+    if((++__storeSweep % 7)===0) invalidateStoreCache();
+    try{ updateStorageMeter(); }catch(e){}
+  }, 3000);
+  document.addEventListener("visibilitychange", ()=>{
+    if(!document.hidden){ invalidateStoreCache(); try{ updateStorageMeter(); }catch(e){} }
+  });
   // 清理动作不在这里实现（避免和发货计划页两套代码），直接把活交给 iframe 里的发货计划页
   (function(){
     const pop=$("storePop"); if(!pop) return;
@@ -233,10 +253,21 @@
       const clock=$("clock"); if(!clock) return;
       const now=new Date();
       const dateEl=clock.querySelector(".date"), timeEl=clock.querySelector(".time");
-      if(dateEl) dateEl.textContent=now.getFullYear()+"/"+pad(now.getMonth()+1)+"/"+pad(now.getDate());
-      if(timeEl) timeEl.textContent=pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+      const ds=now.getFullYear()+"/"+pad(now.getMonth()+1)+"/"+pad(now.getDate());
+      const ts=pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+      if(dateEl && dateEl.textContent!==ds) dateEl.textContent=ds;   // ★ 值没变就不动 DOM
+      if(timeEl && timeEl.textContent!==ts) timeEl.textContent=ts;
     }
-    updateClock(); setInterval(updateClock,1000);
+    // ★ 性能：对齐整秒触发 + 切到后台就停（后台标签页每秒刷时钟纯属浪费）
+    let __clockTimer=0;
+    const tickClock=()=>{
+      clearTimeout(__clockTimer);
+      if(document.hidden) return;
+      updateClock();
+      __clockTimer=setTimeout(tickClock, 1000-(Date.now()%1000)+5);
+    };
+    tickClock();
+    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tickClock(); });
   })();
 
   // ===== 备份 / 恢复 =====
@@ -324,7 +355,7 @@
         }
         try{ localStorage.setItem(k,text); n++; }catch(e){}
       });
-      try{ updateStorageMeter(); }catch(e){}
+      try{ invalidateStoreCache(); updateStorageMeter(); }catch(e){}   // 刚写入 → 缓存作废再刷新
       toast("已导入 "+n+" 项"+(added?("，其中新增 "+added+" 条"):"")+"，正在刷新…");
       setTimeout(()=>{ try{ frame.contentWindow.location.reload(); }catch(e){ frame.src=frame.src; } },600);
     };
