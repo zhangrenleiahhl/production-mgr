@@ -2605,14 +2605,14 @@ function renderRecords(){
       card.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows||[], rec.no);
       card.querySelector('[data-act="del"]').onclick=()=>{
         askDeletePwd(rec, ()=>{
-          snapshot(LS_REC, "删除记录前");   // 删除前自动留档，误删可从「数据备份 → 恢复自动快照」找回
+          snapshot(LS_REC, "删除记录前");   // 删除前自动留档，误删可打开「数据急救.html」→「⑤ 一键找回」恢复
           markDeleted(rec.id);              // 记墓碑：别的端合并时不会再把它"复活"
           const keep = loadRec().filter(r=>r.id!==rec.id);
           safeSet(LS_REC, JSON.stringify(keep));
           renderRecords();
           // 删除是关键操作，立刻同步（墓碑随 flushRec 一起推；合并时会剔除墓碑，删除在所有端都生效）
           if(window.CloudSync) flushRec(false);
-          toast("已删除发布记录 "+(rec.no||"")+"（已留档可恢复）");
+          toast("已删除发布记录 "+(rec.no||"")+"（已留档，误删可在「数据急救」页一键找回）");
         });
       };
       body.appendChild(card);
