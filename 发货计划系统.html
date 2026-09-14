@@ -3013,24 +3013,14 @@ function pasteTargetRows(anchorTr, count, appendIfNoAnchor){
   }
   return out;
 }
-// 粘贴内容里的「发货日期」认不出来时：把该行日期留空（绝不沿用或改成别的日期），并把原始文本收集起来提示用户。
-// colIdx：本次粘贴区域里「发货日期」落在第几列（-1 = 这次粘贴没带日期列 → 完全不动）
-function scrubPastedDates(rows, grid, colIdx){
-  const bad=[];
-  if(colIdx<0) return bad;
-  rows.forEach((tr,ri)=>{
-    const raw=(grid[ri]||[])[colIdx];
-    if(raw==null || String(raw).trim()==="") return;      // 粘的就是空 → 保持原样
-    if(parseDateLoose(raw)) return;                       // 认出来了 → pasteFill 已经写入正确日期
-    const el=tr.querySelector('[data-f="shipdate"]');
-    if(!el) return;
-    el.value="";                                          // 认不出 → 留空（比默默显示成「明天」诚实）
-    bad.push(String(raw).trim());
-  });
-  return bad;
+// 粘贴进来的行：其它列按粘贴内容原样写入，但「发货日期」统一按表头发货日期给（表头默认=明天）。
+// 用户口径：粘过来的数据一点不要动，日期自动改成明天 —— 粘一批行就是「这批货明天发」。
+function applyPlanDateToRows(rows){
+  const d=$("shipDate").value||todayStr();          // 表头默认就是明天；用户改过表头就跟着表头走
+  rows.forEach(tr=>{ const el=tr.querySelector('[data-f="shipdate"]'); if(el) el.value=d; });
+  return d;
 }
-// 粘贴进来的行必须看得见：把这些行所在的日期分组强制展开。
-// （以前是靠「把日期改成明天」躲开折叠区，那是在改用户的数据；现在只动折叠状态，绝不碰日期）
+// 粘贴进来的行必须看得见：把这些行所在的日期分组强制展开（只动折叠状态，绝不碰日期）
 function expandPastedDateGroups(rows){
   const st=getFoldState(); const today=realTodayStr(); let hit=false;
   rows.forEach(tr=>{
@@ -3065,13 +3055,10 @@ function onTablePaste(e){
   const cell=(e.target&&e.target.closest)?e.target.closest("[data-f]"):null;
   const startField=cell?cell.dataset.f:null;
   const tr0=(e.target&&e.target.closest)?e.target.closest("tr"):null;
-  const finish=(rows,msg,custPasted,badDates)=>{
+  const finish=(rows,msg,custPasted,planDate)=>{
     pasteFinish(rows, !!custPasted);
     expandPastedDateGroups(rows);                        // 粘进来的行必须看得见（只展开折叠，不改日期）
-    if(badDates&&badDates.length){
-      const show=badDates.slice(0,3).join("、")+(badDates.length>3?"…":"");
-      toast(msg+"；"+badDates.length+" 个日期没认出来（"+show+"），已留空请手动填");
-    } else toast(msg);
+    toast(planDate ? (msg+"；发货日期已设为 "+planDate+"（表头日期）") : msg);
   };
 
   // ⓪ 「整行」粘贴：首列是发货日期（或落点就在「发货日期」列且≥3列）→ 视为整行数据，从「发货日期」开始按列对齐
@@ -3083,10 +3070,10 @@ function onTablePaste(e){
       const tr=rows[ri];
       vals.forEach((v,ci)=>{ const f=PASTE_COLS[ci]; if(f) pasteFill(tr,f,v); });
     });
-    sortRowsByDate();                                  // 带货日期 → 按日期归位（同日期保持原有先后）
+    const planDate=applyPlanDateToRows(rows);          // 其它列按粘贴原样，日期统一给表头日期（默认明天）
+    sortRowsByDate();                                  // 按日期归位（同日期保持原有先后）
     const custPasted=PASTE_COLS.slice(0,maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
-    const badDates=scrubPastedDates(rows, grid, PASTE_COLS.indexOf("shipdate"));   // 认不出的日期 → 留空提示，不补明天
-    finish(rows, "已粘贴 "+grid.length+" 行（整行信息）", custPasted, badDates);
+    finish(rows, "已粘贴 "+grid.length+" 行（整行信息）", custPasted, planDate);
     return;
   }
   // ① 型号 / 发货数量（两列以内）：从当前行往下铺，第二列互为另一列
@@ -3135,11 +3122,10 @@ function onTablePaste(e){
     const tr=rows[ri];
     vals.forEach((v,ci)=>{ const f=PASTE_COLS[a+ci]; if(f) pasteFill(tr,f,v); });
   });
-  // ★ 这里以前会给「没带日期」的行补上表头默认日期（表头默认=明天），用户看到的就是
-  //   「粘贴后日期自动变成明天」。现在不再碰日期：粘了日期就按日期、认不出就留空提示，
-  //   需要可见性由 expandPastedDateGroups 展开折叠来解决。
-  const badDates=scrubPastedDates(rows, grid, PASTE_COLS.indexOf("shipdate")-a);
-  finish(rows, "已粘贴 "+grid.length+" 行", custPasted, badDates);
+  // 粘贴区覆盖了「发货日期」列 → 日期统一给表头日期（默认明天）；没覆盖就完全不碰日期
+  const coversDate=PASTE_COLS.slice(a, a+maxCols).indexOf("shipdate")>=0;
+  const planDate=coversDate?applyPlanDateToRows(rows):null;
+  finish(rows, "已粘贴 "+grid.length+" 行", custPasted, planDate);
 }
 $("tbody").addEventListener("paste", onTablePaste);
 // 表格外粘贴（焦点不在表格里，例如刚点过页面空白处）：整行数据自动追加到表尾，免得粘了没反应
@@ -3159,13 +3145,11 @@ function onDocPaste(e){
   const rows=pasteTargetRows(null, grid.length, true);                   // 末尾追加新行
   const custPasted=PASTE_COLS.slice(0,maxCols).indexOf("customer")>=0;
   grid.forEach((vals,ri)=>vals.forEach((v,ci)=>{ const f=PASTE_COLS[ci]; if(f) pasteFill(rows[ri],f,v); }));
+  const planDate=applyPlanDateToRows(rows);          // 其它列按粘贴原样，日期统一给表头日期（默认明天）
   sortRowsByDate();
-  const badDates=scrubPastedDates(rows, grid, PASTE_COLS.indexOf("shipdate"));
   pasteFinish(rows, custPasted);
   expandPastedDateGroups(rows);
-  toast(badDates.length
-    ? "已粘贴 "+grid.length+" 行（追加到表尾）；"+badDates.length+" 个日期没认出来，已留空请手动填"
-    : "已粘贴 "+grid.length+" 行（整行信息，追加到表尾）");
+  toast("已粘贴 "+grid.length+" 行（追加到表尾）；发货日期已设为 "+planDate+"（表头日期）");
 }
 document.addEventListener("paste", onDocPaste);
 // ===================== 启动 =====================
