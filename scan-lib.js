@@ -152,20 +152,65 @@ window.ScanLib = (function () {
     });
     return __qrPromise;
   }
+  /* 这个内容要多少个模块（21/25/29/…/177）：先拿一次库的内部矩阵问出来。
+     只为确定模块数，不拿来显示。问不到就返回 0，后面会退回老做法。 */
+  function qrModuleCount(text){
+    try {
+      var tmp = document.createElement("div");
+      var q = new window.QRCode(tmp, { text: text, correctLevel: window.QRCode.CorrectLevel.M });
+      var n = (q && q._oQRCode && q._oQRCode.getModuleCount) ? q._oQRCode.getModuleCount() : 0;
+      return n > 0 ? n : 0;
+    } catch (e){ return 0; }
+  }
+
+  /* 二维码的唯一出口。两个细节决定「手机能不能扫出来」：
+     ① 模块边长必须取整数。qrcodejs 画方块用的是 x = round(j*k)、宽 = round(k)，
+        当 240/模块数 除不尽（比如 37 模块时 k=6.49 → 宽 6、间距 7）时，
+        相邻深色模块之间会留下 1px 白缝。白缝会破坏定位图形 1:1:3:1:1 的游程比，
+        手机直接认不出这张码——同一张单只是 id 长短不同就可能中招。
+        取 size = 模块数 × ceil(240/模块数)，k 就是整数，方块严丝合缝。
+     ② 补 4 个模块宽的静默区。库画出来的码是贴边的，码外没有留白也不好认，打印时尤其明显。 */
+  function makeQrInto(container, text, px){
+    px = px || 240;
+    var n = qrModuleCount(text);
+    var K = n > 0 ? Math.max(4, Math.ceil(px / n)) : 0;   // 每个模块的像素边长（整数）
+    var size = n > 0 ? n * K : px;
+    var box = document.createElement("div");
+    box.style.cssText = "position:fixed;left:-9999px;top:0;";
+    (document.body || document.documentElement).appendChild(box);
+    var cv = null;
+    try {
+      new window.QRCode(box, { text: text, width: size, height: size, correctLevel: window.QRCode.CorrectLevel.M });
+      var lib = box.querySelector("canvas");
+      if (lib){
+        var quiet = n > 0 ? K * 4 : Math.round(size * 0.08);   // 标准静默区 4 个模块
+        var out = document.createElement("canvas");
+        var octx = null;
+        try {
+          out.width = lib.width + quiet * 2;
+          out.height = lib.height + quiet * 2;
+          octx = out.getContext("2d");
+        } catch (e){ octx = null; }
+        if (octx){
+          octx.fillStyle = "#ffffff";
+          octx.fillRect(0, 0, out.width, out.height);
+          octx.drawImage(lib, quiet, quiet);
+          cv = out;
+        } else {
+          cv = lib;   // 拿不到 2D 上下文就退回库自己那张：没有静默区，但码本身是对的
+        }
+      }
+    } catch (e){ cv = null; }
+    if (box.parentNode) box.parentNode.removeChild(box);
+    if (cv && container){ container.innerHTML = ""; container.appendChild(cv); }
+    return cv;
+  }
+
   async function qrDataUrl(text){
     var okLib = await ensureQRCode();
     if (!okLib) return null;
-    var box = document.createElement("div");
-    box.style.cssText = "position:fixed;left:-9999px;top:0;";
-    document.body.appendChild(box);
-    var url = null;
-    try {
-      new window.QRCode(box, { text: text, width: 240, height: 240, correctLevel: window.QRCode.CorrectLevel.M });
-      var cv = box.querySelector("canvas");
-      if (cv) url = cv.toDataURL("image/png");
-    } catch (e){ url = null; }
-    if (box.parentNode) box.parentNode.removeChild(box);
-    return url;
+    var cv = makeQrInto(null, text, 240);
+    try { return cv ? cv.toDataURL("image/png") : null; } catch (e){ return null; }
   }
 
   // 进度徽章的外观也统一在这里（三端同一套），免得各页面各写一份、越走越不一样
@@ -236,9 +281,8 @@ window.ScanLib = (function () {
     m.style.display = "flex";
     ensureQRCode().then(function (okLib) {
       if (!okLib){ box.innerHTML = '<div class="smk-load">二维码组件加载失败（检查网络后重试）</div>'; return; }
-      box.innerHTML = "";
-      try { new window.QRCode(box, { text: url, width: 240, height: 240, correctLevel: window.QRCode.CorrectLevel.M }); }
-      catch (e){ box.innerHTML = '<div class="smk-load">生成失败</div>'; }
+      var cv = makeQrInto(box, url, 240);
+      if (!cv) box.innerHTML = '<div class="smk-load">生成失败</div>';
     });
   }
 
@@ -254,6 +298,7 @@ window.ScanLib = (function () {
       var cls = s >= 3 ? "p-done" : (s >= 2 ? "p-mid" : (s === 1 ? "p-ok" : "p-wait"));
       return '<span class="p-pill ' + cls + '">' + STEP_NAME[s] + (car ? " · 车已到" : "") + "</span>";
     },
-    ensureQRCode: ensureQRCode, qrDataUrl: qrDataUrl, openQrModal: openQrModal
+    ensureQRCode: ensureQRCode, qrDataUrl: qrDataUrl, openQrModal: openQrModal,
+    qrModuleCount: qrModuleCount, makeQrInto: makeQrInto
   };
 })();
