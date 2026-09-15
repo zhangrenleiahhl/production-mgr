@@ -7,6 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
+<script src="scan-lib.js?v=20260915"></script>
 <!-- 性能：xlsx.full.min.js（约 880KB）不再首屏加载，改为点「导出 Excel」时按需加载，发货员打开页面更快 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="ef5SDVfFecmq8rDwoWCj4X">
 <meta http-equiv="Pragma" content="no-cache" data-page-node-id="dSdiiSW8NXQSX1dmF79749">
@@ -133,6 +134,11 @@
   .cat-tag.tomorrow{background:#2563eb;}
   .cat-tag.future{background:#7c3aed;}
   .cat-tag.other{background:#94a3b8;}
+  /* ===== 发货进度：徽章外观与二维码弹层都由 scan-lib.js 统一注入（三端同一套）===== */
+  table.dt td.pg{text-align:center;white-space:nowrap;}
+  .rec-info .meta .prog-run{color:#b45309;font-weight:700;}
+  .rec-info .meta .prog-all{color:#047857;font-weight:800;}
+
 </style>
 </head>
 <body data-page-node-id="bgptoCqnVnvCqCBYqnarVe">
@@ -168,8 +174,10 @@
 const KEY = "shipping_plans_v1";           // 与管理端发布记录键一致
 const KEY_CT = "shipping_custton_v1";      // 客户吨位手动修改的本地备份（防云端旧数据覆盖）
 const KEY_DEL = "shipping_plans_del_v1";   // 管理端已删除记录的 id 墓碑（防止本地旧副本把它们"复活"）
+const KEY_PROG = "shipping_progress_v1";   // 发货进度（现场扫码页写入，本页只读展示）
 const $ = (id) => document.getElementById(id);
 let RECORDS = [];
+let PROG = {};                             // { 记录键: { "客户|发货日期": {s,t,car,ct,u} } }
 
 // ===================== 发布记录按 id 合并（只增不减）=====================
 // 为什么需要：本页保存客户吨位时会把整份 RECORDS 写回本地并推上云。如果 RECORDS 是
@@ -200,6 +208,62 @@ const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/
 // HTML 属性转义（客户名可能含引号 / 尖括号）
 const escAttr = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");   // 文本内容转义（防 XSS）
+
+// ===================== 发货进度（现场扫码页写入 → 本页实时显示）=====================
+// ★ 合并规则（只增不减）、二维码地址等「三端必须一模一样」的部分全部放在 scan-lib.js，
+//   这里只保留本页专用的展示逻辑。各写一份的下场就是「有时候进度会自己退回去」，极难查。
+const SL = window.ScanLib || {};
+const mergeProg   = SL.mergeProg;
+const scanUrl     = SL.scanUrl;
+const openQrModal = SL.openQrModal;
+const qrDataUrl   = SL.qrDataUrl;      // 打印单据时要把二维码印在纸上
+const ensureQRCode = SL.ensureQRCode;
+const STEP_NAME   = SL.STEP_NAME || ["货待确认", "货好", "装货中", "已完成"];
+const CAR_NAME    = SL.CAR_NAME  || ["车未到", "车已到"];
+const fmtHM       = SL.fmtHM || function () { return ""; };
+
+// 「进度统计口径」和「客户分组」都在 scan-lib.js：三端显示的「已完成 2/5」必须是同一个意思
+function progCell(rec, ck){ return SL.progOf(rec, ck, PROG); }
+const progStats = (rec) => SL.progStats(rec, PROG);
+
+const progPill = SL.progPill;   // 徽章外观与文案由公共库统一
+
+// 进度只影响「状态」，不能因为它变化就整页重绘——发货员正展开着明细看，一重绘就收起来了。
+// 所以进度用「就地刷新」：只改对应的徽章文字，不动别的。
+function applyProgressToDom(){
+  document.querySelectorAll(".rec").forEach(card => {
+    const rec = RECORDS.find(r => String(r.id) === card.dataset.rec);
+    if (!rec) return;
+    const st = progStats(rec);
+    const el = card.querySelector("[data-prog]");
+    if (el){
+      if (!st.total){ el.textContent = ""; el.className = "muted"; }
+      else if (!st.touched){
+        // 一张单刚发下来、现场一次都还没扫 → 只写「未开始」，别用 0/3 这种数字堆满卡片
+        el.textContent = "进度 未开始";
+        el.className = "muted";
+        el.title = "现场还没有扫码，点「二维码」把码印到单据上";
+      }
+      else if (st.done === st.total){
+        el.textContent = "进度 全部完成 ✓（" + st.done + "/" + st.total + "）";
+        el.className = "prog-all";
+        el.title = "全部客户已完成" + (st.last ? "　最后更新 " + fmtHM(st.last) : "");
+      } else {
+        el.textContent = "进度 已完成 " + st.done + "/" + st.total + " · 车已到 " + st.car + "/" + st.total;
+        el.className = "prog-run";
+        el.title = "现场扫码实时更新" + (st.last ? "　最后更新 " + fmtHM(st.last) : "");
+      }
+    }
+    // 已展开的明细表：逐行更新「发货进度」列
+    card.querySelectorAll("[data-ck]").forEach(td => {
+      const c = progCell(rec, td.dataset.ck);
+      const html = progPill(c.s, c.car);
+      if (td._pg !== html){ td._pg = html; td.innerHTML = html; }
+      const tt = (c.t ? "工序时间 " + fmtHM(c.t) : "") + (c.ct ? "　车到 " + fmtHM(c.ct) : "");
+      if (td.title !== tt) td.title = tt;
+    });
+  });
+}
 
 // ===================== 按发货日期分组（今天之前 / 今天 / 明天 / 明天之后）=====================
 function ymdStr(d){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,"0"); const day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
@@ -239,6 +303,10 @@ function init(){
         arr(cloudStr).forEach(x => set.add(String(x)));
         return JSON.stringify([...set].slice(-800));
       });
+      // ★ 进度护栏：只增不减。现场可能几个人同时扫同一张单，任何一次上传前引擎都会先跟云端
+      //   合并，这里保证合并结果是「进度更大」的那一份 —— 谁也不会把别人扫出来的进度盖回去。
+      // 护栏直接用公共库里的同一份实现（哪个页面写的都一样，不可能漂移）
+      CloudSync.guard(KEY_PROG, SL.guardFn || ((a, b) => JSON.stringify(mergeProg(SL.parseObj(a), SL.parseObj(b)))));
     }catch(e){}
   }
   load();
@@ -307,6 +375,13 @@ async function load(manual){
   let list = null, ok = !csReady, degraded = false;   // 没接云端 → 直接用本机数据
   if (csReady){
     try { const r = await CloudSync.pullResult(KEY); ok = r.ok; list = r.value; } catch(e){}
+    // 现场扫码写进来的进度（只读展示用）。拉不到也不算失败：进度没了不影响单据本身。
+    try {
+      const rp = await CloudSync.pullResult(KEY_PROG);
+      if (rp.ok && rp.value && typeof rp.value === "object") PROG = mergeProg(PROG, rp.value);
+    } catch(e){}
+  } else {
+    try { const p = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (p && typeof p === "object") PROG = mergeProg(PROG, p); } catch(e){}
   }
   if (ok){
     RECORDS = Array.isArray(list) ? list : [];
@@ -328,6 +403,7 @@ async function load(manual){
     __lastFp = fp;
     render();
   }
+  applyProgressToDom();                    // 进度就地刷新（不重绘整页，免得把展开的明细收起来）
   const t = new Date().toLocaleTimeString("zh-CN");
   $("status").textContent = degraded
     ? `⚠ 暂时连不上云端，显示的是上次的数据（${RECORDS.length} 个计划），会自动重试`
@@ -397,6 +473,7 @@ function card(rec){
   const div = document.createElement("div");
   const cat = classify(recShipDate(rec));
   div.className = "rec cat-" + cat;
+  div.dataset.rec = String(rec.id);     // 进度就地刷新时用来找回这条记录
   const rows = rec.rows || [];
   const tonByCust = {};
   rows.forEach(r => { const c = pad(r.customer); tonByCust[c] = (tonByCust[c] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
@@ -434,11 +511,13 @@ function card(rec){
           <span>吨位 ${pad(fmtTon)}</span>
           ${fmtSubTon ? `<span data-subton>客户吨位 ${pad(fmtSubTon)}</span>` : `<span data-subton style="display:none">客户吨位 ${pad(fmtSubTon)}</span>`}
           <span>箱数 ${pad(fmtBox)}</span>
+          <span data-prog class="muted"></span>
           <span class="muted">发布 ${pad(rec.publishedAt)}</span>
         </div>
       </div>
       <div class="rec-acts">
         <button class="btn sm" data-act="toggle">查看明细</button>
+        <button class="btn sm" data-act="qr" title="生成这张发货单的二维码：现场用手机扫它来更新每道工序">二维码</button>
         <button class="btn sm" data-act="excel">Excel</button>
         <button class="btn sm" data-act="csv">CSV</button>
         <button class="btn sm" data-act="print">打印</button>
@@ -449,13 +528,25 @@ function card(rec){
   div.querySelector(".rec-sel").onchange = updateSel;
   div.querySelector('[data-act="toggle"]').onclick = () => {
     const d = div.querySelector(".rec-detail");
-    if (d.style.display === "none"){ d.innerHTML = detailTable(rec, tonByCust); d.style.display = "block"; bindDetail(d, rec); }
+    if (d.style.display === "none"){ d.innerHTML = detailTable(rec, tonByCust); d.style.display = "block"; bindDetail(d, rec); applyProgressToDom(); }
     else d.style.display = "none";
   };
+  div.querySelector('[data-act="qr"]').onclick    = () => showQr(rec);
   div.querySelector('[data-act="excel"]').onclick = () => downloadOne(rec, "excel");
   div.querySelector('[data-act="csv"]').onclick   = () => downloadOne(rec, "csv");
   div.querySelector('[data-act="print"]').onclick = () => printRec(rec);
   return div;
+}
+
+// 每张发货单一个二维码：现场把它印在单据上，或直接甩图片给装车的人。
+function showQr(rec){
+  const rk = recKeyOf(rec);
+  if (!rk){ alert("这张单没有编号，暂时无法生成二维码。请让计划员重新发布一次。"); return; }
+  openQrModal(
+    "发货单 " + pad(rec.no) + (rec.planner ? " · " + rec.planner : ""),
+    "发货日期 " + pad(recShipDate(rec)) + " ｜ " + (rec.rows || []).length + " 行 ｜ 现场扫码更新发货进度",
+    scanUrl(rk)
+  );
 }
 
 // ===================== 客户吨位：可手动修改（带覆盖值）=====================
@@ -489,9 +580,14 @@ function detailTable(rec, tonByCust){
       pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
       `<input type="text" class="custton-in${ovd}" value="${val}" data-key="${escAttr(key)}" data-old="${val}" inputmode="decimal">`,
-      pad(r.logistics), pad(r.code)
+      pad(r.logistics), pad(r.code),
+      { raw: `<td class="pg" data-ck="${escAttr(key)}" title="现场扫码后实时显示"></td>` }   // 14 = 发货进度（工序 + 车辆）
     ];
-    const tds = cells.map((c, ci) => numCols.includes(ci) ? `<td class="num">${c}</td>` : `<td>${c}</td>`).join("");
+    // 单元格统一在这里套 <td>；需要自带属性的（如「发货进度」）用 {raw:"<td …></td>"} 直接给整格
+    const tds = cells.map((c, ci) => {
+      if (c && typeof c === "object" && c.raw) return c.raw;
+      return numCols.includes(ci) ? `<td class="num">${c}</td>` : `<td>${c}</td>`;
+    }).join("");
     return `<tr>${tds}</tr>`;
   }).join("");
 
@@ -506,7 +602,7 @@ function detailTable(rec, tonByCust){
   body += `<tr class="sum">
       <td></td><td colspan="3">合计</td>
       <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(2)}</td><td class="num">${sumT.toFixed(1)}</td>
-      <td></td><td class="num">${sumB}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td>
+      <td></td><td class="num">${sumB}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td><td></td>
     </tr>`;
 
   return `
@@ -520,7 +616,7 @@ function detailTable(rec, tonByCust){
     </div>
     <table class="dt"><thead><tr>
       <th></th><th>发货日期</th><th>送达方</th><th>型号</th><th>发货数量</th><th>发货点</th><th>箱重T</th><th>产品重量T</th>
-      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物流</th><th>物料编码</th>
+      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物流</th><th>物料编码</th><th>发货进度</th>
     </tr></thead><tbody>${body}</tbody></table>`;
 }
 
@@ -824,56 +920,87 @@ async function batchDownload(fmt){
 }
 
 // ===================== 打印 =====================
-function printRows(rows, title, date, rec){
+// 打印样式里顺带把「二维码」印在单据右上角：现场拿这张纸就能扫码更新进度
+const PRINT_CSS = `
+  body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
+  .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  h2{font-size:16px;margin:0 0 4px;}
+  .phs{font-size:11px;color:#333;}
+  .qrblock{text-align:center;flex-shrink:0;}
+  .qrblock img{width:112px;height:112px;display:block;}
+  .qrt{font-size:10px;color:#333;margin-top:2px;line-height:1.35;}
+  .qrhint{font-size:10px;color:#666;max-width:130px;text-align:center;}
+  table{border-collapse:collapse;width:100%;margin-top:8px;}
+  th,td{border:1px solid #000;padding:5px 7px;text-align:center;vertical-align:middle;}
+  th{background:#2563eb;color:#fff;}
+  section.one{page-break-after:always;page-break-inside:avoid;}
+  section.one:last-child{page-break-after:auto;}
+`;
+async function printQrHtml(rec){
+  if (!rec) return "";
+  const rk = recKeyOf(rec);
+  if (!rk) return "";
+  let img = null;
+  try { img = await qrDataUrl(scanUrl(rk)); } catch(e){ img = null; }
+  if (!img) return '<div class="qrhint">（二维码未生成，连上网后重新点一次打印即可带上）</div>';
+  return '<div class="qrblock"><img src="' + img + '"><div class="qrt">' +
+    esc(pad(rec.no)) + '<br>扫码更新发货进度</div></div>';
+}
+
+async function printRows(rows, title, date, rec){
   const {head, data, tonCol} = matrix(rows, date, rec);
   const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
   const tbody = rowsToTbody(data, [3, 5, 6, 8], [tonCol]);   // 不合并单元格；吨位打印保留一位小数
+  // ★ 窗口必须「先开、后等二维码」：await 之后浏览器就不认为这是用户点击了，
+  //   window.open 会被拦截。所以顺序不能反。
+  const w = window.open("", "_blank");
+  const qr = await printQrHtml(rec);
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划 ${pad(title)}</title>
-    <style>
-      body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
-      h2{font-size:16px;margin:0 0 10px;}
-      table{border-collapse:collapse;width:100%;}
-      th,td{border:1px solid #000;padding:5px 7px;text-align:center;vertical-align:middle;}
-      th{background:#2563eb;color:#fff;}
+    <style>${PRINT_CSS}
       td:nth-child(4),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
     </style></head><body>
-    <h2>发货计划 ${pad(title)}</h2>
+    <div class="ph"><div class="ph-l"><h2>发货计划 ${pad(title)}</h2>
+      <div class="phs">发货日期 ${pad(date)} ｜ 共 ${rows.length} 行</div></div>${qr}</div>
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
     <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
     </body></html>`;
-  const w = window.open("", "_blank");
+  if (!w){ alert("打印窗口被浏览器拦住了：请允许本站弹出窗口，然后重试一次。"); return; }
   w.document.write(html);
   w.document.close();
   w.focus();
 }
 
-function printRec(rec){ printRows(rec.rows || [], rec.no, recShipDate(rec), rec); }
+function printRec(rec){ return printRows(rec.rows || [], rec.no, recShipDate(rec), rec); }
 
-function batchPrint(){
+async function batchPrint(){
   const ids = [...document.querySelectorAll(".rec-sel:checked")].map(c => c.dataset.id);
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要打印的计划单（卡片左侧的方框）"); return; }
 
-  const {head, data, tonCol} = batchMatrix(recs);
-  const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
-  const tbody = rowsToTbody(data, [4, 6, 7, 9], [tonCol]);   // 不合并单元格；吨位打印保留一位小数
-
+  const w = window.open("", "_blank");     // 同上：先开窗口，再生成二维码
+  // 批量打印改成「一单一页」：每张单自己带标题、自己的二维码、自己的表。
+  // 这样现场拿到的一页纸就是一张单，不会和别的单串在一起。
+  let blocks = "";
+  for (let i = 0; i < recs.length; i++){
+    const rec = recs[i];
+    const {head, data, tonCol} = matrix(rec.rows || [], recShipDate(rec), rec);
+    const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
+    const tbody = rowsToTbody(data, [3, 5, 6, 8], [tonCol]);
+    const qr = await printQrHtml(rec);
+    blocks += '<section class="one"><div class="ph"><div class="ph-l">' +
+      "<h2>发货计划 " + esc(pad(rec.no)) + (rec.planner ? " · " + esc(rec.planner) : "") + "</h2>" +
+      '<div class="phs">发货日期 ' + esc(pad(recShipDate(rec))) + " ｜ 共 " + (rec.rows || []).length + " 行</div></div>" +
+      qr + "</div><table><thead>" + thead + "</thead><tbody>" + tbody + "</tbody></table></section>";
+  }
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划批量打印（${recs.length} 单）</title>
-    <style>
-      body{font-family:"Microsoft YaHei","微软雅黑",sans-serif;font-size:12px;color:#000;margin:18px;}
-      h2{font-size:16px;margin:0 0 10px;}
-      table{border-collapse:collapse;width:100%;}
-      th,td{border:1px solid #000;padding:5px 7px;text-align:center;vertical-align:middle;}
-      th{background:#2563eb;color:#fff;}
-      td:nth-child(5),td:nth-child(7),td:nth-child(8),td:nth-child(10){text-align:right;}
-    </style></head><body>
-    <h2>发货计划批量（${recs.length} 单）</h2>
-    <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+    <style>${PRINT_CSS}
+      td:nth-child(4),td:nth-child(6),td:nth-child(7),td:nth-child(9){text-align:right;}
+    </style></head><body>${blocks}
     <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
     </body></html>`;
-  const w = window.open("", "_blank");
+  if (!w){ alert("打印窗口被浏览器拦住了：请允许本站弹出窗口，然后重试一次。"); return; }
   w.document.write(html);
   w.document.close();
   w.focus();
