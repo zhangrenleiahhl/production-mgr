@@ -10,6 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
+<script src="scan-lib.js?v=20260915"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -397,6 +398,35 @@
   /* 嵌入「生产管理客户端」框架页时，隐藏自身导航栏，避免顶部双层重复 */
   html.in-iframe #appbar{display:none !important;}
   html.in-iframe .wrap{padding-top:0;}
+  /* ===== 发货进度看板（现场扫码 → 实时）===== */
+  .recprog{display:inline-block;margin-top:2px;font-weight:700;}
+  .recprog.run{color:#b45309;}
+  .recprog.all{color:#047857;}
+  .prog-mask{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2500;align-items:center;justify-content:center;padding:18px;}
+  .prog-mask .pb{background:#fff;border-radius:14px;width:min(1080px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.35);}
+  .prog-mask .head{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,#eef2ff,#fff);flex-wrap:wrap;}
+  .prog-mask .head .t{font-size:16px;font-weight:800;color:var(--txt);}
+  .prog-mask .head .s{font-size:12px;color:var(--muted);}
+  .prog-mask .head .sp{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  .pb-body{overflow:auto;padding:14px 18px 20px;}
+  .pbone{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden;}
+  .pbone.full{border-color:#a7f3d0;background:#f7fffb;}
+  .pbone .ph{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:#f8fafc;border-bottom:1px solid var(--line);}
+  .pbone.full .ph{background:#ecfdf5;}
+  .pbone .ph b{font-size:14.5px;color:var(--txt);}
+  .pbone .ph .pl{font-size:12px;color:var(--muted);}
+  .pbone .ph .m{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .pbone .ph .rt{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .pbstat{font-size:12px;font-weight:800;color:#b45309;}
+  .pbstat.ok{color:#047857;}
+  table.pbt2{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.pbt2 th{background:#f1f5ff;color:#1e3a8a;font-weight:700;text-align:left;padding:6px 9px;white-space:nowrap;}
+  table.pbt2 td{border-top:1px solid var(--line-2);padding:6px 9px;vertical-align:middle;}
+  table.pbt2 td.n{text-align:right;font-variant-numeric:tabular-nums;}
+  table.pbt2 td.t{color:var(--muted);white-space:nowrap;}
+  .pb-empty{padding:36px;text-align:center;color:var(--muted);}
+  .pbsm{padding:4px 10px;font-size:12px;}
+  .pb-legend{font-size:11.5px;color:var(--muted);margin:0 0 10px;}
 </style>
 <script>if(window.self!==window.top){document.documentElement.classList.add('in-iframe');}</script>
 </head>
@@ -433,6 +463,7 @@
     </div>
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
     <button class="btn btn-line" id="copyModelCode" title="复制勾选行的整行信息（发货日期/送达方/型号/发货数量/发货点/交货单/箱数/时效要求/箱重T/产品重量T/客户吨位/物流/物料编码，制表符分隔；可直接粘回表格，也可粘到 Excel）">复制</button>
+    <button class="btn btn-line" id="progBoardBtn" title="发货进度看板：现场用手机扫发货单上的二维码，逐道工序更新；这里实时显示（打开时每 10 秒刷新）">📱 发货进度</button>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
       <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
@@ -2886,15 +2917,18 @@ function renderRecords(){
       <div class="cat-body"></div>`;
     const body=sec.querySelector(".cat-body");
     arr.forEach(rec=>{
-      const card=document.createElement("div"); card.className="rec";
+      const card=document.createElement("div"); card.className="rec"; card.dataset.rec=String(rec.id);   // 进度摘要就地刷新时用来找回记录
       const noText=esc(rec.no||"")+(rec.planner?` · ${esc(rec.planner)}`:"");
       card.innerHTML=`
         <div class="info"><b>${noText}</b><br>日期：${esc(rec.date||"")}${rec.maker?' ｜ 制单：'+esc(rec.maker):''}<br>
-          共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")}</div>
+          共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")}
+          <div data-prog class="recprog"></div></div>
         <div class="acts">
+          <button class="btn btn-line" data-act="qr" title="生成这张单的二维码：现场手机扫码即可更新每道工序">二维码</button>
           <button class="btn btn-line" data-act="csv">导出CSV</button>
           <button class="btn btn-danger" data-act="del">删除</button>
         </div>`;
+      card.querySelector('[data-act="qr"]').onclick=()=>showRecQr(rec);
       card.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows||[], rec.no);
       card.querySelector('[data-act="del"]').onclick=()=>{
         askDeletePwd(rec, ()=>{
@@ -3300,6 +3334,191 @@ if(window.CloudSync){
     });
   } else { CloudSync.setStatus('未配置云端','off'); }
 }
+
+/* ==================================================================
+   发货进度（现场扫码 → 管理端实时看板）
+   ------------------------------------------------------------------
+   · 现场用手机扫「发货单上的二维码」→ 打开 扫码.html → 点一下推进一步工序
+   · 进度存在云端 key = shipping_progress_v1（合并规则「只增不减」，见 scan-lib.js）
+   · 这里：① 看板打开期间每 10 秒拉一次，实时显示
+           ② 看板关着时每 60 秒拉一次，只更新发布记录卡上的进度摘要
+   ================================================================== */
+const SLB = window.ScanLib;
+let PROG = {};
+let progOpen = false, progTimer = 0;
+
+function progStatsOf(rec){
+  return SLB ? SLB.progStats(rec, PROG) : { total: 0, done: 0, car: 0, touched: 0, last: 0, step: 0 };
+}
+
+async function pullProg(){
+  if(!SLB) return false;
+  let ok = true;
+  if(window.CloudSync && CloudSync.ready()){
+    try{
+      const r = await CloudSync.pullResult(SLB.KEY_PROG);
+      ok = r.ok;
+      if(r.ok && r.value && typeof r.value === "object") PROG = SLB.mergeProg(PROG, r.value);
+    }catch(e){ ok = false; }
+  } else {
+    try{ const v = JSON.parse(localStorage.getItem(SLB.KEY_PROG) || "null"); if(v && typeof v === "object") PROG = SLB.mergeProg(PROG, v); }catch(e){}
+  }
+  try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
+  updateRecProg();
+  if(progOpen) renderBoard();
+  return ok;
+}
+
+// 发布记录卡上的进度摘要（就地刷新，不动别的）
+function updateRecProg(){
+  if(!SLB) return;
+  const map = new Map(loadRec().map(function(r){ return [String(r.id), r]; }));
+  document.querySelectorAll("#records .rec[data-rec]").forEach(function(card){
+    const rec = map.get(card.dataset.rec);
+    const el = card.querySelector("[data-prog]");
+    if(!rec || !el) return;
+    const st = progStatsOf(rec);
+    if(!st.total){ el.textContent = ""; el.className = "recprog"; el.title = ""; }
+    else if(!st.touched){
+      el.textContent = "发货进度 未开始";
+      el.className = "recprog";
+      el.title = "现场还没有扫码。点「二维码」把码印到发货单上，现场扫一次就更新一道工序。";
+    } else if(st.done === st.total){
+      el.textContent = "发货进度 全部完成 ✓（" + st.done + "/" + st.total + "）";
+      el.className = "recprog all";
+      el.title = "全部客户已完成" + (st.last ? "　最后更新 " + SLB.fmtHM(st.last) : "");
+    } else {
+      el.textContent = "发货进度 已完成 " + st.done + "/" + st.total + " ｜ 车已到 " + st.car + "/" + st.total;
+      el.className = "recprog run";
+      el.title = "现场扫码实时更新" + (st.last ? "　最后更新 " + SLB.fmtHM(st.last) : "");
+    }
+  });
+}
+
+function boardRecords(){
+  const p = function(n){ return String(n).padStart(2, "0"); };
+  const fmt = function(d){ return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
+  const lo = new Date(); lo.setDate(lo.getDate() - 7);
+  const loStr = fmt(lo);
+  return loadRec()
+    .filter(function(r){ const d = String(recShipDate(r) || "").slice(0, 10); return !d || d >= loStr; })
+    .sort(function(a, b){
+      const x = String(recShipDate(a) || ""), y = String(recShipDate(b) || "");
+      if(x !== y) return x < y ? -1 : 1;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
+    });
+}
+
+function renderBoard(){
+  const body = $("pbBody");
+  if(!body) return;
+  const list = boardRecords();
+  if(!list.length){
+    body.innerHTML = '<div class="pb-empty">最近 7 天没有已发布的发货单。<br>先在下面「发布记录」里发布，现场就能扫码更新进度了。</div>';
+    $("pbSum").textContent = "";
+    return;
+  }
+  let doneAll = 0, totAll = 0, carAll = 0, doneRecs = 0;
+  const html = list.map(function(rec){
+    const gs = SLB.custGroups(rec);
+    const st = progStatsOf(rec);
+    doneAll += st.done; totAll += st.total; carAll += st.car;
+    const full = st.total > 0 && st.done === st.total;
+    if(full) doneRecs++;
+    const rows = gs.map(function(g){
+      const c = SLB.progOf(rec, g.key, PROG);
+      return "<tr><td>" + SLB.esc(g.customer) + "</td>" +
+        "<td>" + SLB.esc(g.logistics || "/") + "</td>" +
+        '<td class="n">' + (g.ton ? g.ton.toFixed(1) : "/") + "</td>" +
+        "<td>" + SLB.progPill(c.s, c.car) + "</td>" +
+        '<td class="t">' + (c.u ? SLB.fmtHM(c.u) : "") + "</td></tr>";
+    }).join("");
+    return '<section class="pbone' + (full ? " full" : "") + '">' +
+      '<div class="ph"><div><b>' + SLB.esc(String(rec.no || "（无单号）")) + "</b>" +
+        (rec.planner ? ' <span class="pl">' + SLB.esc(rec.planner) + "</span>" : "") +
+        '<div class="m">发货日期 ' + SLB.esc(SLB.pad(recShipDate(rec))) + " ｜ " + gs.length +
+        " 个客户 ｜ 发布 " + SLB.esc(rec.publishedAt || "-") + "</div></div>" +
+        '<div class="rt"><span class="pbstat' + (full ? " ok" : "") + '">已完成 ' + st.done + "/" + st.total +
+        " ｜ 车已到 " + st.car + "/" + st.total + "</span>" +
+        '<button class="btn btn-line pbsm" data-qr="' + SLB.esc(String(rec.id)) + '">二维码</button></div></div>' +
+      '<table class="pbt2"><thead><tr><th>客户</th><th>物流</th><th>吨位</th><th>发货进度</th><th>最后更新</th></tr></thead><tbody>' +
+      rows + "</tbody></table></section>";
+  }).join("");
+  body.innerHTML = '<p class="pb-legend">工序：货待确认 → 货好 → 装货中 → 已完成　｜　车辆：未到 / 已到（与工序分开记）　｜　只显示最近 7 天以来的发货单</p>' + html;
+  body.querySelectorAll("[data-qr]").forEach(function(b){
+    b.onclick = function(){ showRecQr(loadRec().find(function(r){ return String(r.id) === b.dataset.qr; })); };
+  });
+  $("pbSum").textContent = list.length + " 张单 ｜ 客户 " + totAll + " 个（已完成 " + doneAll + "，车已到 " + carAll + "）" +
+    (doneRecs ? " ｜ " + doneRecs + " 张已全完成" : "");
+}
+
+function showRecQr(rec){
+  if(!SLB){ toast("进度模块没加载出来，请按 Ctrl+F5 刷新页面"); return; }
+  if(!rec){ toast("这张单已经不在了（可能刚被删除）"); return; }
+  const rk = SLB.recKeyOf(rec);
+  if(!rk){ toast("这张单没有编号，暂时无法生成二维码"); return; }
+  SLB.openQrModal("发货单 " + String(rec.no || ""),
+    "发货日期 " + SLB.pad(recShipDate(rec)) + " ｜ " + ((rec.rows || []).length) + " 行 ｜ 现场扫码更新发货进度",
+    SLB.scanUrl(rk));
+}
+
+function openBoard(){
+  const m = $("progBoard");
+  if(!m) return;
+  m.style.display = "flex";
+  progOpen = true;
+  renderBoard();
+  $("pbSync").textContent = "正在拉取现场进度…";
+  pullProg().then(function(ok){
+    $("pbSync").textContent = ok ? ("已同步 · " + new Date().toLocaleTimeString("zh-CN"))
+                                 : "⚠ 暂时连不上云端，显示的是上次数据";
+  });
+  clearInterval(progTimer);
+  progTimer = setInterval(function(){ if(progOpen && !document.hidden) pullProg(); }, 10000);
+}
+function closeBoard(){
+  const m = $("progBoard");
+  if(m) m.style.display = "none";
+  progOpen = false;
+  clearInterval(progTimer); progTimer = 0;
+}
+
+function bootProg(){
+  if(!SLB){ console.warn("scan-lib.js 未加载，发货进度不可用"); return; }
+  try{ if(window.CloudSync && CloudSync.guard) CloudSync.guard(SLB.KEY_PROG, SLB.guardFn); }catch(e){}
+  const b = $("progBoardBtn"); if(b) b.onclick = openBoard;
+  const c = $("pbClose"); if(c) c.onclick = closeBoard;
+  const r = $("pbRefresh");
+  if(r) r.onclick = function(){
+    $("pbSync").textContent = "正在刷新…";
+    pullProg().then(function(){ $("pbSync").textContent = "已同步 · " + new Date().toLocaleTimeString("zh-CN"); });
+  };
+  const m = $("progBoard");
+  if(m) m.addEventListener("click", function(e){ if(e.target === m) closeBoard(); });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && progOpen) closeBoard(); });
+  pullProg();
+  setInterval(function(){ if(!document.hidden && !progOpen) pullProg(); }, 60000);
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden && !progOpen) pullProg(); });
+}
+// ★ 必须在 DOM 就绪后再初始化：看板的 DOM 排在脚本后面，直接调用的话
+//   bootProg 里的 $("pbClose")/$("progBoard") 还是 null，关闭按钮会点不动。
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootProg);
+else bootProg();
 </script>
+<!-- 发货进度看板（现场扫码实时更新） -->
+<div class="prog-mask" id="progBoard">
+  <div class="pb">
+    <div class="head">
+      <span class="t">发货进度</span>
+      <span class="s" id="pbSync">打开期间每 10 秒自动刷新</span>
+      <span class="sp">
+        <span class="s" id="pbSum"></span>
+        <button class="btn btn-line pbsm" id="pbRefresh">↻ 刷新</button>
+        <button class="btn btn-line pbsm" id="pbClose">关闭</button>
+      </span>
+    </div>
+    <div class="pb-body" id="pbBody"></div>
+  </div>
+</div>
 </body>
 </html>
