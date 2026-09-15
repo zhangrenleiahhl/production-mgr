@@ -1017,6 +1017,12 @@ function syncTopbarOffset(){
 syncTopbarOffset();
 window.addEventListener("resize", syncTopbarOffset);
 window.addEventListener("load", syncTopbarOffset);
+// 窗口尺寸变了 → 列宽跟着变，已算好的 textarea 高度不再适用（长文本会被截断）→ 去抖后全量重测
+let __rszT=0;
+window.addEventListener("resize", ()=>{
+  clearTimeout(__rszT);
+  __rszT=setTimeout(()=>{ invalidateFitCache(); fitTextareas(); }, 160);
+});
 if(window.ResizeObserver){
   const ro=new ResizeObserver(()=>syncTopbarOffset());
   const ab=$("appbar"); if(ab) ro.observe(ab);
@@ -1646,11 +1652,20 @@ function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客
   });
   rows.forEach(r=>tb.appendChild(r));
 }
+// 自适应高度的缓存失效开关：列宽/可用宽度可能变了（窗口缩放、出现滚动条等）→ 下次全量重测。
+// 不这么做的话，窄窗口下量出的「一行高度」会被缓存住，窗口拉宽/拉窄后长文本就一直被截断。
+let __fitEpoch=1, __fitSeen=0;
+function invalidateFitCache(){ __fitEpoch++; }
 function fitTextarea(ta){
   if(!ta) return;
-  ta._fitVal=ta.value;                 // 与全量版共享缓存，避免下次全量测量时又白测一遍
   ta.style.height="auto";
-  const h=Math.max(26,ta.scrollHeight);
+  const raw=ta.scrollHeight;
+  // ★ 元素此刻没有布局盒（被折叠、被合并隐藏、所在列被隐藏）→ scrollHeight 恒为 0，
+  //   这个结果不能信、更不能缓存：一旦缓存住，它重新显示时会因为「值没变」被永久跳过，
+  //   长文本就只显示第一行（如「杭州鑫洲制冷设备有限公司」只看到「杭州鑫洲制冷设备有限」）。
+  if(raw===0){ ta._fitVal=undefined; ta.style.height="26px"; return; }
+  ta._fitVal=ta.value;                 // 与全量版共享缓存，避免下次全量测量时又白测一遍
+  const h=Math.max(26,raw);
   ta.style.height=h+"px";
   // 合并单元格：同时给 td 设最小高度，让 rowspan 组随内容撑开
   const td=ta.closest("td");
@@ -1666,7 +1681,10 @@ function fitTextareas(force){
   //   最常做的「改数量 / 改箱数」根本不碰 textarea，所以这里能整段跳过（一次布局都不做）。
   const tas=$("tbody").querySelectorAll("textarea");
   if(!tas.length) return;
-  let anyChanged=!!force;
+  // 列宽变过（窗口缩放/滚动条出现）→ 这一轮全量重测，否则旧高度会一直沿用
+  force = !!force || __fitEpoch!==__fitSeen;
+  if(force) __fitSeen=__fitEpoch;
+  let anyChanged=force;
   if(!anyChanged){
     for(let i=0;i<tas.length;i++){ const ta=tas[i]; if(ta._fitVal!==ta.value){ anyChanged=true; break; } }
   }
@@ -1680,13 +1698,19 @@ function fitTextareas(force){
   if(!dirty.length) return;
   // 读写分离：先批量写 auto，再批量读高度（这样浏览器只会做一次布局）
   for(let i=0;i<dirty.length;i++) dirty[i].style.height="auto";
-  const hs=[];
-  for(let i=0;i<dirty.length;i++) hs.push(Math.max(26, dirty[i].scrollHeight));
+  const raw=[];
+  for(let i=0;i<dirty.length;i++) raw.push(dirty[i].scrollHeight);
   for(let i=0;i<dirty.length;i++){
-    const v=hs[i]+"px";
-    if(dirty[i].style.height!==v) dirty[i].style.height=v;
-    const td=dirty[i].closest("td");
-    if(td && td.rowSpan>1){ const tv=(hs[i]+4)+"px"; if(td.style.height!==tv) td.style.height=tv; }
+    const ta=dirty[i];
+    // ★ 没有布局盒（折叠/合并/隐藏列 → display:none）时 scrollHeight 恒为 0：
+    //   这次测量作废，缓存清掉（不留 0 的结果），等它重新显示时自然会再测一次。
+    //   老代码把 26px 缓存住 → 展开后因为「值没变」被跳过 → 长文本只显示一行被截断。
+    if(raw[i]===0){ ta._fitVal=undefined; if(ta.style.height!=="26px") ta.style.height="26px"; continue; }
+    const h=Math.max(26, raw[i]);
+    const v=h+"px";
+    if(ta.style.height!==v) ta.style.height=v;
+    const td=ta.closest("td");
+    if(td && td.rowSpan>1){ const tv=(h+4)+"px"; if(td.style.height!==tv) td.style.height=tv; }
   }
 }
 // —— 性能优化：输入时的全表刷新合批。打字会连续触发 recalc / 合并 / 折叠 / 高亮等多轮全表遍历，
