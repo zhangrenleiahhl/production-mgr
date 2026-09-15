@@ -691,14 +691,41 @@ function restoreCustTon(){
 
 // ===================== 渲染行（不合并单元格，每行完整显示）=====================
 // numCols：需要右对齐 + 等宽数字的列号
-function rowsToTbody(data, numCols){
+// decCols：需要「保留一位小数显示」的列（导出/打印里吨位是数字，打印时补回 .0 的观感）
+function rowsToTbody(data, numCols, decCols){
   return data.map(row => {
-    const tds = row.map((cell, ci) => numCols.includes(ci) ? `<td class="num">${cell}</td>` : `<td>${cell}</td>`).join("");
+    const tds = row.map((cell, ci) => {
+      let v = cell;
+      if (decCols && decCols.includes(ci)) v = (parseFloat(cell) || 0).toFixed(1);
+      return numCols.includes(ci) ? `<td class="num">${v}</td>` : `<td>${v}</td>`;
+    }).join("");
     return `<tr>${tds}</tr>`;
   }).join("");
 }
 
 // ===================== 导出 =====================
+// 「客户吨位」导出必须是**真数字**，Excel 里才能直接求和。
+// 原来写的是 .toFixed(1)：那是「字符串」，SheetJS 会存成文本单元格 → 选中一列看求和是 0。
+function tonNumber(rec, r, tonByKey){
+  const n = parseFloat(custTonVal(rec, r, tonByKey));
+  return isFinite(n) ? Number(n.toFixed(1)) : 0;
+}
+// xlsx：值保持数字，另设单元格格式「0.0」→ 显示仍是 22.6 / 75.0，但类型是数值，可求和
+function styleTonColumn(ws, col, rowCount){
+  for (let i = 1; i <= rowCount; i++){
+    const c = ws[XLSX.utils.encode_cell({ r: i, c: col })];
+    if (c){ c.t = "n"; c.v = Number(c.v) || 0; c.z = "0.0"; }
+  }
+}
+// csv：该列显式写成一位小数的纯数字文本（Excel/WPS 打开即为可求和的数值），不加引号干扰
+function csvText(head, data, tonCol){
+  const lines = [head, ...data].map((row, ri) => row.map((c, i) => {
+    let v = (ri > 0 && i === tonCol) ? (parseFloat(c) || 0).toFixed(1) : c;
+    v = String(v == null ? "" : v);
+    return '"' + v.replace(/"/g, '""') + '"';
+  }).join(","));
+  return "\ufeff" + lines.join("\n");
+}
 // rec 可选：传入后「客户吨位」优先取 rec.custTon 里的手动修改值
 function matrix(rows, date, rec){
   const head = ["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","物料编码"];
@@ -710,9 +737,9 @@ function matrix(rows, date, rec){
     const key = pad(r.customer) + "|" + pad(r.shipdate);
     return [pad(date || r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
-      custTonVal(rec, r, tonByKey).toFixed(1), pad(r.logistics), pad(r.code)];
+      tonNumber(rec, r, tonByKey), pad(r.logistics), pad(r.code)];
   });
-  return {head, data};
+  return {head, data, tonCol: 10};   // tonCol = 「客户吨位」所在列（0 起）
 }
 
 // ===== 按需加载 Excel 组件（首屏不再下载 880KB，点导出时才拉）=====
@@ -732,16 +759,17 @@ function ensureXLSX(){
 
 async function exportExcel(rows, name, date, rec){
   if (!(await ensureXLSX())){ alert("Excel 组件加载失败，请检查网络后重试（也可改用 CSV 导出）"); return; }
-  const {head, data} = matrix(rows, date, rec);
+  const {head, data, tonCol} = matrix(rows, date, rec);
   const ws = XLSX.utils.aoa_to_sheet([head, ...data]);   // 不做单元格合并，每行完整
+  styleTonColumn(ws, tonCol, data.length);               // 「客户吨位」= 数值单元格，可直接求和
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, String(name).slice(0, 28));
   XLSX.writeFile(wb, `发货计划_${name}.xlsx`);
 }
 
 function exportCsv(rows, name, date, rec){
-  const {head, data} = matrix(rows, date, rec);
-  const csv = "﻿" + [head, ...data].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+  const {head, data, tonCol} = matrix(rows, date, rec);
+  const csv = csvText(head, data, tonCol);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -766,10 +794,10 @@ function batchMatrix(recs){
     (rec.rows || []).forEach(r => {
       const key = pad(r.customer) + "|" + pad(r.shipdate);
       data.push([pad(rec.no), sd, pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
-        pad(r.delivery), pad(r.box), pad(r.remark), custTonVal(rec, r, tonByKey).toFixed(1), pad(r.logistics), pad(r.code)]);
+        pad(r.delivery), pad(r.box), pad(r.remark), tonNumber(rec, r, tonByKey), pad(r.logistics), pad(r.code)]);
     });
   });
-  return {head, data};
+  return {head, data, tonCol: 11};   // tonCol = 「客户吨位」所在列（0 起）
 }
 
 async function batchDownload(fmt){
@@ -777,15 +805,16 @@ async function batchDownload(fmt){
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要下载的计划单（卡片左侧的方框）"); return; }
 
-  const {head, data} = batchMatrix(recs);
+  const {head, data, tonCol} = batchMatrix(recs);
   if (fmt === "excel"){
     if (!(await ensureXLSX())){ alert("Excel 组件加载失败，请检查网络后重试（也可改用 CSV 导出）"); return; }
     const ws = XLSX.utils.aoa_to_sheet([head, ...data]);   // 不做单元格合并，每行完整
+    styleTonColumn(ws, tonCol, data.length);               // 「客户吨位」= 数值单元格，可直接求和
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "批量发货计划");
     XLSX.writeFile(wb, `发货计划_批量${recs.length}单.xlsx`);
   } else {
-    const csv = "﻿" + [head, ...data].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const csv = csvText(head, data, tonCol);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -796,9 +825,9 @@ async function batchDownload(fmt){
 
 // ===================== 打印 =====================
 function printRows(rows, title, date, rec){
-  const {head, data} = matrix(rows, date, rec);
+  const {head, data, tonCol} = matrix(rows, date, rec);
   const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
-  const tbody = rowsToTbody(data, [3, 5, 6, 8]);   // 不合并单元格
+  const tbody = rowsToTbody(data, [3, 5, 6, 8], [tonCol]);   // 不合并单元格；吨位打印保留一位小数
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划 ${pad(title)}</title>
     <style>
@@ -826,9 +855,9 @@ function batchPrint(){
   const recs = RECORDS.filter(r => ids.includes(String(r.id)));
   if (!recs.length){ alert("请先勾选要打印的计划单（卡片左侧的方框）"); return; }
 
-  const {head, data} = batchMatrix(recs);
+  const {head, data, tonCol} = batchMatrix(recs);
   const thead = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>";
-  const tbody = rowsToTbody(data, [4, 6, 7, 9]);   // 不合并单元格
+  const tbody = rowsToTbody(data, [4, 6, 7, 9], [tonCol]);   // 不合并单元格；吨位打印保留一位小数
 
   const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
     <title>发货计划批量打印（${recs.length} 单）</title>
