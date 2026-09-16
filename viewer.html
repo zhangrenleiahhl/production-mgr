@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260916d"></script>
+<script src="scan-lib.js?v=20260916e"></script>
 <!-- 性能：xlsx.full.min.js（约 880KB）不再首屏加载，改为点「导出 Excel」时按需加载，发货员打开页面更快 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="ef5SDVfFecmq8rDwoWCj4X">
 <meta http-equiv="Pragma" content="no-cache" data-page-node-id="dSdiiSW8NXQSX1dmF79749">
@@ -548,6 +548,16 @@ function showCodes(){
   else alert("二维码组件还没加载好，请刷新页面后重试。");
 }
 
+// ===================== 页面自绘确认弹窗 =====================
+// 为什么不用浏览器原生 confirm：部分手机浏览器会往弹窗里塞一个「关闭网页」按钮，
+// 手一滑就把页面关了（2026-09-16 用户反馈）。统一走 scan-lib 的 uiConfirm，
+// 全厂几个页面弹出来长得一样，都只有「取消 / 确定」。
+function uiConfirm(msg, onOk, opt){
+  if (typeof SL !== "undefined" && SL && SL.uiConfirm) return SL.uiConfirm(msg, onOk, opt);
+  if (confirm(msg)) { if (onOk) onOk(); }          // 兜底：scan-lib 没加载出来才走原生
+  else if (opt && opt.onCancel) opt.onCancel();
+}
+
 // ===================== 客户吨位：可手动修改（带覆盖值）=====================
 // 覆盖值存在 rec.custTon = { "客户|发货日期": 数值 }
 function custTonKey(r){ return pad(r.customer) + "|" + pad(r.shipdate); }
@@ -643,24 +653,21 @@ function bindDetail(d, rec){
       const cust = key.split("|")[0];
       const oldTxt = old === "" ? "（空）" : old;
       const newTxt = nv === "" ? "（清空，恢复自动合计）" : nv;
-      const ok = confirm(
-        `确认修改客户吨位？\n\n` +
-        `客户：${cust}\n` +
-        `原值：${oldTxt}\n` +
-        `新值：${newTxt}\n\n` +
-        `说明：该客户同一发货日期的所有行都会一起更新，并同步到导出与打印。`
+      uiConfirm(
+        `客户：${cust}\n原值：${oldTxt}\n新值：${newTxt}\n\n该客户同一发货日期的所有行都会一起更新，并同步到导出与打印。`,
+        () => {
+          if (!rec.custTon) rec.custTon = {};
+          if (nv === "") delete rec.custTon[key];        // 清空 = 恢复自动合计
+          else rec.custTon[key] = parseFloat(nv);
+
+          saveCustTon(rec);                              // 持久化（本地 + 云端）
+          applyCustTon(d, rec);                          // 同组所有行同步 + 刷新合计
+          const tip = d.querySelector('[data-act="custtonTip"]');
+          if (tip) tip.textContent = "已保存 ✓";
+          setTimeout(() => { if (tip) tip.textContent = ""; }, 2500);
+        },
+        { title: "确认修改客户吨位", onCancel: () => { inp.value = old; } }
       );
-      if (!ok){ inp.value = old; return; }
-
-      if (!rec.custTon) rec.custTon = {};
-      if (nv === "") delete rec.custTon[key];        // 清空 = 恢复自动合计
-      else rec.custTon[key] = parseFloat(nv);
-
-      saveCustTon(rec);                              // 持久化（本地 + 云端）
-      applyCustTon(d, rec);                          // 同组所有行同步 + 刷新合计
-      const tip = d.querySelector('[data-act="custtonTip"]');
-      if (tip) tip.textContent = "已保存 ✓";
-      setTimeout(() => { if (tip) tip.textContent = ""; }, 2500);
     };
     inp.onchange = commit;
     inp.onkeydown = (e) => {
@@ -676,10 +683,10 @@ function bindDetail(d, rec){
       const key = inp.dataset.key;
       if (!hasOverride(rec, key)) return;
       e.preventDefault();
-      if (confirm(`撤回【${key.split("|")[0]}】的客户吨位修改，恢复为系统自动合计？`)){
+      uiConfirm(`撤回【${key.split("|")[0]}】的客户吨位修改，恢复为系统自动合计？`, () => {
         delete rec.custTon[key];
         saveCustTon(rec); applyCustTon(d, rec);
-      }
+      }, { title: "确认撤回修改" });
     };
   });
 
