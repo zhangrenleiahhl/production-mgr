@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>司机到车登记</title>
+<script src="supabase.min.js"></script>
+<script src="cloud-config.js"></script>
+<script src="cloud-sync.js"></script>
+<script src="scan-lib.js?v=20260916b"></script>
+<style>
+  /* ==========================================================================
+     司机到车登记（手机端，一个码通吃，不用登录）
+     边界（必须守住）：司机**只能**勾「车已到」和撤回自己那一勾，
+     绝对不能碰「待确认 / 货好 / 装货中 / 已完成」四道工序 —— 那四道要内部人员登录才点。
+     所以本页根本不渲染任何工序按钮，连相关代码路径都没有。
+     ========================================================================== */
+  :root{
+    --bg:#eef1f6; --card:#fff; --line:#dbe1ea; --txt:#111827; --muted:#5b6676; --muted2:#93a0b4;
+    --green:#059669; --green-l:#ecfdf5; --amber:#d97706; --amber-l:#fffbeb;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{font-family:"PingFang SC","Microsoft YaHei","微软雅黑",system-ui,sans-serif;background:var(--bg);
+    color:var(--txt);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+    padding-bottom:calc(26px + env(safe-area-inset-bottom));}
+  .hd{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+    color:#fff;padding:12px 14px;box-shadow:0 3px 14px rgba(15,23,42,.28);}
+  .hd .r1{display:flex;align-items:center;gap:8px;}
+  .hd .r1 .dot{width:6px;height:20px;background:#34d399;border-radius:2px;flex-shrink:0;
+    box-shadow:0 0 10px rgba(52,211,153,.85);}
+  .hd h1{font-size:17px;font-weight:800;margin:0;letter-spacing:.5px;}
+  .hd h1 em{font-style:normal;font-size:12px;font-weight:600;color:#94a3b8;margin-left:5px;}
+  .hd .r2{margin-top:5px;font-size:12.5px;color:#cbd5e1;}
+  .hd .r2 b{color:#fff;font-weight:700;}
+  .sync{font-size:11.5px;letter-spacing:.4px;margin-top:3px;}
+  .sync.ok{color:#7dd3fc;} .sync.warn{color:#fbbf24;} .sync.err{color:#f87171;}
+
+  .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
+
+  /* 物流公司筛选（司机先找自己那家车） */
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 10px;-webkit-overflow-scrolling:touch;}
+  .chips::-webkit-scrollbar{display:none;}
+  .chips button{flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;
+    color:var(--muted);font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;}
+  .chips button.on{background:#0f172a;border-color:#0f172a;color:#fff;}
+
+  .grp{margin-bottom:12px;}
+  .grp>h2{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 7px;font-weight:800;color:#334155;padding:0 2px;}
+  .grp>h2 .tagx{margin-left:auto;font-size:12px;font-weight:700;color:var(--muted);}
+
+  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;
+    overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .row.done{border-color:#a7f3d0;background:linear-gradient(180deg,#f7fffb,#fff);}
+  .row.late{border-color:#fecaca;}
+  .rh{padding:10px 12px 8px;display:flex;gap:10px;align-items:flex-start;}
+  .rh .nm{flex:1;min-width:0;}
+  .rh .name{font-size:16px;font-weight:800;line-height:1.35;word-break:break-all;}
+  .rh .meta{margin-top:2px;display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);}
+  .rh .meta b{color:#334155;font-weight:700;}
+  .rh .lateTag{display:inline-block;padding:0 6px;border-radius:4px;font-size:10.5px;font-weight:800;
+    background:#fee2e2;color:#b91c1c;margin-right:5px;vertical-align:1px;}
+  .big{
+    width:100%;min-height:52px;border:none;border-top:1px solid var(--line);background:#f8fafc;
+    font-size:16.5px;font-weight:800;color:#475569;cursor:pointer;font-family:inherit;
+    display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:.5px;
+  }
+  button.big:active{background:#eef2f7;}
+  div.big.on{cursor:default;}
+  .big.on{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-top-color:#10b981;
+    box-shadow:0 3px 12px rgba(5,150,105,.28);}
+  .r2b{display:flex;border-top:1px solid var(--line);}
+  .r2b button{flex:1;min-height:44px;border:none;background:#fff;font-size:13.5px;font-weight:700;
+    color:#b45309;cursor:pointer;font-family:inherit;}
+  .r2b button:active{background:#fef3c7;}
+
+  .flag{background:#fff;border:1px dashed #94a3b8;border-radius:12px;padding:20px 16px;text-align:center;
+    color:var(--muted);font-weight:600;font-size:14px;line-height:1.8;}
+  .flag.warn{border-color:#f59e0b;color:#b45309;}
+
+  #tip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
+    transform:translateX(-50%) translateY(24px);background:rgba(17,24,39,.94);color:#fff;
+    padding:11px 18px;border-radius:999px;font-size:14px;font-weight:700;max-width:88vw;text-align:center;
+    opacity:0;pointer-events:none;transition:.22s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.28);}
+  #tip.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #tip.warn{background:#b45309;} #tip.err{background:#b91c1c;}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="r1">
+    <span class="dot"></span>
+    <h1>司机到车登记 <em>勾一下就行</em></h1>
+  </div>
+  <div class="r2" id="sumTxt">正在读取…</div>
+  <div class="sync" id="sync">正在连接云端…</div>
+</div>
+
+<div class="wrap">
+  <div class="chips" id="chips"></div>
+  <div id="list"></div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+const SL = window.ScanLib;
+const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
+const $ = (id) => document.getElementById(id);
+const esc = SL.esc;
+const POLL_MS = 10000;
+
+let RECORDS = [], PROG = {}, ROWS = [], FILTER = "", rendered = false, lastFp = "";
+
+/* ---------- 本机缓存（断网也能勾，恢复后自动补传） ---------- */
+function loadLocal(){
+  try { const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
+  try { const v = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
+}
+const setPending = (on) => { try { on ? localStorage.setItem(KEY_PENDING, "1") : localStorage.removeItem(KEY_PENDING); } catch(e){} };
+const isPending = () => { try { return localStorage.getItem(KEY_PENDING) === "1"; } catch(e){ return false; } };
+function setSync(t, c){ const e = $("sync"); e.textContent = t; e.className = "sync " + (c || ""); }
+
+let tipTimer = 0;
+function tip(m, c){
+  const el = $("tip"); el.textContent = m; el.className = "show" + (c ? " " + c : "");
+  clearTimeout(tipTimer); tipTimer = setTimeout(() => { el.className = ""; }, 2400);
+}
+
+/* ---------- 保存：本机 → 云端，带「只增不减」护栏 ---------- */
+let pushing = false;
+async function saveProg(msg){
+  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+  setPending(true);
+  if (!(window.CloudSync && CloudSync.ready())){
+    setSync("未连上云端 · 已存本机，稍后自动补传", "warn");
+    tip(msg + "（已存本机）", "warn");
+    return false;
+  }
+  if (pushing) { tip(msg + "（正在上传…）"); return true; }
+  pushing = true;
+  let ok = false;
+  try { ok = await CloudSync.push(KEY_PROG, PROG); } catch(e){ ok = false; }
+  pushing = false;
+  setPending(!ok);
+  if (ok){ setSync("已同步 ✓ " + new Date().toLocaleTimeString("zh-CN", { hour12: false }), "ok"); tip(msg); }
+  else { setSync("同步失败 · 已存本机，稍后自动补传", "warn"); tip(msg + "（已存本机）", "warn"); }
+  return ok;
+}
+
+/* ---------- 拉取 ---------- */
+function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
+
+async function pull(){
+  const cs = !!(window.CloudSync && CloudSync.ready());
+  let okA = !cs, okP = !cs;
+  if (cs){
+    try { const r = await withTimeout(CloudSync.pullResult(KEY_PLANS), 15000); okA = !!(r && r.ok); if (r && r.ok && Array.isArray(r.value)) RECORDS = r.value; } catch(e){ okA = false; }
+    try { const r = await withTimeout(CloudSync.pullResult(KEY_PROG), 15000); okP = !!(r && r.ok); if (r && r.ok && r.value && typeof r.value === "object") PROG = SL.mergeProg(PROG, r.value); } catch(e){ okP = false; }
+  }
+  if (!RECORDS.length) loadLocal();
+  try {
+    const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
+    if (Array.isArray(del) && del.length){
+      const st = new Set(del.map(String));
+      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
+    }
+  } catch(e){}
+  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+  const bad = !okA || !okP;
+  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
+  else if (bad) setSync("网络有波动 · 显示上一次数据 · " + t, "warn");
+  else setSync("已同步 ✓ " + t, "ok");
+  render();
+  if (cs && !bad && isPending() && !pushing){
+    try { const ok = await CloudSync.push(KEY_PROG, PROG); setPending(!ok); } catch(e){}
+  }
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  ROWS = SL.boardRows(RECORDS, PROG);
+  const left = ROWS.filter(r => !r.car).length;
+  const carIn = ROWS.filter(r => r.car).length;
+  $("sumTxt").innerHTML = "待登记 <b>" + left + "</b> 趟 ｜ 已登记 <b>" + carIn + "</b> 趟 ｜ 共 " + ROWS.length + " 趟" +
+    (ROWS.some(r => r.stale) ? "（含昨日遗留 " + ROWS.filter(r => r.stale).length + "）" : "");
+
+  const groups = SL.groupByLogistics(ROWS);
+  // 物流筛选条：默认全部，司机点自己那家
+  const chips = ['<button type="button" data-l="" class="' + (FILTER ? "" : "on") + '">全部 ' + ROWS.length + "</button>"]
+    .concat(groups.map(g => '<button type="button" data-l="' + esc(g.logistics) + '" class="' + (FILTER === g.logistics ? "on" : "") + '">' +
+      esc(g.logistics) + " " + g.rows.length + "</button>"));
+  $("chips").innerHTML = ROWS.length ? chips.join("") : "";
+
+  const fp = FILTER + "|" + ROWS.map(r => [r.ck, r.rk, r.car, r.ct].join(":")).join("|");
+  if (rendered && fp === lastFp) return;        // 内容没变就不重绘（现场正在点的时候别打断）
+  lastFp = fp; rendered = true;
+
+  const show = groups.filter(g => !FILTER || g.logistics === FILTER);
+  if (!ROWS.length){
+    $("list").innerHTML = '<div class="flag">今天没有要发车的计划，昨天也没有遗留没走完的。<br>过一会儿再刷新看看。</div>';
+    return;
+  }
+  if (!show.length){
+    $("list").innerHTML = '<div class="flag warn">这家物流今天没有要登记的车。<br>点上面「全部」看所有。</div>';
+    return;
+  }
+  $("list").innerHTML = show.map(g => {
+    const leftN = g.rows.filter(r => !r.car).length;
+    return '<div class="grp"><h2>' + esc(g.logistics) +
+      '<span class="tagx">' + (leftN ? "待登记 " + leftN + " 趟" : "全部已到 ✓") + " · " + g.ton.toFixed(1) + " 吨</span></h2>" +
+      g.rows.map(rowHtml).join("") + "</div>";
+  }).join("");
+  bind();
+}
+
+function rowHtml(r){
+  const car = r.car || 0;
+  const ts = car && r.ct ? SL.fmtHM(r.ct) : "";
+  // 一次只给一个动作，避免司机看错：
+  //   还没登记 → 只有一个「车已到」；已经登记 → 变成静态状态条 + 一个「撤回」
+  const act = car
+    ? '<div class="big on">✓ 车已到' + (ts ? "　" + esc(ts) : "") + "</div>" +
+      '<div class="r2b"><button type="button" data-car="1" data-v="0">↩ 撤回这一勾</button></div>'
+    : '<button type="button" class="big" data-car="1" data-v="1">🚚 点这里：车已到</button>';
+  return '<div class="row ' + (car ? "done" : "") + (r.stale && !car ? " late" : "") +
+    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '">' +
+    '<div class="rh"><div class="nm">' +
+      '<div class="name">' + (r.stale ? '<span class="lateTag">昨</span>' : "") + esc(r.customer) + "</div>" +
+      '<div class="meta">' +
+        "<span>单号 <b>" + esc(r.no || "—") + "</b></span>" +
+        "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span>" +
+        "<span>共 <b>" + (r.qty || 0) + "</b> 件</span>" +
+        (r.logistics ? "<span>" + esc(r.logistics) + "</span>" : "") +
+      "</div>" +
+    "</div></div>" + act +
+  "</div>";
+}
+
+function bind(){
+  $("chips").querySelectorAll("button").forEach(b => {
+    b.onclick = () => { FILTER = b.dataset.l || ""; lastFp = ""; render(); };
+  });
+  $("list").querySelectorAll("[data-car]").forEach(b => {
+    b.onclick = () => setCar(b.closest(".row").dataset.r, b.closest(".row").dataset.k, parseInt(b.dataset.v, 10) || 0);
+  });
+}
+
+/* ---------- 唯一的写操作：车已到 / 撤回（都只动 car 这一个字段） ----------
+   必须走 SL.applyCar，不能自己写 car。它会同时给格子 +1 个版本号(rv)。
+   少这个 rv 的后果很隐蔽：司机点「撤回」本地看着退回去了，
+   10 秒后跟云端一合并，云端那个高版本又把「车已到」抬回来，勾自己长回来了。 */
+function setCar(rk, ck, v){
+  const nv = v ? 1 : 0;
+  const cur = ((PROG[rk] || {})[ck] || {});
+  if ((cur.car || 0) === nv){ tip(nv ? "已经是「车已到」了" : "本来是「车未到」"); return; }
+  if (!nv && !confirm("撤回【" + String(ck).split("|")[0] + "】的「车已到」？")) return;
+  const r = SL.applyCar(PROG, rk, ck, nv);
+  if (!r.changed){ tip("状态没变"); return; }
+  lastFp = "";
+  saveProg(nv ? "已登记：车已到" : "已撤回：车未到");
+  render();
+}
+
+/* ---------- 启动 ---------- */
+function boot(){
+  if (window.CloudSync){
+    CloudSync.init();
+    try { if (CloudSync.guard) CloudSync.guard(KEY_PROG, SL.guardFn); } catch(e){}
+  }
+  loadLocal();
+  pull();
+  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+  window.addEventListener("online", () => pull());
+}
+boot();
+</script>
+</body>
+</html>
