@@ -256,8 +256,10 @@ function bind(){
 function setCar(rk, ck, v){
   const nv = v ? 1 : 0;
   const cur = ((PROG[rk] || {})[ck] || {});
+  const cust = String(ck).split("|")[0];
   if ((cur.car || 0) === nv){ tip(nv ? "已经是「车已到」了" : "本来是「车未到」"); return; }
-  if (!nv && !confirm("撤回【" + String(ck).split("|")[0] + "】的「车已到」？")) return;
+  if (!confirm(nv ? ("确认标记【" + cust + "】车已到？")
+                 : ("撤回【" + cust + "】的「车已到」？"))) return;
   const r = SL.applyCar(PROG, rk, ck, nv);
   if (!r.changed){ tip("状态没变"); return; }
   lastFp = "";
