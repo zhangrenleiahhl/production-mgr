@@ -393,13 +393,21 @@ function who(){ return SL.staffName(); }
 
 function step(rk, ck){
   if (!session()){ tip("请先登录", "err"); return; }
+  const s = ((PROG[rk] || {})[ck] || {}).s || 0;
+  if (s >= 3){ tip("已经是最后一步「已完成」了"); return; }
+  const cust = String(ck).split("|")[0];
+  if (!confirm("确认把【" + cust + "】的工序推进到「" + SL.STEP_NAME[s + 1] + "」？\n（点错了可随时按「↩」撤回）")) return;
   const r = SL.applyStep(PROG, rk, ck, +1, who());
-  if (!r.changed){ tip(r.to >= 3 ? "已经是最后一步「已完成」了" : "已经是最前面了"); return; }
+  if (!r.changed){ tip("已经是「" + SL.STEP_NAME[s + 1] + "」了"); return; }
   saveProg("已更新：" + SL.STEP_NAME[r.to]);
   refresh();
 }
 function setCar(rk, ck, v){
   if (!session()){ tip("请先登录", "err"); return; }
+  const cur = ((PROG[rk] || {})[ck] || {});
+  if ((cur.car || 0) === (v ? 1 : 0)){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
+  const cust = String(ck).split("|")[0];
+  if (!confirm("确认把【" + cust + "】标记为「" + (v ? "车已到" : "车未到") + "」？")) return;
   const r = SL.applyCar(PROG, rk, ck, v);
   if (!r.changed){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
   saveProg(v ? "已标记：车已到" : "已标记：车未到");
