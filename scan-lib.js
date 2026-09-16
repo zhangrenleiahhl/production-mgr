@@ -20,7 +20,19 @@ window.ScanLib = (function () {
   var SCAN_PAGE   = "扫码.html";
   var DRIVER_PAGE = "司机扫码.html";
   var DASH_PAGE   = "物流大屏.html";
-  var PUB_BASE    = "https://zhangrenleiahhl.github.io/production-mgr/";
+  /* 站点地址 —— 二维码里放的就是它。三种取法，按顺序：
+     ① 页面里若设了 window.SITE_BASE，以它为准（换域名 / 固定内网 IP 时用来钉死）；
+     ② 否则自动跟随「当前打开的网址」—— 系统装在哪台服务器，码就指向哪台服务器，不用改代码；
+     ③ file:// 等特殊环境才退回线上地址（现场手机扫的必须是一个能打开的网址）。 */
+  var FALLBACK_BASE = "https://zhangrenleiahhl.github.io/production-mgr/";
+  var PUB_BASE = (function () {
+    try { if (window.SITE_BASE) return String(window.SITE_BASE).replace(/\/*$/, "/"); } catch (e) {}
+    try {
+      var proto = location.protocol, pn = location.pathname || "/";
+      if (proto === "http:" || proto === "https:") return location.origin + pn.replace(/[^/]*$/, "");
+    } catch (e) {}
+    return FALLBACK_BASE;
+  })();
   var STEP_NAME   = ["货待确认", "货好", "装货中", "已完成"];
   var CAR_NAME    = ["车未到", "车已到"];
   var QR_FILE     = "qrcode.min.js";
@@ -39,8 +51,7 @@ window.ScanLib = (function () {
     return (rec && rec.date) || "";
   }
 
-  /* ---- 扫码页地址：二维码里放的就是它。固定用线上地址，
-         因为现场手机扫的必须是一个能打开的网址，不能是别人电脑上的 file:// 路径 ---- */
+  /* ---- 扫码页地址：二维码里放的就是它（地址见上面 PUB_BASE 的三种取法）---- */
   function pageUrl(name){ return PUB_BASE + encodeURIComponent(String(name)); }
   function scanUrl(recKey){ return PUB_BASE + encodeURIComponent(SCAN_PAGE) + "?d=" + encodeURIComponent(String(recKey)); }
 
