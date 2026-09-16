@@ -633,9 +633,9 @@ function recKeyOf(r){ return (r && r.id != null) ? ("i"+r.id) : (r && r.no ? ("n
 // 只把客户吨位覆盖表做并集，这样两边各自改的吨位都不会丢。
 function mergeRecords(base, extra){
   const map = new Map();
-  (base||[]).forEach(r=>{ if(r && r.no!=null) r.no=fixPlanNo(r.no); const k=recKeyOf(r); if(k) map.set(k,r); });
+  (base||[]).forEach(r=>{ if(r && r.no!=null) r.no=fixPlanNo(r.no, recShipDate(r)); const k=recKeyOf(r); if(k) map.set(k,r); });
   (extra||[]).forEach(r=>{
-    if(r && r.no!=null) r.no=fixPlanNo(r.no);
+    if(r && r.no!=null) r.no=fixPlanNo(r.no, recShipDate(r));
     const k=recKeyOf(r); if(!k) return;
     const b = map.get(k);
     if(b && r){
@@ -1428,10 +1428,23 @@ function realTodayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d
 $("shipDate").value=todayStr();
 function genPlanNo(){ const d=$("shipDate").value||todayStr(); const p=s=>String(s).padStart(2,"0"); const ymd=d.split("-"); return "FH"+ymd[0]+p(+ymd[1])+p(+ymd[2])+"-"+String(Math.floor(Math.random()*9000)+1000); }
 $("planNo").value=genPlanNo();
-// 旧版页面生成过一批缺横杠的单号（如 FH202609153955）。这里统一补上横杠 → FH20260915-3955。
-// 所有「读取 / 合并 / 发布」路径都过这道修正：坏单号只要被碰到一次就永久修好，
+// 单号里嵌着「发货日期」+ 4 位流水。历史上出过两种脏单号，都在这里一次修正：
+//   ① 旧版页面生成的缺横杠单号：FH202609153955 → FH20260915-3955
+//   ② 日期段跟实际发货日期对不上的（2026-09-16 用户反馈）：录计划时表头日期还没改成
+//      实际发货日期就生成了单号，出现「FH20260915-xxxx 却 9/16 发货」。给了真实发货日期
+//      就把日期段对齐过去（流水号保持不变，单号仍能唯一标识这批货）。
+// 所有「读取 / 合并 / 发布」路径都过这道修正：脏单号只要被碰到一次就永久修好，
 // 管理端打开后会随校对同步把修好的单号推上云端，发货员端 / 大屏 / 扫码页跟着显示正确。
-function fixPlanNo(no){ const m=String(no==null?"":no).match(/^(FH\d{8})(\d{4})$/); return m ? (m[1]+"-"+m[2]) : no; }
+function ymdOfDate(v){ const m=String(v==null?"":v).trim().match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (m[1]+m[2]+m[3]) : ""; }
+function fixPlanNo(no, shipdate){
+  if(no==null) return no;                                // null/undefined 原样返回（显示层自己有兜底）
+  let s = String(no);
+  const m = s.match(/^(FH\d{8})(\d{4})$/);
+  if(m) s = m[1] + "-" + m[2];                          // ① 补横杠
+  const ymd = ymdOfDate(shipdate);                       // ② 日期段对齐真实发货日期
+  if(ymd && /^FH\d{8}-\d{4}$/.test(s) && s.slice(2,10) !== ymd) s = "FH" + ymd + s.slice(10);
+  return s;
+}
 
 function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
@@ -2739,7 +2752,10 @@ function publish(){
   const sumBox = rows.reduce((a,r)=>a+_n(r.box), 0);
   const sumSubTon = rows.reduce((a,r)=>a+_n(r.ton)+_n(r.cwt), 0);
   // 存档文本数据
-  const rec={id:Date.now(),date:$("shipDate").value,no:fixPlanNo($("planNo").value),
+  // 单号日期段以「本次实际发布行的发货日期」为准：表头日期有时还停在昨天没改，
+  // 直接拿表头日期生成就会出现「9/15 的单号发 9/16 的货」（2026-09-16 用户反馈的问题）。
+  const pubShipDate = recShipDate({rows:rows, date:$("shipDate").value}) || $("shipDate").value;
+  const rec={id:Date.now(),date:$("shipDate").value,no:fixPlanNo($("planNo").value, pubShipDate),
     planner:($("planner")?.value||"").trim(),
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:sumQty||"0",sumTon:sumTon.toFixed(1),sumBox:sumBox>0?sumBox:"/",
@@ -2850,7 +2866,7 @@ function loadRec(){
   try{
     const a=JSON.parse(localStorage.getItem(LS_REC))||[];
     let fixedAny=false;
-    a.forEach(function(r){ if(r && r.no!=null){ const v=fixPlanNo(r.no); if(v!==r.no){ r.no=v; fixedAny=true; } } });
+    a.forEach(function(r){ if(r && r.no!=null){ const v=fixPlanNo(r.no, recShipDate(r)); if(v!==r.no){ r.no=v; fixedAny=true; } } });
     if(fixedAny) markPending(true);   // 修到坏单号 → 标记待补传，启动校对就会把修好的推上云端（修完写回后不再触发）
     return a;
   }catch(e){ return []; }
