@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260916d"></script>
+<script src="scan-lib.js?v=20260916e"></script>
 <style>
   /* ==========================================================================
      司机到车登记（手机端，一个码通吃，不用登录）
@@ -258,13 +258,14 @@ function setCar(rk, ck, v){
   const cur = ((PROG[rk] || {})[ck] || {});
   const cust = String(ck).split("|")[0];
   if ((cur.car || 0) === nv){ tip(nv ? "已经是「车已到」了" : "本来是「车未到」"); return; }
-  if (!confirm(nv ? ("确认标记【" + cust + "】车已到？")
-                 : ("撤回【" + cust + "】的「车已到」？"))) return;
-  const r = SL.applyCar(PROG, rk, ck, nv);
-  if (!r.changed){ tip("状态没变"); return; }
-  lastFp = "";
-  saveProg(nv ? "已登记：车已到" : "已撤回：车未到");
-  render();
+  SL.uiConfirm(nv ? ("确认标记【" + cust + "】车已到？")
+                  : ("撤回【" + cust + "】的「车已到」？"), () => {
+    const r = SL.applyCar(PROG, rk, ck, nv);
+    if (!r.changed){ tip("状态没变"); return; }
+    lastFp = "";
+    saveProg(nv ? "已登记：车已到" : "已撤回：车未到");
+    render();
+  }, { title: nv ? "确认车已到" : "确认撤回" });
 }
 
 /* ---------- 启动 ---------- */
