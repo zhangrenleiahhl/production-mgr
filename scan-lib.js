@@ -709,7 +709,63 @@ window.ScanLib = (function () {
     });
   }
 
+  /* ==========================================================================
+     页面自绘确认弹窗（2026-09-16 用户要求：不要「关闭网页」，只要「取消 / 确定」）
+     --------------------------------------------------------------------------
+     为什么不用浏览器原生 confirm()：部分手机浏览器会往原生弹窗里自动加第三个
+     按钮「关闭网页」，手一滑就把页面关了（发货员在车间手机上尤其容易误触）。
+     这里改成页面自己画的弹层，只有「取消 / 确定」两个按钮，点空白 = 取消。
+     用法：SL.uiConfirm("确认删除？", function(){ 确定后要做的事 });  // 回调式，不再返回值
+     ========================================================================== */
+  var CF_CSS = '.smkcf-mask{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:4000;display:flex;' +
+    'align-items:center;justify-content:center;padding:16px;}' +
+    '.smkcf-box{background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.3);width:100%;max-width:340px;' +
+    'overflow:hidden;font-family:"Microsoft YaHei","PingFang SC",sans-serif;}' +
+    '.smkcf-ttl{padding:15px 18px 0;font-size:15px;font-weight:800;color:#111827;}' +
+    '.smkcf-msg{padding:9px 18px 4px;font-size:13.5px;line-height:1.65;color:#374151;white-space:pre-wrap;' +
+    'max-height:52vh;overflow:auto;word-break:break-word;}' +
+    '.smkcf-act{display:flex;border-top:1px solid #eef1f5;margin-top:14px;}' +
+    '.smkcf-act button{flex:1;border:none;background:#fff;padding:14px 0;font-size:15px;cursor:pointer;font-family:inherit;}' +
+    '.smkcf-act button:active{background:#f1f5f9;}' +
+    '.smkcf-no{color:#4b5563;font-weight:600;border-right:1px solid #eef1f5;}' +
+    '.smkcf-yes{color:#2563eb;font-weight:800;}';
+
+  function cfCss(){
+    if (document.getElementById("smkcfCss")) return;
+    var st = document.createElement("style");
+    st.id = "smkcfCss";
+    st.textContent = CF_CSS;
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  // 只有「取消 / 确定」两个按钮的确认弹窗；返回 { close, mask } 便于测试与外部收口
+  function uiConfirm(msg, onOk, opt){
+    opt = opt || {};
+    cfCss();
+    var mask = document.createElement("div"); mask.className = "smkcf-mask";
+    var box  = document.createElement("div"); box.className = "smkcf-box";
+    var ttl  = document.createElement("div"); ttl.className = "smkcf-ttl";
+    ttl.textContent = opt.title || "请确认";
+    var body = document.createElement("div"); body.className = "smkcf-msg";
+    body.textContent = msg == null ? "" : String(msg);
+    var act  = document.createElement("div"); act.className = "smkcf-act";
+    var no   = document.createElement("button"); no.className = "smkcf-no";  no.type = "button"; no.textContent = opt.cancelText || "取消";
+    var yes  = document.createElement("button"); yes.className = "smkcf-yes"; yes.type = "button"; yes.textContent = opt.okText || "确定";
+    act.appendChild(no); act.appendChild(yes);
+    box.appendChild(ttl); box.appendChild(body); box.appendChild(act);
+    mask.appendChild(box);
+    (document.body || document.documentElement).appendChild(mask);
+
+    function close(){ if (mask.parentNode) mask.parentNode.removeChild(mask); }
+    no.onclick  = function(){ close(); if (opt.onCancel) opt.onCancel(); };
+    yes.onclick = function(){ close(); if (onOk) onOk(); };
+    mask.onclick = function(e){ if (e.target === mask){ close(); if (opt.onCancel) opt.onCancel(); } };
+    setTimeout(function(){ try { yes.focus(); } catch (e){} }, 30);
+    return { close: close, mask: mask, yes: yes, no: no };
+  }
+
   return {
+    uiConfirm: uiConfirm,
     KEY_PLANS: KEY_PLANS, KEY_PROG: KEY_PROG, KEY_DEL: KEY_DEL, KEY_PENDING: KEY_PENDING,
     SCAN_PAGE: SCAN_PAGE, DRIVER_PAGE: DRIVER_PAGE, DASH_PAGE: DASH_PAGE,
     PUB_BASE: PUB_BASE, STEP_NAME: STEP_NAME, CAR_NAME: CAR_NAME,
