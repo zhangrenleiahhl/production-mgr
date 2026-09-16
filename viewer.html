@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260916"></script>
+<script src="scan-lib.js?v=20260916b"></script>
 <!-- 性能：xlsx.full.min.js（约 880KB）不再首屏加载，改为点「导出 Excel」时按需加载，发货员打开页面更快 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="ef5SDVfFecmq8rDwoWCj4X">
 <meta http-equiv="Pragma" content="no-cache" data-page-node-id="dSdiiSW8NXQSX1dmF79749">
@@ -159,6 +159,7 @@
     <button class="btn btn-primary" id="batchExcel" data-page-node-id="9R4xodPQxPJXJle5sAbiop">下载所选单 Excel</button>
     <button class="btn" id="batchCsv" data-page-node-id="eKNDmX5OGXnRnLTEHbF6Pr">下载所选单 CSV</button>
     <button class="btn" id="batchPrint" data-page-node-id="ppALW0nBFTyPmEdImEmrOT">打印所选单</button>
+    <button class="btn" id="codesBtn" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机码（只勾车已到）">▣ 两个码</button>
     <span class="sel-info" id="selInfo" data-page-node-id="2ctFBZjnn2Qjojb4DYkp4i"></span>
   </div>
 
@@ -215,7 +216,10 @@ const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g
 const SL = window.ScanLib || {};
 const mergeProg   = SL.mergeProg;
 const scanUrl     = SL.scanUrl;
+const pageUrl     = SL.pageUrl;        // 两个固定码（内部码 / 司机码）的地址
 const openQrModal = SL.openQrModal;
+const openCodesModal = SL.openCodesModal;   // 「两个码」弹层（三端共用一份）
+const driverUrl   = SL.pageUrl ? SL.pageUrl(SL.DRIVER_PAGE || "司机扫码.html") : "";
 const qrDataUrl   = SL.qrDataUrl;      // 打印单据时要把二维码印在纸上
 const ensureQRCode = SL.ensureQRCode;
 const STEP_NAME   = SL.STEP_NAME || ["货待确认", "货好", "装货中", "已完成"];
@@ -321,6 +325,7 @@ function init(){
   $("batchExcel").onclick = () => batchDownload("excel");
   $("batchCsv").onclick   = () => batchDownload("csv");
   $("batchPrint").onclick = () => batchPrint();
+  $("codesBtn").onclick   = () => showCodes();
   startClock();
 }
 
@@ -517,7 +522,6 @@ function card(rec){
       </div>
       <div class="rec-acts">
         <button class="btn sm" data-act="toggle">查看明细</button>
-        <button class="btn sm" data-act="qr" title="生成这张发货单的二维码：现场用手机扫它来更新每道工序">二维码</button>
         <button class="btn sm" data-act="excel">Excel</button>
         <button class="btn sm" data-act="csv">CSV</button>
         <button class="btn sm" data-act="print">打印</button>
@@ -531,22 +535,17 @@ function card(rec){
     if (d.style.display === "none"){ d.innerHTML = detailTable(rec, tonByCust); d.style.display = "block"; bindDetail(d, rec); applyProgressToDom(); }
     else d.style.display = "none";
   };
-  div.querySelector('[data-act="qr"]').onclick    = () => showQr(rec);
   div.querySelector('[data-act="excel"]').onclick = () => downloadOne(rec, "excel");
   div.querySelector('[data-act="csv"]').onclick   = () => downloadOne(rec, "csv");
   div.querySelector('[data-act="print"]').onclick = () => printRec(rec);
   return div;
 }
 
-// 每张发货单一个二维码：现场把它印在单据上，或直接甩图片给装车的人。
-function showQr(rec){
-  const rk = recKeyOf(rec);
-  if (!rk){ alert("这张单没有编号，暂时无法生成二维码。请让计划员重新发布一次。"); return; }
-  openQrModal(
-    "发货单 " + pad(rec.no) + (rec.planner ? " · " + rec.planner : ""),
-    "发货日期 " + pad(recShipDate(rec)) + " ｜ " + (rec.rows || []).length + " 行 ｜ 现场扫码更新发货进度",
-    scanUrl(rk)
-  );
+// 不再给每张单单独出码（2026-09-16 用户要求）：全厂只有两张通用码 ——
+// 「内部码」和「司机码」，两张都在 scan-lib.openCodesModal() 里，管理端/大屏/这里三处调的是同一个。
+function showCodes(){
+  if (typeof openCodesModal === "function") openCodesModal();
+  else alert("二维码组件还没加载好，请刷新页面后重试。");
 }
 
 // ===================== 客户吨位：可手动修改（带覆盖值）=====================
@@ -936,15 +935,16 @@ const PRINT_CSS = `
   section.one{page-break-after:always;page-break-inside:avoid;}
   section.one:last-child{page-break-after:auto;}
 `;
+// 印在发货单右上角的是**司机码**（全厂同一张，不是每单一个）——
+// 司机拿到单据扫一下就能勾「车已到」，不用再找别的码。
 async function printQrHtml(rec){
   if (!rec) return "";
-  const rk = recKeyOf(rec);
-  if (!rk) return "";
+  const url = driverUrl || scanUrl(recKeyOf(rec));
   let img = null;
-  try { img = await qrDataUrl(scanUrl(rk)); } catch(e){ img = null; }
+  try { img = await qrDataUrl(url); } catch(e){ img = null; }
   if (!img) return '<div class="qrhint">（二维码未生成，连上网后重新点一次打印即可带上）</div>';
   return '<div class="qrblock"><img src="' + img + '"><div class="qrt">' +
-    esc(pad(rec.no)) + '<br>扫码更新发货进度</div></div>';
+    esc(pad(rec.no)) + '<br>司机扫码登记到车</div></div>';
 }
 
 async function printRows(rows, title, date, rec){
