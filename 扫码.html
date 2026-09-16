@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260916d"></script>
+<script src="scan-lib.js?v=20260916e"></script>
 <script src="staff-config.js"></script>
 <style>
   /* ==========================================================================
@@ -219,8 +219,9 @@ $("doLogin").onclick = doLogin;
 $("pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 $("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").focus(); });
 $("logout").onclick = () => {
-  if (!confirm("退出登录？下次要重新输工号和口令。")) return;
-  SL.staffLogout(); applyLoginState(); render(); tip("已退出登录");
+  SL.uiConfirm("退出登录？下次要重新输工号和口令。", () => {
+    SL.staffLogout(); applyLoginState(); render(); tip("已退出登录");
+  }, { title: "确认退出登录" });
 };
 
 /* ---------- 本机缓存 / 提示 ---------- */
@@ -396,33 +397,36 @@ function step(rk, ck){
   const s = ((PROG[rk] || {})[ck] || {}).s || 0;
   if (s >= 3){ tip("已经是最后一步「已完成」了"); return; }
   const cust = String(ck).split("|")[0];
-  if (!confirm("确认把【" + cust + "】的工序推进到「" + SL.STEP_NAME[s + 1] + "」？\n（点错了可随时按「↩」撤回）")) return;
-  const r = SL.applyStep(PROG, rk, ck, +1, who());
-  if (!r.changed){ tip("已经是「" + SL.STEP_NAME[s + 1] + "」了"); return; }
-  saveProg("已更新：" + SL.STEP_NAME[r.to]);
-  refresh();
+  SL.uiConfirm("确认把【" + cust + "】的工序推进到「" + SL.STEP_NAME[s + 1] + "」？\n（点错了可随时按「↩」撤回）", () => {
+    const r = SL.applyStep(PROG, rk, ck, +1, who());
+    if (!r.changed){ tip("已经是「" + SL.STEP_NAME[s + 1] + "」了"); return; }
+    saveProg("已更新：" + SL.STEP_NAME[r.to]);
+    refresh();
+  }, { title: "确认推进工序" });
 }
 function setCar(rk, ck, v){
   if (!session()){ tip("请先登录", "err"); return; }
   const cur = ((PROG[rk] || {})[ck] || {});
   if ((cur.car || 0) === (v ? 1 : 0)){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
   const cust = String(ck).split("|")[0];
-  if (!confirm("确认把【" + cust + "】标记为「" + (v ? "车已到" : "车未到") + "」？")) return;
-  const r = SL.applyCar(PROG, rk, ck, v);
-  if (!r.changed){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
-  saveProg(v ? "已标记：车已到" : "已标记：车未到");
-  refresh();
+  SL.uiConfirm("确认把【" + cust + "】标记为「" + (v ? "车已到" : "车未到") + "」？", () => {
+    const r = SL.applyCar(PROG, rk, ck, v);
+    if (!r.changed){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
+    saveProg(v ? "已标记：车已到" : "已标记：车未到");
+    refresh();
+  }, { title: "确认车辆状态" });
 }
 function undo(rk, ck){
   if (!session()){ tip("请先登录", "err"); return; }
   const cur = (PROG[rk] || {})[ck] || {};
   if (!(cur.s || 0) && !(cur.car || 0)){ tip("这一步还没动过，没有可撤回的"); return; }
   const cust = String(ck).split("|")[0];
-  if (!confirm("撤回【" + cust + "】的「最近那一次」？\n（工序退一格；如果最后动的是车辆，就撤车已到）")) return;
-  const r = SL.applyUndo(PROG, rk, ck, who());
-  if (!r.changed){ tip("没有可撤回的"); return; }
-  saveProg("已撤回：" + r.what);
-  refresh();
+  SL.uiConfirm("撤回【" + cust + "】的「最近那一次」？\n（工序退一格；如果最后动的是车辆，就撤车已到）", () => {
+    const r = SL.applyUndo(PROG, rk, ck, who());
+    if (!r.changed){ tip("没有可撤回的"); return; }
+    saveProg("已撤回：" + r.what);
+    refresh();
+  }, { title: "确认撤回" });
 }
 
 /* ---------- 启动 ---------- */
