@@ -102,6 +102,7 @@
   <div class="card">
     <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
       <span class="tag" id="lockTag" style="background:#fff4e5;color:#b45309;">🔒 修改需密码</span>
+      <span class="tag" id="codeWarn" style="display:none;background:#fff7e0;color:#b45309;border:1px solid #f6d48a;cursor:pointer;" title="点一下看是哪些送达方">⚠ 未编代码</span>
       <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 送达方代码 / 物流 / 备注；按型号或编码匹配）</span></h2>
     <div class="toolbar">
       <input type="file" id="dbFile" accept=".csv,.xlsx,.xls" hidden>
@@ -178,6 +179,27 @@ function getViewIdx(){
 }
 const totalPages = n => Math.max(1, Math.ceil(n/dbPageSize));
 
+// 送达方代码覆盖情况 —— 物流门口那块保密大屏的「燃料」。
+// 门口大屏不能出现送达方名称，只能用代码代替；库里没编代码的送达方，
+// 大屏上只能显示「未编代码」占位（保密要求：绝不回落显示名称）。
+// 返回：还没编代码的送达方名单（按库里的客户名去重）
+function missingCodeCustomers(){
+  const seen=new Map();          // 送达方 → 该名称下任意一条有代码就算编过
+  DB.forEach(r=>{
+    const cu=String(r.customer==null?"":r.customer).trim(); if(!cu) return;
+    const has=!!String(r.custcode==null?"":r.custcode).trim();
+    seen.set(cu, (seen.get(cu)||false) || has);
+  });
+  const out=[]; seen.forEach((has,cu)=>{ if(!has) out.push(cu); });
+  return out;
+}
+function updateCodeWarn(){
+  const el=$("codeWarn"); if(!el) return;
+  const miss=missingCodeCustomers();
+  if(!miss.length){ el.style.display="none"; return; }
+  el.style.display="";
+  el.textContent="⚠ "+miss.length+" 个送达方未编代码";
+}
 function renderDB(){
   const tb=$("dbBody"); tb.innerHTML="";
   const viewIdx=getViewIdx();
@@ -192,6 +214,10 @@ function renderDB(){
   else emptyEl.style.display="none";
 
   $("dbCount").textContent = DB.length+" 条"+(dbKeyword?"（筛选出 "+total+" 条）":"");
+  // 送达方代码覆盖情况：物流门口那块保密大屏靠它把客户名换成代码，
+  // 库里没编代码的送达方，大屏只能显示「未编代码」占位（保密要求不能回落显示名称）。
+  // 所以这里把「还差几个」摆在明面上，点一下就能看到是哪些。
+  updateCodeWarn();
   const info=$("dbSearchInfo");
   if(info) info.textContent = dbKeyword ? ("匹配 "+total+" 条") : (DB.length>dbPageSize ? ("共 "+DB.length+" 条，每页显示 "+dbPageSize+" 条") : "");
   const clr=$("dbSearchClear"); if(clr) clr.style.display = dbKeyword?"":"none";
@@ -454,6 +480,16 @@ $("tplDb").onclick=async ()=>{
   XLSX.writeFile(wb, "物料库导入模板.xlsx");
   toast("模板已下载：物料库导入模板.xlsx");
 };
+{ const cw=$("codeWarn"); if(cw) cw.onclick=()=>{
+    const miss=missingCodeCustomers();
+    if(!miss.length){ toast("所有送达方都编了代码 ✓"); return; }
+    alert("以下 "+miss.length+" 个送达方还没编「送达方代码」：\n\n"+
+      miss.slice(0,40).join("、")+(miss.length>40?"\n…等共 "+miss.length+" 个":"")+
+      "\n\n为什么要编：物流门口那块大屏涉及保密，不能显示送达方名称，只能用代码代替；"+
+      "没编代码的，大屏上只会显示「未编代码」占位。\n\n"+
+      "怎么补：点「🔓 解锁修改」，在对应那一行的「送达方代码」格里填上；"+
+      "或者在表格里补好这一列后整表导入。");
+  }; }
 $("sampleDb").onclick=()=>mergeDbRows([
   {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",custcode:"C10001",remark:"标准件"},
   {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",custcode:"C10002",remark:"加急"},
