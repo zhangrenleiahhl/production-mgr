@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260916b"></script>
+<script src="scan-lib.js?v=20260916c"></script>
 <style>
   /* ==========================================================================
      司机到车登记（手机端，一个码通吃，不用登录）
@@ -201,7 +201,7 @@ function render(){
 
   const show = groups.filter(g => !FILTER || g.logistics === FILTER);
   if (!ROWS.length){
-    $("list").innerHTML = '<div class="flag">今天没有要发车的计划，昨天也没有遗留没走完的。<br>过一会儿再刷新看看。</div>';
+    $("list").innerHTML = '<div class="flag">今天没有要发车的计划。<br>过一会儿再刷新看看。</div>';
     return;
   }
   if (!show.length){
