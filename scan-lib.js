@@ -265,8 +265,10 @@ window.ScanLib = (function () {
        ① 只展示「发货日期 = 今天」的，加上「发货日期 = 昨天 且 还没完成」的；
           （更早的遗留单不铺在门口大屏上，避免屏幕被历史数据淹掉）
        ② 一行 = 一个客户（最贴近现场那张 Excel 跟踪表）；
-       ③ 未完成的一律排在前面，已完成沉到后面 —— 门口大屏第一眼要看到没走完的。
-     三端共用这一份，所以三处看到行数、顺序、红色标记完全一致。
+       ③ 完成工序最多的排最顶（2026-09-16 下午改）：工序走得越远越靠上，
+          已完成（工序走完 + 车已到）天然就是进度最高的，自然排第一 ——
+          现场看大屏时「有动静的单往上走」，一眼能看出哪几趟在动。
+     三端共用这一份，所以三处看到行数、顺序、颜色分类完全一致。
      ========================================================================== */
   function boardRows(records, prog, opt){
     opt = opt || {};
@@ -306,14 +308,9 @@ window.ScanLib = (function () {
       });
     });
     out.sort(function (a, b) {
-      if (a.done !== b.done) return a.done ? 1 : -1;          // ③ 未完成在前
-      if (!a.done){
-        if (a.shipdate !== b.shipdate) return a.shipdate < b.shipdate ? -1 : 1;  // 昨天的排今天的更前
-        if (a.s !== b.s) return a.s - b.s;                    // 工序越落后越靠前
-        if (a.car !== b.car) return a.car - b.car;            // 车没到的更靠前
-      } else {
-        if (a.u !== b.u) return b.u - a.u;                    // 刚完成的排前面
-      }
+      if (a.s !== b.s) return b.s - a.s;                      // ③ 完成工序最多的置顶
+      if (a.car !== b.car) return b.car - a.car;              //    同工序：车已到的更靠前
+      if (a.u !== b.u) return b.u - a.u;                      //    同进度：刚有动作的更靠前
       return String(a.customer).localeCompare(String(b.customer));
     });
     return out;
