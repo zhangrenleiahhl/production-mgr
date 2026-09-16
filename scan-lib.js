@@ -288,7 +288,9 @@ window.ScanLib = (function () {
         if (opt.onlyDate && d !== opt.onlyDate) return;
         if (!opt.onlyDate){
           if (isToday) { /* 今天的全要 */ }
-          else if (isYest && !done) { /* 昨天没走完的才要 */ }
+          // 2026-09-16 起改为「从今天开始算」：默认不再带昨天，
+          // 只有明确传 opt.includeYesterday 的调用方才把昨天没走完的带上。
+          else if (isYest && !done && opt.includeYesterday) { /* 昨天没走完的（仅显式开启时） */ }
           else return;
         }
         out.push({
