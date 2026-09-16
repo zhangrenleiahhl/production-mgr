@@ -7,14 +7,15 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260916c"></script>
+<script src="scan-lib.js?v=20260916d"></script>
 <style>
   /* ==========================================================================
      物流门口大屏（只读，给现场远远地看）
      · 只展示「今天的计划」（2026-09-16 起从今天开始算，不再带昨天）
-     · 没走完的排在前面 —— 红色只点在「状态徽章 + 左侧细条」上，
-       客户名/吨位保持浅色大字。整片红底会淹没正文，门口反而看不清。
-     · 深色高对比 + 字号随行数自动缩放，整屏不滚动（门岗不会去滚屏）
+     · 完成工序最多的排最顶（2026-09-16 下午改）：有动静的单往上走，
+       四道工序各用一种颜色分类 —— 待确认红 · 货好青 · 装货中琥珀 · 已完成绿
+     · 深色高对比 + 字号随行数自动缩放；超出一屏时自动慢速循环滚动
+       （字号缩到下限就不再硬塞，滚着看）
      ========================================================================== */
   :root{
     --bg:#0a0e15;
@@ -99,9 +100,14 @@
   tbody td{padding:var(--rowpad,8px) 12px;border-bottom:1px solid rgba(120,180,255,.09);
     font-size:var(--rowfs,17px);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-  /* 没走完的：左侧红细条 + 极淡红底（红是「标记」，不是「底色」——正文保持清晰） */
-  tr.left{background:linear-gradient(90deg,rgba(255,93,93,.075),rgba(255,93,93,.02) 55%,transparent);}
-  tr.left td:first-child{box-shadow:inset 4px 0 0 var(--red);}
+  /* 每道工序一种颜色（左细条 + 极淡同色底），一眼分清走到哪一步：
+     货待确认=红 · 货好=青 · 装货中=琥珀 · 已完成=绿（红只是标记，正文保持清晰） */
+  tr.st0{background:linear-gradient(90deg,rgba(255,93,93,.075),rgba(255,93,93,.02) 55%,transparent);}
+  tr.st0 td:first-child{box-shadow:inset 4px 0 0 var(--red);}
+  tr.st1{background:linear-gradient(90deg,rgba(56,200,216,.07),rgba(56,200,216,.02) 55%,transparent);}
+  tr.st1 td:first-child{box-shadow:inset 4px 0 0 var(--cyan);}
+  tr.st2{background:linear-gradient(90deg,rgba(255,180,84,.07),rgba(255,180,84,.02) 55%,transparent);}
+  tr.st2 td:first-child{box-shadow:inset 4px 0 0 var(--amber);}
   tr.done{background:linear-gradient(90deg,rgba(61,220,151,.07),transparent 62%);}
   tr.done td:first-child{box-shadow:inset 4px 0 0 var(--green);}
   tr.done .cust{color:#c9d6e8;}
@@ -121,12 +127,10 @@
   .dots i.cur{background:var(--amber);box-shadow:0 0 8px rgba(255,180,84,.55);}
   .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:.86em;font-weight:800;
     white-space:nowrap;border:1px solid transparent;}
-  .pill.s0{background:rgba(148,163,184,.20);color:#d3dce8;border-color:rgba(148,163,184,.3);}
+  .pill.s0{background:rgba(255,93,93,.16);color:#ffb3b3;border-color:rgba(255,93,93,.42);}
   .pill.s1{background:rgba(56,200,216,.16);color:#a8ecf4;border-color:rgba(56,200,216,.34);}
   .pill.s2{background:rgba(255,180,84,.18);color:#ffd9a0;border-color:rgba(255,180,84,.38);}
   .pill.s3{background:rgba(61,220,151,.18);color:#a9f2d3;border-color:rgba(61,220,151,.38);}
-  /* 未完成行的状态徽章统一红系：红色集中在这里，整屏才不会一片红 */
-  tr.left .pill{background:rgba(255,93,93,.16);color:#ffb3b3;border-color:rgba(255,93,93,.42);}
 
   .car{font-weight:800;}
   .car.on{color:var(--green);} .car.off{color:var(--amber);font-weight:700;}
@@ -160,7 +164,7 @@
     <div class="logo">◈</div>
     <div class="tt">
       <div class="t">物流门口 · 发货进度</div>
-      <div class="s" id="sub">今日发货计划 · 未完成排最前</div>
+      <div class="s" id="sub">今日发货计划 · 进度高的排最前 · 超屏自动滚动</div>
     </div>
     <div class="kpis" id="kpis"></div>
     <div class="spacer"></div>
@@ -194,10 +198,11 @@
   </div>
 
   <div class="ft">
-    <span class="k"><i style="background:#ff6b6b"></i>没走完（排在最前）</span>
-    <span class="k"><i style="background:#34d399"></i>已完成（工序走完 + 车已到）</span>
-    <span class="k"><i style="background:#fbbf24"></i>当前工序</span>
-    <span class="k" style="margin-left:auto">每 10 秒自动刷新 · 数据来自云端</span>
+    <span class="k"><i style="background:#ff5d5d"></i>货待确认</span>
+    <span class="k"><i style="background:#38c8d8"></i>货好</span>
+    <span class="k"><i style="background:#ffb454"></i>装货中</span>
+    <span class="k"><i style="background:#3ddc97"></i>已完成（工序走完 + 车已到）</span>
+    <span class="k" style="margin-left:auto">每 10 秒自动刷新 · 超出一屏自动慢速滚动 · 数据来自云端</span>
   </div>
 
 </div>
@@ -276,12 +281,13 @@ function fmtTime(ts){
   return (day === today ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + p(d.getHours()) + ":" + p(d.getMinutes());
 }
 
-// 字号按行数自动缩放：行少就放大（门口看得清），行多就收紧（保证不滚动）
+// 字号按行数自动缩放：行少就放大（门口看得清），行多就收紧。
+// 下限提到 15px：再小门口就看不清了，塞不下交给自动慢速滚动（不再硬缩到看不清）。
 function fitRows(n){
   const vh = window.innerHeight;
   const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 210 : 190));
   const per = avail / Math.max(1, n);
-  const fs = Math.max(11, Math.min(26, Math.floor(per * 0.52)));
+  const fs = Math.max(15, Math.min(26, Math.floor(per * 0.52)));
   document.documentElement.style.setProperty("--rowfs", fs + "px");
   document.documentElement.style.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.42)) + "px");
 }
@@ -309,7 +315,7 @@ function rowHtml(r){
   const byTxt = r.by ? " · " + esc(r.by) : "";
   const when = r.car && r.ct ? SL.fmtHM(r.ct) : (r.t ? SL.fmtHM(r.t) : "");
   const whenLbl = r.car && r.ct ? "车到" : (r.t ? "工序" : "");
-  return '<tr class="' + (r.done ? "done" : "left") + '">' +
+  return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + (r.done ? '<span class="pill s3">已完成</span>' : '<span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span>") + "</td>" +
     '<td><span class="cust">' + stale + esc(r.customer) + '</span><span class="no">' + esc(r.no || "（无单号）") +
       (r.planner ? " · " + esc(r.planner) : "") + "</span></td>" +
@@ -338,6 +344,7 @@ function render(){
         : "云端还没有已发布的发货单，请先在管理端点「发布」。");
     } catch(e){}
     lastFp = "";
+    stopScroll();
     return;
   }
   if (rendered && fp === lastFp) return;      // 内容没变就不重绘（避免整屏闪烁）
@@ -345,6 +352,51 @@ function render(){
   rendered = true;
   fitRows(rows.length);
   $("tbody").innerHTML = rows.map(rowHtml).join("");
+  setupScroll();
+}
+
+/* ---------- 超出一屏 → 自动慢速循环滚动 ----------
+   门口没人动鼠标：内容塞得下就静止，塞不下就慢慢往下滚，
+   滚到底停几秒，再快速回到顶部停几秒，周而复始。
+   有人滚轮/触屏干预时暂停 10 秒，别跟人抢屏幕。 */
+const boxEl = document.querySelector(".box");
+const SCROLL_SPEED = 26;        // 往下滚：26px/秒（慢，远远能看清）
+const SCROLL_BACK  = 170;       // 回顶：快一些，别浪费时间
+const WAIT_TOP_MS = 2200, WAIT_BOTTOM_MS = 3800, MANUAL_PAUSE_MS = 10000;
+let sc = { on: false, raf: 0, last: 0, phase: "top", until: 0, manual: 0 };
+
+function scrollStep(ts){
+  if (!sc.on) return;
+  const max = boxEl.scrollHeight - boxEl.clientHeight;
+  if (max <= 4){ stopScroll(); return; }
+  if (ts < sc.manual){ sc.last = ts; sc.raf = requestAnimationFrame(scrollStep); return; }
+  if (sc.phase === "top"){
+    if (ts >= sc.until){ sc.phase = "down"; sc.last = ts; }
+  } else if (sc.phase === "down"){
+    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
+    boxEl.scrollTop = Math.min(max, boxEl.scrollTop + SCROLL_SPEED * dt);
+    if (boxEl.scrollTop >= max - 1){ sc.phase = "bottom"; sc.until = ts + WAIT_BOTTOM_MS; }
+  } else if (sc.phase === "bottom"){
+    if (ts >= sc.until){ sc.phase = "back"; sc.last = ts; }
+  } else {                                        // back：快速回到顶部
+    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
+    boxEl.scrollTop = Math.max(0, boxEl.scrollTop - SCROLL_BACK * dt);
+    if (boxEl.scrollTop <= 0){ sc.phase = "top"; sc.until = ts + WAIT_TOP_MS; }
+  }
+  sc.raf = requestAnimationFrame(scrollStep);
+}
+function stopScroll(){
+  sc.on = false;
+  if (sc.raf) cancelAnimationFrame(sc.raf);
+  sc.raf = 0;
+  boxEl.scrollTop = 0;
+}
+function setupScroll(){
+  const max = boxEl.scrollHeight - boxEl.clientHeight;
+  if (max <= 4){ stopScroll(); return; }
+  if (sc.on) return;                             // 已经在滚就不用重启（避免每次拉取都从头来）
+  sc.on = true; sc.phase = "top"; sc.until = performance.now() + WAIT_TOP_MS; sc.last = 0;
+  sc.raf = requestAnimationFrame(scrollStep);
 }
 
 /* ---------- 时钟 / 全屏 / 隐藏光标 ---------- */
@@ -380,7 +432,7 @@ function onFsChange(){
   const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
   document.body.classList.toggle("fs", on);
   $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
-  fitRows(rows.length);
+  stopScroll(); fitRows(rows.length); setupScroll();   // 全屏切换字号变了，滚动要重新量
   pokeCursor();
 }
 
@@ -398,7 +450,10 @@ function boot(){
   document.addEventListener("mousemove", pokeCursor);
   document.addEventListener("touchstart", pokeCursor);
   window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
-  window.addEventListener("resize", () => fitRows(rows.length));
+  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); setupScroll(); });
+  // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
+  boxEl.addEventListener("wheel", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
+  boxEl.addEventListener("touchstart", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
   window.addEventListener("online", () => pull());
   tickClock(); setInterval(tickClock, 1000);
   pokeCursor();
