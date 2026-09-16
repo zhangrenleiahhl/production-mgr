@@ -36,7 +36,7 @@
     .nav{gap:6px;}
     .card{padding:12px;}
     .doc{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-    .tbl{min-width:680px;}
+    .tbl{min-width:790px;}
     .toolbar{gap:8px;}
     .toolbar .btn{font-size:13px;padding:8px 12px;}
   }
@@ -102,7 +102,7 @@
   <div class="card">
     <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
       <span class="tag" id="lockTag" style="background:#fff4e5;color:#b45309;">🔒 修改需密码</span>
-      <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 备注；按型号或编码匹配）</span></h2>
+      <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 送达方代码 / 物流 / 备注；按型号或编码匹配）</span></h2>
     <div class="toolbar">
       <input type="file" id="dbFile" accept=".csv,.xlsx,.xls" hidden>
       <button class="btn btn-primary" id="importDb">导入表格</button>
@@ -115,14 +115,14 @@
       <button class="btn btn-line" id="pwdDbBtn">🔑 修改密码</button>
     </div>
     <div class="db-search">
-      <input type="text" id="dbSearch" placeholder="🔍 搜索型号 / 物料编码 / 客户 / 物流 / 备注">
+      <input type="text" id="dbSearch" placeholder="🔍 搜索型号 / 物料编码 / 客户 / 送达方代码 / 物流 / 备注">
       <span class="hint" id="dbSearchInfo"></span>
       <button class="btn btn-line" id="dbSearchClear" style="display:none;">清空搜索</button>
     </div>
     <div class="doc doc-scroll">
       <table class="tbl" id="dbTbl">
         <thead><tr>
-          <th>物料编码</th><th>型号</th><th>单重(kg)</th><th>一箱多少件</th><th>客户</th><th>物流</th><th>备注</th><th class="col-act">操作</th>
+          <th>物料编码</th><th>型号</th><th>单重(kg)</th><th>一箱多少件</th><th>客户</th><th>送达方代码</th><th>物流</th><th>备注</th><th class="col-act">操作</th>
         </tr></thead>
         <tbody id="dbBody"></tbody>
       </table>
@@ -171,7 +171,7 @@ function getViewIdx(){
   if(!kw){ for(let i=0;i<DB.length;i++) idx.push(i); return idx; }
   for(let i=0;i<DB.length;i++){
     const r=DB[i];
-    const hay=((r.code||"")+" "+(r.model||"")+" "+(r.customer||"")+" "+(r.logistics||"")+" "+(r.remark||"")).toLowerCase();
+    const hay=((r.code||"")+" "+(r.model||"")+" "+(r.customer||"")+" "+(r.custcode||"")+" "+(r.logistics||"")+" "+(r.remark||"")).toLowerCase();
     if(hay.indexOf(kw)!==-1) idx.push(i);
   }
   return idx;
@@ -212,6 +212,7 @@ function renderDB(){
       <td><input data-k="unit" ${ro} type="number" min="0" step="0.0001" value="${esc(r.unit)}" placeholder="kg"></td>
       <td><input data-k="perbox" ${ro} type="number" min="1" value="${esc(r.perbox)}" placeholder="件/箱"></td>
       <td><input data-k="customer" ${ro} value="${esc(r.customer)}" placeholder="客户"></td>
+      <td><input data-k="custcode" ${ro} value="${esc(r.custcode)}" placeholder="送达方代码"></td>
       <td><input data-k="logistics" ${ro} value="${esc(r.logistics)}" placeholder="物流"></td>
       <td><input data-k="remark" ${ro} value="${esc(r.remark)}" placeholder="备注"></td>
       <td class="col-act">${locked?'<span class="lock-ico" title="已有物料：修改/删除需先解锁">🔒</span>':'<button class="del-x" title="删除">✕</button>'}</td>`;
@@ -266,7 +267,7 @@ function renderPager(total, pages){
 })();
 
 function addDbRow(){
-  const rec={code:"",model:"",unit:"",perbox:"",customer:"",logistics:"",remark:""};
+  const rec={code:"",model:"",unit:"",perbox:"",customer:"",custcode:"",logistics:"",remark:""};
   freshRows.add(rec);
   DB.unshift(rec);
   dbKeyword=""; const s=$("dbSearch"); if(s) s.value="";   // 清空搜索并回第 1 页，保证能看到新增的空行
@@ -339,7 +340,8 @@ function mergeDbRows(rows){
       code,model,
       unit:pick(raw,["单重","单重(kg)","重量","unit","Unit","kg/件","净重"]),
       perbox:pick(raw,["一箱多少件","每箱件数","装箱数","每箱数量","perbox","PerBox","箱规"]),
-      customer:pick(raw,["客户","customer","Customer","购货方"]),
+      customer:pick(raw,["客户","customer","Customer","购货方","送达方","送达方名称","收货方"]),
+      custcode:pick(raw,["送达方代码","客户代码","送达方编码","客户编码","送达方编号","客户编号","custcode","CustCode","customerCode","shipToCode","收货方代码","往来单位代码","客户代号","送达方代号"]),
       logistics:pick(raw,["物流","logistics","Logistics","物流公司","承运商","货运"]),
       remark:pick(raw,["备注","remark","Remark","说明","描述"])
     });
@@ -358,10 +360,10 @@ function mergeDbRows(rows){
       const t=DB[idx];
       t.code=x.code||t.code; t.model=x.model||t.model;
       if(x.unit) t.unit=x.unit; if(x.perbox) t.perbox=x.perbox;
-      if(x.customer) t.customer=x.customer; if(x.logistics) t.logistics=x.logistics; if(x.remark) t.remark=x.remark;
+      if(x.customer) t.customer=x.customer; if(x.custcode) t.custcode=x.custcode; if(x.logistics) t.logistics=x.logistics; if(x.remark) t.remark=x.remark;
       updated++;
     }else{
-      DB.push({code:x.code,model:x.model,unit:x.unit,perbox:x.perbox,customer:x.customer,logistics:x.logistics,remark:x.remark});
+      DB.push({code:x.code,model:x.model,unit:x.unit,perbox:x.perbox,customer:x.customer,custcode:x.custcode,logistics:x.logistics,remark:x.remark});
       const ni=DB.length-1;                                   // 新记录也要进索引，避免同类物料重复插入
       const m=x.model?String(x.model).trim():"";
       const c=x.code?String(x.code).trim():"";
@@ -436,27 +438,27 @@ $("dbFile").onchange=e=>{
 };
 $("exportDb").onclick=()=>{
   if(!DB.length){ toast("数据库为空"); return; }
-  const head=["物料编码","型号","单重(kg)","一箱多少件","客户","物流","备注"];
+  const head=["物料编码","型号","单重(kg)","一箱多少件","客户","送达方代码","物流","备注"];
   const lines=[head.join(",")];
-  DB.forEach(r=>lines.push([r.code,r.model,r.unit,r.perbox,r.customer,r.logistics,r.remark].map(csvCell).join(",")));
+  DB.forEach(r=>lines.push([r.code,r.model,r.unit,r.perbox,r.customer,r.custcode,r.logistics,r.remark].map(csvCell).join(",")));
   const blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="物料主数据库.csv"; a.click();
 };
 $("tplDb").onclick=async ()=>{
   if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
-  const aoa=[["物料编码","型号","单重(kg)","一箱多少件","客户","物流","备注"]];
+  const aoa=[["物料编码","型号","单重(kg)","一箱多少件","客户","送达方代码","物流","备注"]];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:14},{wch:16},{wch:10},{wch:12},{wch:12},{wch:12},{wch:14},{wch:18}];
+  ws["!cols"]=[{wch:14},{wch:16},{wch:10},{wch:12},{wch:14},{wch:14},{wch:12},{wch:18}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "物料库模板");
   XLSX.writeFile(wb, "物料库导入模板.xlsx");
   toast("模板已下载：物料库导入模板.xlsx");
 };
 $("sampleDb").onclick=()=>mergeDbRows([
-  {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",remark:"标准件"},
-  {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",remark:"加急"},
-  {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",remark:""},
-  {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",remark:"易碎"}
+  {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",custcode:"C10001",remark:"标准件"},
+  {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",custcode:"C10002",remark:"加急"},
+  {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",custcode:"C10003",remark:""},
+  {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",custcode:"C10004",remark:"易碎"}
 ]);
 $("clearDb").onclick=()=>{ if(!DB.length) return; if(!dbUnlocked){ openUnlock(); return; } if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; freshRows.clear(); dbPage=1; dbKeyword=""; const _s=$("dbSearch"); if(_s) _s.value=""; saveDB(); renderDB(); };
 $("addDbRow").onclick=addDbRow;
