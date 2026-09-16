@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260916e"></script>
+<script src="scan-lib.js?v=20260916f"></script>
 <!-- 性能：xlsx.full.min.js（约 880KB）不再首屏加载，改为点「导出 Excel」时按需加载，发货员打开页面更快 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="ef5SDVfFecmq8rDwoWCj4X">
 <meta http-equiv="Pragma" content="no-cache" data-page-node-id="dSdiiSW8NXQSX1dmF79749">
@@ -166,7 +166,7 @@
   <div id="list" data-page-node-id="sEmxuijNtHOGPPLFiTlT4r"></div>
   <div id="empty" class="empty" style="display:none" data-page-node-id="gLUD6h4aAXZVwDvEocunt0">
     暂无已发布计划。请在管理端填写明细并点击「发布」，发货员即可在此查看与下载。<br data-page-node-id="vKqngcwMYvL1aPI7WKGhDA">
-    链接：<b data-page-node-id="SrmvmFn2RJD1ZlTADF8jYS">https://zhangrenleiahhl.github.io/production-mgr/viewer.html</b>
+    链接：<b id="selfUrl" data-page-node-id="SrmvmFn2RJD1ZlTADF8jYS"></b>
   </div>
 </div>
 
@@ -178,6 +178,12 @@ const KEY_DEL = "shipping_plans_del_v1";   // 管理端已删除记录的 id 墓
 const KEY_PROG = "shipping_progress_v1";   // 发货进度（现场扫码页写入，本页只读展示）
 const $ = (id) => document.getElementById(id);
 let RECORDS = [];
+
+// 本页地址：跟着当前打开它的服务器走，不写死（搬到别的服务器后这行文字自动跟着变）
+(function () {
+  const el = document.getElementById("selfUrl");
+  if (el) el.textContent = location.origin + location.pathname;
+})();
 let PROG = {};                             // { 记录键: { "客户|发货日期": {s,t,car,ct,u} } }
 
 // ===================== 发布记录按 id 合并（只增不减）=====================
