@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>物流门口 · 发货进度大屏</title>
+<script src="supabase.min.js"></script>
+<script src="cloud-config.js"></script>
+<script src="cloud-sync.js"></script>
+<script src="scan-lib.js?v=20260916b"></script>
+<style>
+  /* ==========================================================================
+     物流门口大屏（只读，给现场远远地看）
+     · 只展示「今天的计划」+「昨天没完成的计划」
+     · 没走完的一律排在前面并标红 —— 门口第一眼要看到还没走的
+     · 深色高对比 + 字号随行数自动缩放，整屏不滚动（门岗不会去滚屏）
+     ========================================================================== */
+  :root{
+    --bg:#04070f;
+    --panel:rgba(255,255,255,.045);
+    --line:rgba(120,180,255,.15);
+    --txt:#e8f0ff; --muted:#7e94b4; --dim:#55688a;
+    --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#ff6b6b; --blue:#3b82f6;
+    --rows:14;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
+    color:var(--txt); font-variant-numeric:tabular-nums; overflow:hidden;
+    background:
+      radial-gradient(1200px 640px at 8% -12%, rgba(37,99,235,.24), transparent 62%),
+      radial-gradient(1000px 600px at 96% -4%, rgba(168,85,247,.18), transparent 64%),
+      radial-gradient(900px 520px at 50% 114%, rgba(34,211,238,.13), transparent 62%),
+      linear-gradient(180deg,#04070f 0%,#070d1c 46%,#04070f 100%);
+    background-attachment:fixed;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(120,190,255,.045) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(120,190,255,.045) 1px, transparent 1px);
+    background-size:44px 44px;
+    mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);
+    -webkit-mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);}
+
+  .wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:14px 20px 14px;}
+
+  /* ============ 顶部 HUD ============ */
+  .hud{
+    flex:0 0 auto;position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:12px 20px;margin-bottom:12px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(100deg,rgba(34,211,238,.10),rgba(168,85,247,.08) 45%,rgba(255,255,255,.02));
+    border:1px solid rgba(34,211,238,.24);
+    box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07);
+    backdrop-filter:blur(16px);
+  }
+  .hud::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(34,211,238,.85),rgba(168,85,247,.7),transparent);}
+  .hud::after{content:"";position:absolute;top:-60%;left:-10%;width:34%;height:220%;
+    background:linear-gradient(90deg,transparent,rgba(34,211,238,.10),transparent);
+    transform:rotate(18deg);animation:sweep 7s linear infinite;pointer-events:none;}
+  @keyframes sweep{0%{left:-20%}100%{left:120%}}
+  .logo{width:44px;height:44px;flex:0 0 44px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    font-size:21px;background:linear-gradient(140deg,#22d3ee,#a855f7);color:#04101c;
+    box-shadow:0 0 26px rgba(34,211,238,.5);}
+  .tt .t{font-size:20px;font-weight:800;letter-spacing:1px;}
+  .tt .s{font-size:11px;color:var(--dim);letter-spacing:1.4px;margin-top:1px;}
+
+  .kpis{display:flex;gap:10px;flex-wrap:wrap;margin-left:6px;}
+  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:11px;
+    padding:6px 13px;min-width:104px;position:relative;overflow:hidden;}
+  .kpi i{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:.85;}
+  .kpi b{display:block;font-size:23px;font-weight:800;line-height:1.15;}
+  .kpi span{display:block;font-size:11px;color:var(--muted);letter-spacing:.6px;white-space:nowrap;}
+  .kpi.red i{background:var(--red);} .kpi.red b{color:var(--red);}
+  .kpi.amber i{background:var(--amber);} .kpi.amber b{color:var(--amber);}
+  .kpi.green i{background:var(--green);} .kpi.green b{color:var(--green);}
+
+  .spacer{flex:1;}
+  .ctrl{display:flex;align-items:center;gap:8px;}
+  .ctrl button{background:rgba(34,211,238,.13);border:1px solid rgba(34,211,238,.42);color:var(--txt);
+    padding:8px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+    letter-spacing:.5px;white-space:nowrap;}
+  .ctrl button:hover{background:rgba(34,211,238,.24);}
+  .clock{text-align:right;min-width:132px;}
+  .clock b{display:block;font-size:25px;font-weight:800;letter-spacing:1.6px;line-height:1.1;}
+  .clock span{font-size:11px;color:var(--dim);letter-spacing:1px;}
+  .sync{font-size:11px;letter-spacing:.6px;margin-top:2px;}
+  .sync.ok{color:var(--green);} .sync.warn{color:var(--amber);} .sync.err{color:var(--red);}
+
+  /* ============ 主体表格 ============ */
+  .box{flex:1 1 auto;min-height:0;position:relative;border-radius:16px;overflow:auto;
+    border:1px solid var(--line);background:var(--panel);box-shadow:0 12px 40px rgba(0,0,0,.38);}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  thead th{
+    position:sticky;top:0;z-index:2;
+    font-size:12.5px;color:var(--muted);font-weight:700;text-align:left;
+    padding:9px 12px;letter-spacing:1px;background:rgba(9,14,26,.96);
+    border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  tbody td{padding:var(--rowpad,8px) 12px;border-bottom:1px solid rgba(120,180,255,.09);
+    font-size:var(--rowfs,17px);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* 没走完的：左边红条 + 淡红底 + 红字，门口一眼扫出来 */
+  tr.left{background:linear-gradient(90deg,rgba(255,107,107,.16),rgba(255,107,107,.045) 62%,transparent);}
+  tr.left td:first-child{box-shadow:inset 5px 0 0 var(--red);}
+  tr.left .cust{color:#ffd9d9;}
+  tr.done{background:linear-gradient(90deg,rgba(52,211,153,.09),transparent 62%);}
+  tr.done td:first-child{box-shadow:inset 5px 0 0 var(--green);}
+
+  .cust{font-weight:800;letter-spacing:.3px;}
+  .no{display:block;font-size:.66em;color:var(--dim);font-weight:600;margin-top:1px;letter-spacing:.2px;}
+  .ton{font-weight:800;font-size:1.12em;}
+  .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
+  .logi{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.82em;font-weight:700;
+    background:rgba(59,130,246,.20);color:#bfe0ff;border:1px solid rgba(59,130,246,.35);}
+  .logi.self{background:rgba(148,163,184,.16);color:#cbd5e1;border-color:rgba(148,163,184,.3);}
+
+  .stp{display:flex;align-items:center;gap:9px;}
+  .dots{display:flex;align-items:center;gap:3px;}
+  .dots i{width:9px;height:9px;border-radius:50%;background:rgba(148,163,184,.28);display:block;}
+  .dots i.on{background:var(--green);box-shadow:0 0 8px rgba(52,211,153,.6);}
+  .dots i.cur{background:var(--amber);box-shadow:0 0 8px rgba(251,191,36,.6);}
+  .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:.86em;font-weight:800;
+    white-space:nowrap;border:1px solid transparent;}
+  .pill.s0{background:rgba(148,163,184,.20);color:#cbd5e1;border-color:rgba(148,163,184,.3);}
+  .pill.s1{background:rgba(34,211,238,.18);color:#a5f3fc;border-color:rgba(34,211,238,.35);}
+  .pill.s2{background:rgba(251,191,36,.20);color:#fde68a;border-color:rgba(251,191,36,.4);}
+  .pill.s3{background:rgba(52,211,153,.20);color:#a7f3d0;border-color:rgba(52,211,153,.4);}
+
+  .car{font-weight:800;}
+  .car.on{color:var(--green);} .car.off{color:#94a3b8;font-weight:600;}
+  .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
+  .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
+    background:rgba(255,107,107,.24);color:#ffc9c9;border:1px solid rgba(255,107,107,.42);margin-right:6px;}
+
+  .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    color:var(--dim);font-size:17px;letter-spacing:1px;background:rgba(4,7,15,.55);}
+  .empty b{font-size:44px;color:rgba(120,180,255,.30);}
+  .empty em{font-style:normal;font-size:12.5px;color:var(--dim);letter-spacing:.6px;}
+
+  .ft{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:7px 4px 0;font-size:11.5px;color:var(--dim);letter-spacing:.6px;}
+  .ft .k{display:inline-flex;align-items:center;gap:5px;}
+  .ft .k i{width:9px;height:9px;border-radius:50%;display:block;}
+
+  /* 全屏时字号再放大一档（门口距离更远） */
+  body.fs .wrap{padding:16px 26px 16px;}
+  body.fs .tt .t{font-size:23px;}
+  body.fs .kpi b{font-size:27px;}
+  body.fs tbody td{font-size:calc(var(--rowfs,17px) * 1.22);}
+  body.fs .clock b{font-size:29px;}
+  body.hidecur,body.hidecur *{cursor:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hud">
+    <div class="logo">◈</div>
+    <div class="tt">
+      <div class="t">物流门口 · 发货进度</div>
+      <div class="s" id="sub">今日计划 + 昨日未完成</div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="spacer"></div>
+    <div class="ctrl">
+      <button id="codesBtn">▣ 两个码</button>
+      <button id="fsBtn">⛶ 全屏显示</button>
+    </div>
+    <div class="clock">
+      <b id="clock">--:--:--</b>
+      <span id="cdate">----</span>
+      <div class="sync" id="sync">正在连接云端…</div>
+    </div>
+  </div>
+
+  <div class="box">
+    <table id="tbl">
+      <colgroup>
+        <col style="width:7%"><col style="width:27%"><col style="width:9.5%"><col style="width:11%">
+        <col style="width:19%"><col style="width:10.5%"><col style="width:16%">
+      </colgroup>
+      <thead><tr>
+        <th>状态</th><th>客户 / 送达方</th><th style="text-align:right">吨位</th><th>物流</th>
+        <th>工序</th><th>车辆</th><th>最后更新</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">
+      <b>✓</b><span>今天没有待发的计划</span>
+      <em id="emptySub">今天没有发货计划，昨天也没有遗留没走完的</em>
+    </div>
+  </div>
+
+  <div class="ft">
+    <span class="k"><i style="background:#ff6b6b"></i>没走完（排在最前）</span>
+    <span class="k"><i style="background:#34d399"></i>已完成（工序走完 + 车已到）</span>
+    <span class="k"><i style="background:#fbbf24"></i>当前工序</span>
+    <span class="k" style="margin-left:auto">每 10 秒自动刷新 · 数据来自云端</span>
+  </div>
+
+</div>
+
+<script>
+/* ==========================================================================
+   物流门口大屏（只读）
+   设计要点：
+   1. 「取哪些行、什么算没走完、怎么排序」全部来自 scan-lib.js 的 boardRows ——
+      和手机端、管理端用的是同一份实现。三处数字不可能对不上。
+   2. 本页**永远不写**任何数据。只读，避免门岗手滑把进度点了。
+   3. 字号按行数自动缩放 + 全屏再加一档，保证整屏不滚动、站在门口能看清。
+   ========================================================================== */
+const SL = window.ScanLib;
+const $ = (id) => document.getElementById(id);
+const esc = SL.esc, raw = SL.raw;
+const POLL_MS = 10000;
+const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
+
+let RECORDS = [];
+let PROG = {};
+let rows = [];
+let lastFp = "";
+let rendered = false;
+let okCount = 0, badCount = 0;
+
+/* ---------- 从本机兜底读（断网时大屏不能变白板） ---------- */
+function loadLocal(){
+  try { const v = JSON.parse(localStorage.getItem(SL.KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
+  try { const v = JSON.parse(localStorage.getItem(SL.KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
+}
+function setSync(txt, cls){ const e = $("sync"); e.textContent = txt; e.className = "sync " + (cls || ""); }
+
+/* ---------- 拉取（超时保护：卡住的请求不能让整屏停摆） ---------- */
+function withTimeout(p, ms){
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+}
+
+async function pull(){
+  const cs = !!(window.CloudSync && CloudSync.ready());
+  let okA = !cs, okP = !cs;
+  if (cs){
+    try { const r = await withTimeout(CloudSync.pullResult(SL.KEY_PLANS), FETCH_MS); okA = !!(r && r.ok); if (r && r.ok && Array.isArray(r.value)) RECORDS = r.value; } catch(e){ okA = false; }
+    try { const r = await withTimeout(CloudSync.pullResult(SL.KEY_PROG), FETCH_MS); okP = !!(r && r.ok); if (r && r.ok && r.value && typeof r.value === "object") PROG = SL.mergeProg(PROG, r.value); } catch(e){ okP = false; }
+  }
+  if (!RECORDS.length) loadLocal();
+  // 墓碑：管理端删掉的单不再上屏
+  try {
+    const del = JSON.parse(localStorage.getItem(SL.KEY_DEL) || "null");
+    if (Array.isArray(del) && del.length){
+      const st = new Set(del.map(String));
+      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
+    }
+  } catch(e){}
+  try { localStorage.setItem(SL.KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+
+  const degraded = !okA || !okP;
+  degraded ? badCount++ : (badCount = 0);
+  okCount++;
+  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
+  else if (degraded) setSync("网络有波动 · 显示上一次数据 · " + t, "warn");
+  else setSync("已同步 ✓ " + t, "ok");
+
+  render();
+}
+
+/* ---------- 渲染 ---------- */
+function fmtTime(ts){
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  const today = SL.todayYmd();
+  const day = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  return (day === today ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+// 字号按行数自动缩放：行少就放大（门口看得清），行多就收紧（保证不滚动）
+function fitRows(n){
+  const vh = window.innerHeight;
+  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 210 : 190));
+  const per = avail / Math.max(1, n);
+  const fs = Math.max(11, Math.min(26, Math.floor(per * 0.52)));
+  document.documentElement.style.setProperty("--rowfs", fs + "px");
+  document.documentElement.style.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.42)) + "px");
+}
+
+function kpiHtml(s){
+  return [
+    { cls: "",      v: s.total, l: "在屏计划（趟）" },
+    { cls: "red",   v: s.left,  l: "未完成" },
+    { cls: "green", v: s.car + "/" + s.total, l: "车已到" },
+    { cls: "amber", v: s.stale, l: "昨天遗留" },
+    { cls: "",      v: s.pct + "%", l: "整体进度" },
+    { cls: "",      v: s.ton.toFixed(1), l: "在屏吨位" }
+  ].map(k => '<div class="kpi ' + k.cls + '"><i></i><b>' + esc(String(k.v)) + "</b><span>" + esc(k.l) + "</span></div>").join("");
+}
+
+function rowHtml(r){
+  const s = Math.min(3, r.s || 0);
+  let dots = "";
+  for (let i = 0; i < 4; i++){
+    const on = i <= s, cur = (i === s + 1 && s < 3);
+    dots += '<i class="' + (on && i > 0 ? "on" : (cur ? "cur" : "")) + '"></i>';
+  }
+  const self = /自提/.test(r.logistics || "");
+  const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
+  const byTxt = r.by ? " · " + esc(r.by) : "";
+  const when = r.car && r.ct ? SL.fmtHM(r.ct) : (r.t ? SL.fmtHM(r.t) : "");
+  const whenLbl = r.car && r.ct ? "车到" : (r.t ? "工序" : "");
+  return '<tr class="' + (r.done ? "done" : "left") + '">' +
+    '<td>' + (r.done ? '<span class="pill s3">已完成</span>' : '<span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span>") + "</td>" +
+    '<td><span class="cust">' + stale + esc(r.customer) + '</span><span class="no">' + esc(r.no || "（无单号）") +
+      (r.planner ? " · " + esc(r.planner) : "") + "</span></td>" +
+    '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
+    '<td><span class="logi' + (self ? " self" : "") + '">' + esc(r.logistics || "未填") + "</span></td>" +
+    '<td><span class="stp"><span class="dots">' + dots + '</span><span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></span></td>" +
+    '<td><span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span></td>" +
+    '<td><span class="tm">' + (when ? esc(whenLbl) + " " + esc(when) + byTxt : '<s>还没动</s>') + "</span></td>" +
+  "</tr>";
+}
+
+function render(){
+  rows = SL.boardRows(RECORDS, PROG);
+  const s = SL.boardStats(rows);
+  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.u, r.by].join(":")).join("|") + "#" + rows.length;
+  $("kpis").innerHTML = kpiHtml(s);
+
+  const empty = rows.length === 0;
+  $("empty").style.display = empty ? "flex" : "none";
+  $("tbl").style.display = empty ? "none" : "";
+  if (empty){
+    try {
+      const lastRec = RECORDS.length ? SL.recShipDate(RECORDS[RECORDS.length - 1]) : "";
+      $("emptySub").textContent = (RECORDS.length
+        ? "云端有 " + RECORDS.length + " 张已发布的单，但都不是今天 / 昨天未完成的。"
+        : "云端还没有已发布的发货单，请先在管理端点「发布」。");
+    } catch(e){}
+    lastFp = "";
+    return;
+  }
+  if (rendered && fp === lastFp) return;      // 内容没变就不重绘（避免整屏闪烁）
+  lastFp = fp;
+  rendered = true;
+  fitRows(rows.length);
+  $("tbody").innerHTML = rows.map(rowHtml).join("");
+}
+
+/* ---------- 时钟 / 全屏 / 隐藏光标 ---------- */
+function tickClock(){
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  $("clock").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  const wd = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
+  $("cdate").textContent = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日 星期" + wd;
+}
+
+let idleTimer = 0;
+function pokeCursor(){
+  document.body.classList.remove("hidecur");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (document.body.classList.contains("fs")) document.body.classList.add("hidecur");
+  }, 8000);
+}
+
+function toggleFs(){
+  const el = document.documentElement;
+  if (!document.fullscreenElement){
+    const p = el.requestFullscreen ? el.requestFullscreen()
+      : (el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null);
+    if (p && p.catch) p.catch(() => alert("浏览器不允许自动全屏：请按 F11 手动全屏。"));
+    else if (!p) alert("这个浏览器不支持自动全屏：请按 F11 手动全屏。");
+  } else {
+    document.exitFullscreen && document.exitFullscreen();
+  }
+}
+function onFsChange(){
+  const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  document.body.classList.toggle("fs", on);
+  $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
+  fitRows(rows.length);
+  pokeCursor();
+}
+
+/* ---------- 启动 ---------- */
+function boot(){
+  if (window.CloudSync){
+    CloudSync.init();
+    try { if (CloudSync.guard) CloudSync.guard(SL.KEY_PROG, SL.guardFn); } catch(e){}
+  }
+  loadLocal();
+  $("fsBtn").onclick = toggleFs;
+  $("codesBtn").onclick = () => SL.openCodesModal();
+  document.addEventListener("fullscreenchange", onFsChange);
+  document.addEventListener("webkitfullscreenchange", onFsChange);
+  document.addEventListener("mousemove", pokeCursor);
+  document.addEventListener("touchstart", pokeCursor);
+  window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
+  window.addEventListener("resize", () => fitRows(rows.length));
+  window.addEventListener("online", () => pull());
+  tickClock(); setInterval(tickClock, 1000);
+  pokeCursor();
+  pull();
+  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+  // 长时间挂着的大屏：每天凌晨 4 点自动重载一次，清掉累积的内存/定时器
+  setInterval(() => {
+    const d = new Date();
+    if (d.getHours() === 4 && d.getMinutes() < 1) location.reload();
+  }, 60000);
+}
+boot();
+</script>
+</body>
+</html>
