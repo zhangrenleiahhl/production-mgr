@@ -3,14 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>物流进度大屏</title>
+<title>物流进度大屏（内部看板）</title>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
 <script src="scan-lib.js?v=20260916f"></script>
 <style>
   /* ==========================================================================
-     物流门口大屏（只读，给现场远远地看）
+     物流进度大屏 · 内部看板（只读，给内部/办公室看）
+     --------------------------------------------------------------------------
+     ★ 这一屏**带送达方名称和物流** —— 只给内部看，请勿摆在物流门口。
+       现场涉及保密（2026-09-16 用户提出）：物流门口请用「物流门口大屏.html」，
+       那一屏送达方只显示「送达方代码」、不显示物流。
+       两屏的「取哪些行 / 什么算完成 / 怎么排序 / 配色 / 字号 / 自动滚动」
+       完全一致（同一份 scan-lib.js 实现），只是这一屏信息更全。
+     --------------------------------------------------------------------------
      · 只展示「今天的计划」（2026-09-16 起从今天开始算，不再带昨天）
      · 完成工序最多的排最顶（2026-09-16 下午改）：有动静的单往上走，
        四道工序各用一种颜色分类 —— 待确认红 · 货好青 · 装货中琥珀 · 已完成绿
@@ -64,6 +71,11 @@
     box-shadow:0 0 22px rgba(56,200,216,.4);}
   .tt .t{font-size:20px;font-weight:800;letter-spacing:1px;}
   .tt .s{font-size:11px;color:var(--dim);letter-spacing:1.4px;margin-top:1px;}
+
+  /* 醒目提醒：这一屏带送达方名称，只能内部看，别摆到物流门口 */
+  .warnbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
+    font-size:11.5px;font-weight:800;letter-spacing:.6px;white-space:nowrap;
+    background:rgba(255,180,84,.14);color:#ffd9a0;border:1px solid rgba(255,180,84,.42);}
 
   .kpis{display:flex;gap:10px;flex-wrap:wrap;margin-left:6px;}
   .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:11px;
@@ -163,9 +175,10 @@
   <div class="hud">
     <div class="logo">◈</div>
     <div class="tt">
-      <div class="t">物流进度</div>
-      <div class="s" id="sub">今日发货计划 · 进度高的排最前 · 超屏自动滚动</div>
+      <div class="t">物流进度 · 内部</div>
+      <div class="s" id="sub">今日发货计划 · 进度高的排最前 · 超屏自动滚动 · 含送达方名称（仅限内部）</div>
     </div>
+    <div class="warnbadge">⚠ 含送达方名称 · 勿摆物流门口</div>
     <div class="kpis" id="kpis"></div>
     <div class="spacer"></div>
     <div class="ctrl">
@@ -202,14 +215,15 @@
     <span class="k"><i style="background:#38c8d8"></i>货好</span>
     <span class="k"><i style="background:#ffb454"></i>装货中</span>
     <span class="k"><i style="background:#3ddc97"></i>已完成（工序走完 + 车已到）</span>
-    <span class="k" style="margin-left:auto">每 10 秒自动刷新 · 超出一屏自动慢速滚动 · 数据来自云端</span>
+    <span class="k" style="margin-left:auto">⚠ 本屏含送达方名称，仅限内部看 · 物流门口请用「门口大屏」保密版 · 每 10 秒自动刷新 · 超出一屏自动慢速滚动</span>
   </div>
 
 </div>
 
 <script>
 /* ==========================================================================
-   物流门口大屏（只读）
+   物流进度大屏 · 内部看板（只读）
+   ★ 含送达方名称与物流 —— 仅限内部；物流门口请用「物流门口大屏.html」保密版。
    设计要点：
    1. 「取哪些行、什么算没走完、怎么排序」全部来自 scan-lib.js 的 boardRows ——
       和手机端、管理端用的是同一份实现。三处数字不可能对不上。
