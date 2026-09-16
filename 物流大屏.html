@@ -7,20 +7,21 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260916b"></script>
+<script src="scan-lib.js?v=20260916c"></script>
 <style>
   /* ==========================================================================
      物流门口大屏（只读，给现场远远地看）
-     · 只展示「今天的计划」+「昨天没完成的计划」
-     · 没走完的一律排在前面并标红 —— 门口第一眼要看到还没走的
+     · 只展示「今天的计划」（2026-09-16 起从今天开始算，不再带昨天）
+     · 没走完的排在前面 —— 红色只点在「状态徽章 + 左侧细条」上，
+       客户名/吨位保持浅色大字。整片红底会淹没正文，门口反而看不清。
      · 深色高对比 + 字号随行数自动缩放，整屏不滚动（门岗不会去滚屏）
      ========================================================================== */
   :root{
-    --bg:#04070f;
-    --panel:rgba(255,255,255,.045);
-    --line:rgba(120,180,255,.15);
-    --txt:#e8f0ff; --muted:#7e94b4; --dim:#55688a;
-    --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#ff6b6b; --blue:#3b82f6;
+    --bg:#0a0e15;
+    --panel:rgba(255,255,255,.032);
+    --line:rgba(148,163,184,.16);
+    --txt:#f2f6fc; --muted:#a9b8cf; --dim:#6d7d99;
+    --cyan:#38c8d8; --green:#3ddc97; --amber:#ffb454; --red:#ff5d5d; --blue:#5b8def;
     --rows:14;
   }
   *{box-sizing:border-box;}
@@ -29,15 +30,13 @@
     font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
     color:var(--txt); font-variant-numeric:tabular-nums; overflow:hidden;
     background:
-      radial-gradient(1200px 640px at 8% -12%, rgba(37,99,235,.24), transparent 62%),
-      radial-gradient(1000px 600px at 96% -4%, rgba(168,85,247,.18), transparent 64%),
-      radial-gradient(900px 520px at 50% 114%, rgba(34,211,238,.13), transparent 62%),
-      linear-gradient(180deg,#04070f 0%,#070d1c 46%,#04070f 100%);
+      radial-gradient(1100px 560px at 12% -10%, rgba(56,140,216,.10), transparent 60%),
+      linear-gradient(180deg,#0a0e15 0%,#0d131d 46%,#0a0e15 100%);
     background-attachment:fixed;
   }
   body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
-    background-image:linear-gradient(rgba(120,190,255,.045) 1px, transparent 1px),
-                     linear-gradient(90deg, rgba(120,190,255,.045) 1px, transparent 1px);
+    background-image:linear-gradient(rgba(148,180,220,.03) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(148,180,220,.03) 1px, transparent 1px);
     background-size:44px 44px;
     mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);
     -webkit-mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);}
@@ -48,20 +47,20 @@
   .hud{
     flex:0 0 auto;position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
     padding:12px 20px;margin-bottom:12px;border-radius:16px;overflow:hidden;
-    background:linear-gradient(100deg,rgba(34,211,238,.10),rgba(168,85,247,.08) 45%,rgba(255,255,255,.02));
-    border:1px solid rgba(34,211,238,.24);
-    box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07);
+    background:linear-gradient(100deg,rgba(56,200,216,.08),rgba(91,141,239,.05) 45%,rgba(255,255,255,.02));
+    border:1px solid rgba(56,200,216,.22);
+    box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
     backdrop-filter:blur(16px);
   }
   .hud::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
-    background:linear-gradient(90deg,transparent,rgba(34,211,238,.85),rgba(168,85,247,.7),transparent);}
+    background:linear-gradient(90deg,transparent,rgba(56,200,216,.7),transparent);}
   .hud::after{content:"";position:absolute;top:-60%;left:-10%;width:34%;height:220%;
-    background:linear-gradient(90deg,transparent,rgba(34,211,238,.10),transparent);
+    background:linear-gradient(90deg,transparent,rgba(56,200,216,.07),transparent);
     transform:rotate(18deg);animation:sweep 7s linear infinite;pointer-events:none;}
   @keyframes sweep{0%{left:-20%}100%{left:120%}}
   .logo{width:44px;height:44px;flex:0 0 44px;border-radius:13px;display:flex;align-items:center;justify-content:center;
-    font-size:21px;background:linear-gradient(140deg,#22d3ee,#a855f7);color:#04101c;
-    box-shadow:0 0 26px rgba(34,211,238,.5);}
+    font-size:21px;background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
+    box-shadow:0 0 22px rgba(56,200,216,.4);}
   .tt .t{font-size:20px;font-weight:800;letter-spacing:1px;}
   .tt .s{font-size:11px;color:var(--dim);letter-spacing:1.4px;margin-top:1px;}
 
@@ -100,38 +99,41 @@
   tbody td{padding:var(--rowpad,8px) 12px;border-bottom:1px solid rgba(120,180,255,.09);
     font-size:var(--rowfs,17px);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-  /* 没走完的：左边红条 + 淡红底 + 红字，门口一眼扫出来 */
-  tr.left{background:linear-gradient(90deg,rgba(255,107,107,.16),rgba(255,107,107,.045) 62%,transparent);}
-  tr.left td:first-child{box-shadow:inset 5px 0 0 var(--red);}
-  tr.left .cust{color:#ffd9d9;}
-  tr.done{background:linear-gradient(90deg,rgba(52,211,153,.09),transparent 62%);}
-  tr.done td:first-child{box-shadow:inset 5px 0 0 var(--green);}
+  /* 没走完的：左侧红细条 + 极淡红底（红是「标记」，不是「底色」——正文保持清晰） */
+  tr.left{background:linear-gradient(90deg,rgba(255,93,93,.075),rgba(255,93,93,.02) 55%,transparent);}
+  tr.left td:first-child{box-shadow:inset 4px 0 0 var(--red);}
+  tr.done{background:linear-gradient(90deg,rgba(61,220,151,.07),transparent 62%);}
+  tr.done td:first-child{box-shadow:inset 4px 0 0 var(--green);}
+  tr.done .cust{color:#c9d6e8;}
 
-  .cust{font-weight:800;letter-spacing:.3px;}
-  .no{display:block;font-size:.66em;color:var(--dim);font-weight:600;margin-top:1px;letter-spacing:.2px;}
+  .cust{font-weight:800;letter-spacing:.3px;color:var(--txt);}
+  .no{display:block;font-size:.66em;color:var(--muted);font-weight:600;margin-top:1px;letter-spacing:.2px;}
   .ton{font-weight:800;font-size:1.12em;}
   .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
   .logi{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.82em;font-weight:700;
-    background:rgba(59,130,246,.20);color:#bfe0ff;border:1px solid rgba(59,130,246,.35);}
-  .logi.self{background:rgba(148,163,184,.16);color:#cbd5e1;border-color:rgba(148,163,184,.3);}
+    background:rgba(91,141,239,.18);color:#c4d9ff;border:1px solid rgba(91,141,239,.32);}
+  .logi.self{background:rgba(148,163,184,.14);color:#d3dce8;border-color:rgba(148,163,184,.28);}
 
   .stp{display:flex;align-items:center;gap:9px;}
   .dots{display:flex;align-items:center;gap:3px;}
-  .dots i{width:9px;height:9px;border-radius:50%;background:rgba(148,163,184,.28);display:block;}
-  .dots i.on{background:var(--green);box-shadow:0 0 8px rgba(52,211,153,.6);}
-  .dots i.cur{background:var(--amber);box-shadow:0 0 8px rgba(251,191,36,.6);}
+  .dots i{width:9px;height:9px;border-radius:50%;background:rgba(148,163,184,.26);display:block;}
+  .dots i.on{background:var(--green);box-shadow:0 0 8px rgba(61,220,151,.55);}
+  .dots i.cur{background:var(--amber);box-shadow:0 0 8px rgba(255,180,84,.55);}
   .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:.86em;font-weight:800;
     white-space:nowrap;border:1px solid transparent;}
-  .pill.s0{background:rgba(148,163,184,.20);color:#cbd5e1;border-color:rgba(148,163,184,.3);}
-  .pill.s1{background:rgba(34,211,238,.18);color:#a5f3fc;border-color:rgba(34,211,238,.35);}
-  .pill.s2{background:rgba(251,191,36,.20);color:#fde68a;border-color:rgba(251,191,36,.4);}
-  .pill.s3{background:rgba(52,211,153,.20);color:#a7f3d0;border-color:rgba(52,211,153,.4);}
+  .pill.s0{background:rgba(148,163,184,.20);color:#d3dce8;border-color:rgba(148,163,184,.3);}
+  .pill.s1{background:rgba(56,200,216,.16);color:#a8ecf4;border-color:rgba(56,200,216,.34);}
+  .pill.s2{background:rgba(255,180,84,.18);color:#ffd9a0;border-color:rgba(255,180,84,.38);}
+  .pill.s3{background:rgba(61,220,151,.18);color:#a9f2d3;border-color:rgba(61,220,151,.38);}
+  /* 未完成行的状态徽章统一红系：红色集中在这里，整屏才不会一片红 */
+  tr.left .pill{background:rgba(255,93,93,.16);color:#ffb3b3;border-color:rgba(255,93,93,.42);}
 
   .car{font-weight:800;}
-  .car.on{color:var(--green);} .car.off{color:#94a3b8;font-weight:600;}
+  .car.on{color:var(--green);} .car.off{color:var(--amber);font-weight:700;}
+  tr.done .car.off{color:#94a3b8;font-weight:600;}
   .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
-    background:rgba(255,107,107,.24);color:#ffc9c9;border:1px solid rgba(255,107,107,.42);margin-right:6px;}
+    background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
 
   .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
     color:var(--dim);font-size:17px;letter-spacing:1px;background:rgba(4,7,15,.55);}
@@ -158,7 +160,7 @@
     <div class="logo">◈</div>
     <div class="tt">
       <div class="t">物流门口 · 发货进度</div>
-      <div class="s" id="sub">今日计划 + 昨日未完成</div>
+      <div class="s" id="sub">今日发货计划 · 未完成排最前</div>
     </div>
     <div class="kpis" id="kpis"></div>
     <div class="spacer"></div>
@@ -187,7 +189,7 @@
     </table>
     <div class="empty" id="empty" style="display:none">
       <b>✓</b><span>今天没有待发的计划</span>
-      <em id="emptySub">今天没有发货计划，昨天也没有遗留没走完的</em>
+      <em id="emptySub">今天没有发货计划</em>
     </div>
   </div>
 
@@ -288,8 +290,8 @@ function kpiHtml(s){
   return [
     { cls: "",      v: s.total, l: "在屏计划（趟）" },
     { cls: "red",   v: s.left,  l: "未完成" },
+    { cls: "amber", v: s.tonLeft.toFixed(1), l: "未完成吨位" },
     { cls: "green", v: s.car + "/" + s.total, l: "车已到" },
-    { cls: "amber", v: s.stale, l: "昨天遗留" },
     { cls: "",      v: s.pct + "%", l: "整体进度" },
     { cls: "",      v: s.ton.toFixed(1), l: "在屏吨位" }
   ].map(k => '<div class="kpi ' + k.cls + '"><i></i><b>' + esc(String(k.v)) + "</b><span>" + esc(k.l) + "</span></div>").join("");
@@ -332,7 +334,7 @@ function render(){
     try {
       const lastRec = RECORDS.length ? SL.recShipDate(RECORDS[RECORDS.length - 1]) : "";
       $("emptySub").textContent = (RECORDS.length
-        ? "云端有 " + RECORDS.length + " 张已发布的单，但都不是今天 / 昨天未完成的。"
+        ? "云端有 " + RECORDS.length + " 张已发布的单，但都不是今天的。"
         : "云端还没有已发布的发货单，请先在管理端点「发布」。");
     } catch(e){}
     lastFp = "";
