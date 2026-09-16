@@ -2846,7 +2846,15 @@ function saveRec(rec){
   if(window.CloudSync) flushRec(false);
   return ok;
 }
-function loadRec(){ try{ const a=JSON.parse(localStorage.getItem(LS_REC))||[]; a.forEach(function(r){ if(r && r.no!=null) r.no=fixPlanNo(r.no); }); return a; }catch(e){ return []; } }
+function loadRec(){
+  try{
+    const a=JSON.parse(localStorage.getItem(LS_REC))||[];
+    let fixedAny=false;
+    a.forEach(function(r){ if(r && r.no!=null){ const v=fixPlanNo(r.no); if(v!==r.no){ r.no=v; fixedAny=true; } } });
+    if(fixedAny) markPending(true);   // 修到坏单号 → 标记待补传，启动校对就会把修好的推上云端（修完写回后不再触发）
+    return a;
+  }catch(e){ return []; }
+}
 // ===== 删除发布记录：密码保护 =====
 const DEL_PWD_KEY="shipping_delpwd_v1", DEFAULT_DEL_PWD="123456";
 function getDelPwd(){ try{ return localStorage.getItem(DEL_PWD_KEY)||DEFAULT_DEL_PWD; }catch(e){ return DEFAULT_DEL_PWD; } }
