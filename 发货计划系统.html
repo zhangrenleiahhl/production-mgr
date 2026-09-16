@@ -465,7 +465,8 @@
     <button class="btn btn-line" id="copyModelCode" title="复制勾选行的整行信息（发货日期/送达方/型号/发货数量/发货点/交货单/箱数/时效要求/箱重T/产品重量T/客户吨位/物流/物料编码，制表符分隔；可直接粘回表格，也可粘到 Excel）">复制</button>
     <button class="btn btn-line" id="progBoardBtn" title="发货进度看板：现场用手机扫码逐道工序更新；这里实时显示（打开时每 10 秒刷新）">📱 发货进度</button>
     <button class="btn btn-line" id="codesBtn" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机码（只勾车已到）。点开可打印张贴。">▣ 两个码</button>
-    <a class="btn btn-line" id="dashLink" href="物流大屏.html" target="_blank" title="物流进度大屏：全屏展示今天的计划，完成工序最多的排最顶，四道工序分色（打开后点「全屏显示」）">🖥 门口大屏</a>
+    <a class="btn btn-line" id="dashLink" href="物流门口大屏.html" target="_blank" title="物流门口大屏（保密版）：送达方只显示「送达方代码」、不显示物流，摆在物流门口用（涉及保密，门口只能用这一屏）。全屏展示今天的计划，完成工序最多的排最顶，四道工序分色（打开后点「全屏显示」）">🖥 门口大屏</a>
+    <a class="btn btn-line" id="dashInnerLink" href="物流大屏.html" target="_blank" title="物流内部看板：带送达方名称和物流，供内部/办公室查看。★ 含送达方名称，请勿摆在物流门口（门口请用「门口大屏」保密版）">📊 内部看板</a>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
     <div class="filter-group" data-page-node-id="5RjIcfTJe96hrQ6LEE0AGP">
       <span class="filter-label" data-page-node-id="hGhxjNhHCIfI1ETpstEV1Z">筛选</span>
@@ -2744,6 +2745,34 @@ function publish(){
   // 把本次发布涉及的「客户吨位」手动修改打包进记录，发货员端自动同步显示
   const _ct=loadCT(), _raw=v=>String(v==null||v==="/"?"":v).trim(), custTon={};
   rows.forEach(r=>{ const k=ctKeyOf(_raw(r.customer),_raw(r.shipdate)); if(_ct[k]!==undefined) custTon[k]=_ct[k]; });
+
+  // ===== 送达方代码（门口大屏保密显示用）=====
+  // 现场涉及保密：门口那块大屏不能出现送达方名称，只能用「送达方代码」。
+  // 所以在**发布这一刻**就把代码刻进每条明细（写成 custcode 字段）——
+  //   ① 之后门口大屏在任意一台电脑上都能显示代码，不依赖那台机器同步过物料库；
+  //   ② 日后改物料库/换型号，也不会改写已经发出去的单（记录自带当时的那份代码）。
+  // 查不到代码的行**不写**这个字段：大屏会显示「未编代码」占位，
+  // 绝不回落到客户名 —— 保密不能因为"查不到"就漏出名字。
+  {
+    const pickCode=(cu,mo,cd)=>{
+      let ms=[]; try{ ms=matchDb(mo,cd); }catch(e){ ms=[]; }
+      for(const m of ms){ const cc=_raw(m.custcode); if(cc) return cc; }
+      // 型号对不上时，退回按送达方名称找（换了型号、客户没换的常见情形）
+      try{ const hit=DB.find(x=>_raw(x.customer)===cu && _raw(x.custcode)); if(hit) return _raw(hit.custcode); }catch(e){}
+      return "";
+    };
+    const missing=[];
+    rows.forEach(r=>{
+      const cu=_raw(r.customer);
+      const cc=pickCode(cu,_raw(r.model),_raw(r.code));
+      if(cc) r.custcode=cc; else missing.push(cu||"（未填送达方）");
+    });
+    // 缺代码只提醒、不拦发布：急着发货不能被"代码还没编"卡住（大屏会显示占位）
+    if(missing.length){
+      const uniq=[...new Set(missing)];
+      toast("⚠ "+missing.length+" 行的送达方还没编代码（门口大屏会显示「未编代码」）："+uniq.slice(0,3).join("、")+(uniq.length>3?" 等 "+uniq.length+" 个":""));
+    }
+  }
 
   // 汇总：只统计本次实际发布的行（不再用全局合计，避免把未勾选/其它计划也算进来）
   const _n = v => parseFloat(String(v==null||v==="/"?"":v).trim())||0;
