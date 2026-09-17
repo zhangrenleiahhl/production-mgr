@@ -1104,7 +1104,9 @@ function updateDbStatus(){
 // 从物料库页面切回时刷新，保证待选最新
 window.addEventListener("focus", ()=>{
   if(window.CloudSync && CloudSync.ready()){
-    CloudSync.pull(LS_DB).then(v=>{ if(v!==null){ localStorage.setItem(LS_DB, JSON.stringify(v)); DB=loadDB(); updateDbStatus(); } });
+    // ★ 云端物料库到位后要把表里空着物流的行补一次：页面刚打开时本地库可能是旧的/空的，
+    //   那一刻建的行带不出物流；等库真到了再带一遍，否则一直空到用户手动重开页面为止
+    CloudSync.pull(LS_DB).then(v=>{ if(v!==null){ localStorage.setItem(LS_DB, JSON.stringify(v)); DB=loadDB(); updateDbStatus(); syncLogisticsAll(); } });
   } else { DB = loadDB(); updateDbStatus(); }
 });
 
@@ -1115,7 +1117,11 @@ function closeAC(){ if(acEl){ acEl.remove(); acEl=null; } acList=[]; acActive=-1
 function snapRow(row){
   if(!row) return null;
   const g=f=>(row.querySelector(`[data-f="${f}"]`)?.value)||"";
-  return { row, model:g("model"), code:g("code"), unit:g("unit"), perbox:g("perbox"), customer:g("customer"), remark:g("remark"), logistics:g("logistics") };
+  const lgEl=row.querySelector('[data-f="logistics"]');
+  // 物流的「手填」标记也一起快照：撤销后要让手填状态一并回到原样，
+  // 否则撤销回一个自动带出的值却被当成手填，客户再改它就不跟了
+  return { row, model:g("model"), code:g("code"), unit:g("unit"), perbox:g("perbox"), customer:g("customer"), remark:g("remark"), logistics:g("logistics"),
+           logisticsManual:!!(lgEl&&lgEl.dataset.manual==="1") };
 }
 function restoreRowSnap(){
   if(!acSnap || !acSnap.row || !acSnap.row.parentNode) return false;
@@ -1123,6 +1129,8 @@ function restoreRowSnap(){
   const set=(f,v)=>{ const el=row.querySelector(`[data-f="${f}"]`); if(el) el.value=v||""; };
   set("model",acSnap.model); set("code",acSnap.code); set("unit",acSnap.unit);
   set("perbox",acSnap.perbox); set("customer",acSnap.customer); set("remark",acSnap.remark); set("logistics",acSnap.logistics);
+  const lgEl2=row.querySelector('[data-f="logistics"]');
+  if(lgEl2){ if(acSnap.logisticsManual) lgEl2.dataset.manual="1"; else delete lgEl2.dataset.manual; }
   recalc(); mergeCustomerCells(); fitTextareas();
   acSnap=null;
   return true;
@@ -1205,7 +1213,9 @@ function applyDb(row, r){
   // 避免物料库中客户与型号相同（常见导入错位）时把型号填进客户列
   row.querySelector('[data-f="customer"]').value=(r.customer && r.customer!==r.model)?r.customer:"";
   row.querySelector('[data-f="remark"]').value=r.remark||"";
-  row.querySelector('[data-f="logistics"]').value=r.logistics||"";   // 物流随客户带出
+  const lgInpDb=row.querySelector('[data-f="logistics"]');
+  if(lgInpDb){ delete lgInpDb.dataset.manual; lgInpDb.value=r.logistics||""; }   // 物流随物料/客户带出（带出来的就是自动值 → 清掉手填标记）
+  ensureLogistics(row);                                                          // 该条物料本身没写物流 → 按客户兜底再带一次
   recalc(); mergeCustomerCells(); fitTextareas(); toast("已带出："+(r.model||r.code));
   // 一个型号发多个客户：带出后提示用户确认/修改
   const cs=customersForModel(r.model, r.code);
@@ -1217,26 +1227,48 @@ function applyDb(row, r){
   // 自动聚焦到发货数量，避免光标跳到客户列
   setTimeout(()=>{ const q=row.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
 }
-// 按「客户」从物料库反查物流（取第一个匹配且有物流值的记录）
+// 按「客户」从物料库反查物流：取该客户**出现次数最多**的那个物流。
+// ★ 为什么不取「第一条有值的」：同一客户在库里可能几十条、偶尔混进写法不同的物流，
+//   按"第一条"会随库顺序变化而跳（今天旺成、明天贝业），众数才是这个客户的稳定口径。
+//   并列时保留先出现的那个（> 而不是 >=）。
 function logisticsForCustomer(customer){
   const c=(customer||"").trim();
   if(!c || !DB.length) return "";
+  const tally={}; let best="", bestN=0;
   for(const r of DB){
-    if((r.customer||"").trim()===c){
-      const lg=(r.logistics||"").trim();
-      if(lg) return lg;
-    }
+    if((r.customer||"").trim()!==c) continue;
+    const lg=(r.logistics||"").trim();
+    if(!lg) continue;
+    tally[lg]=(tally[lg]||0)+1;
+    if(tally[lg]>bestN){ bestN=tally[lg]; best=lg; }
   }
-  return "";
+  return best;
+}
+// ★★ 物流自动带出的**唯一口径** —— 所有「行进入系统」的路径都必须过这里：
+//    建行(addRow) / 草稿恢复 / 撤回恢复 / 粘贴(fillDbFieldsForRow) / 客户被带出(applyCustomerToRow) / 云端物料库到位
+//    规则：① 手填过（data-manual=1）→ 一个字都不动，人工永远优先
+//          ② 物料库里查得到 → 写上
+//          ③ 查不到 → 保持原样（**绝不清空**：宁可不带，也不能把人工/历史值抹成空）
+function ensureLogistics(tr){
+  const lgInp=tr && tr.querySelector && tr.querySelector('[data-f="logistics"]');
+  if(!lgInp) return false;
+  if(lgInp.dataset.manual==="1") return false;
+  const cust=(tr.querySelector('[data-f="customer"]')||{}).value||"";
+  const lg=logisticsForCustomer(cust);
+  if(!lg || String(lgInp.value==null?"":lgInp.value).trim()===lg) return false;
+  lgInp.value=lg;
+  return true;
+}
+// 全表按客户重带一次物流，返回补了多少行（云端物料库到位、发布前兜底时用）
+function syncLogisticsAll(){
+  let n=0;
+  try{
+    [...$("tbody").children].filter(isDataRow).forEach(tr=>{ if(ensureLogistics(tr)) n++; });
+  }catch(e){}
+  return n;
 }
 // 客户列变更时自动带出物流（手填过则不覆盖）
-function autoFillLogistics(tr){
-  const lgInp=tr.querySelector('[data-f="logistics"]');
-  if(!lgInp || lgInp.dataset.manual==="1") return;
-  const cust=tr.querySelector('[data-f="customer"]')?.value||"";
-  const lg=logisticsForCustomer(cust);
-  if(lg) lgInp.value=lg;
-}
+function autoFillLogistics(tr){ ensureLogistics(tr); }
 function autoResizeTa(ta){ fitTextarea(ta); }
 // 统一匹配物料库：型号 / 物料编码
 // ★ 型号和编码都有时，必须「两者都一致」；都对不上（常见于改过型号、编码还是旧物料的）
@@ -1405,6 +1437,7 @@ function fillDbFieldsForRow(tr){
   const setH=(f,v)=>{ const el=tr.querySelector(`[data-f="${f}"]`); if(el) el.value=(v==null?"":String(v)); };
   setH("unit", r.unit);        // 单重 kg/件
   setH("perbox", r.perbox);    // 每箱件数
+  ensureLogistics(tr);         // ★ 物流同源带出（粘贴/改型号回填物料字段时一起带，别让物流列空着）
 }
 function moveAC(d){
   if(!acEl) return;
@@ -1432,6 +1465,8 @@ document.addEventListener("keydown", e=>{
     const s=lastApplied.snap;
     const set=(f,v)=>{ const x=lastApplied.row.querySelector(`[data-f="${f}"]`); if(x) x.value=v||""; };
     set("model",s.model); set("code",s.code); set("unit",s.unit); set("perbox",s.perbox); set("customer",s.customer); set("remark",s.remark); set("logistics",s.logistics);
+    const lgEl3=lastApplied.row.querySelector('[data-f="logistics"]');
+    if(lgEl3){ if(s.logisticsManual) lgEl3.dataset.manual="1"; else delete lgEl3.dataset.manual; }
     lastApplied=null;
     recalc(); mergeCustomerCells(); fitTextareas(); saveDraftNow();
     toast("已恢复原数据");
@@ -1497,7 +1532,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     <td class="col-cwt num-cell"><span class="cwt-val">${esc(cwtVal)}</span><input type="hidden" data-f="cwt" value="${esc(cwtVal)}"${cwtDeleted?' data-deleted="1"':''}>${cwtBtnHtml}</td>
     <td class="col-ton num-cell"><div class="ton-wrap"><input type="text" class="ton-in${tonManual?' edited':''}" data-f="ton" inputmode="decimal" value="${esc(tonVal)}"${tonManual?' data-manual="1"':''} title="产品重量T：默认按 数量×单重÷1000 自动，可直接修改"><button type="button" class="ton-reset" title="恢复自动带出">↺</button></div></td>
     <td class="col-subton num-cell"></td>
-    <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}" placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
+    <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}"${((data.logisticsManual===true||data.logisticsManual==="1")?' data-manual="1"':'')} placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
     <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" title="物料编码（支持粘贴/编辑，也可点右侧按钮复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
     <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   tr.querySelector(".del-x").onclick=()=>delRow(tr);
@@ -1609,6 +1644,9 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     }
     if(!inserted) tb.appendChild(tr);
   }
+  // ★ 物流按客户自动带出：全表所有行都从这里诞生（手动加行 / 草稿恢复 / 撤回恢复 / 粘贴补行），
+  //   挂在这一处就全覆盖。这一步必须在写草稿之前（下面 saveDraftNow 才存得到带出来的物流）。
+  ensureLogistics(tr);
   if(!skipRefresh){ reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates(); }
   return tr;   // 返回新建的行（粘贴/批量添加时需要拿到它）
 }
@@ -2552,7 +2590,9 @@ function writeDraftNow(){
         box:boxI.value, boxManual:(boxI.dataset.manual==="1"),
         cwt:cwtI.value, cwtDeleted:(cwtI.dataset.deleted==="1"),
         remark:R.remark?R.remark.value:"",
-        logistics:R.logistics?R.logistics.value:""
+        logistics:R.logistics?R.logistics.value:"",
+        // ★ 手填标记必须一起存：重开页面后标记若丢了，自动带出会把人工填的物流冲掉
+        logisticsManual:!!(R.logistics&&R.logistics.dataset.manual==="1")
       });
     }
     if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
@@ -2683,6 +2723,7 @@ function fingerprintRows(rows){
 }
 function publish(){
   flushRefresh();   // 先把待处理的全表刷新跑完，确保发布读到的是最新值
+  syncLogisticsAll();   // ★ 发布前兜底：物流空着但客户能查到的行，此刻补上（手填过的一律不动）
   const allTrs=[...$("tbody").children].filter(isDataRow);
   if(!allTrs.length){ toast("请先添加发货明细"); return; }
   // 发布前必须勾选确认：仅发布已勾选的行
@@ -3226,6 +3267,7 @@ function pasteFinish(rows, custPasted){
   reindex(); recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow();
   // 粘贴进来的数据：型号有 2 个以上送达方 → 重新询问选择（不再被旧记忆/残留值静默跳过）
   rows.forEach(tr=>autoFillCustomerByModel(tr, {force:true, respectFilled:!!custPasted}));
+  rows.forEach(tr=>ensureLogistics(tr));   // ★ 送达方是这之后才定下来的 → 物流必须在客户定完后再带一次
   recalc(); mergeCustomerCells(); saveDraftNow();
 }
 function onTablePaste(e){
@@ -3454,9 +3496,9 @@ if(window.CloudSync){
   const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 校对同步'; btn.title='与云端校对并同步：两边合并（只增不减），并显示本机/云端/合并后的条数';
   if(nav){ const dbStatus=nav.querySelector('#dbStatus'); const anchor=dbStatus?dbStatus.nextSibling:null; nav.insertBefore(pill, anchor); nav.insertBefore(btn, pill.nextSibling); CloudSync.bindStatus(pill);
     // 手动点：拉云端 → 并墓碑 → 双向合并（只增不减）→ 推回云端，并明确报告条数，方便发现"哪一边少了"
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, true, CLOUD_MERGE).then(()=>reconcileNow(true)); }
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); syncLogisticsAll(); }, true, CLOUD_MERGE).then(()=>reconcileNow(true)); }
   if(CloudSync.ready()){
-    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); }, false, CLOUD_MERGE).then(()=>{
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); updateDbStatus(); renderRecords(); syncLogisticsAll(); }, false, CLOUD_MERGE).then(()=>{
       // ★ 启动时不再无条件「把本地回写云端」：万一某个键这次没拉到，回写就会用本机旧数据冲掉云端。
       //   改成：有待补传就补推；本机比云端多也补推（否则两边会长期不一致）。
       reconcileNow(false);
