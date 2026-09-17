@@ -3224,7 +3224,9 @@ function pasteFill(tr,f,v){
     return;
   }
   el.value=val;
-  if(f==="box"){ if(val==="") delete el.dataset.manual; else el.dataset.manual="1"; }
+  // 手填语义：箱数、物流贴进来就是「人工值」，不许被自动计算 / 按客户自动带出覆盖；
+  // 贴进来是空的 → 清掉标记，恢复自动（箱数按算式算、物流按客户带）
+  if(f==="box"||f==="logistics"){ if(val==="") delete el.dataset.manual; else el.dataset.manual="1"; }
 }
 // 从「落点行」开始取 count 行（不够就自动补行）
 // appendIfNoAnchor=true：没有落点行时在表格末尾「追加新行」（而不是覆盖最后一行）
