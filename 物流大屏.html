@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260917c"></script>
+<script src="scan-lib.js?v=20260917d"></script>
 <style>
   /* ==========================================================================
      物流进度大屏 · 内部看板（只读，给内部/办公室看）
@@ -267,7 +267,8 @@ const KEY_DB = SL.KEY_DB;            // 物料库（含送达方代码）—— 
 let RECORDS = [];
 let PROG = {};
 let DB = [];                         // 物料库
-let IDX = { byModel: {}, byCust: {} };   // 代码索引（型号→代码 / 客户名→代码），由 scan-lib 构建
+let IDX = { byPair: {}, byCust: {}, byModel: {} };  // 代码索引（客户+型号 / 客户名 / 型号），由 scan-lib 构建
+let LGIDX = {};                                     // 物流索引（客户 → 物流），由 scan-lib 构建
 let rows = [];
 let lastFp = "";
 let rendered = false;
@@ -288,10 +289,18 @@ function loadLocalDb(){
 }
 function setSync(txt, cls){ const e = $("sync"); e.textContent = txt; e.className = "sync " + (cls || ""); }
 
-/* ---------- 送达方代码：解析口径只有 scan-lib.codeOf 一份（门口屏/司机页共用） ----------
-   三级兜底：记录行 custcode → 物料库按型号 → 物料库按客户名。查不到返回 ""。 */
-function buildDbIndex(){ IDX = SL.codeIndex(DB); }
+/* ---------- 送达方代码 / 物流：解析口径只有 scan-lib 一份（门口屏/司机页共用） ----------
+   代码：客户+型号 → 客户名 → 记录自带 → 型号（库里的解析结果优先，能自动纠正老单里的
+         错码）。查不到返回 ""，调用方显示占位、**绝不回落客户名**。
+   物流：记录里有值就用记录里的（尊重发布当时那份快照）；记录里没有（老单发布时还没带
+         物流，字段是 "/"）就按客户从物料库**实时补**，不用等重发。 */
+function buildDbIndex(){ IDX = SL.codeIndex(DB); LGIDX = SL.logisticsIndex(DB); }
 function codeOf(r){ return SL.codeOf(r, IDX); }
+function logisticsOf(r){
+  const lg = String((r && r.logistics) || "").trim();
+  if (lg && lg !== "/") return lg;                 // 记录里有值 → 尊重当时那份
+  return SL.logisticsOf(r && r.customer, LGIDX);   // 记录里没有 → 按客户实时补
+}
 
 /* ---------- 拉取（超时保护：卡住的请求不能让整屏停摆） ---------- */
 function withTimeout(p, ms){
@@ -377,7 +386,8 @@ function rowHtml(r){
     const on = i <= s, cur = (i === s + 1 && s < 3);
     dots += '<i class="' + (on && i > 0 ? "on" : (cur ? "cur c" + (s + 1) : "")) + '"></i>';
   }
-  const self = /自提/.test(r.logistics || "");
+  const lg = logisticsOf(r);                       // 记录里没有就按客户实时补
+  const self = /自提/.test(lg || "");
   const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
   const byTxt = r.by ? " · " + esc(r.by) : "";
   const when = r.car && r.ct ? SL.fmtHM(r.ct) : (r.t ? SL.fmtHM(r.t) : "");
@@ -390,7 +400,7 @@ function rowHtml(r){
       '<span class="nn">' + esc(r.no || "（无单号）") +
       (r.planner ? " · " + esc(r.planner) : "") + "</span></span></td>" +
     '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
-    '<td><span class="logi' + (self ? " self" : "") + '">' + esc(r.logistics || "未填") + "</span></td>" +
+    '<td><span class="logi' + (self ? " self" : "") + '">' + esc(lg || "未填") + "</span></td>" +
     '<td><span class="stp"><span class="dots">' + dots + '</span><span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></span></td>" +
     '<td><span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span></td>" +
     '<td><span class="tm">' + (when ? esc(whenLbl) + " " + esc(when) + byTxt : '<s>还没动</s>') + "</span></td>" +
@@ -401,7 +411,7 @@ function render(){
   rows = SL.boardRows(RECORDS, PROG);
   const s = SL.boardStats(rows);
   // 指纹里带上代码：物料库后到（比如刚在另一台机器补了代码）也要触发重绘
-  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.u, r.by, codeOf(r)].join(":")).join("|") + "#" + rows.length;
+  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.u, r.by, codeOf(r), logisticsOf(r)].join(":")).join("|") + "#" + rows.length;
   $("kpis").innerHTML = kpiHtml(s);
 
   const empty = rows.length === 0;
