@@ -137,6 +137,18 @@
   .dots i{width:9px;height:9px;border-radius:50%;background:rgba(148,163,184,.26);display:block;}
   .dots i.on{background:var(--green);box-shadow:0 0 8px rgba(61,220,151,.55);}
   .dots i.cur{background:var(--amber);box-shadow:0 0 8px rgba(255,180,84,.55);}
+  /* 即将到下一道工序：一个小点反复"跑"进下一格（颜色 = 下一道工序的颜色），
+     四步：货待确认 → 货好(青) → 装货中(琥珀) → 已完成(绿) */
+  .dots i.cur{animation:run2next 1.5s ease-in-out infinite;}
+  .dots i.cur.c1{background:var(--cyan);box-shadow:0 0 8px rgba(56,200,216,.55);}
+  .dots i.cur.c3{background:var(--green);box-shadow:0 0 8px rgba(61,220,151,.55);}
+  @keyframes run2next{
+    0%  {transform:translateX(-9px) scale(.45);opacity:.1;}
+    55% {transform:translateX(0)    scale(1);opacity:1;}
+    78% {transform:translateX(0)    scale(1.18);opacity:1;}
+    100%{transform:translateX(4px)  scale(.5);opacity:0;}
+  }
+  @media (prefers-reduced-motion:reduce){.dots i.cur{animation:none;}}
   .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:.86em;font-weight:800;
     white-space:nowrap;border:1px solid transparent;}
   .pill.s0{background:rgba(255,93,93,.16);color:#ffb3b3;border-color:rgba(255,93,93,.42);}
@@ -322,7 +334,7 @@ function rowHtml(r){
   let dots = "";
   for (let i = 0; i < 4; i++){
     const on = i <= s, cur = (i === s + 1 && s < 3);
-    dots += '<i class="' + (on && i > 0 ? "on" : (cur ? "cur" : "")) + '"></i>';
+    dots += '<i class="' + (on && i > 0 ? "on" : (cur ? "cur c" + (s + 1) : "")) + '"></i>';
   }
   const self = /自提/.test(r.logistics || "");
   const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
