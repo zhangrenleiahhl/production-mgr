@@ -131,10 +131,17 @@
   tr.done td:first-child{box-shadow:inset 4px 0 0 var(--green);}
   tr.done .cust{color:#c9d6e8;}
 
-  /* 送达方代码：用等宽字体，门口远远地看数字不会串行 */
-  .cust{font-weight:800;letter-spacing:1px;color:var(--txt);
+  /* 送达方代码：这一屏最关键的信息，字号**专门放大**（整行的 1.5 倍，门口远远地看数字不会串行）。
+     倍数走 --coder（由 fitCodeFont 按列宽实测定，塞不下会自动降一档，绝不让省略号把代码截断）；
+     CSS 里这个 1.5 只是脚本没跑起来时的兜底值。 */
+  .cust{font-size:calc(var(--rowfs,17px) * var(--coder,1.5));line-height:1.1;
+    font-weight:800;letter-spacing:1px;color:var(--txt);
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;}
   .cust.miss{font-family:inherit;font-weight:700;letter-spacing:.3px;color:var(--dim);}
+  /* 最后的保险（2026-09-17）：真遇到"缩到最小也放不下"的超长代码，宁可折成两行，
+     也绝不让省略号吃掉一位 —— 门口把 10017388 看成 1001… 比不显示还糟。
+     平时不开（折行会让行变高），只在 fitCodeFont 试完所有档位都塞不下时才加上 body.codewrap。 */
+  body.codewrap .cust{white-space:normal;overflow-wrap:anywhere;letter-spacing:.5px;}
   /* 单号（2026-09-17 起从代码格里分出来，独占一列）：单号本身用等宽字体，
      后面跟的计划员姓名**打码显示**（两字遮第二个、三字遮中间）——
      一眼分清哪段是单号、哪段是人名，同时又不在门口屏幕上报出完整姓名 */
@@ -180,6 +187,8 @@
   body.fs .tt .t{font-size:21px;}
   body.fs .kpi b{font-size:23px;}
   body.fs tbody td{font-size:calc(var(--rowfs,17px) * 1.22);}
+  /* 全屏时代码也要跟着放大（它自带 font-size，不跟着 td 走，得单独再乘一档） */
+  body.fs .cust{font-size:calc(var(--rowfs,17px) * var(--coder,1.5) * 1.22);}
   body.fs .clock b{font-size:25px;}
   body.hidecur,body.hidecur *{cursor:none !important;}
 </style>
@@ -209,8 +218,8 @@
   <div class="box">
     <table id="tbl">
       <colgroup>
-        <col style="width:7%"><col style="width:12%"><col style="width:19%">
-        <col style="width:9%"><col style="width:22%"><col style="width:10%"><col style="width:21%">
+        <col style="width:7%"><col style="width:14%"><col style="width:19%">
+        <col style="width:9%"><col style="width:20%"><col style="width:10%"><col style="width:21%">
       </colgroup>
       <thead><tr>
         <th>状态</th><th>送达方代码</th><th>单号</th><th style="text-align:right">吨位</th>
@@ -382,13 +391,62 @@ function fmtTime(ts){
 // 下限 15px：再小门口就看不清了，塞不下交给自动慢速滚动（不再硬缩到看不清）。
 // 那两个常数 = 「顶部 HUD + 底部图例 + 上下留白」占掉的高度（含一点余量）。
 // ★ 动了头部高度就要同步改这里，否则表格会多留/少留一段空白。
+// ★ 0.40 这个系数是**按最高的那格**（送达方代码，最大可到 3 倍）反推的：
+//   一行高 ≈ 代码字号×1.1 + 上下内边距，取 0.40 才能保证代码放开到极限时行也不溢出。
+// --perrow = 每行能分到的高度配额，fitCodeFont 拿它当"行不许再高"的上限。
 function fitRows(n){
   const vh = window.innerHeight;
   const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 192 : 172));
   const per = avail / Math.max(1, n);
-  const fs = Math.max(15, Math.min(26, Math.floor(per * 0.52)));
-  document.documentElement.style.setProperty("--rowfs", fs + "px");
-  document.documentElement.style.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.42)) + "px");
+  const fs = Math.max(15, Math.min(26, Math.floor(per * 0.40)));
+  const root = document.documentElement.style;
+  root.setProperty("--rowfs", fs + "px");
+  root.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.36)) + "px");
+  root.setProperty("--perrow", per + "px");
+}
+
+/* 一行有没有"塞不下"：代码列被挤到溢出，或者这一行高过了配额 */
+function rowOverflows(tds){
+  for (let i = 0; i < tds.length; i++){
+    const td = tds[i];
+    if (td.scrollWidth > td.clientWidth + 1) return true;
+  }
+  const per = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--perrow")) || 0;
+  const rowEl = tds[0] && tds[0].parentElement;
+  return !!(per > 0 && rowEl && rowEl.getBoundingClientRect().height > per + 1);
+}
+
+/* 送达方代码用多大字（2026-09-17 用户要求「加到最大」）——
+   唯一的硬约束有两条：**不许被省略号截断**（门口把 100173 看成 1001… 比不显示还糟），
+   **一行也不许高过配额**（否则整屏要滚，看表更费劲）。在两条之内，能多大就多大。
+   做法不猜公式，全部用真实排版量出来的数：
+     ① 在 1.5 倍、2.5 倍各量一次（这一列最宽的代码有多宽、这一行有多高）
+     ② 宽度和高度对字号都是线性的 → 直接解出"刚好塞得下"的倍数，取两者较小值
+     ③ 定下来后复核一次，真超了就往下降档；降到底（1 倍，跟别的列一样大）还放不下才开折行 */
+const CODE_R_MAX = 3, CODE_R_MIN = 1, CODE_R_LO = 1.5, CODE_R_HI = 2.5, CODE_R_STEP = 0.05;
+function fitCodeFont(){
+  const tds = Array.prototype.slice.call(document.querySelectorAll("#tbody td:nth-child(2)"));
+  if (!tds.length) return;
+  const root = document.documentElement, style = root.style;
+  document.body.classList.remove("codewrap");     // 先按"不折行"量（折行会让行变高，能不用就不用）
+  const per = parseFloat(getComputedStyle(root).getPropertyValue("--perrow")) || 0;
+  const rowEl = tds[0].parentElement;
+  const sample = (r) => {
+    style.setProperty("--coder", r.toFixed(2));
+    let w = 0;
+    tds.forEach(td => { const c = td.querySelector(".cust"); if (c) w = Math.max(w, c.getBoundingClientRect().width); });
+    return { w: w, h: rowEl.getBoundingClientRect().height, room: tds[0].clientWidth - 28 };
+  };
+  const lo = sample(CODE_R_LO), hi = sample(CODE_R_HI);
+  // 两点连线解出"刚好顶到上限"的倍数；量不到数（比如 jsdom 里宽度恒为 0）就取硬上限
+  const solve = (v1, v2, limit) => (v2 - v1 > 0.5 ? CODE_R_LO + (CODE_R_HI - CODE_R_LO) * (limit - v1) / (v2 - v1) : CODE_R_MAX);
+  let r = Math.min(CODE_R_MAX, solve(lo.w, hi.w, lo.room), per > 0 ? solve(lo.h, hi.h, per) : CODE_R_MAX);
+  r = Math.max(CODE_R_MIN, Math.floor(r / CODE_R_STEP) * CODE_R_STEP);
+  for (; r >= CODE_R_MIN - 1e-6; r -= CODE_R_STEP){
+    style.setProperty("--coder", r.toFixed(2));
+    if (!rowOverflows(tds)) return;      // 量着没超，就定这一档
+  }
+  document.body.classList.add("codewrap");   // 缩到最小还放不下 → 折行，一个字都不丢
 }
 
 function kpiHtml(s){
@@ -491,6 +549,7 @@ function render(){
   fitRows(rows.length);
   missCount = 0;
   $("tbody").innerHTML = rows.map(rowHtml).join("");
+  fitCodeFont();                       // 行出来了才知道这一列多宽，再定代码字号
   updateMissNote();
   setupScroll();
 }
@@ -572,7 +631,7 @@ function onFsChange(){
   const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
   document.body.classList.toggle("fs", on);
   $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
-  stopScroll(); fitRows(rows.length); setupScroll();   // 全屏切换字号变了，滚动要重新量
+  stopScroll(); fitRows(rows.length); fitCodeFont(); setupScroll();   // 全屏切换字号变了，滚动要重新量
   pokeCursor();
 }
 
@@ -589,7 +648,7 @@ function boot(){
   document.addEventListener("mousemove", pokeCursor);
   document.addEventListener("touchstart", pokeCursor);
   window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
-  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); setupScroll(); });
+  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCodeFont(); setupScroll(); });
   // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
   boxEl.addEventListener("wheel", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
   boxEl.addEventListener("touchstart", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
