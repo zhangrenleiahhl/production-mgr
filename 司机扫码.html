@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260917c"></script>
+<script src="scan-lib.js?v=20260917d"></script>
 <style>
   /* ==========================================================================
      司机到车登记（手机端，一个码通吃，不用登录）
@@ -122,7 +122,7 @@ const esc = SL.esc;
 const POLL_MS = 10000;
 
 let RECORDS = [], PROG = {}, ROWS = [], FILTER = "", rendered = false, lastFp = "";
-let DB = [], IDX = { byModel: {}, byCust: {} };   // 物料库 + 送达方代码索引（保密用）
+let DB = [], IDX = { byPair: {}, byCust: {}, byModel: {} };   // 物料库 + 送达方代码索引（保密用）
 
 /* ---------- 本机缓存（断网也能勾，恢复后自动补传） ---------- */
 function loadLocal(){
