@@ -125,7 +125,21 @@
   tr.done .cust{color:#c9d6e8;}
 
   .cust{font-weight:800;letter-spacing:.3px;color:var(--txt);}
-  .no{display:block;font-size:.66em;color:var(--muted);font-weight:600;margin-top:1px;letter-spacing:.2px;}
+  .no{display:flex;align-items:center;font-size:.66em;color:var(--muted);font-weight:600;margin-top:1px;letter-spacing:.2px;min-width:0;}
+  /* ★ 单号那截允许自己省略（flex 子项收缩 + 省略号）：格子窄的时候宁可切单号尾巴，
+     也绝不动代码 —— "截断的代码比不显示更危险"是这个项目的老规矩。 */
+  .no .nn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  /* 送达方代码徽章：放在「单号 · 计划员」那行的**最前面**，竖着一列对齐，一眼能扫。
+     ★ 为什么不跟在客户名后面：客户/送达方那一格是 nowrap + 省略号（见 #tbl td），
+       长客户名本来就在临界点上，再塞个徽章会把名字切得更早（比如"安徽海立精密铸造有限公司上海分公司"）。
+       挪到第二行，名字一个像素都不占它的。 */
+  .ccode{display:inline-block;flex:0 0 auto;margin-right:7px;padding:0 5px;border-radius:5px;
+    font-family:ui-monospace,Consolas,"Courier New",monospace;font-weight:800;font-size:1.16em;
+    letter-spacing:.6px;color:#7ef0c2;background:rgba(61,220,151,.13);
+    /* ★ 描边必须用内阴影，不能用 border —— border 上下各 1px 会把这一行的行盒顶高，
+       整行跟着涨 3px（真渲染实测 82 vs 基线 79），36 行就多出 100 多像素、白送一次滚动。 */
+    box-shadow:inset 0 0 0 1px rgba(61,220,151,.32);
+    vertical-align:1px;white-space:nowrap;}
   .ton{font-weight:800;font-size:1.12em;}
   .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
   .logi{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.82em;font-weight:700;
@@ -248,8 +262,12 @@ const esc = SL.esc, raw = SL.raw;
 const POLL_MS = 10000;
 const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
 
+const KEY_DB = SL.KEY_DB;            // 物料库（含送达方代码）—— 用于把客户名换成代码
+
 let RECORDS = [];
 let PROG = {};
+let DB = [];                         // 物料库
+let IDX = { byModel: {}, byCust: {} };   // 代码索引（型号→代码 / 客户名→代码），由 scan-lib 构建
 let rows = [];
 let lastFp = "";
 let rendered = false;
@@ -259,8 +277,21 @@ let okCount = 0, badCount = 0;
 function loadLocal(){
   try { const v = JSON.parse(localStorage.getItem(SL.KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
   try { const v = JSON.parse(localStorage.getItem(SL.KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
+  loadLocalDb();
+}
+/* 物料库单独兜底：★ 别把它混进上面那个整体兜底 ——
+   否则"物料库为空"会把刚拉到的最新计划又用本机旧缓存盖回去。 */
+function loadLocalDb(){
+  if (DB.length){ buildDbIndex(); return; }
+  try { const v = JSON.parse(localStorage.getItem(KEY_DB) || "null"); if (Array.isArray(v)) DB = v; } catch(e){}
+  buildDbIndex();
 }
 function setSync(txt, cls){ const e = $("sync"); e.textContent = txt; e.className = "sync " + (cls || ""); }
+
+/* ---------- 送达方代码：解析口径只有 scan-lib.codeOf 一份（门口屏/司机页共用） ----------
+   三级兜底：记录行 custcode → 物料库按型号 → 物料库按客户名。查不到返回 ""。 */
+function buildDbIndex(){ IDX = SL.codeIndex(DB); }
+function codeOf(r){ return SL.codeOf(r, IDX); }
 
 /* ---------- 拉取（超时保护：卡住的请求不能让整屏停摆） ---------- */
 function withTimeout(p, ms){
@@ -273,8 +304,18 @@ async function pull(){
   if (cs){
     try { const r = await withTimeout(CloudSync.pullResult(SL.KEY_PLANS), FETCH_MS); okA = !!(r && r.ok); if (r && r.ok && Array.isArray(r.value)) RECORDS = r.value; } catch(e){ okA = false; }
     try { const r = await withTimeout(CloudSync.pullResult(SL.KEY_PROG), FETCH_MS); okP = !!(r && r.ok); if (r && r.ok && r.value && typeof r.value === "object") PROG = SL.mergeProg(PROG, r.value); } catch(e){ okP = false; }
+    // 物料库：只为了拿送达方代码。拉不到就用本机缓存（不阻断大屏）
+    try {
+      const r = await withTimeout(CloudSync.pullResult(KEY_DB), FETCH_MS);
+      if (r && r.ok && Array.isArray(r.value)) {
+        DB = r.value;
+        try { localStorage.setItem(KEY_DB, JSON.stringify(DB)); } catch(e){}
+        buildDbIndex();
+      }
+    } catch(e){}
   }
   if (!RECORDS.length) loadLocal();
+  if (!DB.length) loadLocalDb();        // 物料库单独兜底（不动刚拉到的计划）
   // 墓碑：管理端删掉的单不再上屏
   try {
     const del = JSON.parse(localStorage.getItem(SL.KEY_DEL) || "null");
@@ -341,10 +382,13 @@ function rowHtml(r){
   const byTxt = r.by ? " · " + esc(r.by) : "";
   const when = r.car && r.ct ? SL.fmtHM(r.ct) : (r.t ? SL.fmtHM(r.t) : "");
   const whenLbl = r.car && r.ct ? "车到" : (r.t ? "工序" : "");
+  const code = codeOf(r);
+  const codeChip = code ? '<span class="ccode">' + esc(code) + "</span>" : "";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + (r.done ? '<span class="pill s3">已完成</span>' : '<span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span>") + "</td>" +
-    '<td><span class="cust">' + stale + esc(r.customer) + '</span><span class="no">' + esc(r.no || "（无单号）") +
-      (r.planner ? " · " + esc(r.planner) : "") + "</span></td>" +
+    '<td><span class="cust">' + stale + esc(r.customer) + '</span><span class="no">' + codeChip +
+      '<span class="nn">' + esc(r.no || "（无单号）") +
+      (r.planner ? " · " + esc(r.planner) : "") + "</span></span></td>" +
     '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td><span class="logi' + (self ? " self" : "") + '">' + esc(r.logistics || "未填") + "</span></td>" +
     '<td><span class="stp"><span class="dots">' + dots + '</span><span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></span></td>" +
@@ -356,7 +400,8 @@ function rowHtml(r){
 function render(){
   rows = SL.boardRows(RECORDS, PROG);
   const s = SL.boardStats(rows);
-  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.u, r.by].join(":")).join("|") + "#" + rows.length;
+  // 指纹里带上代码：物料库后到（比如刚在另一台机器补了代码）也要触发重绘
+  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.u, r.by, codeOf(r)].join(":")).join("|") + "#" + rows.length;
   $("kpis").innerHTML = kpiHtml(s);
 
   const empty = rows.length === 0;
