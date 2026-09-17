@@ -1247,7 +1247,9 @@ function ensureLogistics(tr){
   if(!lgInp) return false;
   if(lgInp.dataset.manual==="1") return false;
   const cust=(tr.querySelector('[data-f="customer"]')||{}).value||"";
-  const lg=logisticsForCustomer(cust);
+  const model=(tr.querySelector('[data-f="model"]')||{}).value||"";
+  let lg=logisticsForCustomer(cust);
+  if(!lg) lg=logisticsForRow(cust, model);   // 名字写法对不上 → 按型号认人
   if(!lg || String(lgInp.value==null?"":lgInp.value).trim()===lg) return false;
   lgInp.value=lg;
   return true;
@@ -1259,6 +1261,13 @@ function syncLogisticsAll(){
     [...$("tbody").children].filter(isDataRow).forEach(tr=>{ if(ensureLogistics(tr)) n++; });
   }catch(e){}
   return n;
+}
+// 客户名在库里对不上时，用「型号」认人（该型号在库里只挂一个客户）—— 取代码就是这么认的
+function logisticsForRow(customer, model){
+  const L=window.ScanLib;
+  const md=String(model||"").trim();
+  if(!L || !L.logisticsIndex || !L.logisticsOfRow || !md) return "";
+  return L.logisticsOfRow({customer:customer||"", models:[md]}, L.logisticsIndex(DB));
 }
 // 客户列变更时自动带出物流（手填过则不覆盖）
 function autoFillLogistics(tr){ ensureLogistics(tr); }
