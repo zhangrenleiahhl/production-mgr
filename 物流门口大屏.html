@@ -56,12 +56,12 @@
     mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);
     -webkit-mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);}
 
-  .wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:14px 20px 14px;}
+  .wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:10px 20px 10px;}
 
   /* ============ 顶部 HUD ============ */
   .hud{
-    flex:0 0 auto;position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
-    padding:12px 20px;margin-bottom:12px;border-radius:16px;overflow:hidden;
+    flex:0 0 auto;position:relative;display:flex;align-items:center;gap:15px;flex-wrap:wrap;
+    padding:8px 18px;margin-bottom:9px;border-radius:16px;overflow:hidden;
     background:linear-gradient(100deg,rgba(56,200,216,.08),rgba(91,141,239,.05) 45%,rgba(255,255,255,.02));
     border:1px solid rgba(56,200,216,.22);
     box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
@@ -73,23 +73,23 @@
     background:linear-gradient(90deg,transparent,rgba(56,200,216,.07),transparent);
     transform:rotate(18deg);animation:sweep 7s linear infinite;pointer-events:none;}
   @keyframes sweep{0%{left:-20%}100%{left:120%}}
-  .logo{width:44px;height:44px;flex:0 0 44px;border-radius:13px;display:flex;align-items:center;justify-content:center;
-    font-size:21px;background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
+  .logo{width:38px;height:38px;flex:0 0 38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-size:18px;background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
     box-shadow:0 0 22px rgba(56,200,216,.4);}
-  .tt .t{font-size:20px;font-weight:800;letter-spacing:1px;}
-  .tt .s{font-size:11px;color:var(--dim);letter-spacing:1.4px;margin-top:1px;}
+  .tt .t{font-size:18px;font-weight:800;letter-spacing:1px;}
+  .tt .s{font-size:10.5px;color:var(--dim);letter-spacing:1.2px;margin-top:1px;}
 
   /* 「保密」徽章：让现场一眼确认摆的是保密版那一屏（而不是内部看板） */
   .secbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
     font-size:11.5px;font-weight:800;letter-spacing:.8px;white-space:nowrap;
     background:rgba(61,220,151,.13);color:#a9f2d3;border:1px solid rgba(61,220,151,.34);}
 
-  .kpis{display:flex;gap:10px;flex-wrap:wrap;margin-left:6px;}
+  .kpis{display:flex;gap:9px;flex-wrap:wrap;margin-left:4px;}
   .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:11px;
-    padding:6px 13px;min-width:104px;position:relative;overflow:hidden;}
+    padding:4px 12px;min-width:94px;position:relative;overflow:hidden;}
   .kpi i{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:.85;}
-  .kpi b{display:block;font-size:23px;font-weight:800;line-height:1.15;}
-  .kpi span{display:block;font-size:11px;color:var(--muted);letter-spacing:.6px;white-space:nowrap;}
+  .kpi b{display:block;font-size:20px;font-weight:800;line-height:1.12;}
+  .kpi span{display:block;font-size:10.5px;color:var(--muted);letter-spacing:.6px;white-space:nowrap;}
   .kpi.red i{background:var(--red);} .kpi.red b{color:var(--red);}
   .kpi.amber i{background:var(--amber);} .kpi.amber b{color:var(--amber);}
   .kpi.green i{background:var(--green);} .kpi.green b{color:var(--green);}
@@ -97,13 +97,13 @@
   .spacer{flex:1;}
   .ctrl{display:flex;align-items:center;gap:8px;}
   .ctrl button{background:rgba(34,211,238,.13);border:1px solid rgba(34,211,238,.42);color:var(--txt);
-    padding:8px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+    padding:6px 12px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;
     letter-spacing:.5px;white-space:nowrap;}
   .ctrl button:hover{background:rgba(34,211,238,.24);}
-  .clock{text-align:right;min-width:132px;}
-  .clock b{display:block;font-size:25px;font-weight:800;letter-spacing:1.6px;line-height:1.1;}
-  .clock span{font-size:11px;color:var(--dim);letter-spacing:1px;}
-  .sync{font-size:11px;letter-spacing:.6px;margin-top:2px;}
+  .clock{text-align:right;min-width:116px;}
+  .clock b{display:block;font-size:22px;font-weight:800;letter-spacing:1.4px;line-height:1.08;}
+  .clock span{font-size:10.5px;color:var(--dim);letter-spacing:.8px;}
+  .sync{font-size:10.5px;letter-spacing:.5px;margin-top:1px;}
   .sync.ok{color:var(--green);} .sync.warn{color:var(--amber);} .sync.err{color:var(--red);}
 
   /* ============ 主体表格 ============ */
@@ -169,11 +169,11 @@
   .ft .k i{width:9px;height:9px;border-radius:50%;display:block;}
 
   /* 全屏时字号再放大一档（门口距离更远） */
-  body.fs .wrap{padding:16px 26px 16px;}
-  body.fs .tt .t{font-size:23px;}
-  body.fs .kpi b{font-size:27px;}
+  body.fs .wrap{padding:12px 26px 12px;}
+  body.fs .tt .t{font-size:21px;}
+  body.fs .kpi b{font-size:23px;}
   body.fs tbody td{font-size:calc(var(--rowfs,17px) * 1.22);}
-  body.fs .clock b{font-size:29px;}
+  body.fs .clock b{font-size:25px;}
   body.hidecur,body.hidecur *{cursor:none !important;}
 </style>
 </head>
@@ -190,7 +190,6 @@
     <div class="kpis" id="kpis"></div>
     <div class="spacer"></div>
     <div class="ctrl">
-      <button id="codesBtn">▣ 两个码</button>
       <button id="fsBtn">⛶ 全屏显示</button>
     </div>
     <div class="clock">
@@ -374,9 +373,11 @@ function fmtTime(ts){
 
 // 字号按行数自动缩放：行少就放大（门口看得清），行多就收紧。
 // 下限 15px：再小门口就看不清了，塞不下交给自动慢速滚动（不再硬缩到看不清）。
+// 那两个常数 = 「顶部 HUD + 底部图例 + 上下留白」占掉的高度（含一点余量）。
+// ★ 动了头部高度就要同步改这里，否则表格会多留/少留一段空白。
 function fitRows(n){
   const vh = window.innerHeight;
-  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 210 : 190));
+  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 192 : 172));
   const per = avail / Math.max(1, n);
   const fs = Math.max(15, Math.min(26, Math.floor(per * 0.52)));
   document.documentElement.style.setProperty("--rowfs", fs + "px");
@@ -554,7 +555,6 @@ function boot(){
   }
   loadLocal();
   $("fsBtn").onclick = toggleFs;
-  $("codesBtn").onclick = () => SL.openCodesModal();
   document.addEventListener("fullscreenchange", onFsChange);
   document.addEventListener("webkitfullscreenchange", onFsChange);
   document.addEventListener("mousemove", pokeCursor);
