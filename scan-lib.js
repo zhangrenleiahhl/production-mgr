@@ -620,7 +620,7 @@ window.ScanLib = (function () {
      两个固定码（用户 2026-09-16 定死）：不再给每张单/每个人单独出码，
      全厂只用两张通用码：
        ① 内部码 → 扫码.html        内部人员（要登录）推 4 道工序
-       ② 司机码 → 司机扫码.html    司机只能勾「车已到」和撤回
+       ② 司机签到码 → 司机扫码.html    司机只能勾「车已到」和撤回
      三端共用这一份，所以每处弹出来的码永远是同一个地址。
      ========================================================================== */
   var CODES_CSS = '.smk2-mask{display:none;position:fixed;inset:0;background:rgba(15,23,42,.62);z-index:3100;' +
@@ -653,7 +653,7 @@ window.ScanLib = (function () {
   function codeDefs(){
     return [
       { title: "内部人员码", desc: "要登录（工号+口令）。推进「待确认 / 货好 / 装货中 / 已完成」四道工序。", url: pageUrl(SCAN_PAGE), page: SCAN_PAGE },
-      { title: "司机码",     desc: "不用登录。司机只能勾「车已到」，可撤回自己那一勾。", url: pageUrl(DRIVER_PAGE), page: DRIVER_PAGE }
+      { title: "司机签到码", desc: "不用登录。请司机师傅根据自己的信息，找到对应的送达方代码，点击「车已到」完成签到（点错可撤回）。", url: pageUrl(DRIVER_PAGE), page: DRIVER_PAGE }
     ];
   }
 
@@ -684,7 +684,7 @@ window.ScanLib = (function () {
       return '<div class="smk2-card"><div class="t">' + esc(d.title) + '</div>' +
         '<div class="d">' + esc(d.desc) + '</div>' +
         '<div class="cv" data-cv="c' + i + '"><div class="smk-load">正在生成…</div></div>' +
-        '<div class="u">' + esc(d.url) + "</div></div>";
+        '<div class="u">' + esc(prettyUrl(d.url)) + "</div></div>";
     }).join("");
     m.style.display = "flex";
     ensureQRCode().then(function (okLib) {
