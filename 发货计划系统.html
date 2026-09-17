@@ -10,7 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260917a"></script>
+<script src="scan-lib.js?v=20260917b"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -464,7 +464,7 @@
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
     <button class="btn btn-line" id="copyModelCode" title="复制勾选行的整行信息（发货日期/送达方/型号/发货数量/发货点/交货单/箱数/时效要求/箱重T/产品重量T/客户吨位/物流/物料编码，制表符分隔；可直接粘回表格，也可粘到 Excel）">复制</button>
     <button class="btn btn-line" id="progBoardBtn" title="发货进度看板：现场用手机扫码逐道工序更新；这里实时显示（打开时每 10 秒刷新）">📱 发货进度</button>
-    <button class="btn btn-line" id="codesBtn" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机码（只勾车已到）。点开可打印张贴。">▣ 两个码</button>
+    <button class="btn btn-line" id="codesBtn" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机签到码（只勾车已到）。点开可打印张贴。">▣ 两个码</button>
     <a class="btn btn-line" id="dashLink" href="物流门口大屏.html" target="_blank" title="物流门口大屏（保密版）：送达方只显示「送达方代码」、不显示物流，摆在物流门口用（涉及保密，门口只能用这一屏）。全屏展示今天的计划，完成工序最多的排最顶，四道工序分色（打开后点「全屏显示」）">🖥 门口大屏</a>
     <a class="btn btn-line" id="dashInnerLink" href="物流大屏.html" target="_blank" title="物流内部看板：带送达方名称和物流，供内部/办公室查看。★ 含送达方名称，请勿摆在物流门口（门口请用「门口大屏」保密版）">📊 内部看板</a>
     <input type="file" id="backupFile" accept="application/json,.json" style="display:none" data-page-node-id="FujZMc5NKM83el9XjqYRIy">
@@ -2984,7 +2984,7 @@ function renderRecords(){
           共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")}
           <div data-prog class="recprog"></div></div>
         <div class="acts">
-          <button class="btn btn-line" data-act="codes" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机码（只勾车已到）">▣ 两个码</button>
+          <button class="btn btn-line" data-act="codes" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机签到码（只勾车已到）">▣ 两个码</button>
           <button class="btn btn-line" data-act="csv">导出CSV</button>
           <button class="btn btn-danger" data-act="del">删除</button>
         </div>`;
@@ -3509,7 +3509,7 @@ function renderBoard(){
 }
 
 // 不再给每张单单独出码（2026-09-16 用户要求）：全厂只有两张通用码 ——
-// 「内部人员码」（要登录，推四道工序）和「司机码」（只勾车已到）。
+// 「内部人员码」（要登录，推四道工序）和「司机签到码」（只勾车已到）。
 // 两处入口调的都是 scan-lib 里同一个弹层，所以永远不会有第三个地址。
 function showCodes(){
   if(!SLB){ toast("进度模块没加载出来，请按 Ctrl+F5 刷新页面"); return; }
