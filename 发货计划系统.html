@@ -10,7 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260917c"></script>
+<script src="scan-lib.js?v=20260917d"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -1228,21 +1228,14 @@ function applyDb(row, r){
   setTimeout(()=>{ const q=row.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
 }
 // 按「客户」从物料库反查物流：取该客户**出现次数最多**的那个物流。
-// ★ 为什么不取「第一条有值的」：同一客户在库里可能几十条、偶尔混进写法不同的物流，
-//   按"第一条"会随库顺序变化而跳（今天旺成、明天贝业），众数才是这个客户的稳定口径。
-//   并列时保留先出现的那个（> 而不是 >=）。
+// ★ 口径只此一份 —— 实现已搬进 scan-lib.logisticsIndex / logisticsOf，
+//   内部看板给老单实时补物流也调同一份，免得两个页面算出不同答案。
 function logisticsForCustomer(customer){
   const c=(customer||"").trim();
   if(!c || !DB.length) return "";
-  const tally={}; let best="", bestN=0;
-  for(const r of DB){
-    if((r.customer||"").trim()!==c) continue;
-    const lg=(r.logistics||"").trim();
-    if(!lg) continue;
-    tally[lg]=(tally[lg]||0)+1;
-    if(tally[lg]>bestN){ bestN=tally[lg]; best=lg; }
-  }
-  return best;
+  const L=window.ScanLib;                      // 用 window.ScanLib 而不是 SLB：
+  if(!L || !L.logisticsIndex) return "";       // SLB 是后面才 const 的，早调会踩 TDZ
+  return L.logisticsOf(c, L.logisticsIndex(DB));
 }
 // ★★ 物流自动带出的**唯一口径** —— 所有「行进入系统」的路径都必须过这里：
 //    建行(addRow) / 草稿恢复 / 撤回恢复 / 粘贴(fillDbFieldsForRow) / 客户被带出(applyCustomerToRow) / 云端物料库到位
@@ -2864,17 +2857,19 @@ function publish(){
   // 查不到代码的行**不写**这个字段：大屏会显示「未编代码」占位，
   // 绝不回落到客户名 —— 保密不能因为"查不到"就漏出名字。
   {
-    const pickCode=(cu,mo,cd)=>{
-      let ms=[]; try{ ms=matchDb(mo,cd); }catch(e){ ms=[]; }
-      for(const m of ms){ const cc=_raw(m.custcode); if(cc) return cc; }
-      // 型号对不上时，退回按送达方名称找（换了型号、客户没换的常见情形）
-      try{ const hit=DB.find(x=>_raw(x.customer)===cu && _raw(x.custcode)); if(hit) return _raw(hit.custcode); }catch(e){}
-      return "";
+    // ★ 取码口径必须和大屏/司机页**完全一致** —— 直接把 scan-lib 那套拿来用，
+    //   绝不在发布这条路上再写第二份。旧版是按「型号的第一条」取，而型号是多客户
+    //   共用的（一条型号对应好几个客户、好几个代码），于是把 A 客户的代码刻到了
+    //   B 客户的行上（实测 50 行里刻错 11 行）。
+    const CIDX=(window.ScanLib && window.ScanLib.codeIndex) ? window.ScanLib.codeIndex(DB) : null;
+    const pickCode=(cu,mo)=>{
+      if(!CIDX) return "";
+      try{ return window.ScanLib.codeOf({customer:cu, models:mo?[mo]:[], rec:null}, CIDX) || ""; }catch(e){ return ""; }
     };
     const missing=[];
     rows.forEach(r=>{
       const cu=_raw(r.customer);
-      const cc=pickCode(cu,_raw(r.model),_raw(r.code));
+      const cc=pickCode(cu,_raw(r.model));
       if(cc) r.custcode=cc; else missing.push(cu||"（未填送达方）");
     });
     // 缺代码只提醒、不拦发布：急着发货不能被"代码还没编"卡住（大屏会显示占位）
