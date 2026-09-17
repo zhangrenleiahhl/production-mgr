@@ -386,17 +386,81 @@ window.ScanLib = (function () {
 
      ★ 取值顺序（从最准到最宽）：
        ① 客户 + 型号 同时命中   （库里 3580 个组合**全部唯一**，最准）
-       ② 只按客户名             （163 个客户里仅 1 个有冲突，冲突的自动跳过）
-       ③ 记录里发布时刻刻好的那份（这台机器没同步过物料库时的兜底；也是老单据的原样）
-       ④ 只按型号               （3212 个型号里 207 个有冲突，冲突的自动跳过）
-       ⑤ 都没有 → 返回空，调用方显示「未编代码」（**绝不回落客户名**，保密底线）
-       ★ ①② 排在③前面：送达方代码的真源是物料库，库里精确命中就用库的 ——
+       ② 只按客户名             （164 个客户里仅 1 个有冲突，冲突的自动跳过）
+       ③ 客户名的**写法变体**   （行名是库名的另一种写法时，见 aliasName 的说明）
+       ④ 记录里发布时刻刻好的那份（这台机器没同步过物料库时的兜底；也是老单据的原样）
+       ⑤ 只按型号 —— 且该行所有型号在库里**只能指向同一个客户**才敢用
+          （旧版是「单个型号在库里唯一就命中」，会闯祸：一行里只要有一个型号属于
+            别的客户，就把**别人的代码**安到这行上。2026-09-17 现场实拍抓到的就是它：
+            「宁波泰友（宁波甬微进仓）」的 3 个型号因两种写法冲突、兜不住，
+            于是拿第 4 个型号「密封盖_D265270511」命中宁波优艾希杰 → 显示了 100081）
+       ⑥ 都没有 → 返回空，调用方显示「未编代码」（**绝不回落客户名**，保密底线）
+       ★ ①②③ 排在④前面：送达方代码的真源是物料库，库里命中就用库的 ——
          历史上有 11 行是按旧规则("型号第一条")刻错的老数据，库优先才能自动纠正。
      -------------------------------------------------------------------------- */
   var CODE_PAIR = "\u0001";        // 客户名 与 型号 的连接符（正常数据里不会出现）
 
+  /* --------------------------------------------------------------------------
+     客户名的「写法变体」匹配（**取代码 / 取物流共用这一份实现**）
+     --------------------------------------------------------------------------
+     ★ 为什么需要它：计划员在计划表里录的名字、和物料库里的名字，经常不是同一种写法。
+         行名（现场录的）            物料库里的名字          实际是同一个客户
+         ─────────────────────────┼───────────────────────┼──────────────
+         宁波泰友（宁波甬微进仓）     宁波甬微-宁波泰友        100175
+         广州博世舒适科技有限公司     广州博世                100132
+         太仓舍弗勒专车              太仓舍弗勒              100049
+         浙江百达精工股份有限公司     浙江百达                100011
+       库里的名字常常是「别名拼起来」的（用 - 或括号分段），行名可能是全称 + 括注。
+       不做这层对齐的后果：明明库里有这个客户，却查不到 → 白白显示「未编代码」，
+       或者更糟 —— 掉进型号兜底，把别的客户的代码显示出来。
+     ★ 规则（四条必须同时满足，缺一不用 —— 宁可不显示，也不显示错的）：
+       ① 库名拆段后**每一段**都要能在行名里找到（行名的某一段包含它或与它相等）
+       ② 反之行名的**每一段**也要能被库名解释（它包含库名的某一段）
+          —— 堵住「上海旺巷桥（南京信昌）」「芜湖海立新能源（昆山衍咏提货）」
+             这种一行点两个客户的名字
+       ③ 对上的段里至少有一段 **≥4 个字**
+          —— 堵住 3 字短名横扫：库里「旺巷桥」是 100042、「上海旺巷桥国际贸易有限公司」
+             是 100062，两个码；放 3 字短名进来会把行名"吸"到错的那条上
+       ④ 候选**唯一**才用；有并列 → 返回空，交回上层继续往下兜底
+     ========================================================================== */
+  var SEG_SPLIT = /[（）()\[\]【】\-\/\u3001,\uff0c;\uff1b\s]+/;   // 括号/横杠/斜杠/顿号/逗号/空格 = 分段符
+
+  function nameSegs(name){                             // 拆段：单字段没有区分度，丢掉
+    return String(name == null ? "" : name).split(SEG_SPLIT)
+      .map(function (x) { return x.trim(); })
+      .filter(function (x) { return x.length >= 2; });
+  }
+  /* 行名 → 物料库里的那个客户名；对不上或有并列 → 返回 ""（继续往下兜底） */
+  function aliasName(rowName, names){
+    var rs = nameSegs(rowName);
+    if (!rs.length || !names || !names.length) return "";
+    var hit = "", n = 0, i, j, k;
+    for (i = 0; i < names.length; i++){
+      var name = names[i], ns = nameSegs(name);
+      if (!ns.length) continue;
+      var strong = false, ok = true;
+      for (j = 0; j < ns.length && ok; j++){           // ① 库名的每一段都要出现在行名里
+        var seg = ns[j], found = false;
+        for (k = 0; k < rs.length; k++){ if (rs[k] === seg || rs[k].indexOf(seg) >= 0) { found = true; break; } }
+        if (!found) ok = false;
+        else if (seg.length >= 4) strong = true;       // ③ 至少一段 >=4 字
+      }
+      if (!ok || !strong) continue;
+      for (j = 0; j < rs.length && ok; j++){           // ② 行名的每一段都要能被库名解释
+        var rseg = rs[j], ex = false;
+        for (k = 0; k < ns.length; k++){ if (rseg === ns[k] || rseg.indexOf(ns[k]) >= 0) { ex = true; break; } }
+        if (!ex) ok = false;
+      }
+      if (!ok) continue;
+      if (++n > 1) return "";                          // ④ 并列 → 不猜
+      hit = name;
+    }
+    return n === 1 ? hit : "";
+  }
+
   function codeIndex(db){
-    var byPair = {}, byCust = {}, byModel = {};
+    var byPair = {}, byCust = {}, byModel = {}, byModelCust = {}, names = [];
+    var seen = {};
     var put = function (o, k, cc) {
       if (!k) return;
       if (o[k] === undefined) o[k] = cc;
@@ -411,14 +475,18 @@ window.ScanLib = (function () {
       if (c && m) put(byPair, c + CODE_PAIR + m, cc);
       put(byCust, c, cc);
       put(byModel, m, cc);
+      if (c && m){                                     // 型号 → 它挂在哪些客户名下
+        (byModelCust[m] = byModelCust[m] || {})[c] = 1;
+      }
+      if (c && !seen[c]){ seen[c] = 1; names.push(String(r.customer || "").trim()); }
     });
-    return { byPair: byPair, byCust: byCust, byModel: byModel };
+    return { byPair: byPair, byCust: byCust, byModel: byModel, byModelCust: byModelCust, names: names };
   }
 
   function codeOf(row, idx){
     if (!row) return "";
     idx = idx || {};
-    var byPair = idx.byPair || {}, byCust = idx.byCust || {}, byModel = idx.byModel || {};
+    var byPair = idx.byPair || {}, byCust = idx.byCust || {}, byModelCust = idx.byModelCust || {};
     var ms = row.models || [];
     var cu = String(row.customer || "").trim();
     var key = cu.toLowerCase();
@@ -433,7 +501,10 @@ window.ScanLib = (function () {
     cc = byCust[key];                                  // ② 只按客户名
     if (cc) return cc;
 
-    var src = (row.rec && row.rec.rows) || [];          // ③ 记录自带那份（发布时刻的）
+    var alias = aliasName(cu, idx.names);               // ③ 客户名的写法变体
+    if (alias) { cc = byCust[alias.toLowerCase()]; if (cc) return cc; }
+
+    var src = (row.rec && row.rec.rows) || [];          // ④ 记录自带那份（发布时刻的）
     for (i = 0; i < src.length; i++){
       var x = src[i];
       if (!x) continue;
@@ -441,12 +512,17 @@ window.ScanLib = (function () {
       cc = String(x.custcode || "").trim();
       if (cc) return cc;
     }
-    for (i = 0; i < ms.length; i++){                   // ④ 只按型号（库里唯一时才命中）
+    var cand = {}, any = false;                         // ⑤ 只按型号（且该行型号只指向一个客户）
+    for (i = 0; i < ms.length; i++){
       m = String(ms[i] || "").trim().toLowerCase();
       if (!m) continue;
-      cc = byModel[m];
-      if (cc) return cc;
+      var o = byModelCust[m];
+      if (!o) continue;
+      any = true;
+      Object.keys(o).forEach(function (c) { cand[c] = 1; });
     }
+    var ks = any ? Object.keys(cand) : [];
+    if (ks.length === 1) { cc = byCust[ks[0]]; if (cc) return cc; }
     return "";
   }
 
@@ -468,25 +544,36 @@ window.ScanLib = (function () {
        缓存键很容易失效或读到旧库；一次全库扫描对 3000 多条的库只是毫秒级。
      -------------------------------------------------------------------------- */
   function logisticsIndex(db){
-    var tally = {};
+    var tally = {}, names = [], seen = {};
     (db || []).forEach(function (r) {
       if (!r) return;
-      var c = String(r.customer || "").trim().toLowerCase();
+      var raw = String(r.customer || "").trim();
+      var c = raw.toLowerCase();
       var lg = String(r.logistics || "").trim();
       if (!c || !lg) return;
       var k = c + CODE_PAIR + lg;
       tally[k] = (tally[k] || 0) + 1;
+      if (!seen[c]) { seen[c] = 1; names.push(raw); }
     });
     var best = {};
     Object.keys(tally).forEach(function (k) {
       var i = k.lastIndexOf(CODE_PAIR), c = k.slice(0, i), lg = k.slice(i + 1);
       if (!best[c] || tally[k] > tally[c + CODE_PAIR + best[c]]) best[c] = lg;
     });
+    /* ★ 把库里的客户名清单挂在索引上（不可枚举：不污染 Object.keys / JSON），
+       物流也要认「写法变体」—— 否则「宁波泰友（宁波甬微进仓）」明明库里有贝业，
+       屏上却是空的（同一个客户名对不上的老毛病）。 */
+    if (Object.defineProperty) {
+      try { Object.defineProperty(best, "__names", { value: names, enumerable: false }); } catch (e) {}
+    }
     return best;
   }
   function logisticsOf(cust, idx){
     if (!idx) return "";
-    return idx[String(cust || "").trim().toLowerCase()] || "";
+    var c = String(cust || "").trim().toLowerCase();
+    if (idx[c]) return idx[c];
+    var alias = aliasName(String(cust || "").trim(), idx.__names);   // 写法变体 → 认同一个客户
+    return alias ? (idx[alias.toLowerCase()] || "") : "";
   }
 
   /* ==========================================================================
