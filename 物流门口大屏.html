@@ -136,12 +136,14 @@
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;}
   .cust.miss{font-family:inherit;font-weight:700;letter-spacing:.3px;color:var(--dim);}
   /* 单号（2026-09-17 起从代码格里分出来，独占一列）：单号本身用等宽字体，
-     后面跟的计划员名带一个 * 号 —— 一眼分清哪段是单号、哪个是人名 */
+     后面跟的计划员姓名**打码显示**（两字遮第二个、三字遮中间）——
+     一眼分清哪段是单号、哪段是人名，同时又不在门口屏幕上报出完整姓名 */
   .no{display:inline-block;font-size:.8em;color:var(--muted);font-weight:600;letter-spacing:.3px;}
   .no .sn{font-weight:700;color:#c9d6e8;
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:.2px;}
   .no .sep{color:var(--dim);}
-  .no .star{font-style:normal;color:var(--amber);font-weight:800;margin-left:1px;}
+  /* 打码的那一个星号：正体、暗一档。远处看仍是个姓名，近看能认出是被遮住的字 */
+  .no .mk{font-style:normal;color:var(--dim);font-weight:800;margin:0 .5px;}
   .ton{font-weight:800;font-size:1.12em;}
   .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
 
@@ -400,6 +402,25 @@ function kpiHtml(s){
   ].map(k => '<div class="kpi ' + k.cls + '"><i></i><b>' + esc(String(k.v)) + "</b><span>" + esc(k.l) + "</span></div>").join("");
 }
 
+/* 计划员姓名打码（2026-09-17）——门口这一屏连人名也只显示一部分：
+     两个字  王明   → 王*
+     三个字  王小明 → 王*明
+     四个以上 欧阳小明 → 欧**明
+     一个字  没地方遮，原样显示
+   只把中间的字换成星号，长度不变，远处仍然读得出这是个人名。 */
+function maskName(name){
+  const t = String(name == null ? "" : name).trim();
+  if (t.length <= 1) return t;
+  if (t.length === 2) return t.charAt(0) + "*";
+  let mid = "";
+  for (let i = 0; i < t.length - 2; i++) mid += "*";
+  return t.charAt(0) + mid + t.charAt(t.length - 1);
+}
+/* 打码后的姓名 → HTML：星号单独包一层，好让它暗一档 */
+function maskNameHtml(name){
+  return esc(maskName(name)).replace(/\*/g, '<i class="mk">*</i>');
+}
+
 /* 一行怎么画 —— 注意：这里**没有**任何一处输出客户名，改动前先想清楚这句话 */
 function rowHtml(r){
   const s = Math.min(3, r.s || 0);
@@ -417,9 +438,9 @@ function rowHtml(r){
   const codeCell = code
     ? '<span class="cust">' + esc(code) + "</span>"
     : '<span class="cust miss">未编代码</span>';
-  // 单号独立成一列（2026-09-17）：计划员名后面跟一个 * 号
+  // 单号独立成一列（2026-09-17）：后面的计划员姓名打码显示（王小明 → 王*明）
   const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" +
-    (r.planner ? '<span class="sep"> · </span>' + esc(r.planner) + '<i class="star">*</i>' : "") + "</span>";
+    (r.planner ? '<span class="sep"> · </span>' + maskNameHtml(r.planner) : "") + "</span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + (r.done ? '<span class="pill s3">已完成</span>' : '<span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span>") + "</td>" +
     '<td>' + stale + codeCell + "</td>" +
