@@ -134,7 +134,11 @@
   /* 送达方代码：这一屏最关键的信息，字号**专门放大**（整行的 1.5 倍，门口远远地看数字不会串行）。
      倍数走 --coder（由 fitCodeFont 按列宽实测定，塞不下会自动降一档，绝不让省略号把代码截断）；
      CSS 里这个 1.5 只是脚本没跑起来时的兜底值。 */
-  .cust{font-size:calc(var(--rowfs,17px) * var(--coder,1.5));line-height:1.1;
+  /* ★ 2026-09-17 用户要求「再加大」：这一列的字号已经到了"能多大就多大"的算法上限，
+     真正压着它的是**行高配额**（一行高过配额整屏就要滚）。所以这里把这一列白白占掉的高度
+     全部让给字号 —— 等宽数字没有下伸部，行高贴到 1.0 也不会切到字；上下内边距同理，
+     只剩 2px 做视觉留白。腾出来的高度全给 fitCodeFont 去放大字号。 */
+  .cust{font-size:calc(var(--rowfs,17px) * var(--coder,1.5));line-height:1;
     font-weight:800;letter-spacing:1px;color:var(--txt);
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;}
   .cust.miss{font-family:inherit;font-weight:700;letter-spacing:.3px;color:var(--dim);}
@@ -142,6 +146,9 @@
      也绝不让省略号吃掉一位 —— 门口把 10017388 看成 1001… 比不显示还糟。
      平时不开（折行会让行变高），只在 fitCodeFont 试完所有档位都塞不下时才加上 body.codewrap。 */
   body.codewrap .cust{white-space:normal;overflow-wrap:anywhere;letter-spacing:.5px;}
+  /* 代码这一格的上下内边距单独收紧（其它列照旧保留 --rowpad 的呼吸感）：
+     这一列永远是全行最高的，它的内边距就是"从字号嘴里抢走的行高"。 */
+  tbody td:nth-child(2){padding-top:2px;padding-bottom:2px;}
   /* 单号（2026-09-17 起从代码格里分出来，独占一列）：单号本身用等宽字体，
      后面跟的计划员姓名**打码显示**（两字遮第二个、三字遮中间）——
      一眼分清哪段是单号、哪段是人名，同时又不在门口屏幕上报出完整姓名 */
@@ -389,14 +396,22 @@ function fmtTime(ts){
 
 // 字号按行数自动缩放：行少就放大（门口看得清），行多就收紧。
 // 下限 15px：再小门口就看不清了，塞不下交给自动慢速滚动（不再硬缩到看不清）。
-// 那两个常数 = 「顶部 HUD + 底部图例 + 上下留白」占掉的高度（含一点余量）。
-// ★ 动了头部高度就要同步改这里，否则表格会多留/少留一段空白。
-// ★ 0.40 这个系数是**按最高的那格**（送达方代码，最大可到 3 倍）反推的：
-//   一行高 ≈ 代码字号×1.1 + 上下内边距，取 0.40 才能保证代码放开到极限时行也不溢出。
+// ★ 2026-09-17 改成**直接量**表格容器剩下多少高度，再扣掉表头那一行。
+//   原来写死"vh - 172"没把表头算进去：屏幕一矮（比如 1366×768）就估多了，
+//   15 行会整屏溢出、要多滚一下。量出来的数在哪种窗口下都是对的。
+//   量不到布局时（jsdom 里 clientHeight 恒为 0）才退回按视口估算：192=全屏 / 172=窗口。
 // --perrow = 每行能分到的高度配额，fitCodeFont 拿它当"行不许再高"的上限。
 function fitRows(n){
-  const vh = window.innerHeight;
-  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 192 : 172));
+  const box = document.querySelector(".box");
+  const thead = box ? box.querySelector("thead") : null;
+  const boxH = box ? box.clientHeight : 0;
+  let avail;
+  if (boxH > 40){
+    avail = boxH - (thead ? thead.getBoundingClientRect().height : 0) - 2;   // 2px 留给圆角/边框
+  } else {
+    avail = window.innerHeight - (document.body.classList.contains("fs") ? 192 : 172);
+  }
+  avail = Math.max(160, avail);
   const per = avail / Math.max(1, n);
   const fs = Math.max(15, Math.min(26, Math.floor(per * 0.40)));
   const root = document.documentElement.style;
