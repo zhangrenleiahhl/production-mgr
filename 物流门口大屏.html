@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260917b"></script>
+<script src="scan-lib.js?v=20260917c"></script>
 <style>
   /* ==========================================================================
      物流门口大屏 · 保密版（只读，摆在物流门口给现场远远地看）
@@ -269,12 +269,12 @@ const esc = SL.esc, raw = SL.raw;
 const POLL_MS = 10000;
 const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
 
-const KEY_DB = "shipping_db_v1";     // 物料库（含送达方代码）—— 用于把客户名换成代码
+const KEY_DB = SL.KEY_DB;            // 物料库（含送达方代码）—— 用于把客户名换成代码
 
 let RECORDS = [];
 let PROG = {};
 let DB = [];                         // 物料库
-let byModel = {}, byCust = {};       // 代码索引：型号→代码 / 客户名→代码
+let IDX = { byModel: {}, byCust: {} };   // 代码索引（型号→代码 / 客户名→代码），由 scan-lib 构建
 let rows = [];
 let lastFp = "";
 let rendered = false;
@@ -296,48 +296,16 @@ function loadLocalDb(){
 }
 function setSync(txt, cls){ const e = $("sync"); e.textContent = txt; e.className = "sync " + (cls || ""); }
 
-/* ---------- 送达方代码索引 ----------
-   物料库里「代码」是 2026-09-16 新增的一列，历史数据可能还没填。
-   所以两个索引都只收「有代码」的记录，查不到就老实返回空。 */
-function buildDbIndex(){
-  byModel = {}; byCust = {};
-  (DB || []).forEach(function (r) {
-    if (!r) return;
-    const cc = String(r.custcode || "").trim();
-    if (!cc) return;
-    const m = String(r.model || "").trim().toLowerCase();
-    if (m && !byModel[m]) byModel[m] = cc;
-    const c = String(r.customer || "").trim().toLowerCase();
-    if (c && !byCust[c]) byCust[c] = cc;
-  });
-}
+/* ---------- 送达方代码：解析口径搬到了 scan-lib.js（司机页共用同一份） ----------
+   ★ 保密口径**只允许有一处实现** —— 从前这份 codeOf 就写在本页里，
+     司机页要用时若照抄一遍，日后"漏填代码怎么显示"改一处、漏一处，
+     两块屏就会对不上（一个显「未编代码」、一个显客户名，那就泄密了）。
+   索引只收「有代码」的记录，查不到就返回空。 */
+function buildDbIndex(){ IDX = SL.codeIndex(DB); }
 
-/* ---------- 这一行该显示什么代码（查不到返回 ""，调用方显示占位） ----------
-   ① 记录行里已经刻好的 custcode（发布那一刻写在记录里，最权威：
-      日后改物料库/换型号都不影响已经发出去的单）
-   ② 物料库按型号匹配（一行可能带多个型号，取第一个查得到的）
-   ③ 物料库按客户名匹配（型号对不上但客户没换时兜底）
-   ★ 三级都查不到 → 返回 ""，**不返回客户名**。 */
-function codeOf(r){
-  // ① 记录里同一个「客户 + 发货日期」的原始行
-  const src = (r.rec && r.rec.rows) || [];
-  const cu = (String(r.customer || "").trim() || "/");
-  for (let i = 0; i < src.length; i++){
-    const x = src[i];
-    if (!x) continue;
-    if ((String(x.customer || "").trim() || "/") !== cu) continue;
-    const cc = String(x.custcode || "").trim();
-    if (cc) return cc;
-  }
-  // ② 型号
-  const ms = r.models || [];
-  for (let i = 0; i < ms.length; i++){
-    const cc = byModel[String(ms[i] || "").trim().toLowerCase()];
-    if (cc) return cc;
-  }
-  // ③ 客户名
-  return byCust[String(r.customer || "").trim().toLowerCase()] || "";
-}
+/* 这一行该显示什么代码：三级兜底全在 scan-lib.codeOf 里（司机页同一份）。
+   ★ 查不到返回 ""，**不返回客户名** —— 调用方一律用占位「未编代码」。 */
+function codeOf(r){ return SL.codeOf(r, IDX); }
 
 /* ---------- 拉取（超时保护：卡住的请求不能让整屏停摆） ---------- */
 function withTimeout(p, ms){
