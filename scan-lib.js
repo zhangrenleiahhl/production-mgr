@@ -544,12 +544,17 @@ window.ScanLib = (function () {
        缓存键很容易失效或读到旧库；一次全库扫描对 3000 多条的库只是毫秒级。
      -------------------------------------------------------------------------- */
   function logisticsIndex(db){
-    var tally = {}, names = [], seen = {};
+    var tally = {}, names = [], seen = {}, modelCust = {}, mseen = {};
     (db || []).forEach(function (r) {
       if (!r) return;
       var raw = String(r.customer || "").trim();
       var c = raw.toLowerCase();
       var lg = String(r.logistics || "").trim();
+      var m = String(r.model || "").trim().toLowerCase();
+      if (c && m && !(mseen[m] && mseen[m][c])) {
+        (modelCust[m] = modelCust[m] || {})[c] = 1;
+        (mseen[m] = mseen[m] || {})[c] = 1;
+      }
       if (!c || !lg) return;
       var k = c + CODE_PAIR + lg;
       tally[k] = (tally[k] || 0) + 1;
@@ -560,11 +565,18 @@ window.ScanLib = (function () {
       var i = k.lastIndexOf(CODE_PAIR), c = k.slice(0, i), lg = k.slice(i + 1);
       if (!best[c] || tally[k] > tally[c + CODE_PAIR + best[c]]) best[c] = lg;
     });
-    /* ★ 把库里的客户名清单挂在索引上（不可枚举：不污染 Object.keys / JSON），
-       物流也要认「写法变体」—— 否则「宁波泰友（宁波甬微进仓）」明明库里有贝业，
-       屏上却是空的（同一个客户名对不上的老毛病）。 */
+    /* ★ 把库里的客户名清单 + 「型号 → 客户」关系挂在索引上（不可枚举：不污染
+       Object.keys / JSON.stringify）：
+       · __names     —— 物流也要认「写法变体」，否则「宁波泰友（宁波甬微进仓）」
+                        明明库里有贝业，屏上却是空的（客户名对不上的老毛病）。
+       · __modelCust —— 代码能靠「型号唯一指向的客户」认出来，物流就该跟着认，
+                        否则屏上会出现「有代码、没物流」的半截行
+                        （安徽海立精密铸造有限公司上海分公司 / 丹佛斯（天津）有限公司…）。 */
     if (Object.defineProperty) {
-      try { Object.defineProperty(best, "__names", { value: names, enumerable: false }); } catch (e) {}
+      try {
+        Object.defineProperty(best, "__names", { value: names, enumerable: false });
+        Object.defineProperty(best, "__modelCust", { value: modelCust, enumerable: false });
+      } catch (e) {}
     }
     return best;
   }
@@ -574,6 +586,26 @@ window.ScanLib = (function () {
     if (idx[c]) return idx[c];
     var alias = aliasName(String(cust || "").trim(), idx.__names);   // 写法变体 → 认同一个客户
     return alias ? (idx[alias.toLowerCase()] || "") : "";
+  }
+  /* 整行版：和 codeOf 用同一个「认人」结果 —— 客户名直接对上 → 写法变体 →
+     该行型号在库里只指向一个客户（代码就是靠这条认出来的）。认不出 → "" */
+  function logisticsOfRow(row, idx){
+    if (!row || !idx) return "";
+    var cu = String(row.customer || "").trim();
+    if (idx[cu.toLowerCase()]) return idx[cu.toLowerCase()];
+    var alias = aliasName(cu, idx.__names);
+    if (alias && idx[alias.toLowerCase()]) return idx[alias.toLowerCase()];
+    var mc = idx.__modelCust || {}, cand = {}, any = false, i;
+    var ms = row.models || [];
+    for (i = 0; i < ms.length; i++){
+      var m = String(ms[i] || "").trim().toLowerCase();
+      if (!m || !mc[m]) continue;
+      any = true;
+      Object.keys(mc[m]).forEach(function (x) { cand[x] = 1; });
+    }
+    var ks = any ? Object.keys(cand) : [];
+    if (ks.length === 1) return idx[ks[0]] || "";
+    return "";
   }
 
   /* ==========================================================================
@@ -1021,7 +1053,8 @@ window.ScanLib = (function () {
     uiConfirm: uiConfirm,
     KEY_PLANS: KEY_PLANS, KEY_PROG: KEY_PROG, KEY_DEL: KEY_DEL, KEY_PENDING: KEY_PENDING,
     KEY_DB: KEY_DB, NO_CODE: NO_CODE, codeIndex: codeIndex, codeOf: codeOf, codeText: codeText,
-    logisticsIndex: logisticsIndex, logisticsOf: logisticsOf,
+    logisticsIndex: logisticsIndex, logisticsOf: logisticsOf, logisticsOfRow: logisticsOfRow,
+    aliasName: aliasName, nameSegs: nameSegs,
     SCAN_PAGE: SCAN_PAGE, DRIVER_PAGE: DRIVER_PAGE, DASH_PAGE: DASH_PAGE,
     PUB_BASE: PUB_BASE, STEP_NAME: STEP_NAME, CAR_NAME: CAR_NAME,
     pad: pad, raw: raw, esc: esc, escAttr: escAttr, fmtHM: fmtHM,
