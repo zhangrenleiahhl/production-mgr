@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260917b"></script>
+<script src="scan-lib.js?v=20260917c"></script>
 <style>
   /* ==========================================================================
      司机到车登记（手机端，一个码通吃，不用登录）
@@ -39,6 +39,11 @@
 
   .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
 
+  /* 顶部一句话交代"怎么找自己那一行"（司机第一次扫进来就靠这句） */
+  .hint{background:#eef4ff;border:1px solid #cfdffd;color:#1e3a8a;border-radius:10px;
+    padding:9px 12px;font-size:13px;line-height:1.55;margin:0 0 10px;}
+  .hint b{font-weight:800;}
+
   /* 物流公司筛选（司机先找自己那家车） */
   .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 10px;-webkit-overflow-scrolling:touch;}
   .chips::-webkit-scrollbar{display:none;}
@@ -57,6 +62,9 @@
   .rh{padding:10px 12px 8px;display:flex;gap:10px;align-items:flex-start;}
   .rh .nm{flex:1;min-width:0;}
   .rh .name{font-size:16px;font-weight:800;line-height:1.35;word-break:break-all;}
+  /* 行标题显示的是「送达方代码」（保密，不出现客户名）—— 用等宽体，位数好对齐、一眼认得出 */
+  .rh .name{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:.5px;}
+  .rh .name.miss{font-family:inherit;color:#b45309;font-size:14px;letter-spacing:0;}
   .rh .meta{margin-top:2px;display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);}
   .rh .meta b{color:#334155;font-weight:700;}
   .rh .lateTag{display:inline-block;padding:0 6px;border-radius:4px;font-size:10.5px;font-weight:800;
@@ -99,6 +107,7 @@
 </div>
 
 <div class="wrap">
+  <div class="hint">请按自己手上的<b>送达方代码</b>找到对应的那一行，点「🚚 车已到」就算签到完成。</div>
   <div class="chips" id="chips"></div>
   <div id="list"></div>
 </div>
@@ -113,11 +122,20 @@ const esc = SL.esc;
 const POLL_MS = 10000;
 
 let RECORDS = [], PROG = {}, ROWS = [], FILTER = "", rendered = false, lastFp = "";
+let DB = [], IDX = { byModel: {}, byCust: {} };   // 物料库 + 送达方代码索引（保密用）
 
 /* ---------- 本机缓存（断网也能勾，恢复后自动补传） ---------- */
 function loadLocal(){
   try { const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
   try { const v = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
+  loadLocalDb();
+}
+/* 物料库单独兜底：★ 别把它混进上面那个整体兜底 ——
+   否则"物料库为空"会把刚拉到的最新计划又用本机旧缓存盖回去。 */
+function loadLocalDb(){
+  if (DB.length){ IDX = SL.codeIndex(DB); return; }
+  try { const v = JSON.parse(localStorage.getItem(SL.KEY_DB) || "null"); if (Array.isArray(v)) DB = v; } catch(e){}
+  IDX = SL.codeIndex(DB);
 }
 const setPending = (on) => { try { on ? localStorage.setItem(KEY_PENDING, "1") : localStorage.removeItem(KEY_PENDING); } catch(e){} };
 const isPending = () => { try { return localStorage.getItem(KEY_PENDING) === "1"; } catch(e){ return false; } };
@@ -159,8 +177,18 @@ async function pull(){
   if (cs){
     try { const r = await withTimeout(CloudSync.pullResult(KEY_PLANS), 15000); okA = !!(r && r.ok); if (r && r.ok && Array.isArray(r.value)) RECORDS = r.value; } catch(e){ okA = false; }
     try { const r = await withTimeout(CloudSync.pullResult(KEY_PROG), 15000); okP = !!(r && r.ok); if (r && r.ok && r.value && typeof r.value === "object") PROG = SL.mergeProg(PROG, r.value); } catch(e){ okP = false; }
+    // 物料库：只为拿送达方代码。拉不到就用本机缓存（不阻断司机登记，也不冒充"网络波动"）
+    try {
+      const r = await withTimeout(CloudSync.pullResult(SL.KEY_DB), 15000);
+      if (r && r.ok && Array.isArray(r.value)) {
+        DB = r.value;
+        try { localStorage.setItem(SL.KEY_DB, JSON.stringify(DB)); } catch(e){}
+        IDX = SL.codeIndex(DB);
+      }
+    } catch(e){}
   }
   if (!RECORDS.length) loadLocal();
+  if (!DB.length) loadLocalDb();        // 物料库单独兜底（不动刚拉到的计划）
   try {
     const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
     if (Array.isArray(del) && del.length){
@@ -185,8 +213,10 @@ function render(){
   ROWS = SL.boardRows(RECORDS, PROG);
   const left = ROWS.filter(r => !r.car).length;
   const carIn = ROWS.filter(r => r.car).length;
+  const missN = ROWS.filter(r => !SL.codeOf(r, IDX)).length;
   $("sumTxt").innerHTML = "待登记 <b>" + left + "</b> 趟 ｜ 已登记 <b>" + carIn + "</b> 趟 ｜ 共 " + ROWS.length + " 趟" +
-    (ROWS.some(r => r.stale) ? "（含昨日遗留 " + ROWS.filter(r => r.stale).length + "）" : "");
+    (ROWS.some(r => r.stale) ? "（含昨日遗留 " + ROWS.filter(r => r.stale).length + "）" : "") +
+    (missN ? " ｜ <b style=\"color:#fbbf24\">" + missN + "</b> 趟未编送达方代码" : "");
 
   const groups = SL.groupByLogistics(ROWS);
   // 物流筛选条：默认全部，司机点自己那家
@@ -195,7 +225,8 @@ function render(){
       esc(g.logistics) + " " + g.rows.length + "</button>"));
   $("chips").innerHTML = ROWS.length ? chips.join("") : "";
 
-  const fp = FILTER + "|" + ROWS.map(r => [r.ck, r.rk, r.car, r.ct].join(":")).join("|");
+  // ★ 指纹里带上物料库条数：拉回物料库后（代码从无到有）必须重绘一次
+  const fp = DB.length + "|" + FILTER + "|" + ROWS.map(r => [r.ck, r.rk, r.car, r.ct].join(":")).join("|");
   if (rendered && fp === lastFp) return;        // 内容没变就不重绘（现场正在点的时候别打断）
   lastFp = fp; rendered = true;
 
@@ -217,9 +248,15 @@ function render(){
   bind();
 }
 
+/* ★ 保密硬约束：这一页**不许出现客户名称**，只显示「送达方代码」。
+   司机靠手上的送货单/工作群里的代码认出哪一行是自己的，所以代码要显眼。
+   查不到代码 → 显示「未编代码」占位并标黄，**绝不回落显示客户名**
+   （三级兜底与占位口径全在 scan-lib.codeOf / codeText，全站只有这一份实现）。 */
 function rowHtml(r){
   const car = r.car || 0;
   const ts = car && r.ct ? SL.fmtHM(r.ct) : "";
+  const code = SL.codeOf(r, IDX);
+  const codeTxt = code || SL.NO_CODE;
   // 一次只给一个动作，避免司机看错：
   //   还没登记 → 只有一个「车已到」；已经登记 → 变成静态状态条 + 一个「撤回」
   const act = car
@@ -227,9 +264,9 @@ function rowHtml(r){
       '<div class="r2b"><button type="button" data-car="1" data-v="0">↩ 撤回这一勾</button></div>'
     : '<button type="button" class="big" data-car="1" data-v="1">🚚 点这里：车已到</button>';
   return '<div class="row ' + (car ? "done" : "") + (r.stale && !car ? " late" : "") +
-    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '">' +
+    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '" data-code="' + esc(codeTxt) + '">' +
     '<div class="rh"><div class="nm">' +
-      '<div class="name">' + (r.stale ? '<span class="lateTag">昨</span>' : "") + esc(r.customer) + "</div>" +
+      '<div class="name' + (code ? "" : " miss") + '">' + (r.stale ? '<span class="lateTag">昨</span>' : "") + esc(codeTxt) + "</div>" +
       '<div class="meta">' +
         "<span>单号 <b>" + esc(r.no || "—") + "</b></span>" +
         "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span>" +
@@ -245,7 +282,8 @@ function bind(){
     b.onclick = () => { FILTER = b.dataset.l || ""; lastFp = ""; render(); };
   });
   $("list").querySelectorAll("[data-car]").forEach(b => {
-    b.onclick = () => setCar(b.closest(".row").dataset.r, b.closest(".row").dataset.k, parseInt(b.dataset.v, 10) || 0);
+    const row = b.closest(".row");
+    b.onclick = () => setCar(row.dataset.r, row.dataset.k, parseInt(b.dataset.v, 10) || 0, row.dataset.code || "");
   });
 }
 
@@ -253,13 +291,15 @@ function bind(){
    必须走 SL.applyCar，不能自己写 car。它会同时给格子 +1 个版本号(rv)。
    少这个 rv 的后果很隐蔽：司机点「撤回」本地看着退回去了，
    10 秒后跟云端一合并，云端那个高版本又把「车已到」抬回来，勾自己长回来了。 */
-function setCar(rk, ck, v){
+function setCar(rk, ck, v, code){
   const nv = v ? 1 : 0;
   const cur = ((PROG[rk] || {})[ck] || {});
-  const cust = String(ck).split("|")[0];
+  // ★ 确认框里也只能出现送达方代码 —— 这一页任何位置都不许出现客户名。
+  //   （从前这里是从 ck 里拆出客户名的，现在改成由调用方把"该显什么"传进来）
+  const shown = code || SL.NO_CODE;
   if ((cur.car || 0) === nv){ tip(nv ? "已经是「车已到」了" : "本来是「车未到」"); return; }
-  SL.uiConfirm(nv ? ("确认标记【" + cust + "】车已到？")
-                  : ("撤回【" + cust + "】的「车已到」？"), () => {
+  SL.uiConfirm(nv ? ("确认标记【" + shown + "】车已到？")
+                  : ("撤回【" + shown + "】的「车已到」？"), () => {
     const r = SL.applyCar(PROG, rk, ck, nv);
     if (!r.changed){ tip("状态没变"); return; }
     lastFp = "";
