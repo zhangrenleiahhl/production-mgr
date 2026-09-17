@@ -380,7 +380,16 @@ function fitRows(n){
     avail = window.innerHeight - (document.body.classList.contains("fs") ? 192 : 172);
   }
   avail = Math.max(160, avail);
-  const per = avail / Math.max(1, n);
+  /* ★ 2026-09-17 修（「字体还是没变大」的真凶）：**行数多到一屏放不下时，不能拿总行数去分高度**。
+     表格本来就带自动滚动（塞不下就慢慢往下滚），可以前 per = avail / n 会把配额压到 20px 上下，
+     而 fitCodeFont 拿 per 当"一行不许再高"的上限 —— 于是 36 行时 --coder 被压到 1.00，
+     代码跟正文一样大，用户看到的就是"字号没放大"。
+     现场三四十行是常态，所以给每行配额一个下限：至少放得下一个看得清的代码；
+     行数超过一屏时，多出来的高度交给已有的自动滚动去消化。 */
+  /* 下限 40px（够放 ~36px 的代码）；但也要保证"一屏至少还能看见 ~12 行"，
+     免得屏幕特别矮时行被顶得老高、全程都在滚。 */
+  const PER_MIN = Math.min(40, avail / 12);
+  const per = Math.max(avail / Math.max(1, n), PER_MIN);
   const fs = Math.max(15, Math.min(26, Math.floor(per * 0.40)));
   const root = document.documentElement.style;
   root.setProperty("--rowfs", fs + "px");
@@ -396,7 +405,9 @@ function rowOverflows(tds){
   }
   const per = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--perrow")) || 0;
   const rowEl = tds[0] && tds[0].parentElement;
-  return !!(per > 0 && rowEl && rowEl.getBoundingClientRect().height > per + 1);
+  /* 容差只能是"亚像素"级别：per 是"每行配额"，n 行加起来就是整屏高度，
+     一行放宽 1px、15 行就白溢出 15px（会莫名其妙多出一条滚动）。只留浮点噪声的余量。 */
+  return !!(per > 0 && rowEl && rowEl.getBoundingClientRect().height > per + 0.25);
 }
 
 /* 送达方代码用多大字（2026-09-17 用户要求「加到最大」）——
@@ -427,9 +438,21 @@ function fitCodeFont(){
   r = Math.max(CODE_R_MIN, Math.floor(r / CODE_R_STEP) * CODE_R_STEP);
   for (; r >= CODE_R_MIN - 1e-6; r -= CODE_R_STEP){
     style.setProperty("--coder", r.toFixed(2));
-    if (!rowOverflows(tds)) return;      // 量着没超，就定这一档
+    if (!rowOverflows(tds)) break;       // 量着没超，就定这一档
   }
-  document.body.classList.add("codewrap");   // 缩到最小还放不下 → 折行，一个字都不丢
+  if (r < CODE_R_MIN - 1e-6){                  // 缩到最小还放不下 → 折行，一个字都不丢
+    document.body.classList.add("codewrap");
+    style.setProperty("--coder", CODE_R_MIN.toFixed(2));
+    return;
+  }
+  /* ★ 2026-09-17 补：上面那个解析解只量了 1.5/2.5 两点，而**行高有一截是被别的列撑起来的固定下限**
+     （内边距 + 其它列的行高），这段"白送的高度"不受代码字号影响 —— 于是两点连线被压平、解出来的倍数
+     偏保守，配额根本没用满。所以定档之后再逐档往上顶，量到刚好放不下为止（真正照"实测"来定，不靠公式）。 */
+  for (let up = r + CODE_R_STEP; up <= CODE_R_MAX + 1e-6; up += CODE_R_STEP){
+    style.setProperty("--coder", up.toFixed(2));
+    if (rowOverflows(tds)){ style.setProperty("--coder", r.toFixed(2)); break; }
+    r = up;
+  }
 }
 
 function kpiHtml(s){
