@@ -1628,30 +1628,41 @@ function reindex(){
   $("rowCount").textContent=[...$("tbody").children].filter(isDataRow).length+" 行"; foldByDate();
 }
 // ===================== 客户吨位：手动修改覆盖值 =====================
-// 覆盖值按「客户|发货日期」存，全局生效；发布时打包进 rec.custTon，发货员端自动同步
+// 覆盖值按「客户|发货日期|发货点」存（★ 按合并区域生效：同一客户分开发货 / 走不同发货点时，
+// 每一块合并区域各改各的，互不影响）；发布时打包进 rec.custTon，发货员端自动同步。
+// 兼容旧数据：老版本只有「客户|发货日期」两段 key（整个客户共享一个数）——
+// 只有当该客户+日期没有被拆成多个合并区域时才沿用旧值；拆开过就只认三段 key、各算各的。
 const CT_KEY="shipping_custton_v1";
 function loadCT(){ try{ return JSON.parse(localStorage.getItem(CT_KEY))||{}; }catch(e){ return {}; } }
 function saveCT(o){
   try{ localStorage.setItem(CT_KEY, JSON.stringify(o)); }catch(e){}
   try{ if(window.CloudSync) CloudSync.autoPush(CT_KEY); }catch(e){}
 }
-function ctKeyOf(cust,date){ return String(cust==null?"":cust).trim()+"|"+String(date==null?"":date).trim(); }
-// 返回手动覆盖值；没改过返回 null
-function ctOverride(cust,date){
-  const o=loadCT(), k=ctKeyOf(cust,date);
-  if(o[k]===undefined||o[k]===null||String(o[k]).trim()==="") return null;
-  const v=parseFloat(o[k]); return isNaN(v)?null:v;
+function ctKeyOf(cust,date,pt){ return String(cust==null?"":cust).trim()+"|"+String(date==null?"":date).trim()+"|"+String(pt==null?"":pt).trim(); }
+function ctKeyLegacy(cust,date){ return String(cust==null?"":cust).trim()+"|"+String(date==null?"":date).trim(); }
+function _ctNum(o,k){ if(o[k]===undefined||o[k]===null||String(o[k]).trim()==="") return null; const v=parseFloat(o[k]); return isNaN(v)?null:v; }
+// 返回手动覆盖值；没改过返回 null。allowLegacy=false 时忽略旧版两段 key（该客户已拆成多区域）
+function ctOverride(cust,date,pt,allowLegacy){
+  const o=loadCT();
+  const v=_ctNum(o,ctKeyOf(cust,date,pt));
+  if(v!==null) return v;
+  if(allowLegacy===false) return null;               // 分开发货的客户：绝不共享旧值
+  return _ctNum(o,ctKeyLegacy(cust,date));
 }
 // 提交一次修改（已在调用处做过校验与确认）
 function commitSubTon(inp){
-  const cust=inp.dataset.cust||"", date=inp.dataset.date||"";
+  const cust=inp.dataset.cust||"", date=inp.dataset.date||"", pt=inp.dataset.pt||"";
   const old=inp.dataset.shown||"";
   const nv=String(inp.value).trim();
-  const o=loadCT(), k=ctKeyOf(cust,date);
+  const o=loadCT(), k=ctKeyOf(cust,date,pt);
   if(nv==="") delete o[k];               // 清空 = 恢复自动合计
   else o[k]=parseFloat(nv);
+  delete o[ctKeyLegacy(cust,date)];      // 旧版两段 key 一并清掉：这块客户从此各区域各算各的
   saveCT(o);
   if(typeof recalc==="function") recalc();
+  // ★ foldByDate 有「行内容没变就短路」的指纹捷径，改吨位不会推翻它 → 这里补一次合并重建，
+  //   否则「清空恢复自动合计」后格子还停在旧输入值上不刷新
+  if(typeof mergeCustomerCells==="function") mergeCustomerCells();
   if(typeof toast==="function") toast(nv===""?"已恢复自动合计 ✓":"客户吨位已修改 ✓");
 }
 // 绑定一个客户吨位输入框的交互：回车确认、Esc 放弃、右键撤回
@@ -1677,25 +1688,27 @@ function bindSubTonInput(inp){
       "客户："+cust+"\n"+
       "原值："+old+"\n"+
       "新值："+newTxt+"\n\n"+
-      "说明：该客户同一发货日期的所有行会一起更新，并同步到导出、打印与发货员端。"
+      "说明：只更新这一块合并区域（同客户+同日期+同发货点），\n"+
+      "同一客户分开发货的其他区域互不影响；并同步到导出、打印与发货员端。"
     );
     if(!ok){ inp.value=old; return; }
     commitSubTon(inp);
   });
   inp.addEventListener("contextmenu",e=>{
-    const cust=inp.dataset.cust||"", date=inp.dataset.date||"";
-    if(ctOverride(cust,date)===null) return;              // 没改过，不拦截右键
+    const cust=inp.dataset.cust||"", date=inp.dataset.date||"", pt=inp.dataset.pt||"";
+    if(ctOverride(cust,date,pt)===null) return;           // 没改过，不拦截右键
     e.preventDefault();
     if(confirm("撤回【"+cust+"】的客户吨位修改，恢复为系统自动合计？")){
-      const o=loadCT(); delete o[ctKeyOf(cust,date)]; saveCT(o);
+      const o=loadCT(); delete o[ctKeyOf(cust,date,pt)]; delete o[ctKeyLegacy(cust,date)]; saveCT(o);
       if(typeof recalc==="function") recalc();
+      if(typeof mergeCustomerCells==="function") mergeCustomerCells();   // 短路捷径会跳过合并，补一次
       if(typeof toast==="function") toast("已恢复自动合计 ✓");
     }
   });
 }
 
 // 「↺ 恢复」小按钮：把手填的客户吨位恢复为系统自动带出的值
-function bindSubTonReset(btn, cust, date, autoTxt){
+function bindSubTonReset(btn, cust, date, pt, autoTxt){
   if(!btn) return;
   // 按下时不要让输入框失焦（否则会先弹「修改确认」框，变成两次弹窗）
   btn.addEventListener("mousedown", e=>e.preventDefault());
@@ -1708,9 +1721,10 @@ function bindSubTonReset(btn, cust, date, autoTxt){
       "当前值："+(inp?inp.dataset.shown:"")+"\n"+
       "恢复后："+autoTxt
     )) return;
-    const o=loadCT(); delete o[ctKeyOf(cust,date)]; saveCT(o);
-    if(typeof recalc==="function") recalc();
-    if(typeof toast==="function") toast("已恢复自动带出 ✓");
+    const o=loadCT(); delete o[ctKeyOf(cust,date,pt)]; delete o[ctKeyLegacy(cust,date)]; saveCT(o);
+  if(typeof recalc==="function") recalc();
+  if(typeof mergeCustomerCells==="function") mergeCustomerCells();   // 短路捷径会跳过合并，补一次
+  if(typeof toast==="function") toast("已恢复自动带出 ✓");
   });
 }
 
@@ -1966,12 +1980,30 @@ function mergeCustomerCells(){
   });
   // 2) 只合并当前可见的数据行（排除筛选隐藏 + 折叠隐藏），否则 rowSpan 会按隐藏行数撑出幽灵行，导致下方整表错位
   const rows=allRows.filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
+  // ★ 先数一遍：每个「客户|发货日期」被拆成了几个合并区域（同一客户分开发货/走不同发货点 → >1）
+  const __rc={};
+  (function(){
+    let i=0;
+    while(i<rows.length){
+      const R0=rowRefs(rows[i]);
+      const k0=((R0.customer?.value||"").trim())+"|"+((R0.shipdate?.value||"").trim());
+      let j=i+1;
+      while(j<rows.length){
+        const R2=rowRefs(rows[j]);
+        if((((R2.customer?.value||"").trim())+"|"+((R2.shipdate?.value||"").trim()))!==k0) break;
+        j++;
+      }
+      if((R0.customer?.value||"").trim()) __rc[k0]=(__rc[k0]||0)+1;
+      i=j;
+    }
+  })();
   let i=0;
   while(i<rows.length){
     const first=rows[i];
     const Rf=rowRefs(first);
     const cust=(Rf.customer?.value||"").trim();
     const date=(Rf.shipdate?.value||"").trim();
+    const pt=(Rf.shippt?.value||"").trim();
     if(!cust){ i++; continue; }  // 空客户不合并
     const key=cust+"|"+date;
     let j=i+1;
@@ -1988,22 +2020,24 @@ function mergeCustomerCells(){
     for(let k=i;k<j;k++){ const Rk=rowRefs(rows[k]); subTon+=(parseFloat(Rk.ton?.value)||0)+(parseFloat(Rk.cwt?.value)||0); }
     const subCell=Rf.cellSubton;
     if(subCell){
-      // 客户吨位可手动修改：有覆盖值用覆盖值，否则用自动合计
-      const ov=ctOverride(cust,date);
+      // 客户吨位可手动修改：有覆盖值用覆盖值，否则用自动合计。
+      // ★ 覆盖值按合并区域（客户+日期+发货点）生效；同一客户被拆成多个区域时绝不共享旧版整客户值
+      const multi=(__rc[key]||0)>1;
+      const ov=ctOverride(cust,date,pt,!multi);
       const shown=(ov!==null?ov:subTon).toFixed(1);
       const autoTxt=subTon.toFixed(1);
       // 值与上次完全一样则跳过 innerHTML 重建（重建 input + 重新绑事件是这里的大头）
       // ★ 额外校验 firstChild：万一内容被别处清空，不能被缓存标记骗过去而不重建
       // ★ 注意：跳过重建时**不能**提前 continue —— 下面「合并隐藏后续行」的逻辑必须照跑，
       //   否则第二行及以后的格子不会被隐藏（表现为"该合并的没合并"）。
-      const reusable = (subCell._key===cust+"|"+date && subCell._val===shown
+      const reusable = (subCell._key===cust+"|"+date+"|"+pt && subCell._val===shown
                         && subCell._ov===(ov!==null?1:0) && subCell.firstChild);
       if(!reusable){
-        subCell._key=cust+"|"+date; subCell._val=shown; subCell._ov=(ov!==null?1:0);
+        subCell._key=cust+"|"+date+"|"+pt; subCell._val=shown; subCell._ov=(ov!==null?1:0);
         subCell.innerHTML='<span class="subton-wrap">'
           +'<input type="text" class="subton-in'+(ov!==null?' edited':'')+'" value="'+esc(shown)+'"'
-          +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
-          +' title="可直接修改，回车确认">'
+          +' data-cust="'+esc(cust)+'" data-date="'+esc(date)+'" data-pt="'+esc(pt)+'" data-shown="'+esc(shown)+'" inputmode="decimal"'
+          +' title="可直接修改，回车确认（只影响这一块合并区域）">'
           // 手填过才显示「↺ 恢复」小按钮，位置与样式同「箱子重量T」那一列
           +(ov!==null?'<button type="button" class="subton-reset" title="恢复自动带出（'+esc(autoTxt)+'）">↺</button>':'')
           +'</span>';
@@ -2013,7 +2047,7 @@ function mergeCustomerCells(){
         for(let q=0;q<parts.length;q++){ if(parts[q].classList.contains("subton-in")) sIn=parts[q]; else sRs=parts[q]; }
         subCell._subtonIn=sIn;                 // 同步缓存，供 recalc 读取时免查询
         bindSubTonInput(sIn);
-        bindSubTonReset(sRs, cust, date, autoTxt);
+        bindSubTonReset(sRs, cust, date, pt, autoTxt);
       }
       subCell.classList.add("merged-cell");
     }
@@ -2656,8 +2690,11 @@ function publish(){
   if(!checkedTrs.length){ toast("发布前请先勾选要发布的行（✓ 列）"); return; }
 
   // ===== 必填项校验：送达方 / 时效要求 / 客户吨位 必须填写才能发布 =====
-  // 计算各「送达方|发货日期」组的客户吨位（与表格显示一致：手动覆盖值优先，否则自动合计 产品重量T+箱重T）
+  // 计算各合并区域的客户吨位（与表格显示一致：手动覆盖值优先，否则自动合计 产品重量T+箱重T）。
+  // ★ 按「客户|日期|发货点」合并区域各算各的；同一客户分开发货（多区域）绝不共享旧版整客户覆盖值
   const subMap={};
+  const subByTr=new Map();     // 每一行 → 所属合并区域的客户吨位
+  const __rcPub={};            // 「客户|日期」→ 被拆成的区域数（发布打包处也要用）
   const visRows=[...$("tbody").children].filter(isDataRow)
     .filter(tr=>!tr.classList.contains("filter-hidden")&&!tr.classList.contains("date-fold-hidden"));
   (function(){
@@ -2675,10 +2712,14 @@ function publish(){
         if(c2+"|"+d2!==key) break;
         j++;
       }
+      __rcPub[key]=(__rcPub[key]||0)+1;
+      const pt=(first.querySelector('[data-f="shippt"]')?.value||"").trim();
       let subTon=0;
       for(let k=i;k<j;k++){ subTon+=(parseFloat(visRows[k].querySelector('[data-f="ton"]')?.value)||0)+(parseFloat(visRows[k].querySelector('[data-f="cwt"]')?.value)||0); }
-      const ov=ctOverride(cust,date);
-      subMap[key]=ov!==null?ov:subTon;
+      const ov=ctOverride(cust,date,pt,(__rcPub[key]||0)<=1);
+      const val=ov!==null?ov:subTon;
+      subMap[ctKeyOf(cust,date,pt)]=val;
+      for(let k=i;k<j;k++) subByTr.set(visRows[k],val);
       i=j;
     }
   })();
@@ -2720,7 +2761,9 @@ function publish(){
     const msgs=[];
     if(!cust||cust==="/") msgs.push("送达方未填");
     if(!remark||remark==="/") msgs.push("时效要求未填");
-    const st=subMap[key];
+    // ★ 按本行所属合并区域取客户吨位（同一客户分开发货时各区域各用各的）
+    let st=subByTr.get(tr);
+    if(st===undefined) st=subMap[ctKeyOf(cust,shipdate,(tr.querySelector('[data-f="shippt"]')?.value||"").trim())];
     if(st===undefined||st===""||isNaN(parseFloat(st))||parseFloat(st)<=0) msgs.push("客户吨位为空或为0（请填产品重量T/箱重T，或手动填客户吨位）");
     if(msgs.length) miss.push("第"+(idx+1)+"行【"+(cust||"空")+"】："+msgs.join("、"));
   });
@@ -2764,8 +2807,13 @@ function publish(){
   if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
 
   // 把本次发布涉及的「客户吨位」手动修改打包进记录，发货员端自动同步显示
-  const _ct=loadCT(), _raw=v=>String(v==null||v==="/"?"":v).trim(), custTon={};
-  rows.forEach(r=>{ const k=ctKeyOf(_raw(r.customer),_raw(r.shipdate)); if(_ct[k]!==undefined) custTon[k]=_ct[k]; });
+  // ★ 按合并区域（客户|日期|发货点）打包，与表格显示完全一致；分开发货的客户各区域各打各的
+  const _raw=v=>String(v==null||v==="/"?"":v).trim(), custTon={};
+  rows.forEach(r=>{
+    const cu=_raw(r.customer), da=_raw(r.shipdate), pt=_raw(r.shippt);
+    const ov=ctOverride(cu,da,pt,(__rcPub[cu+"|"+da]||0)<=1);
+    if(ov!==null) custTon[ctKeyOf(cu,da,pt)]=ov;
+  });
 
   // ===== 送达方代码（门口大屏保密显示用）=====
   // 现场涉及保密：门口那块大屏不能出现送达方名称，只能用「送达方代码」。
