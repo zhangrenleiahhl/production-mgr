@@ -372,40 +372,82 @@ window.ScanLib = (function () {
   var KEY_DB = "shipping_db_v1";       // 物料库（含送达方代码）
   var NO_CODE = "未编代码";             // 查不到代码时的占位（绝不填客户名）
 
+  /* --------------------------------------------------------------------------
+     送达方代码：解析口径**只此一份**（门口大屏 / 内部大屏 / 司机扫码 / 发布 全调它）
+
+     ★ 为什么索引要区分「唯一」和「冲突」
+       送达方代码是**客户**的属性，不是型号的属性。而物料库里同一个型号常常挂在
+       好几个客户名下 —— 例如「曲轴箱_BK15110020_灰铁_粗抛件」这一条型号就对应 7 个
+       客户、7 个不同代码（坤胜 100158 / 荣生 100157 / 安徽美芝 100154 / …）。
+       旧版 byModel 只记「第一条」，于是全库 207 个型号会把 A 客户的代码显示成 B 客户
+       的 —— 门口那块保密屏跟着显示**别人的代码**，这是实打实的错。
+       同理还有 1 个客户名对应两个代码（上海佳喆 100064/100065）。
+       所以冲突键直接标成 null、不再参与兜底：**宁可不显示，也不显示错的**。
+
+     ★ 取值顺序（从最准到最宽）：
+       ① 客户 + 型号 同时命中   （库里 3580 个组合**全部唯一**，最准）
+       ② 只按客户名             （163 个客户里仅 1 个有冲突，冲突的自动跳过）
+       ③ 记录里发布时刻刻好的那份（这台机器没同步过物料库时的兜底；也是老单据的原样）
+       ④ 只按型号               （3212 个型号里 207 个有冲突，冲突的自动跳过）
+       ⑤ 都没有 → 返回空，调用方显示「未编代码」（**绝不回落客户名**，保密底线）
+       ★ ①② 排在③前面：送达方代码的真源是物料库，库里精确命中就用库的 ——
+         历史上有 11 行是按旧规则("型号第一条")刻错的老数据，库优先才能自动纠正。
+     -------------------------------------------------------------------------- */
+  var CODE_PAIR = "\u0001";        // 客户名 与 型号 的连接符（正常数据里不会出现）
+
   function codeIndex(db){
-    var byModel = {}, byCust = {};
+    var byPair = {}, byCust = {}, byModel = {};
+    var put = function (o, k, cc) {
+      if (!k) return;
+      if (o[k] === undefined) o[k] = cc;
+      else if (o[k] !== cc) o[k] = null;               // 同一个键出现两种代码 → 标冲突
+    };
     (db || []).forEach(function (r) {
       if (!r) return;
       var cc = String(r.custcode || "").trim();
-      if (!cc) return;                                  // 没填代码的记录不进索引
-      var m = String(r.model || "").trim().toLowerCase();
-      if (m && !byModel[m]) byModel[m] = cc;
+      if (!cc) return;                                 // 没填代码的记录不进索引
       var c = String(r.customer || "").trim().toLowerCase();
-      if (c && !byCust[c]) byCust[c] = cc;
+      var m = String(r.model || "").trim().toLowerCase();
+      if (c && m) put(byPair, c + CODE_PAIR + m, cc);
+      put(byCust, c, cc);
+      put(byModel, m, cc);
     });
-    return { byModel: byModel, byCust: byCust };
+    return { byPair: byPair, byCust: byCust, byModel: byModel };
   }
 
   function codeOf(row, idx){
     if (!row) return "";
     idx = idx || {};
-    var byModel = idx.byModel || {}, byCust = idx.byCust || {};
-    var src = (row.rec && row.rec.rows) || [];
-    var cu = String(row.customer || "").trim() || "/";
-    var i, cc;
+    var byPair = idx.byPair || {}, byCust = idx.byCust || {}, byModel = idx.byModel || {};
+    var ms = row.models || [];
+    var cu = String(row.customer || "").trim();
+    var key = cu.toLowerCase();
+    var i, m, cc;
+
+    for (i = 0; i < ms.length; i++){                   // ① 客户 + 型号
+      m = String(ms[i] || "").trim().toLowerCase();
+      if (!m) continue;
+      cc = byPair[key + CODE_PAIR + m];
+      if (cc) return cc;
+    }
+    cc = byCust[key];                                  // ② 只按客户名
+    if (cc) return cc;
+
+    var src = (row.rec && row.rec.rows) || [];          // ③ 记录自带那份（发布时刻的）
     for (i = 0; i < src.length; i++){
       var x = src[i];
       if (!x) continue;
-      if ((String(x.customer || "").trim() || "/") !== cu) continue;
+      if ((String(x.customer || "").trim() || "/") !== (cu || "/")) continue;
       cc = String(x.custcode || "").trim();
       if (cc) return cc;
     }
-    var ms = row.models || [];
-    for (i = 0; i < ms.length; i++){
-      cc = byModel[String(ms[i] || "").trim().toLowerCase()];
+    for (i = 0; i < ms.length; i++){                   // ④ 只按型号（库里唯一时才命中）
+      m = String(ms[i] || "").trim().toLowerCase();
+      if (!m) continue;
+      cc = byModel[m];
       if (cc) return cc;
     }
-    return byCust[String(cu).toLowerCase()] || "";
+    return "";
   }
 
   /* 行上要显示的那串字：查得到显示代码，查不到显示「未编代码」占位。
@@ -413,6 +455,38 @@ window.ScanLib = (function () {
        渲染方一律调它，不要自己去拼 row.customer。 */
   function codeText(row, idx){
     return codeOf(row, idx) || NO_CODE;
+  }
+
+  /* --------------------------------------------------------------------------
+     「按客户反查物流」——口径也只此一份（管理端发布兜底 / 内部看板 都调它）
+
+     客户 → 该客户在物料库里**出现次数最多**的那个物流值。
+     ★ 为什么不取「第一条有值的」：同一客户在库里可能几十条、偶尔混进写法不同的
+       物流，按"第一条"会随库顺序跳（今天旺成、明天贝业）；众数才是稳定口径。
+       并列时保留先出现的那个（用 > 而不是 >=）。
+     ★ 不做缓存：物料库随时可能变（物料库页面改完、云端同步回来），
+       缓存键很容易失效或读到旧库；一次全库扫描对 3000 多条的库只是毫秒级。
+     -------------------------------------------------------------------------- */
+  function logisticsIndex(db){
+    var tally = {};
+    (db || []).forEach(function (r) {
+      if (!r) return;
+      var c = String(r.customer || "").trim().toLowerCase();
+      var lg = String(r.logistics || "").trim();
+      if (!c || !lg) return;
+      var k = c + CODE_PAIR + lg;
+      tally[k] = (tally[k] || 0) + 1;
+    });
+    var best = {};
+    Object.keys(tally).forEach(function (k) {
+      var i = k.lastIndexOf(CODE_PAIR), c = k.slice(0, i), lg = k.slice(i + 1);
+      if (!best[c] || tally[k] > tally[c + CODE_PAIR + best[c]]) best[c] = lg;
+    });
+    return best;
+  }
+  function logisticsOf(cust, idx){
+    if (!idx) return "";
+    return idx[String(cust || "").trim().toLowerCase()] || "";
   }
 
   /* ==========================================================================
@@ -860,6 +934,7 @@ window.ScanLib = (function () {
     uiConfirm: uiConfirm,
     KEY_PLANS: KEY_PLANS, KEY_PROG: KEY_PROG, KEY_DEL: KEY_DEL, KEY_PENDING: KEY_PENDING,
     KEY_DB: KEY_DB, NO_CODE: NO_CODE, codeIndex: codeIndex, codeOf: codeOf, codeText: codeText,
+    logisticsIndex: logisticsIndex, logisticsOf: logisticsOf,
     SCAN_PAGE: SCAN_PAGE, DRIVER_PAGE: DRIVER_PAGE, DASH_PAGE: DASH_PAGE,
     PUB_BASE: PUB_BASE, STEP_NAME: STEP_NAME, CAR_NAME: CAR_NAME,
     pad: pad, raw: raw, esc: esc, escAttr: escAttr, fmtHM: fmtHM,
