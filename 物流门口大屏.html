@@ -135,8 +135,13 @@
   .cust{font-weight:800;letter-spacing:1px;color:var(--txt);
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;}
   .cust.miss{font-family:inherit;font-weight:700;letter-spacing:.3px;color:var(--dim);}
-  .no{display:block;font-size:.66em;color:var(--muted);font-weight:600;margin-top:1px;letter-spacing:.2px;
-    font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;}
+  /* 单号（2026-09-17 起从代码格里分出来，独占一列）：单号本身用等宽字体，
+     后面跟的计划员名带一个 * 号 —— 一眼分清哪段是单号、哪个是人名 */
+  .no{display:inline-block;font-size:.8em;color:var(--muted);font-weight:600;letter-spacing:.3px;}
+  .no .sn{font-weight:700;color:#c9d6e8;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:.2px;}
+  .no .sep{color:var(--dim);}
+  .no .star{font-style:normal;color:var(--amber);font-weight:800;margin-left:1px;}
   .ton{font-weight:800;font-size:1.12em;}
   .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
 
@@ -202,11 +207,11 @@
   <div class="box">
     <table id="tbl">
       <colgroup>
-        <col style="width:8%"><col style="width:18%"><col style="width:10%">
-        <col style="width:24%"><col style="width:12%"><col style="width:28%">
+        <col style="width:7%"><col style="width:12%"><col style="width:19%">
+        <col style="width:9%"><col style="width:22%"><col style="width:10%"><col style="width:21%">
       </colgroup>
       <thead><tr>
-        <th>状态</th><th>送达方代码</th><th style="text-align:right">吨位</th>
+        <th>状态</th><th>送达方代码</th><th>单号</th><th style="text-align:right">吨位</th>
         <th>工序</th><th>车辆</th><th>最后更新</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
@@ -412,10 +417,13 @@ function rowHtml(r){
   const codeCell = code
     ? '<span class="cust">' + esc(code) + "</span>"
     : '<span class="cust miss">未编代码</span>';
-  const subTxt = esc(r.no || "（无单号）") + (r.planner ? " · " + esc(r.planner) : "");
+  // 单号独立成一列（2026-09-17）：计划员名后面跟一个 * 号
+  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" +
+    (r.planner ? '<span class="sep"> · </span>' + esc(r.planner) + '<i class="star">*</i>' : "") + "</span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + (r.done ? '<span class="pill s3">已完成</span>' : '<span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span>") + "</td>" +
-    '<td>' + stale + codeCell + '<span class="no">' + subTxt + "</span></td>" +
+    '<td>' + stale + codeCell + "</td>" +
+    '<td>' + noCell + "</td>" +
     '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td><span class="stp"><span class="dots">' + dots + '</span><span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></span></td>" +
     '<td><span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span></td>" +
