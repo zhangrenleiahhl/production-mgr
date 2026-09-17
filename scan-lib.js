@@ -532,10 +532,14 @@ window.ScanLib = (function () {
     return cv;
   }
 
-  async function qrDataUrl(text){
+  /* px = 要生成的像素边长（默认 240，够屏幕上看）。
+     ★ 打印要传大尺寸：192mm 宽印到 300dpi 的纸上 ≈ 2268px，
+       源图只有 240px 的话是靠拉伸糊上去的，模块边缘一糊就有扫不出来的风险。
+       传 1200px 时每个模块仍是整数像素、边缘干净。 */
+  async function qrDataUrl(text, px){
     var okLib = await ensureQRCode();
     if (!okLib) return null;
-    var cv = makeQrInto(null, text, 240);
+    var cv = makeQrInto(null, text, px || 240);
     try { return cv ? cv.toDataURL("image/png") : null; } catch (e){ return null; }
   }
 
@@ -693,28 +697,48 @@ window.ScanLib = (function () {
     });
   }
 
-  // 打印「两张码」的张贴页：A4 一页，字号大，门口一贴就行
+  /* 打印「两张码」的张贴页（2026-09-17 用户要求：A4 全屏、居中，一张纸一个码，共 2 页）。
+     改写前是一张纸上并排两个 60mm 的小码；现在每张码独占整页、放到 192mm（≈3.2 倍大），
+     门口贴出去隔着远也能扫。
+     ★ 两个容易翻车的点：
+       ① 分页用「.pg + .pg{page-break-before:always}」而不是给每张加 page-break-after ——
+          后者会在最后多印一张空白页（用户拿到手第一反应是"打印机坏了"）。
+       ② 二维码源图必须给大尺寸（PRINT_QR_PX），240px 拉到 192mm 只有 32dpi，糊边会扫不出来。 */
+  var PRINT_QR_PX = 1200;      // 源图像素边长：192mm @300dpi ≈ 2268px，1200px 已足够清晰且体积可控
+
+  /* 打印页底部那行网址：纸上是给人看/手输的，别把中文文件名的 %E6%89%AB%E7%A0%81
+     这种编码甩上去（根本没法抄）。解不回来就原样退回，不因为一行字把整张纸搞崩。 */
+  function prettyUrl(u){
+    try { return decodeURIComponent(String(u)); } catch (e){ return String(u); }
+  }
+
   function printCodes(){
     var defs = codeDefs();
     var w = window.open("", "_blank");
     if (!w){ alert("打印窗口被浏览器拦住了，请允许本站弹出窗口后重试。"); return; }
     ensureQRCode().then(function (okLib) {
-      var imgs = defs.map(function (d) { return okLib ? qrDataUrl(d.url) : Promise.resolve(null); });
+      var imgs = defs.map(function (d) { return okLib ? qrDataUrl(d.url, PRINT_QR_PX) : Promise.resolve(null); });
       Promise.all(imgs).then(function (urls) {
-        var html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>发货进度二维码</title>' +
-          '<style>@page{margin:12mm;}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;margin:0;color:#111;}' +
-          'h1{font-size:20px;text-align:center;margin:0 0 2px;}p.sub{text-align:center;font-size:12px;color:#555;margin:0 0 20px;}' +
-          '.two{display:flex;gap:16mm;justify-content:center;align-items:flex-start;}' +
-          '.c{flex:1;max-width:80mm;text-align:center;border:1.5px solid #222;border-radius:6px;padding:8mm 4mm;}' +
-          '.c h2{font-size:20px;margin:0 0 3px;}.c .d{font-size:12px;color:#444;margin:0 0 8px;line-height:1.5;}' +
-          '.c img{width:60mm;height:60mm;}@media print{.c{page-break-inside:avoid;}}</style></head><body>' +
-          '<h1>发货进度 · 扫码更新</h1><p class="sub">' + esc(PUB_BASE) + '</p><div class="two">' +
+        var html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">' +
+          '<title>发货进度 · 两张码（A4 一页一张）</title>' +
+          '<style>@page{size:A4;margin:6mm;}' +
+          'html,body{margin:0;padding:0;background:#fff;}' +
+          'body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#111;}' +
+          /* 每张占满整页（A4 去掉 6mm 页边 = 198×285mm，留 3mm 余量防止溢出到下一页）、内容整页居中 */
+          '.pg{height:282mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}' +
+          '.pg+.pg{page-break-before:always;break-before:page;}' +
+          '.pg h2{font-size:34px;font-weight:800;margin:0 0 7mm;letter-spacing:3px;}' +
+          '.pg .d{font-size:17px;color:#333;margin:0 0 6mm;line-height:1.55;max-width:172mm;}' +
+          '.pg img{width:192mm;height:192mm;display:block;image-rendering:pixelated;}' +
+          '.pg .bad{width:192mm;height:192mm;line-height:192mm;color:#c00;font-size:18px;}' +
+          '.pg .u{font-size:12px;color:#666;margin-top:6mm;word-break:break-all;line-height:1.5;}' +
+          '@media print{.pg{page-break-inside:avoid;}}</style></head><body>' +
           defs.map(function (d, i) {
-            return '<div class="c"><h2>' + esc(d.title) + "</h2><p class=\"d\">" + esc(d.desc) + "</p>" +
-              (urls[i] ? '<img src="' + urls[i] + '">' : '<div style="height:60mm;line-height:60mm;color:#c00;">二维码没生成出来</div>') +
-              "</div>";
+            return '<div class="pg"><h2>' + esc(d.title) + '</h2><p class="d">' + esc(d.desc) + '</p>' +
+              (urls[i] ? '<img src="' + urls[i] + '">' : '<div class="bad">二维码没生成出来</div>') +
+              '<div class="u">' + esc(prettyUrl(d.url)) + '</div></div>';
           }).join("") +
-          '</div><scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr' + 'ipt></body></html>';
+          '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr' + 'ipt></body></html>';
         w.document.write(html); w.document.close(); w.focus();
       });
     });
