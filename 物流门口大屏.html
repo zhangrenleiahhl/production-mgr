@@ -127,6 +127,10 @@
   tr.st1 td:first-child{box-shadow:inset 4px 0 0 var(--cyan);}
   tr.st2{background:linear-gradient(90deg,rgba(255,180,84,.07),rgba(255,180,84,.02) 55%,transparent);}
   tr.st2 td:first-child{box-shadow:inset 4px 0 0 var(--amber);}
+  /* st3 = 工序已经走完、但车还没到（所以不算 done）：淡一档的绿 ——
+     之前只有 st0/st1/st2/done 四档，st3 这一档漏了色条，整行看着像"没着色"。 */
+  tr.st3{background:linear-gradient(90deg,rgba(61,220,151,.045),rgba(61,220,151,.015) 55%,transparent);}
+  tr.st3 td:first-child{box-shadow:inset 4px 0 0 rgba(61,220,151,.5);}
   tr.done{background:linear-gradient(90deg,rgba(61,220,151,.07),transparent 62%);}
   tr.done td:first-child{box-shadow:inset 4px 0 0 var(--green);}
   tr.done .cust{color:#c9d6e8;}
@@ -161,23 +165,68 @@
   .ton{font-weight:800;font-size:1.12em;}
   .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
 
-  .stp{display:flex;align-items:center;gap:9px;}
-  .dots{display:flex;align-items:center;gap:3px;}
-  .dots i{width:9px;height:9px;border-radius:50%;background:rgba(148,163,184,.26);display:block;}
-  .dots i.on{background:var(--green);box-shadow:0 0 8px rgba(61,220,151,.55);}
-  .dots i.cur{background:var(--amber);box-shadow:0 0 8px rgba(255,180,84,.55);}
-  /* 即将到下一道工序：一个小点反复"跑"进下一格（颜色 = 下一道工序的颜色），
-     四步：货待确认 → 货好(青) → 装货中(琥珀) → 已完成(绿) */
-  .dots i.cur{animation:run2next 1.5s ease-in-out infinite;}
-  .dots i.cur.c1{background:var(--cyan);box-shadow:0 0 8px rgba(56,200,216,.55);}
-  .dots i.cur.c3{background:var(--green);box-shadow:0 0 8px rgba(61,220,151,.55);}
-  @keyframes run2next{
-    0%  {transform:translateX(-9px) scale(.45);opacity:.1;}
-    55% {transform:translateX(0)    scale(1);opacity:1;}
-    78% {transform:translateX(0)    scale(1.18);opacity:1;}
-    100%{transform:translateX(4px)  scale(.5);opacity:0;}
-  }
-  @media (prefers-reduced-motion:reduce){.dots i.cur{animation:none;}}
+  /* ============ 工序 · 流体进度条（2026-09-17）============
+     把原来的「四个圆点 + 工序名徽章」换成一条**会流动的液体进度条**：
+     · 左侧液体按工序进度涨（0% / 33% / 67% / 100%）；
+     · 液面一直在轻轻起伏，液体内部有流光在走，看着像液体在流；
+     · 液面右缘有一点"奔向下一道工序"的脉动光（颜色 = 下一道工序的颜色）；
+     · 右侧是进度百分比（数字比液体准，够大，远处一眼读）。
+     四道工序四种液体：待确认红 · 货好青 · 装货中琥珀 · 已完成绿（与整行底色同一套色）。
+     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(5)）：
+       进度条自带高度，让它"吃自己的"内边距，整行高度仍由别的列说了算，
+       不许它把行顶高（行一高，整屏就要滚，门口能看到的单子就少了）。 */
+  .flw{position:relative;display:flex;align-items:center;justify-content:space-between;gap:.45em;
+    height:1.62em;padding:0 .5em 0 .66em;border-radius:999px;overflow:hidden;
+    background:rgba(6,10,18,.9);font-size:.9em;line-height:1;white-space:nowrap;
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.26), inset 0 1px 0 rgba(255,255,255,.06), 0 2px 10px rgba(0,0,0,.42);
+    /* 液面波浪的图案（内联 SVG，不依赖任何外部文件）：宽 13 / 高 26，
+       左半实心、右边鼓出两个波峰；竖向重复时上下无缝，所以能一直往下滚。 */
+    --wvm:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='20'><path d='M0 0H6C16 3.3 16 6.7 6 10C16 13.3 16 16.7 6 20H0Z' fill='%23fff'/></svg>");}
+  /* 液体本体：宽度 = 进度。左端跟着胶囊的圆角走，右缘靠 ::after 那个自转的椭圆化出波纹 */
+  .flq{position:absolute;left:0;top:0;bottom:0;width:var(--w,0%);
+    background:linear-gradient(90deg,var(--f1),var(--f2));
+    box-shadow:0 0 16px -2px var(--fglow);filter:saturate(1.2);}
+  .flq::before{content:"";position:absolute;inset:0;opacity:.4;
+    background:repeating-linear-gradient(96deg,rgba(255,255,255,.20) 0 2px,transparent 2px 10px);
+    animation:flflow 2.4s linear infinite;}
+  @keyframes flflow{to{transform:translateX(10px)}}
+  /* 液面：液体右缘的**波浪边** —— 上面那张 SVG 波浪贴在这里，
+     往左压 6px（正好让图案里的"实心段"在 --w 处结束），于是液体的右缘形状**就是**
+     那条波浪线；再让它慢慢往下走一个周期 = 液面在起伏。
+     ★ 别用"自转椭圆"那套（第一版试过）：椭圆会鼓到液体右边变成一个球，看着像浮了颗蛋。
+     ★ 也别把波做小：周期 26px / 波幅 3px 那版（第二版）在 38px 高的胶囊里只有 1.5 个波，
+       看着是"扇贝花边"。现在的 20px 周期 / 7.5px 波幅才有液面的样子。
+     液面正中的那盏灯 = 「下一道工序」（颜色 = 下一道工序色）：四步
+     货待确认 → 货好(青) → 装货中(琥珀) → 已完成(绿)。 */
+  .flnx{position:absolute;top:0;bottom:0;left:var(--w,0%);width:18px;margin-left:-6px;
+    background-color:var(--f1);
+    -webkit-mask-image:var(--wvm);mask-image:var(--wvm);
+    -webkit-mask-size:18px 20px;mask-size:18px 20px;
+    -webkit-mask-repeat:repeat-y;mask-repeat:repeat-y;
+    -webkit-mask-position:0 0;mask-position:0 0;
+    animation:flwave 2.6s linear infinite;}
+  @keyframes flwave{to{-webkit-mask-position:0 20px;mask-position:0 20px;}}
+  /* 这盏灯挪到**波浪外侧**（液体右边、深色区里）：第一版它压在波浪正中，
+     9px 的光晕会把波浪整个染成"下一步"的颜色（橙色液体上浮出一条黄绿边）。 */
+  .flnx::after{content:"";position:absolute;right:-4px;top:0;bottom:0;width:2px;
+    background:linear-gradient(180deg,transparent,var(--nc),transparent);
+    box-shadow:0 0 7px 0 var(--nc);opacity:.92;animation:flpulse 1.6s ease-in-out infinite;}
+  .flnx.c1{--nc:var(--cyan);} .flnx.c2{--nc:var(--amber);} .flnx.c3{--nc:var(--green);}
+  @keyframes flpulse{0%,100%{opacity:.25;} 50%{opacity:1;}}
+  /* 液体颜色：左亮右暗（像光从左打进液体里），与整行底色同一套色系 */
+  .flw.s0{--f1:#ff5d5d;--f2:#6d1120;--fglow:rgba(255,93,93,.55);}
+  .flw.s1{--f1:#38c8d8;--f2:#0f4f6d;--fglow:rgba(56,200,216,.5);}
+  .flw.s2{--f1:#ffb454;--f2:#7d4306;--fglow:rgba(255,180,84,.5);}
+  .flw.s3{--f1:#3ddc97;--f2:#0d6448;--fglow:rgba(61,220,151,.5);}
+  /* 压在液体上面的字：工序名在左、百分比在右，都带投影，泡在液体里也读得清 */
+  .flt{position:relative;z-index:1;font-weight:800;letter-spacing:.6px;color:#eef4ff;
+    text-shadow:0 1px 4px rgba(0,0,0,.8);}
+  .flp{position:relative;z-index:1;font-size:1.3em;font-weight:800;letter-spacing:.4px;color:#fff;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+    text-shadow:0 1px 5px rgba(0,0,0,.85);}
+  /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径） */
+  tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
+  @media (prefers-reduced-motion:reduce){.flq::before,.flnx,.flnx::after{animation:none;}}
   .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:.86em;font-weight:800;
     white-space:nowrap;border:1px solid transparent;}
   .pill.s0{background:rgba(255,93,93,.16);color:#ffb3b3;border-color:rgba(255,93,93,.42);}
@@ -500,11 +549,16 @@ function maskNameHtml(name){
 /* 一行怎么画 —— 注意：这里**没有**任何一处输出客户名，改动前先想清楚这句话 */
 function rowHtml(r){
   const s = Math.min(3, r.s || 0);
-  let dots = "";
-  for (let i = 0; i < 4; i++){
-    const on = i <= s, cur = (i === s + 1 && s < 3);
-    dots += '<i class="' + (on && i > 0 ? "on" : (cur ? "cur c" + (s + 1) : "")) + '"></i>';
-  }
+  /* 流体进度条（2026-09-17）：液体宽度 = 工序进度（0 / 33 / 67 / 100）。
+     0 档给一小片"刚起步"的液滴（6%），但右边的数字仍按真实进度印 0% ——
+     数字永远准，液体只负责好看（别把这一小片读成"已经有进度了"）。 */
+  const pct = Math.round(s / 3 * 100);
+  const flw = '<span class="flw s' + s + '" style="--w:' + (pct || 6) + '%">' +
+      '<i class="flq"></i>' +
+      (s < 3 ? '<i class="flnx c' + (s + 1) + '"></i>' : '') +
+      '<span class="flt">' + esc(SL.STEP_NAME[s]) + '</span>' +
+      '<span class="flp">' + pct + '%</span>' +
+    '</span>';
   const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
   const byTxt = r.by ? " · " + esc(r.by) : "";
   const when = r.car && r.ct ? SL.fmtHM(r.ct) : (r.t ? SL.fmtHM(r.t) : "");
@@ -522,7 +576,7 @@ function rowHtml(r){
     '<td>' + stale + codeCell + "</td>" +
     '<td>' + noCell + "</td>" +
     '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
-    '<td><span class="stp"><span class="dots">' + dots + '</span><span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></span></td>" +
+    '<td>' + flw + "</td>" +
     '<td><span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span></td>" +
     '<td><span class="tm">' + (when ? esc(whenLbl) + " " + esc(when) + byTxt : '<s>还没动</s>') + "</span></td>" +
   "</tr>";
