@@ -212,6 +212,12 @@ function filterDeleted(list, delIds){
 }
 
 const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/" : s; };
+// 发货点四色（与主表 SHIPPT_COLOR 同一套配色）：一眼分清这行从哪个点发
+const PT_COLOR = { "汽零铸造":"#b45309", "汽零机加工":"#0369a1", "北区":"#15803d", "昆山衍咏":"#7c3aed" };
+const ptCell = (v) => {
+  const p = pad(v), c = PT_COLOR[p];
+  return c ? `<td style="color:${c};font-weight:700">${esc(p)}</td>` : `<td>${esc(p)}</td>`;
+};
 // HTML 属性转义（客户名可能含引号 / 尖括号）
 const escAttr = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");   // 文本内容转义（防 XSS）
@@ -592,7 +598,7 @@ function detailTable(rec, tonByCust){
     const ovd = hasOverride(rec, key) ? " edited" : "";
     const cells = [
       `<input type="checkbox" class="row-sel" data-id="${rec.id}-${i}">`, // 0
-      pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
+      pad(r.shipdate), pad(r.customer), pad(r.model), pad(r.qty), { raw: ptCell(r.shippt) }, pad(r.cwt), pad(r.ton),
       pad(r.delivery), pad(r.box), pad(r.remark),
       `<input type="text" class="custton-in${ovd}" value="${val}" data-key="${escAttr(key)}" data-old="${val}" inputmode="decimal">`,
       pad(r.logistics), pad(r.code),
