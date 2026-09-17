@@ -359,6 +359,63 @@ window.ScanLib = (function () {
   }
 
   /* ==========================================================================
+     送达方代码（保密口径的**唯一实现**：门口保密屏、司机页共用这一份）
+     --------------------------------------------------------------------------
+     物料库里的「送达方代码」是 2026-09-16 新增的一列，历史数据多半还没填，
+     所以三级兜底：
+       ① 记录行里已经刻好的 custcode（发布那一刻写在记录里，最权威）
+       ② 物料库按型号匹配（一行可能带多个型号，取第一个查得到的）
+       ③ 物料库按客户名匹配（型号对不上但客户没换时兜底）
+     ★ 三级都查不到 → 返回 ""，**绝不回落到客户名** —— 宁可显示「未编代码」，
+       也不能因为"查不到"就把客户名漏出去（保密需求的核心）。
+     ========================================================================== */
+  var KEY_DB = "shipping_db_v1";       // 物料库（含送达方代码）
+  var NO_CODE = "未编代码";             // 查不到代码时的占位（绝不填客户名）
+
+  function codeIndex(db){
+    var byModel = {}, byCust = {};
+    (db || []).forEach(function (r) {
+      if (!r) return;
+      var cc = String(r.custcode || "").trim();
+      if (!cc) return;                                  // 没填代码的记录不进索引
+      var m = String(r.model || "").trim().toLowerCase();
+      if (m && !byModel[m]) byModel[m] = cc;
+      var c = String(r.customer || "").trim().toLowerCase();
+      if (c && !byCust[c]) byCust[c] = cc;
+    });
+    return { byModel: byModel, byCust: byCust };
+  }
+
+  function codeOf(row, idx){
+    if (!row) return "";
+    idx = idx || {};
+    var byModel = idx.byModel || {}, byCust = idx.byCust || {};
+    var src = (row.rec && row.rec.rows) || [];
+    var cu = String(row.customer || "").trim() || "/";
+    var i, cc;
+    for (i = 0; i < src.length; i++){
+      var x = src[i];
+      if (!x) continue;
+      if ((String(x.customer || "").trim() || "/") !== cu) continue;
+      cc = String(x.custcode || "").trim();
+      if (cc) return cc;
+    }
+    var ms = row.models || [];
+    for (i = 0; i < ms.length; i++){
+      cc = byModel[String(ms[i] || "").trim().toLowerCase()];
+      if (cc) return cc;
+    }
+    return byCust[String(cu).toLowerCase()] || "";
+  }
+
+  /* 行上要显示的那串字：查得到显示代码，查不到显示「未编代码」占位。
+     ★ 这个函数存在的意义就是**堵住"顺手回落客户名"这条路** ——
+       渲染方一律调它，不要自己去拼 row.customer。 */
+  function codeText(row, idx){
+    return codeOf(row, idx) || NO_CODE;
+  }
+
+  /* ==========================================================================
      SHA-256（纯 JS，不依赖 crypto.subtle）
      用途：内部人员的口令页面里只放哈希、不放明文。
      自己实现一份是为了 file:// 直接打开、以及 jsdom 测试里都照样能跑
@@ -802,6 +859,7 @@ window.ScanLib = (function () {
   return {
     uiConfirm: uiConfirm,
     KEY_PLANS: KEY_PLANS, KEY_PROG: KEY_PROG, KEY_DEL: KEY_DEL, KEY_PENDING: KEY_PENDING,
+    KEY_DB: KEY_DB, NO_CODE: NO_CODE, codeIndex: codeIndex, codeOf: codeOf, codeText: codeText,
     SCAN_PAGE: SCAN_PAGE, DRIVER_PAGE: DRIVER_PAGE, DASH_PAGE: DASH_PAGE,
     PUB_BASE: PUB_BASE, STEP_NAME: STEP_NAME, CAR_NAME: CAR_NAME,
     pad: pad, raw: raw, esc: esc, escAttr: escAttr, fmtHM: fmtHM,
