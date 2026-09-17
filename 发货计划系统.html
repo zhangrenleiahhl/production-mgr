@@ -241,6 +241,11 @@
   .tbl td.col-shippt select{width:100%;border:1px solid transparent;background:#fff;font-size:12px;font-weight:600;color:#1f2328;height:26px;padding:1px 2px;text-align:center;text-align-last:center;outline:none;cursor:pointer;box-sizing:border-box;transition:.15s;font-family:inherit;}
   .tbl td.col-shippt select:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.15);}
   .tbl td.col-shippt select option{text-align:center;}
+  /* 发货点四色（与 SHIPPT_COLOR 一一对应）：一眼分清这行从哪个点发 */
+  .tbl td.col-shippt select[data-pt="汽零铸造"]{color:#b45309;background:#fffbeb;border-color:rgba(180,83,9,.28);font-weight:700;}
+  .tbl td.col-shippt select[data-pt="汽零机加工"]{color:#0369a1;background:#eff6ff;border-color:rgba(3,105,161,.28);font-weight:700;}
+  .tbl td.col-shippt select[data-pt="北区"]{color:#15803d;background:#f0fdf4;border-color:rgba(21,128,61,.28);font-weight:700;}
+  .tbl td.col-shippt select[data-pt="昆山衍咏"]{color:#7c3aed;background:#f5f3ff;border-color:rgba(124,58,237,.28);font-weight:700;}
   .tbl td.col-ton{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;}
   /* 产品重量T：可编辑输入框 + 恢复按钮（仅手填过时显示，样式同客户吨位/箱重T） */
   .tbl td.col-ton .ton-wrap{display:flex;align-items:center;gap:2px;justify-content:center;}
@@ -1063,13 +1068,28 @@ if(window.ResizeObserver){
   const ab=$("appbar"); if(ab) ro.observe(ab);
   const tb=document.querySelector(".topbar"); if(tb) ro.observe(tb);
 }
-// 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区）
+// 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区 / 昆山衍咏）—— 每个发货点一种颜色（SHIPPT_COLOR 一处定义）
+const SHIPPT_COLOR={
+  "汽零铸造":  ["#b45309","#fffbeb"],   // [文字色, 底色] 琥珀
+  "汽零机加工":["#0369a1","#eff6ff"],   // 天蓝
+  "北区":      ["#15803d","#f0fdf4"],   // 绿
+  "昆山衍咏":  ["#7c3aed","#f5f3ff"]    // 紫
+};
 function shipptOptions(val){
   const v=(val&&val!=="/")?String(val):"";
-  const opts=["汽零铸造","汽零机加工","北区"];
+  const opts=["汽零铸造","汽零机加工","北区","昆山衍咏"];
   let html='<option value=""></option>';
   opts.forEach(o=>{ html+=`<option value="${esc(o)}"${v===o?" selected":""}>${esc(o)}</option>`; });
   return html;
+}
+// 把发货点颜色同步到下拉框上（值 → data-pt 属性，CSS 按属性上色）。
+// ★ 粘贴/还原/带出等路径是直接 .value= 写入的，不触发 change 事件，所以必须在
+//   writeDraftNow（所有写路径的必经点）里统一刷一遍，别只挂在 change 上。
+function syncShipptColors(root){
+  (root||document).querySelectorAll('select[data-f="shippt"]').forEach(sel=>{
+    const v=(sel.value||"").trim();
+    if(sel.dataset.pt!==v) sel.dataset.pt=v;
+  });
 }
 
 // ===================== 物料库（与物料数据库页共享 localStorage） =====================
@@ -1470,7 +1490,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     <td class="col-customer"><textarea data-f="customer" placeholder="/" rows="1">${esc(data.customer)}</textarea></td>
     <td><textarea data-f="model" placeholder="/" rows="1">${esc(data.model)}</textarea></td>
     <td><input data-f="qty" type="text" inputmode="decimal" value="${esc(data.qty)}" placeholder="/" title="支持算式：10*20、100/4、10*(20+5)，失焦自动算出结果"></td>
-    <td class="col-shippt"><select data-f="shippt" title="发货点">${shipptOptions(data.shippt)}</select></td>
+    <td class="col-shippt"><select data-f="shippt" title="发货点" data-pt="${esc((data.shippt||"").trim())}">${shipptOptions(data.shippt)}</select></td>
     <td class="col-delivery"><textarea data-f="delivery" placeholder="/" rows="1">${esc(data.delivery)}</textarea></td>
     <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
@@ -1484,7 +1504,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   const rc=tr.querySelector(".row-check");
   if(rc) rc.addEventListener("change", updateCheckAll);
   const spSel=tr.querySelector('[data-f="shippt"]');
-  if(spSel) spSel.addEventListener("change", ()=>{ saveDraft(); });
+  if(spSel){ spSel.addEventListener("change", ()=>{ spSel.dataset.pt=(spSel.value||"").trim(); saveDraft(); }); }
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraftNow(); };
   tr.querySelectorAll("input").forEach(inp=>{
     inp.addEventListener("keydown", onCellKey);
@@ -2474,6 +2494,7 @@ function saveDraft(){
 function saveDraftNow(){ _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
 function writeDraftNow(){
   try{
+    syncShipptColors();   // 发货点颜色跟随值（粘贴/还原/带出等不走 change 的路径也在这里刷到）
     // ★ 性能：原来是「每行 12 次 querySelector」—— 打字停手 250ms 就写一次草稿，
     //   120 行就是 1440 次查询，是打字卡顿的最大单一来源。改用行引用缓存后降到 0 次。
     const rows=[];
