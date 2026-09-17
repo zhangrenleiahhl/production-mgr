@@ -299,7 +299,9 @@ function codeOf(r){ return SL.codeOf(r, IDX); }
 function logisticsOf(r){
   const lg = String((r && r.logistics) || "").trim();
   if (lg && lg !== "/") return lg;                 // 记录里有值 → 尊重当时那份
-  return SL.logisticsOf(r && r.customer, LGIDX);   // 记录里没有 → 按客户实时补
+  // 记录里没有 → 实时补。★ 用整行版：客户名对不上时，靠「型号唯一指向的客户」
+  // 认人（和旁边那列代码用的是同一个判断），否则会出现「有代码、没物流」的半截行。
+  return (SL.logisticsOfRow ? SL.logisticsOfRow(r, LGIDX) : SL.logisticsOf(r && r.customer, LGIDX));
 }
 
 /* ---------- 拉取（超时保护：卡住的请求不能让整屏停摆） ---------- */
