@@ -53,8 +53,8 @@
 
   /* ============ 顶部 HUD ============ */
   .hud{
-    flex:0 0 auto;position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
-    padding:12px 20px;margin-bottom:12px;border-radius:16px;overflow:hidden;
+    flex:0 0 auto;position:relative;display:flex;align-items:center;gap:15px;flex-wrap:wrap;
+    padding:8px 18px;margin-bottom:9px;border-radius:16px;overflow:hidden;
     background:linear-gradient(100deg,rgba(56,200,216,.08),rgba(91,141,239,.05) 45%,rgba(255,255,255,.02));
     border:1px solid rgba(56,200,216,.22);
     box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
@@ -66,11 +66,11 @@
     background:linear-gradient(90deg,transparent,rgba(56,200,216,.07),transparent);
     transform:rotate(18deg);animation:sweep 7s linear infinite;pointer-events:none;}
   @keyframes sweep{0%{left:-20%}100%{left:120%}}
-  .logo{width:44px;height:44px;flex:0 0 44px;border-radius:13px;display:flex;align-items:center;justify-content:center;
-    font-size:21px;background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
+  .logo{width:38px;height:38px;flex:0 0 38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-size:18px;background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
     box-shadow:0 0 22px rgba(56,200,216,.4);}
-  .tt .t{font-size:20px;font-weight:800;letter-spacing:1px;}
-  .tt .s{font-size:11px;color:var(--dim);letter-spacing:1.4px;margin-top:1px;}
+  .tt .t{font-size:18px;font-weight:800;letter-spacing:1px;}
+  .tt .s{font-size:10.5px;color:var(--dim);letter-spacing:1.2px;margin-top:1px;}
 
   /* 醒目提醒：这一屏带送达方名称，只能内部看，别摆到物流门口 */
   .warnbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
@@ -90,13 +90,13 @@
   .spacer{flex:1;}
   .ctrl{display:flex;align-items:center;gap:8px;}
   .ctrl button{background:rgba(34,211,238,.13);border:1px solid rgba(34,211,238,.42);color:var(--txt);
-    padding:8px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+    padding:6px 12px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;
     letter-spacing:.5px;white-space:nowrap;}
   .ctrl button:hover{background:rgba(34,211,238,.24);}
-  .clock{text-align:right;min-width:132px;}
-  .clock b{display:block;font-size:25px;font-weight:800;letter-spacing:1.6px;line-height:1.1;}
-  .clock span{font-size:11px;color:var(--dim);letter-spacing:1px;}
-  .sync{font-size:11px;letter-spacing:.6px;margin-top:2px;}
+  .clock{text-align:right;min-width:116px;}
+  .clock b{display:block;font-size:22px;font-weight:800;letter-spacing:1.4px;line-height:1.08;}
+  .clock span{font-size:10.5px;color:var(--dim);letter-spacing:.8px;}
+  .sync{font-size:10.5px;letter-spacing:.5px;margin-top:1px;}
   .sync.ok{color:var(--green);} .sync.warn{color:var(--amber);} .sync.err{color:var(--red);}
 
   /* ============ 主体表格 ============ */
@@ -274,7 +274,6 @@
     <div class="kpis" id="kpis"></div>
     <div class="spacer"></div>
     <div class="ctrl">
-      <button id="codesBtn">▣ 两个码</button>
       <button id="fsBtn">⛶ 全屏显示</button>
     </div>
     <div class="clock">
@@ -429,7 +428,7 @@ function fmtTime(ts){
 // 下限提到 15px：再小门口就看不清了，塞不下交给自动慢速滚动（不再硬缩到看不清）。
 function fitRows(n){
   const vh = window.innerHeight;
-  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 210 : 190));
+  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 192 : 172));
   const per = avail / Math.max(1, n);
   const fs = Math.max(15, Math.min(26, Math.floor(per * 0.52)));
   document.documentElement.style.setProperty("--rowfs", fs + "px");
@@ -600,7 +599,6 @@ function boot(){
   }
   loadLocal();
   $("fsBtn").onclick = toggleFs;
-  $("codesBtn").onclick = () => SL.openCodesModal();
   document.addEventListener("fullscreenchange", onFsChange);
   document.addEventListener("webkitfullscreenchange", onFsChange);
   document.addEventListener("mousemove", pokeCursor);
