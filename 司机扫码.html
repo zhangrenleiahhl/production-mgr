@@ -12,6 +12,8 @@
 <style>
   /* ==========================================================================
      司机到车登记（手机端，一个码通吃，不用登录）
+     新流程（2026-09-18）：司机**自己输入 6 位送达方代码**，系统自动匹配到对应车辆
+     并签到「车已到」——不再罗列所有行让司机找。
      边界（必须守住）：司机**只能**勾「车已到」和撤回自己那一勾，
      绝对不能碰「待确认 / 货好 / 装货中 / 已完成」四道工序 —— 那四道要内部人员登录才点。
      所以本页根本不渲染任何工序按钮，连相关代码路径都没有。
@@ -39,18 +41,29 @@
 
   .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
 
-  /* 顶部一句话交代"怎么找自己那一行"（司机第一次扫进来就靠这句） */
+  /* 顶部一句话交代"怎么签到"（司机第一次扫进来就靠这句） */
   .hint{background:#eef4ff;border:1px solid #cfdffd;color:#1e3a8a;border-radius:10px;
     padding:9px 12px;font-size:13px;line-height:1.55;margin:0 0 10px;}
   .hint b{font-weight:800;}
 
-  /* 物流公司筛选（司机先找自己那家车） */
-  .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 10px;-webkit-overflow-scrolling:touch;}
-  .chips::-webkit-scrollbar{display:none;}
-  .chips button{flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;
-    color:var(--muted);font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;}
-  .chips button.on{background:#0f172a;border-color:#0f172a;color:#fff;}
+  /* ★ 新核心：司机自己输入 6 位送达方代码 */
+  .codebox{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 14px;
+    margin:0 0 12px;box-shadow:0 2px 8px rgba(15,23,42,.06);}
+  .codebox .lab{display:block;font-size:15px;font-weight:800;color:#0f172a;margin-bottom:10px;letter-spacing:.3px;}
+  .cinput{display:flex;gap:10px;}
+  .cinput input{flex:1;min-width:0;height:56px;border:2px solid var(--line);border-radius:12px;padding:0 14px;
+    font-size:28px;font-weight:800;letter-spacing:8px;text-align:center;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+    color:#0f172a;background:#f8fafc;outline:none;transition:.15s;-webkit-appearance:none;}
+  .cinput input:focus{border-color:#0f172a;background:#fff;}
+  .cinput input.bad{border-color:#b91c1c;background:#fef2f2;}
+  .cinput button{flex:0 0 auto;width:96px;border:none;border-radius:12px;background:#0f172a;color:#fff;
+    font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s;}
+  .cinput button:active{background:#1e293b;}
+  .cinput button:disabled{background:#cbd5e1;cursor:not-allowed;}
+  .err{color:#b91c1c;font-size:13px;font-weight:700;min-height:18px;margin-top:8px;}
 
+  /* 匹配结果卡片（复用老样式，只是改成"搜索后才出现"） */
   .grp{margin-bottom:12px;}
   .grp>h2{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 7px;font-weight:800;color:#334155;padding:0 2px;}
   .grp>h2 .tagx{margin-left:auto;font-size:12px;font-weight:700;color:var(--muted);}
@@ -58,17 +71,13 @@
   .row{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;
     overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06);}
   .row.done{border-color:#a7f3d0;background:linear-gradient(180deg,#f7fffb,#fff);}
-  .row.late{border-color:#fecaca;}
   .rh{padding:10px 12px 8px;display:flex;gap:10px;align-items:flex-start;}
   .rh .nm{flex:1;min-width:0;}
-  .rh .name{font-size:16px;font-weight:800;line-height:1.35;word-break:break-all;}
-  /* 行标题显示的是「送达方代码」（保密，不出现客户名）—— 用等宽体，位数好对齐、一眼认得出 */
-  .rh .name{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:.5px;}
+  .rh .name{font-size:18px;font-weight:800;line-height:1.35;word-break:break-all;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:1px;}
   .rh .name.miss{font-family:inherit;color:#b45309;font-size:14px;letter-spacing:0;}
-  .rh .meta{margin-top:2px;display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);}
+  .rh .meta{margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);}
   .rh .meta b{color:#334155;font-weight:700;}
-  .rh .lateTag{display:inline-block;padding:0 6px;border-radius:4px;font-size:10.5px;font-weight:800;
-    background:#fee2e2;color:#b91c1c;margin-right:5px;vertical-align:1px;}
   .big{
     width:100%;min-height:52px;border:none;border-top:1px solid var(--line);background:#f8fafc;
     font-size:16.5px;font-weight:800;color:#475569;cursor:pointer;font-family:inherit;
@@ -100,16 +109,23 @@
 <div class="hd">
   <div class="r1">
     <span class="dot"></span>
-    <h1>司机到车登记 <em>勾一下就行</em></h1>
+    <h1>司机到车登记 <em>输代码即签到</em></h1>
   </div>
   <div class="r2" id="sumTxt">正在读取…</div>
   <div class="sync" id="sync">正在连接云端…</div>
 </div>
 
 <div class="wrap">
-  <div class="hint">请按自己手上的<b>送达方代码</b>找到对应的那一行，点「🚚 车已到」就算签到完成。</div>
-  <div class="chips" id="chips"></div>
-  <div id="list"></div>
+  <div class="codebox">
+    <label class="lab" for="codeInput">请输入提货送达方代码</label>
+    <div class="cinput">
+      <input id="codeInput" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="6 位数字">
+      <button id="goBtn" type="button" disabled>确认</button>
+    </div>
+    <div class="err" id="err"></div>
+    <div class="hint">在送货单或工作群里找到你的 <b>6 位送达方代码</b>，输进来系统会自动签到「车已到」。</div>
+  </div>
+  <div id="result"></div>
 </div>
 
 <div id="tip"></div>
@@ -121,7 +137,7 @@ const $ = (id) => document.getElementById(id);
 const esc = SL.esc;
 const POLL_MS = 10000;
 
-let RECORDS = [], PROG = {}, ROWS = [], FILTER = "", rendered = false, lastFp = "";
+let RECORDS = [], PROG = {}, ROWS = [], SEARCH = "", lastFp = "";
 let DB = [], IDX = { byPair: {}, byCust: {}, byModel: {} };   // 物料库 + 送达方代码索引（保密用）
 
 /* ---------- 本机缓存（断网也能勾，恢复后自动补传） ---------- */
@@ -130,8 +146,6 @@ function loadLocal(){
   try { const v = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
   loadLocalDb();
 }
-/* 物料库单独兜底：★ 别把它混进上面那个整体兜底 ——
-   否则"物料库为空"会把刚拉到的最新计划又用本机旧缓存盖回去。 */
 function loadLocalDb(){
   if (DB.length){ IDX = SL.codeIndex(DB); return; }
   try { const v = JSON.parse(localStorage.getItem(SL.KEY_DB) || "null"); if (Array.isArray(v)) DB = v; } catch(e){}
@@ -218,55 +232,41 @@ function render(){
     (ROWS.some(r => r.stale) ? "（含昨日遗留 " + ROWS.filter(r => r.stale).length + "）" : "") +
     (missN ? " ｜ <b style=\"color:#fbbf24\">" + missN + "</b> 趟未编送达方代码" : "");
 
-  const groups = SL.groupByLogistics(ROWS);
-  // 物流筛选条：默认全部，司机点自己那家
-  const chips = ['<button type="button" data-l="" class="' + (FILTER ? "" : "on") + '">全部 ' + ROWS.length + "</button>"]
-    .concat(groups.map(g => '<button type="button" data-l="' + esc(g.logistics) + '" class="' + (FILTER === g.logistics ? "on" : "") + '">' +
-      esc(g.logistics) + " " + g.rows.length + "</button>"));
-  $("chips").innerHTML = ROWS.length ? chips.join("") : "";
-
   // ★ 指纹里带上物料库条数：拉回物料库后（代码从无到有）必须重绘一次
-  const fp = DB.length + "|" + FILTER + "|" + ROWS.map(r => [r.ck, r.rk, r.car, r.ct].join(":")).join("|");
-  if (rendered && fp === lastFp) return;        // 内容没变就不重绘（现场正在点的时候别打断）
-  lastFp = fp; rendered = true;
-
-  const show = groups.filter(g => !FILTER || g.logistics === FILTER);
-  if (!ROWS.length){
-    $("list").innerHTML = '<div class="flag">今天没有要发车的计划。<br>过一会儿再刷新看看。</div>';
-    return;
-  }
-  if (!show.length){
-    $("list").innerHTML = '<div class="flag warn">这家物流今天没有要登记的车。<br>点上面「全部」看所有。</div>';
-    return;
-  }
-  $("list").innerHTML = show.map(g => {
-    const leftN = g.rows.filter(r => !r.car).length;
-    return '<div class="grp"><h2>' + esc(g.logistics) +
-      '<span class="tagx">' + (leftN ? "待登记 " + leftN + " 趟" : "全部已到 ✓") + " · " + g.ton.toFixed(1) + " 吨</span></h2>" +
-      g.rows.map(rowHtml).join("") + "</div>";
-  }).join("");
-  bind();
+  const fp = DB.length + "|" + SEARCH + "|" + ROWS.map(r => [r.ck, r.rk, r.car, r.ct].join(":")).join("|");
+  if (lastFp === fp) return;        // 内容没变就不重绘（现场正在看结果时别打断）
+  lastFp = fp;
+  $("result").innerHTML = resultHtml();
+  bindResult();
 }
 
 /* ★ 保密硬约束：这一页**不许出现客户名称**，只显示「送达方代码」。
    司机靠手上的送货单/工作群里的代码认出哪一行是自己的，所以代码要显眼。
    查不到代码 → 显示「未编代码」占位并标黄，**绝不回落显示客户名**
    （三级兜底与占位口径全在 scan-lib.codeOf / codeText，全站只有这一份实现）。 */
-function rowHtml(r){
+function resultHtml(){
+  if (!SEARCH) return '<div class="flag">输入送达方代码后，这里会显示匹配到的车辆。</div>';
+  const matches = ROWS.filter(r => (SL.codeOf(r, IDX) || "") === SEARCH);
+  if (!matches.length) return '<div class="flag warn">未找到代码 <b>' + esc(SEARCH) + '</b> 对应的车辆，请核对你的送达方代码。</div>';
+  if (matches.length === 1) return singleHtml(matches[0]);
+  // 同一代码对应多趟（极少见）：逐条列出，司机自己点要签到的那趟
+  return '<div class="grp"><h2>匹配到 ' + matches.length + ' 趟<span class="tagx">请逐一点「车已到」</span></h2>' +
+    matches.map(singleHtml).join("") + "</div>";
+}
+
+function singleHtml(r){
   const car = r.car || 0;
   const ts = car && r.ct ? SL.fmtHM(r.ct) : "";
-  const code = SL.codeOf(r, IDX);
-  const codeTxt = code || SL.NO_CODE;
-  // 一次只给一个动作，避免司机看错：
-  //   还没登记 → 只有一个「车已到」；已经登记 → 变成静态状态条 + 一个「撤回」
+  const code = SL.codeOf(r, IDX) || SL.NO_CODE;
+  // 还没登记 → 一个「确认车已到」；已登记 → 静态状态条 + 一个「撤回」
   const act = car
-    ? '<div class="big on">✓ 车已到' + (ts ? "　" + esc(ts) : "") + "</div>" +
-      '<div class="r2b"><button type="button" data-car="1" data-v="0">↩ 撤回这一勾</button></div>'
-    : '<button type="button" class="big" data-car="1" data-v="1">🚚 点这里：车已到</button>';
-  return '<div class="row ' + (car ? "done" : "") + (r.stale && !car ? " late" : "") +
-    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '" data-code="' + esc(codeTxt) + '">' +
+    ? '<div class="big on">✓ 已签到：车已到' + (ts ? "　" + esc(ts) : "") + "</div>" +
+      '<div class="r2b"><button type="button" data-car="1" data-v="0">↩ 撤回</button></div>'
+    : '<button type="button" class="big" data-car="1" data-v="1">🚚 确认：车已到</button>';
+  return '<div class="row ' + (car ? "done" : "") +
+    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '" data-code="' + esc(code) + '">' +
     '<div class="rh"><div class="nm">' +
-      '<div class="name' + (code ? "" : " miss") + '">' + (r.stale ? '<span class="lateTag">昨</span>' : "") + esc(codeTxt) + "</div>" +
+      '<div class="name' + (SL.codeOf(r, IDX) ? "" : " miss") + '">' + esc(code) + "</div>" +
       '<div class="meta">' +
         "<span>单号 <b>" + esc(r.no || "—") + "</b></span>" +
         "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span>" +
@@ -277,25 +277,64 @@ function rowHtml(r){
   "</div>";
 }
 
-function bind(){
-  $("chips").querySelectorAll("button").forEach(b => {
-    b.onclick = () => { FILTER = b.dataset.l || ""; lastFp = ""; render(); };
-  });
-  $("list").querySelectorAll("[data-car]").forEach(b => {
+function bindResult(){
+  $("result").querySelectorAll("[data-car]").forEach(b => {
     const row = b.closest(".row");
     b.onclick = () => setCar(row.dataset.r, row.dataset.k, parseInt(b.dataset.v, 10) || 0, row.dataset.code || "");
   });
+}
+
+/* ---------- 输入：只能填 6 位数字 ---------- */
+function showErr(m){ $("err").textContent = m; }
+function clearErr(){ $("err").textContent = ""; }
+
+const ci = $("codeInput");
+ci.addEventListener("input", () => {
+  let v = ci.value.replace(/\D/g, "").slice(0, 6);
+  if (v !== ci.value) ci.value = v;
+  $("goBtn").disabled = v.length !== 6;
+  ci.classList.remove("bad"); clearErr();
+});
+ci.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doSearch(); } });
+$("goBtn").onclick = doSearch;
+
+function doSearch(){
+  const code = ci.value.trim();
+  if (!/^\d{6}$/.test(code)){
+    ci.classList.add("bad"); showErr("请输入 6 位数字送达方代码"); ci.focus(); return;
+  }
+  ci.classList.remove("bad"); clearErr();
+  SEARCH = code;
+  const matches = ROWS.filter(r => (SL.codeOf(r, IDX) || "") === code);
+  if (!matches.length){ lastFp = ""; render(); tip("未找到该代码对应的车辆"); return; }
+  const pending = matches.filter(r => !r.car);
+  // ★ 自动匹配车到：唯一一趟且还没签到 → 直接签到（司机已经用"输代码+点确认"完成确认动作）
+  if (matches.length === 1 && pending.length === 1){
+    ci.value = "";            // 清空，方便接着签下一单
+    $("goBtn").disabled = true;
+    arrive(matches[0]);
+    return;
+  }
+  lastFp = ""; render();
 }
 
 /* ---------- 唯一的写操作：车已到 / 撤回（都只动 car 这一个字段） ----------
    必须走 SL.applyCar，不能自己写 car。它会同时给格子 +1 个版本号(rv)。
    少这个 rv 的后果很隐蔽：司机点「撤回」本地看着退回去了，
    10 秒后跟云端一合并，云端那个高版本又把「车已到」抬回来，勾自己长回来了。 */
+function arrive(r){
+  const cur = ((PROG[r.rk] || {})[r.ck] || {});
+  if ((cur.car || 0) === 1) return;
+  SL.applyCar(PROG, r.rk, r.ck, 1);
+  lastFp = "";
+  saveProg("已登记：车已到");
+  render();
+}
+
 function setCar(rk, ck, v, code){
   const nv = v ? 1 : 0;
   const cur = ((PROG[rk] || {})[ck] || {});
   // ★ 确认框里也只能出现送达方代码 —— 这一页任何位置都不许出现客户名。
-  //   （从前这里是从 ck 里拆出客户名的，现在改成由调用方把"该显什么"传进来）
   const shown = code || SL.NO_CODE;
   if ((cur.car || 0) === nv){ tip(nv ? "已经是「车已到」了" : "本来是「车未到」"); return; }
   SL.uiConfirm(nv ? ("确认标记【" + shown + "】车已到？")
