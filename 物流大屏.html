@@ -8,6 +8,7 @@
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
 <script src="scan-lib.js?v=20260918a"></script>
+<script src="html2canvas.min.js"></script>
 <style>
   /* ==========================================================================
      物流进度大屏 · 内部看板（只读，给内部/办公室看）
@@ -274,6 +275,7 @@
     <div class="kpis" id="kpis"></div>
     <div class="spacer"></div>
     <div class="ctrl">
+      <button id="shotBtn">📷 截图</button>
       <button id="fsBtn">⛶ 全屏显示</button>
     </div>
     <div class="clock">
@@ -591,6 +593,37 @@ function onFsChange(){
   pokeCursor();
 }
 
+/* ---------- 一键截图（html2canvas 把当前屏存成 PNG 下载） ---------- */
+function tsStr(){
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "_" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+// 暂停滚动但**不**把滚动条弹回顶部：截到的就是当前正在看的这一屏
+function pauseScrollNoReset(){ sc.on = false; if (sc.raf) cancelAnimationFrame(sc.raf); sc.raf = 0; }
+function resumeScroll(){ if (boxEl.scrollHeight - boxEl.clientHeight > 4) setupScroll(); }
+async function captureScreen(btn){
+  const node = document.querySelector(".wrap");
+  if (!node) return;
+  if (typeof html2canvas !== "function"){ alert("图片导出库未加载，请刷新页面再试"); return; }
+  const old = btn ? btn.textContent : "";
+  if (btn) btn.textContent = "⏳ 生成中…";
+  pauseScrollNoReset();
+  await new Promise(r => setTimeout(r, 140));   // 等一帧，避免截到半截滚动
+  try {
+    const bg = getComputedStyle(document.body).backgroundColor || "#0b1320";
+    const canvas = await html2canvas(node, { backgroundColor: bg, scale: 2, useCORS: true, logging: false });
+    canvas.toBlob(blob => {
+      const a = document.createElement("a");
+      a.download = "物流进度内部_" + tsStr() + ".png";
+      a.href = URL.createObjectURL(blob);
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 600);
+    }, "image/png");
+  } catch (e) { console.error(e); }
+  resumeScroll();
+  if (btn) btn.textContent = old;
+}
+
 /* ---------- 启动 ---------- */
 function boot(){
   if (window.CloudSync){
@@ -599,6 +632,7 @@ function boot(){
   }
   loadLocal();
   $("fsBtn").onclick = toggleFs;
+  $("shotBtn").onclick = () => captureScreen($("shotBtn"));
   document.addEventListener("fullscreenchange", onFsChange);
   document.addEventListener("webkitfullscreenchange", onFsChange);
   document.addEventListener("mousemove", pokeCursor);
