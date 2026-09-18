@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260918d"></script>
+<script src="scan-lib.js?v=20260918e"></script>
 <script src="staff-config.js"></script>
 <style>
   /* ==========================================================================
@@ -320,13 +320,21 @@ async function pull(){
     }
   } catch(e){}
   try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+  /* 预约货好到点 → 落成真实数据（rv+1、留痕「预约货好」）。
+     ★ 这步在现场手机上也很重要：到点后这一行显示的是「货好」，
+       工人点「下一步」应该是往前走到「装货中」；不落库的话数据里还是 0，
+       点一下只会从 0 变成 1（还是「货好」），看着像"点了没反应"。 */
+  let autoN = 0;
+  try { autoN = session() ? (SL.applyReadyAuto(PROG, who()) || 0) : 0; } catch(e){ autoN = 0; }
+  if (autoN){ try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){} }
   const bad = !okA || !okP;
   const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
   else if (bad) setSync("网络有波动 · 显示上一次数据 · " + t, "warn");
   else setSync("已同步 ✓ " + t, "ok");
   render();
-  if (cs && !bad && isPending() && !pushing){
+  const needPush = (cs && !bad && ((isPending()) || autoN)) && !pushing;
+  if (needPush){
     try { const ok = await CloudSync.push(KEY_PROG, PROG); setPending(!ok); } catch(e){}
   }
 }
