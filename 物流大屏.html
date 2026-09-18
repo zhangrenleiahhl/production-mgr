@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260918a"></script>
+<script src="scan-lib.js?v=20260918b"></script>
 <script src="html2canvas.min.js"></script>
 <style>
   /* ==========================================================================
@@ -598,7 +598,7 @@ function tsStr(){
   const d = new Date(), p = (n) => String(n).padStart(2, "0");
   return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "_" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
 }
-// 暂停滚动但**不**把滚动条弹回顶部：截到的就是当前正在看的这一屏
+// 暂停滚动但**不**把滚动条弹回顶部
 function pauseScrollNoReset(){ sc.on = false; if (sc.raf) cancelAnimationFrame(sc.raf); sc.raf = 0; }
 function resumeScroll(){ if (boxEl.scrollHeight - boxEl.clientHeight > 4) setupScroll(); }
 async function captureScreen(btn){
@@ -608,10 +608,19 @@ async function captureScreen(btn){
   const old = btn ? btn.textContent : "";
   if (btn) btn.textContent = "⏳ 生成中…";
   pauseScrollNoReset();
-  await new Promise(r => setTimeout(r, 140));   // 等一帧，避免截到半截滚动
+  // ★ 截「滚动外的所有行」：临时把滚动容器撑到全高（overflow 放开），
+  //   html2canvas 就能把整个表格从头到尾画进一张图，而不是只画当前这一屏。
+  const wrapCss = node.style.cssText, boxCss = boxEl.style.cssText, st = boxEl.scrollTop;
+  node.style.height = "auto";
+  boxEl.style.height = "auto";
+  boxEl.style.maxHeight = "none";
+  boxEl.style.overflow = "visible";
+  boxEl.scrollTop = 0;
+  await new Promise(r => setTimeout(r, 140));   // 等一帧，让撑开后的布局稳定
   try {
-    const bg = getComputedStyle(document.body).backgroundColor || "#0b1320";
-    const canvas = await html2canvas(node, { backgroundColor: bg, scale: 2, useCORS: true, logging: false });
+    // ★ 底色必须给实色深底：body 背景是渐变（backgroundColor 算出来是透明），
+    //   不给实色 html2canvas 就垫白底，整张图发白发虚「看不清」（2026-09-18 用户报）。
+    const canvas = await html2canvas(node, { backgroundColor: "#0a0e15", scale: 2, useCORS: true, logging: false });
     canvas.toBlob(blob => {
       const a = document.createElement("a");
       a.download = "物流进度内部_" + tsStr() + ".png";
@@ -620,6 +629,9 @@ async function captureScreen(btn){
       setTimeout(() => URL.revokeObjectURL(a.href), 600);
     }, "image/png");
   } catch (e) { console.error(e); }
+  node.style.cssText = wrapCss;   // 还原滚动容器，滚动接着走
+  boxEl.style.cssText = boxCss;
+  boxEl.scrollTop = st;
   resumeScroll();
   if (btn) btn.textContent = old;
 }
