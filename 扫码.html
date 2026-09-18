@@ -136,6 +136,36 @@
     pointer-events:none;transition:.22s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.28);}
   #tip.show{opacity:1;transform:translateX(-50%) translateY(0);}
   #tip.warn{background:#b45309;} #tip.err{background:#b91c1c;}
+
+  /* ============ 模糊搜索 ============ */
+  .searchbar{padding:0 0 4px;}
+  .sbtn{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:11px;background:#fff;
+    color:var(--muted);font-size:14.5px;font-weight:700;text-align:left;font-family:inherit;cursor:pointer;
+    box-shadow:0 1px 3px rgba(15,23,42,.06);display:flex;align-items:center;gap:7px;}
+  .sbtn:active{background:#f1f5f9;}
+  .modal{position:fixed;inset:0;z-index:120;background:rgba(15,23,42,.55);
+    display:none;flex-direction:column;backdrop-filter:blur(2px);}
+  .modal.show{display:flex;}
+  .mhd{display:flex;gap:8px;padding:12px 12px 8px;background:#0f172a;align-items:center;}
+  .mhd input{flex:1;min-width:0;padding:11px 13px;border:none;border-radius:10px;font-size:16px;
+    font-family:inherit;background:#1e293b;color:#fff;outline:none;}
+  .mhd input::placeholder{color:#94a3b8;}
+  .mclose{flex-shrink:0;padding:0 14px;height:44px;border:1px solid rgba(148,163,184,.4);border-radius:10px;
+    background:rgba(255,255,255,.08);color:#cbd5e1;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;}
+  .mres{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--bg);padding:10px 12px 40px;}
+  .sit{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:11px 13px;margin-bottom:9px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .sit:active{background:#f1f5f9;}
+  .sit .sn{font-size:16px;font-weight:800;color:#0f172a;line-height:1.35;word-break:break-all;}
+  .sit .sm{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 10px;font-size:12px;color:var(--muted);}
+  .sit .sm b{color:#334155;font-weight:700;}
+  .sit .sb{flex-shrink:0;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:800;color:#fff;margin-left:8px;}
+  .sit .sb.s0{background:#94a3b8;} .sit .sb.s1{background:#0ea5e9;} .sit .sb.s2{background:#f59e0b;} .sit .sb.s3{background:#10b981;}
+  .mempty{text-align:center;color:var(--muted);font-weight:600;font-size:14px;padding:40px 10px;line-height:1.8;}
+  .row.flash{animation:rowflash 1.6s ease-out;}
+  @keyframes rowflash{0%{box-shadow:0 0 0 0 rgba(37,99,235,.0);background:#fff;}
+    18%{box-shadow:0 0 0 4px rgba(37,99,235,.55);background:#eff6ff;}
+    100%{box-shadow:0 1px 3px rgba(15,23,42,.06);background:#fff;}}
 </style>
 </head>
 <body>
@@ -170,9 +200,21 @@
 
   <!-- 登录后 -->
   <div id="app">
+    <div class="searchbar" id="searchWrap">
+      <button type="button" id="searchOpen" class="sbtn">🔍 搜索客户 / 单号 / 物流…</button>
+    </div>
     <div class="tabs" id="tabs"></div>
     <div id="list"></div>
   </div>
+</div>
+
+<!-- 模糊搜索弹出层（登录后才用得到，没登录时整页只有登录框） -->
+<div id="searchModal" class="modal">
+  <div class="mhd">
+    <input id="searchInput" type="search" autocomplete="off" placeholder="输入客户名 / 单号 / 物流 / 型号…">
+    <button type="button" id="searchClose" class="mclose">取消</button>
+  </div>
+  <div id="searchResults" class="mres"></div>
 </div>
 
 <div id="tip"></div>
@@ -428,6 +470,54 @@ function undo(rk, ck){
     refresh();
   }, { title: "确认撤回" });
 }
+
+/* ---------- 模糊搜索（登录后定位客户） ---------- */
+function openSearch(){
+  if (!session()) return;              // 没登录用不了（结构上也进不去）
+  $("searchModal").className = "modal show";
+  const i = $("searchInput"); i.value = ""; renderSearch("");
+  setTimeout(() => { try { i.focus(); } catch(e){} }, 30);
+}
+function closeSearch(){ $("searchModal").className = "modal"; $("searchResults").innerHTML = ""; }
+// 模糊匹配：客户名 / 单号 / 物流 / 型号 任一含关键词即中；客户名再做「子序列」容错（漏字/顺序错也能中）
+function fuzzyHit(r, q){
+  q = (q || "").trim().toLowerCase();
+  if (!q) return true;
+  const hay = [r.customer, r.no, r.logistics, (r.models || []).join(" ")].join(" ").toLowerCase();
+  if (hay.indexOf(q) >= 0) return true;
+  const nm = (r.customer || "").toLowerCase().replace(/\s+/g, "");
+  let i = 0;
+  for (const ch of nm){ if (ch === q[i]) i++; if (i === q.length) return true; }
+  return false;
+}
+function renderSearch(q){
+  const box = $("searchResults");
+  const hits = ROWS.filter(r => fuzzyHit(r, q));
+  if (!hits.length){ box.innerHTML = '<div class="mempty">没找到匹配的客户<br>换个关键词试试</div>'; return; }
+  box.innerHTML = hits.map(r => {
+    const s = Math.min(3, r.s || 0);
+    return '<button type="button" class="sit" data-r="' + esc(r.rk) + '" data-k="' + esc(r.ck) + '">'
+      + '<div class="sn">' + esc(r.customer) + '<span class="sb s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>"
+      + '<div class="sm"><span>单号 <b>' + esc(r.no || "—") + "</b></span>"
+      + "<span>物流 <b>" + esc(r.logistics || "未填物流") + "</b></span>"
+      + "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span></div></button>";
+  }).join("");
+  box.querySelectorAll(".sit").forEach(b => { b.onclick = () => jumpTo(b.dataset.r, b.dataset.k); });
+}
+// 点结果 → 切到「全部」分类保证该行在屏 → 滚到它并高亮一下
+function jumpTo(rk, ck){
+  TAB = "all"; lastFp = ""; render();
+  setTimeout(() => {
+    const row = $("list").querySelector('.row[data-r="' + rk + '"][data-k="' + ck + '"]');
+    if (row){ try { row.scrollIntoView({ block: "center" }); } catch(e){} row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1600); }
+    closeSearch();
+  }, 40);
+}
+$("searchOpen").onclick = openSearch;
+$("searchClose").onclick = closeSearch;
+$("searchInput").addEventListener("input", (e) => renderSearch(e.target.value));
+$("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter"){ const f = $("searchResults").querySelector(".sit"); if (f) f.onclick(); } });
+$("searchModal").addEventListener("click", (e) => { if (e.target === $("searchModal")) closeSearch(); });
 
 /* ---------- 启动 ---------- */
 function boot(){
