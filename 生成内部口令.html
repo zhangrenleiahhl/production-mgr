@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>生成内部口令</title>
-<script src="scan-lib.js?v=20260918c"></script>
+<script src="scan-lib.js?v=20260918d"></script>
 <script src="staff-config.js"></script>
 <style>
   :root{--blue:#2563eb;--line:#dbe1ea;--txt:#111827;--muted:#5b6676;--bg:#eef1f6;}
@@ -84,6 +84,8 @@
     <h2>③ 现在的账号</h2>
     <div id="now"></div>
     <div class="tip">忘记口令没法反推，只能重新生成一条替换掉旧的那行。</div>
+    <div class="tip">★ <b>改过名单或口令后</b>，把 staff-config.js 里的 <code>ver</code> 换成一个新值（例如 <code>v2026-09-19</code>），
+      所有手机上"记住了 30 天"的旧登录会当场作废 —— 这 15 个人必须重新输姓名和口令才能进（这就是登录重置）。</div>
   </div>
 </div>
 
@@ -123,12 +125,15 @@ $("copy").onclick = function (){
 (function listNow(){
   const salt = (window.STAFF && window.STAFF.salt) || "";
   const days = (window.STAFF && window.STAFF.days) || 30;
+  const ver  = (window.STAFF && window.STAFF.ver) || "";
   const us = SL.staffUsers();
   $("now").innerHTML = '<table><tr><th>账号</th><th>姓名</th><th>口令哈希</th></tr>' +
     (us.length ? us.map(u => '<tr><td>' + SL.esc(u.id) + '</td><td>' + SL.esc(u.name || "") +
       '</td><td class="mono">' + SL.esc(u.h || "") + '</td></tr>').join("")
       : '<tr><td colspan="3">还没有账号，上面生成一条吧</td></tr>') +
-    '</table><div class="tip">加盐串 <code>' + SL.esc(salt) + '</code>　登录后本机记住 <b>' + days + '</b> 天</div>';
+    '</table><div class="tip">共 <b>' + us.length + '</b> 个账号　加盐串 <code>' + SL.esc(salt) +
+    '</code>　名册版本 <code>' + SL.esc(ver || "（缺 ver！）") + '</code>　登录后本机记住 <b>' + days + '</b> 天</div>' +
+    (ver ? '' : '<div class="tip">⚠ staff-config.js 里没有 <code>ver</code>：没有它就没法一键把所有人的登录重置掉，请补上。</div>');
 })();
 </script>
 </body>
