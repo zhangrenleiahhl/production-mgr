@@ -129,10 +129,13 @@
   tr.done .cust{color:#c9d6e8;}
 
   .cust{font-weight:800;letter-spacing:.3px;color:var(--txt);}
-  .no{display:flex;align-items:center;font-size:.66em;color:var(--muted);font-weight:600;margin-top:1px;letter-spacing:.2px;min-width:0;}
-  /* ★ 单号那截允许自己省略（flex 子项收缩 + 省略号）：格子窄的时候宁可切单号尾巴，
-     也绝不动代码 —— "截断的代码比不显示更危险"是这个项目的老规矩。 */
-  .no .nn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  /* 单号独占一列：整格 nowrap + 省略号，窄的时候宁可切单号尾巴、也绝不动客户名那一列 */
+  .no{display:block;font-size:.95em;font-weight:600;color:var(--muted);letter-spacing:.2px;min-width:0;
+    line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .no .sn{font-family:ui-monospace,Consolas,"Courier New",monospace;color:var(--txt);font-weight:700;letter-spacing:.3px;}
+  .no .sep{opacity:.45;margin:0 3px;}
+  /* 代码列里查不到时的占位：只报「未编代码」，**绝不回落客户名**（和门口保密屏同口径） */
+  .cmiss{color:var(--dim);font-weight:600;font-size:.82em;letter-spacing:.5px;}
   /* 送达方代码徽章：放在「单号 · 计划员」那行的**最前面**，竖着一列对齐，一眼能扫。
      ★ 为什么不跟在客户名后面：客户/送达方那一格是 nowrap + 省略号（见 #tbl td），
        长客户名本来就在临界点上，再塞个徽章会把名字切得更早（比如"安徽海立精密铸造有限公司上海分公司"）。
@@ -224,7 +227,7 @@
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
     text-shadow:0 1px 5px rgba(0,0,0,.85);}
   /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径） */
-  tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
+  tbody td:nth-child(7){padding-top:0;padding-bottom:0;}
   @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after{animation:none;}}
   .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:.86em;font-weight:800;
     white-space:nowrap;border:1px solid transparent;}
@@ -284,12 +287,12 @@
   <div class="box">
     <table id="tbl">
       <colgroup>
-        <col style="width:7%"><col style="width:27%"><col style="width:9.5%"><col style="width:11%">
-        <col style="width:19%"><col style="width:10.5%"><col style="width:16%">
+        <col style="width:6%"><col style="width:17%"><col style="width:8%"><col style="width:12%">
+        <col style="width:7%"><col style="width:10%"><col style="width:19%"><col style="width:8%"><col style="width:13%">
       </colgroup>
       <thead><tr>
-        <th>状态</th><th>客户 / 送达方</th><th style="text-align:right">吨位</th><th>物流</th>
-        <th>工序</th><th>车辆</th><th>最后更新</th>
+        <th>状态</th><th>客户</th><th>送达方代码</th><th>单号</th>
+        <th style="text-align:right">吨位</th><th>物流</th><th>工序</th><th>车辆</th><th>最后更新</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -463,12 +466,14 @@ function rowHtml(r){
   const when = r.car && r.ct ? SL.fmtHM(r.ct) : (r.t ? SL.fmtHM(r.t) : "");
   const whenLbl = r.car && r.ct ? "车到" : (r.t ? "工序" : "");
   const code = codeOf(r);
-  const codeChip = code ? '<span class="ccode">' + esc(code) + "</span>" : "";
+  const codeCell = code ? '<span class="ccode">' + esc(code) + "</span>" : '<span class="cmiss">未编代码</span>';
+  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" +
+    (r.planner ? '<span class="sep">·</span>' + esc(r.planner) : "") + "</span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + (r.done ? '<span class="pill s3">已完成</span>' : '<span class="pill s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span>") + "</td>" +
-    '<td><span class="cust">' + stale + esc(r.customer) + '</span><span class="no">' + codeChip +
-      '<span class="nn">' + esc(r.no || "（无单号）") +
-      (r.planner ? " · " + esc(r.planner) : "") + "</span></span></td>" +
+    '<td>' + stale + '<span class="cust">' + esc(r.customer) + '</span></td>' +
+    '<td>' + codeCell + '</td>' +
+    '<td>' + noCell + '</td>' +
     '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td><span class="logi' + (self ? " self" : "") + '">' + esc(lg || "未填") + "</span></td>" +
     '<td>' + flw + "</td>" +
