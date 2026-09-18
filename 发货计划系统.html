@@ -10,7 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260918d"></script>
+<script src="scan-lib.js?v=20260918e"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -437,6 +437,24 @@
     border:1px solid #f0b4b4;background:#fff5f5;color:#dc2626;font-weight:700;}
   .pbcx:hover{background:#fee2e2;}
   .pbcx.undo{border-color:#cbd5e1;background:#f8fafc;color:#475569;}
+  /* ===== 是否货好 / 预约货好时间（2026-09-18）===== */
+  table.pbt2 td.rdy-col{white-space:normal;}
+  .rdy{display:inline-block;font-size:12px;font-weight:800;padding:2px 7px;border-radius:6px;}
+  .rdy.ok{background:#dcfce7;color:#15803d;}
+  .rdy.wait{background:#fef3c7;color:#b45309;}
+  .rdy.auto{background:#dbeafe;color:#1d4ed8;}
+  .pbrdy{margin-left:6px;padding:3px 9px;font-size:12px;border-radius:7px;cursor:pointer;
+    border:1px solid #86efac;background:#f0fdf4;color:#15803d;font-weight:700;}
+  .pbrdy:hover{background:#dcfce7;}
+  .pbrdy.undo{border-color:#cbd5e1;background:#f8fafc;color:#475569;}
+  .rdytime{display:flex;align-items:center;gap:4px;margin-top:3px;}
+  .rdytime .lb{font-size:11.5px;color:var(--muted);white-space:nowrap;}
+  input.pbrt{font-size:11.5px;padding:2px 4px;border:1px solid var(--line);border-radius:6px;color:var(--txt);
+    background:#fff;max-width:150px;}
+  input.pbrt.hit{border-color:#60a5fa;background:#eff6ff;font-weight:700;}
+  .pbclr{padding:2px 6px;font-size:11.5px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;
+    background:#fff;color:#64748b;}
+  .pbclr:hover{background:#f1f5f9;}
   .pb-empty{padding:36px;text-align:center;color:var(--muted);}
   .pbsm{padding:4px 10px;font-size:12px;}
   .pb-legend{font-size:11.5px;color:var(--muted);margin:0 0 10px;}
@@ -3549,6 +3567,15 @@ async function pullProg(){
     try{ const v = JSON.parse(localStorage.getItem(SLB.KEY_PROG) || "null"); if(v && typeof v === "object") PROG = SLB.mergeProg(PROG, v); }catch(e){}
   }
   try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
+  /* 预约货好到点 → 落成真实数据（rv+1、留痕「预约货好」）。
+     放在合并之后跑：本地刚拉回来的也行、别处推上来的也行，反正到点就变货好。
+     改了才推云端（n>0），否则每 10 秒空推一次。 */
+  let autoN = 0;
+  try{ autoN = SLB.applyReadyAuto(PROG, "") || 0; }catch(e){ autoN = 0; }
+  if(autoN){
+    try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
+    if (window.CloudSync && CloudSync.ready()) CloudSync.push(SLB.KEY_PROG, PROG).catch(function(){});
+  }
   updateRecProg();
   if(progOpen) renderBoard();
   return ok;
@@ -3605,9 +3632,51 @@ function boardRecords(){
     });
 }
 
+/* ================= 是否货好 / 预约货好时间（2026-09-18） =================
+   计划员在这里勾「货好」或填「预约货好时间」；时间一到，系统自己把这一格变成
+   「货已好」—— 到点那一刻起，所有屏（内部大屏 / 门口大屏 / 内部码 / 本看板）
+   看到的都是「货好」，不需要任何人点，也不用等到第二天有人开页面。
+   真实数据由 applyReadyAuto() 落库（rv+1、留痕「预约货好」），本页每次拉取后跑一次。 */
+function tsToInput(ts){
+  if(!ts) return "";
+  const d = new Date(ts);
+  if(isNaN(d.getTime())) return "";
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+function inputToTs(v){
+  if(!v) return 0;
+  const d = new Date(v);              // datetime-local 给的是本地时间串
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function readyCellHtml(c, rk, key, cust){
+  const raw = c.rs || 0;              // 数据里真实的工序值（判断能不能撤销要用它）
+  // 「货好」是不是预约自动来的：还没落库 / 已落库（货好时间 = 预约时间）都算
+  const auto = SLB.readyIsAuto ? SLB.readyIsAuto(c) : !!c.autoReady;
+  const pill = auto ? '<span class="rdy auto">货已好 · 到点自动</span>'
+    : (c.s >= 1 ? '<span class="rdy ok">货已好</span>' : '<span class="rdy wait">货待确认</span>');
+  let btn = "";
+  if(raw < 1) btn = '<button type="button" class="pbrdy" data-rdy="1" data-rk="' + SLB.esc(rk) + '" data-ck="' + SLB.esc(key) + '" data-cust="' + SLB.esc(cust) + '">标记货好</button>';
+  else if(raw === 1) btn = '<button type="button" class="pbrdy undo" data-rdy="0" data-rk="' + SLB.esc(rk) + '" data-ck="' + SLB.esc(key) + '" data-cust="' + SLB.esc(cust) + '">撤销货好</button>';
+  else btn = '<span class="lb">已装货</span>';
+  const hit = (c.rt || 0) > 0 && Date.now() >= (c.rt || 0);
+  const rt = '<div class="rdytime"><span class="lb">预约</span>' +
+    '<input type="datetime-local" class="pbrt' + (hit ? " hit" : "") + '" data-rk="' + SLB.esc(rk) + '" data-ck="' + SLB.esc(key) +
+      '" data-cust="' + SLB.esc(cust) + '" value="' + tsToInput(c.rt) + '" title="预约货好时间：到点后系统自动把这一格变成「货已好」">' +
+    ((c.rt || 0) > 0 ? '<button type="button" class="pbclr" data-clr="1" data-rk="' + SLB.esc(rk) + '" data-ck="' + SLB.esc(key) + '" data-cust="' + SLB.esc(cust) + '" title="清空预约">✕</button>' : '') +
+    (c.rt && !hit && c.s < 1 ? '<span class="lb">到点自动货好</span>' : '') + '</div>';
+  return '<div>' + pill + btn + '</div>' + rt;
+}
+
 function renderBoard(){
   const body = $("pbBody");
   if(!body) return;
+  /* 10 秒自动刷新会重建整张表：正在编辑的「预约货好时间」输入框要保住
+     （不保的话计划员选到一半就会被刷掉、日历也会被弹关）。 */
+  const act = document.activeElement;
+  const keep = (act && body.contains(act) && act.classList && act.classList.contains("pbrt"))
+    ? { rk: act.getAttribute("data-rk"), ck: act.getAttribute("data-ck"), val: act.value } : null;
   const list = boardRecords();
   if(!list.length){
     body.innerHTML = '<div class="pb-empty">最近 7 天没有已发布的发货单。<br>先在下面「发布记录」里发布，现场就能扫码更新进度了。</div>';
@@ -3633,6 +3702,7 @@ function renderBoard(){
       return "<tr><td>" + SLB.esc(g.customer) + "</td>" +
         "<td>" + SLB.esc(g.logistics || "/") + "</td>" +
         '<td class="n">' + (g.ton ? g.ton.toFixed(1) : "/") + "</td>" +
+        '<td class="rdy-col">' + readyCellHtml(c, rk, g.key, g.customer) + "</td>" +
         "<td>" + SLB.progPill(c.s, c.car) + "</td>" +
         '<td class="car-col">' + carHtml + btn + "</td>" +
         '<td class="t">' + (c.u ? SLB.fmtHM(c.u) : "") + "</td></tr>";
@@ -3644,12 +3714,20 @@ function renderBoard(){
         " 个客户 ｜ 发布 " + SLB.esc(rec.publishedAt || "-") + "</div></div>" +
         '<div class="rt"><span class="pbstat' + (full ? " ok" : "") + '">已完成 ' + st.done + "/" + st.total +
         " ｜ 车已到 " + st.car + "/" + st.total + "</span></div></div>" +
-      '<table class="pbt2"><thead><tr><th>客户</th><th>物流</th><th>吨位</th><th>发货进度</th><th>车辆</th><th>最后更新</th></tr></thead><tbody>' +
+      '<table class="pbt2"><thead><tr><th>客户</th><th>物流</th><th>吨位</th><th>是否货好 / 预约货好时间</th><th>发货进度</th><th>车辆</th><th>最后更新</th></tr></thead><tbody>' +
       rows + "</tbody></table></section>";
   }).join("");
-  body.innerHTML = '<p class="pb-legend">工序：货待确认 → 货好 → 装货中 → 已完成　｜　车辆：未到 / 已到 / 取消（点「车辆取消」后，内部大屏该客户车辆栏显示红字「取消」）　｜　只显示最近 7 天以来的发货单</p>' + html;
+  body.innerHTML = '<p class="pb-legend">是否货好：点「标记货好」直接置成货好；填「预约」时间后，' +
+    '<b>时间一到系统自动变成「货已好」</b>（不用人点，晚上没人开页面也一样）　｜　' +
+    '工序：货待确认 → 货好 → 装货中 → 已完成　｜　车辆：未到 / 已到 / 取消　｜　只显示最近 7 天以来的发货单</p>' + html;
   $("pbSum").textContent = list.length + " 张单 ｜ 客户 " + totAll + " 个（已完成 " + doneAll + "，车已到 " + carAll + "）" +
     (doneRecs ? " ｜ " + doneRecs + " 张已全完成" : "");
+  if(keep){
+    const el = Array.prototype.filter.call(body.querySelectorAll("input.pbrt"), function(x){
+      return x.getAttribute("data-rk") === keep.rk && x.getAttribute("data-ck") === keep.ck;
+    })[0];
+    if(el){ el.value = keep.val; el.focus(); }
+  }
 }
 
 // 不再给每张单单独出码（2026-09-16 用户要求）：全厂只有两张通用码 ——
@@ -3697,7 +3775,40 @@ function bootProg(){
   // 发货进度看板里的「车辆取消 / 撤销」：点按钮 → 页面自绘确认弹窗 → 确定后写进度并推云端
   const pbBody = $("pbBody");
   if (pbBody) pbBody.addEventListener("click", function(e){
-    const btn = e.target && e.target.closest ? e.target.closest("button.pbcx") : null;
+    const el = e.target;
+    if (!el || !el.closest) return;
+    const btn = el.closest("button.pbcx");
+    // 「是否货好」：标记货好 / 撤销货好
+    const rdy = el.closest("button.pbrdy");
+    // 「预约货好时间」：清空
+    const clr = el.closest("button.pbclr");
+    if (rdy){
+      const rk = rdy.getAttribute("data-rk"), ck = rdy.getAttribute("data-ck");
+      const cust = rdy.getAttribute("data-cust") || "该客户";
+      if (!SLB) return;
+      if (rdy.getAttribute("data-rdy") === "1"){
+        const r = SLB.applyReady(PROG, rk, ck, true, "");
+        pushProg();
+        toast(r && r.changed ? "已标记【" + cust + "】货已好" : "【" + cust + "】已经是货好了");
+      } else {
+        SLB.uiConfirm("把【" + cust + "】退回「货待确认」？\n\n同时会清掉预约货好时间 —— 不清的话时间已经过了，会立刻又自动变成「货已好」。", function(){
+          const r = SLB.applyReady(PROG, rk, ck, false, "");
+          if (!r || !r.changed){ toast(r && r.why ? "不能退回：" + r.why : "不用退回"); return; }
+          pushProg();
+          toast("已把【" + cust + "】退回货待确认");
+        }, { title: "撤销货好" });
+      }
+      return;
+    }
+    if (clr){
+      if (!SLB) return;
+      const rk = clr.getAttribute("data-rk"), ck = clr.getAttribute("data-ck");
+      const cust = clr.getAttribute("data-cust") || "该客户";
+      SLB.applyReadyAt(PROG, rk, ck, 0, "");
+      pushProg();
+      toast("已清空【" + cust + "】的预约货好时间");
+      return;
+    }
     if (!btn) return;
     const rk = btn.getAttribute("data-rk"), ck = btn.getAttribute("data-ck"), mode = btn.getAttribute("data-cx");
     if (mode === "cancel"){
@@ -3714,6 +3825,26 @@ function bootProg(){
       pushProg();
       toast("已撤销车辆取消");
     }
+  });
+  // 「预约货好时间」输入框：选完/改完（change）立刻存下来并推云端。
+  // 留空 = 清掉预约。填的时间已经过了就直接算货已好（不留"半截状态"）。
+  if (pbBody) pbBody.addEventListener("change", function(e){
+    const inp = e.target;
+    if (!inp || !inp.classList || !inp.classList.contains("pbrt")) return;
+    if (!SLB) return;
+    const rk = inp.getAttribute("data-rk"), ck = inp.getAttribute("data-ck");
+    const cust = inp.getAttribute("data-cust") || "该客户";
+    const ts = inputToTs(inp.value);
+    if (!ts){
+      SLB.applyReadyAt(PROG, rk, ck, 0, "");
+      pushProg();
+      toast("已清空【" + cust + "】的预约货好时间");
+      return;
+    }
+    SLB.applyReadyAt(PROG, rk, ck, ts, "");
+    pushProg();
+    toast("【" + cust + "】预约货好时间 " + SLB.fmtHM(ts) +
+      (ts <= Date.now() ? "（时间已过，直接算货已好）" : "（到点自动变成货已好）"));
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape" && progOpen) closeBoard(); });
   pullProg();
