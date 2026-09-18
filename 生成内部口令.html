@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>生成内部口令</title>
-<script src="scan-lib.js?v=20260918a"></script>
+<script src="scan-lib.js?v=20260918b"></script>
 <script src="staff-config.js"></script>
 <style>
   :root{--blue:#2563eb;--line:#dbe1ea;--txt:#111827;--muted:#5b6676;--bg:#eef1f6;}
@@ -50,7 +50,7 @@
   <div class="card">
     <h2>① 填信息</h2>
     <div class="row">
-      <div><label>工号</label><input id="uid" placeholder="例如 4001" autocomplete="off"></div>
+      <div><label>姓名（就是账号）</label><input id="uid" placeholder="例如 张仁磊" autocomplete="off"></div>
       <div><label>姓名</label><input id="uname" placeholder="例如 李四" autocomplete="off"></div>
     </div>
     <label>口令（自己想一个，别太短）</label>
@@ -68,7 +68,7 @@
   <div class="card">
     <h2>② 怎么用</h2>
     <ol>
-      <li>复制上面生成的那一行（形如 <code>{ id: "4001", name: "李四", h: "…" }</code>）。</li>
+      <li>复制上面生成的那一行（形如 <code>{ id: "lisi", name: "李四", h: "…" }</code>）。</li>
       <li>用记事本打开 <b>staff-config.js</b>，找到 <code>users: [ … ]</code>。</li>
       <li>把这一行粘到 <code>users: [</code> 后面（每行之间用英文逗号 <b>,</b> 隔开，最后一行后面不要逗号）。</li>
       <li>保存后，把这个文件重新发到线上（这一步跟其他文件一样处理）。</li>
@@ -99,13 +99,13 @@ function lineOf(uid, name, pwd){
 $("gen").onclick = function (){
   const uid = $("uid").value.trim(), name = $("uname").value.trim();
   const pwd = $("pwd").value, pwd2 = $("pwd2").value;
-  if (!uid) return alert("工号不能为空");
+  if (!uid) return alert("姓名不能为空");
   if (!name) return alert("姓名不能为空");
   if (!pwd) return alert("口令不能为空");
   if (pwd.length < 6) return alert("口令太短了，至少 6 位");
   if (pwd !== pwd2) return alert("两遍口令不一样");
   if (SL.staffUsers().some(u => String(u.id) === uid)) {
-    if (!confirm("工号 " + uid + " 已经存在了。继续会把新的一条也列出来，你需要自己删掉旧的那条。")) return;
+    if (!confirm("账号 " + uid + " 已经存在了。继续会把新的一条也列出来，你需要自己删掉旧的那条。")) return;
   }
   $("line").textContent = lineOf(uid, name, pwd) + ",";
   $("out").className = "show";
@@ -124,7 +124,7 @@ $("copy").onclick = function (){
   const salt = (window.STAFF && window.STAFF.salt) || "";
   const days = (window.STAFF && window.STAFF.days) || 30;
   const us = SL.staffUsers();
-  $("now").innerHTML = '<table><tr><th>工号</th><th>姓名</th><th>口令哈希</th></tr>' +
+  $("now").innerHTML = '<table><tr><th>账号</th><th>姓名</th><th>口令哈希</th></tr>' +
     (us.length ? us.map(u => '<tr><td>' + SL.esc(u.id) + '</td><td>' + SL.esc(u.name || "") +
       '</td><td class="mono">' + SL.esc(u.h || "") + '</td></tr>').join("")
       : '<tr><td colspan="3">还没有账号，上面生成一条吧</td></tr>') +
