@@ -72,6 +72,7 @@ window.ScanLib = (function () {
         t: w.t || 0,
         car: w.car || 0,
         ct: w.ct || 0,
+        cx: w.cx || 0,
         u: w.u || 0,
         by: raw(w.by),
         rv: Math.max(xr, yr)
@@ -85,6 +86,7 @@ window.ScanLib = (function () {
       return a.length ? Math.min.apply(null, a) : 0;
     }
     var car = Math.max(x.car || 0, y.car || 0);
+    var cx  = Math.max(x.cx || 0, y.cx || 0);
     var us = [x.u, y.u].filter(function (v) { return v > 0; });
     // 操作人：谁最后更新的算谁的（用来在页面上显示"谁点的这一步"）
     var by = "";
@@ -97,6 +99,7 @@ window.ScanLib = (function () {
       t: s > 0 ? pick(xs, ys, x.t, y.t) : 0,
       car: car,
       ct: car > 0 ? pick(x.car || 0, y.car || 0, x.ct, y.ct) : 0,
+      cx: cx,
       u: us.length ? Math.max.apply(null, us) : 0,
       by: by,
       rv: xr
@@ -134,8 +137,9 @@ window.ScanLib = (function () {
      ========================================================================== */
   function cellAt(prog, rk, ck){
     if (!prog[rk]) prog[rk] = {};
-    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0 };
+    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0, cx: 0 };
     if (prog[rk][ck].rv == null) prog[rk][ck].rv = 0;
+    if (prog[rk][ck].cx == null) prog[rk][ck].cx = 0;
     return prog[rk][ck];
   }
   // 推进一步工序（delta 一般是 +1；who 是操作人，用于留痕）
@@ -180,6 +184,26 @@ window.ScanLib = (function () {
     c.u = now;
     c.rv = (c.rv || 0) + 1;
     return { changed: true, cell: c, what: what };
+  }
+  /* 车辆取消：把这一趟的「车辆」标记为取消（cx=1），大屏「车辆」栏显示红字「取消」。
+     取消同时把 car 清回 0 —— 取消意味着这趟车不来了，自然也不能算「车已到」，
+     否则已完成会误判（isDoneCell 要求 car>=1）。撤回取消（applyCarUncancel）时
+     cx 归 0、car 留在 0（撤销后回到「未到」状态，等司机重新签到）。三端共用，rv 自增。 */
+  function applyCarCancel(prog, rk, ck, who){
+    var c = cellAt(prog, rk, ck), now = Date.now();
+    if ((c.cx || 0) === 1 && (c.car || 0) === 0) return { changed: false, cell: c, cx: 1 };
+    c.car = 0; c.ct = 0; c.cx = 1;
+    c.u = now;
+    c.rv = (c.rv || 0) + 1;
+    return { changed: true, cell: c, cx: 1 };
+  }
+  function applyCarUncancel(prog, rk, ck, who){
+    var c = cellAt(prog, rk, ck), now = Date.now();
+    if ((c.cx || 0) === 0) return { changed: false, cell: c, cx: 0 };
+    c.cx = 0; c.car = 0; c.ct = 0;
+    c.u = now;
+    c.rv = (c.rv || 0) + 1;
+    return { changed: true, cell: c, cx: 0 };
   }
 
   function fmtHM(ts){
@@ -324,7 +348,11 @@ window.ScanLib = (function () {
         var isToday = (d === today);
         var isYest = (d === yest);
         var c = (prog[rk] || {})[g.key] || {};
-        var done = isDoneCell(c);
+        // 车辆被取消的行：即使脏数据里 car 还留着 1，也一律按「车未到」算 ——
+        // 大屏显示红字「取消」，且不算完成（取消的车不可能到）。
+        var cxv = c.cx ? 1 : 0;
+        var carv = cxv ? 0 : (c.car || 0);
+        var done = !cxv && isDoneCell(c);
         if (opt.onlyRec && String(opt.onlyRec) !== String(rk)) return;
         if (opt.onlyDate && d !== opt.onlyDate) return;
         if (!opt.onlyDate){
@@ -339,7 +367,7 @@ window.ScanLib = (function () {
           customer: g.customer, shipdate: d, dateRaw: g.shipdate,
           logistics: g.logistics, remark: g.remark,
           ton: g.ton, qty: g.qty, nrow: g.nrow, models: g.models,
-          s: Math.min(3, c.s || 0), car: c.car || 0,
+          s: Math.min(3, c.s || 0), car: carv, cx: cxv,
           t: c.t || 0, ct: c.ct || 0, u: c.u || 0, by: raw(c.by),
           no: raw(rec.no), planner: raw(rec.planner),
           done: done, isToday: isToday, isYesterday: isYest, stale: !isToday
@@ -1090,6 +1118,7 @@ window.ScanLib = (function () {
     scanUrl: scanUrl, pageUrl: pageUrl,
     mergeCell: mergeCell, mergeProg: mergeProg, parseObj: parseObj, guardFn: guardFn,
     cellAt: cellAt, applyStep: applyStep, applyCar: applyCar, applyUndo: applyUndo,
+    applyCarCancel: applyCarCancel, applyCarUncancel: applyCarUncancel,
     custGroups: custGroups, progStats: progStats, progOf: progOf,
     p2: p2, ymdOf: ymdOf, todayYmd: todayYmd, shiftYmd: shiftYmd, normDate: normDate,
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
