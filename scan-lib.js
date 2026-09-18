@@ -697,7 +697,7 @@ window.ScanLib = (function () {
   }
 
   /* ==========================================================================
-     内部人员登录（工号 + 口令）
+     内部人员登录（姓名 + 口令）
      账号表放在单独的 staff-config.js 里，页面里只存口令的 SHA-256，不存明文。
      ⚠ 必须跟用户讲清楚的安全边界：
         这是「挡住司机/挡住误点」这个级别的门槛，不是金融级安全。
@@ -724,7 +724,7 @@ window.ScanLib = (function () {
   function staffLogin(id, pwd){
     if (!staffUsers().length) return { ok: false, msg: "还没配置内部账号，请先找管理员配置 staff-config.js" };
     var u = staffFind(id);
-    if (!u) return { ok: false, msg: "工号不存在" };
+    if (!u) return { ok: false, msg: "账号不存在" };
     if (staffHash(pwd) !== String(u.h || "").trim().toLowerCase()) return { ok: false, msg: "口令不对" };
     var days = Number(staffConf().days) > 0 ? Number(staffConf().days) : 30;
     var ses = { id: String(u.id || u.name || ""), name: String(u.name || u.id || ""), exp: Date.now() + days * 86400000 };
@@ -930,7 +930,7 @@ window.ScanLib = (function () {
 
   function codeDefs(){
     return [
-      { title: "内部人员码", desc: "要登录（工号+口令）。推进「待确认 / 货好 / 装货中 / 已完成」四道工序。", url: pageUrl(SCAN_PAGE), page: SCAN_PAGE },
+      { title: "内部人员码", desc: "要登录（姓名+口令）。推进「待确认 / 货好 / 装货中 / 已完成」四道工序。", url: pageUrl(SCAN_PAGE), page: SCAN_PAGE },
       { title: "司机签到码", desc: "不用登录。请司机师傅根据自己的信息，找到对应的送达方代码，点击「车已到」完成签到（点错可撤回）。", url: pageUrl(DRIVER_PAGE), page: DRIVER_PAGE }
     ];
   }
