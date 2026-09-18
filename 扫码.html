@@ -8,13 +8,13 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260918a"></script>
+<script src="scan-lib.js?v=20260918b"></script>
 <script src="staff-config.js"></script>
 <style>
   /* ==========================================================================
      内部工序操作页（手机端）—— 四道工序只有内部人员能点
      · 一个码通吃：扫开就是「今天」的所有客户行，不用每张单一个码
-     · 先登录（工号 + 口令，本机记住 30 天）才出现任何可点按钮
+     · 先登录（姓名 + 口令，本机记住 30 天）才出现任何可点按钮
      · 司机请扫「司机签到码」，那一页只有车已到和撤回
      ========================================================================== */
   :root{
@@ -185,9 +185,9 @@
   <div id="login">
     <div class="lg">
       <h2>内部人员登录</h2>
-      <p>四道工序（待确认 / 货好 / 装货中 / 已完成）只有内部人员能点。<br>输入工号和口令，这台手机会记住，之后不用每次输。</p>
-      <label>工号 / 姓名</label>
-      <input id="uid" inputmode="numeric" autocomplete="username" placeholder="例如 2001">
+      <p>四道工序（待确认 / 货好 / 装货中 / 已完成）只有内部人员能点。<br>输入姓名和口令，这台手机会记住，之后不用每次输。</p>
+      <label>姓名</label>
+      <input id="uid" autocomplete="name" placeholder="例如 张仁磊">
       <label>口令</label>
       <input id="pwd" type="password" autocomplete="current-password" placeholder="请输入口令">
       <button type="button" id="doLogin">登录</button>
@@ -225,7 +225,7 @@
    1. 一个码通吃：进来就是「今天」的所有客户行（和门口大屏同一份口径，
       都来自 scan-lib.boardRows），不再每张单/每个人单独出码。
    2. 没登录 → 整页只有登录框，连按钮都不渲染（不是"藏起来"，是没有）。
-   3. 每次动作都会带上操作人（工号对应的姓名），大屏和这里都能看到"谁点的"。
+   3. 每次动作都会带上操作人（账号对应的姓名），大屏和这里都能看到"谁点的"。
    4. 进度写入都走 scan-lib.applyStep / applyCar / applyUndo，这三个函数会同时 +rv，
       否则云端那条护栏会把「撤回」抬回去。
    ========================================================================== */
@@ -261,7 +261,7 @@ $("doLogin").onclick = doLogin;
 $("pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 $("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").focus(); });
 $("logout").onclick = () => {
-  SL.uiConfirm("退出登录？下次要重新输工号和口令。", () => {
+  SL.uiConfirm("退出登录？下次要重新输账号和口令。", () => {
     SL.staffLogout(); applyLoginState(); render(); tip("已退出登录");
   }, { title: "确认退出登录" });
 };
