@@ -737,6 +737,14 @@ window.ScanLib = (function () {
   function staffUsers(){ var u = staffConf().users; return Array.isArray(u) ? u : []; }
   function staffSalt(){ return String(staffConf().salt || ""); }
   function staffHash(pwd){ return sha256Hex(staffSalt() + ":" + String(pwd == null ? "" : pwd)); }
+  /* 名册版本号（staff-config.js 里的 ver）。
+     ★ 只要改过名单或口令，就把 ver 换成一个新值 —— 所有手机上那份"记住了 30 天"的
+       旧会话当场作废，必须重新用名单里的姓名登录。这就是"登录重置"。 */
+  function staffVer(){ return String(staffConf().ver || ""); }
+  /* 会话签名字：把 姓名 + 过期时间 + 名册版本 一起搅进哈希。
+     有人手动往 localStorage 里塞一个假会话（比如把 exp 改成 2099 年），
+     签名字对不上，一样进不来。 */
+  function staffToken(id, exp){ return sha256Hex(staffSalt() + ":" + String(id) + ":" + String(exp) + ":" + staffVer() + ":sess"); }
   function staffFind(id){
     var t = String(id == null ? "" : id).trim().toLowerCase();
     if (!t) return null;
@@ -751,21 +759,34 @@ window.ScanLib = (function () {
   }
   function staffLogin(id, pwd){
     if (!staffUsers().length) return { ok: false, msg: "还没配置内部账号，请先找管理员配置 staff-config.js" };
+    if (!staffVer()) return { ok: false, msg: "账号表缺少版本号 ver，请找管理员更新 staff-config.js" };
     var u = staffFind(id);
-    if (!u) return { ok: false, msg: "账号不存在" };
+    if (!u) return { ok: false, msg: "账号不存在（姓名不在内部名单里）" };
     if (staffHash(pwd) !== String(u.h || "").trim().toLowerCase()) return { ok: false, msg: "口令不对" };
     var days = Number(staffConf().days) > 0 ? Number(staffConf().days) : 30;
-    var ses = { id: String(u.id || u.name || ""), name: String(u.name || u.id || ""), exp: Date.now() + days * 86400000 };
+    var idn = String(u.id || u.name || ""), exp = Date.now() + days * 86400000;
+    var ses = { id: idn, name: String(u.name || u.id || ""), exp: exp, v: staffVer(), tok: staffToken(idn, exp) };
     try { localStorage.setItem(KEY_STAFF, JSON.stringify(ses)); } catch (e){}
     return { ok: true, session: ses };
   }
+  /* 读会话：下面每一条不过关就当场删掉，回到登录页 —— 绝不留着一个"半有效"的会话。
+     ① 过期              → 删
+     ② 名册版本对不上    → 删（名单/口令重置过，必须重新登录）
+     ③ 姓名已不在名单里  → 删（比如人已离职被从 staff-config.js 里去掉）
+     ④ 签名字对不上      → 删（手动伪造的会话）                                        */
   function staffSession(){
-    try {
-      var s = JSON.parse(localStorage.getItem(KEY_STAFF) || "null");
-      if (s && s.id && Number(s.exp) > Date.now()) return s;
-      if (s) localStorage.removeItem(KEY_STAFF);
-    } catch (e){}
-    return null;
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY_STAFF) || "null"); } catch (e){ return null; }
+    if (!s || typeof s !== "object") return null;
+    var kill = function(){ try { localStorage.removeItem(KEY_STAFF); } catch (e){} return null; };
+    if (!s.id) return kill();
+    if (!(Number(s.exp) > Date.now())) return kill();
+    if (String(s.v || "") !== staffVer()) return kill();
+    var u = staffFind(s.id);
+    if (!u) return kill();
+    if (String(s.tok || "") !== staffToken(u.id || u.name, s.exp)) return kill();
+    /* 姓名以名册为准（名册改了显示名，这里立刻跟着变） */
+    return { id: String(u.id || u.name || ""), name: String(u.name || u.id || ""), exp: Number(s.exp), v: s.v, tok: s.tok };
   }
   function staffLogout(){ try { localStorage.removeItem(KEY_STAFF); } catch (e){} }
   function staffName(){ var s = staffSession(); return s ? String(s.name || s.id) : ""; }
@@ -1124,7 +1145,7 @@ window.ScanLib = (function () {
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
     sha256Hex: sha256Hex,
     KEY_STAFF: KEY_STAFF, staffUsers: staffUsers, staffLogin: staffLogin, staffSession: staffSession,
-    staffLogout: staffLogout, staffName: staffName, staffHash: staffHash,
+    staffLogout: staffLogout, staffName: staffName, staffVer: staffVer, staffFind: staffFind, staffHash: staffHash,
     progPill: function (s, car) {
       s = Math.min(3, s || 0);
       var cls = s >= 3 ? "p-done" : (s >= 2 ? "p-mid" : (s === 1 ? "p-ok" : "p-wait"));
