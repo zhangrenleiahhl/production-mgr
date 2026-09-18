@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260918c"></script>
+<script src="scan-lib.js?v=20260918d"></script>
 <script src="staff-config.js"></script>
 <style>
   /* ==========================================================================
@@ -192,6 +192,7 @@
       <input id="pwd" type="password" autocomplete="current-password" placeholder="请输入口令">
       <button type="button" id="doLogin">登录</button>
       <div class="msg" id="lgMsg"></div>
+      <div class="note">只认内部名单里的 <b>15 个姓名</b>：姓名写错、或用别的名字，都会提示「账号不存在」。<br>名单里没有的人（比如已经离岗的）登不进来，以前登录过的也会被要求重新登录。</div>
     </div>
     <div class="note">
       <b>司机请扫「司机签到码」。</b>司机那一页只能勾「车已到」和撤回，不需要登录，也点不到工序 —— 这是故意的。
