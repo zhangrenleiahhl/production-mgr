@@ -193,19 +193,47 @@ window.ScanLib = (function () {
   /* ---- 客户分组：同一「客户+发货日期」的多行型号合成一条 ----
      扫码页、查看页明细、管理端看板三处都用这一份，否则三处显示的客户清单会对不上。 */
   function custGroups(rec){
-    var map = {};
+    var map = {}, ovs = (rec && rec.custTon) || {};
+    function ovNum(k){
+      var v = ovs[k];
+      if (v === undefined || v === null || String(v).trim() === "") return null;
+      var n = parseFloat(v); return isNaN(n) ? null : n;
+    }
     ((rec && rec.rows) || []).forEach(function (r) {
       var k = custKeyOf(r);
       if (!map[k]) map[k] = { key: k, customer: pad(r.customer), shipdate: pad(r.shipdate),
-        logistics: raw(r.logistics), remark: raw(r.remark), ton: 0, qty: 0, nrow: 0, models: [] };
+        logistics: raw(r.logistics), remark: raw(r.remark), ton: 0, qty: 0, nrow: 0, models: [],
+        _byPt: {} };
       var g = map[k];
-      g.ton += (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0);
+      var pt = raw(r.shippt), t = (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0);
+      g._byPt[pt] = (g._byPt[pt] || 0) + t;
       g.qty += (parseFloat(r.qty) || 0);
       g.nrow++;
       var m = raw(r.model);
       if (m && g.models.indexOf(m) < 0) g.models.push(m);
     });
-    return Object.keys(map).map(function (k) { return map[k]; });
+    return Object.keys(map).map(function (k) {
+      var g = map[k];
+      /* 客户吨位取数（与发货员端 custTonVal 同一口径）：
+         计划员在合并格里手改过的吨位，发布那一刻被刻进 rec.custTon ——
+         这种客户明细行里可能根本没有吨数（总数只写在合并格上），
+         只把明细行加总会得 0，大屏吨位列就显示「/」。
+         ① 三段 key 客户|日期|发货点：有覆盖值的区域用覆盖值，没有的区域仍用自动合计；
+         ② 旧两段 key 客户|日期：这块客户+日期没被拆成多个发货点时才沿用（拆过不共用）；
+         ③ 都没有 → 行明细自动合计。 */
+      var pts = Object.keys(g._byPt), any3 = false;
+      pts.forEach(function (pt) {
+        var ov = ovNum(pad(g.customer) + "|" + pad(g.shipdate) + "|" + pt);
+        if (ov !== null) { any3 = true; g.ton += ov; }
+        else g.ton += g._byPt[pt];
+      });
+      if (!any3 && pts.length === 1) {
+        var ov2 = ovNum(pad(g.customer) + "|" + pad(g.shipdate));
+        if (ov2 !== null) g.ton = ov2;
+      }
+      delete g._byPt;
+      return g;
+    });
   }
 
   /* ---- 一张单的整体进度（按「客户+发货日期」去重统计）----
