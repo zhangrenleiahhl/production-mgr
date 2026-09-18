@@ -181,7 +181,8 @@
     box-shadow:inset 0 0 0 1px rgba(148,163,184,.26), inset 0 1px 0 rgba(255,255,255,.06), 0 2px 10px rgba(0,0,0,.42);
     /* 液面波浪的图案（内联 SVG，不依赖任何外部文件）：宽 13 / 高 26，
        左半实心、右边鼓出两个波峰；竖向重复时上下无缝，所以能一直往下滚。 */
-    --wvm:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='20'><path d='M0 0H6C16 3.3 16 6.7 6 10C16 13.3 16 16.7 6 20H0Z' fill='%23fff'/></svg>");}
+    --wvm:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='60'><path d='M0 0H6C17 4 17 9 6 13L6 20C11 24 11 28 6 31L6 38C19 44 19 50 6 52L6 60H0Z' fill='%23fff'/></svg>");
+    --wvm2:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='48'><path d='M0 0H7C22 6 22 12 7 17L7 26C16 30 16 34 7 38L7 48H0Z' fill='%23fff'/></svg>");}
   /* 液体本体：宽度 = 进度。左端跟着胶囊的圆角走，右缘靠 ::after 那个自转的椭圆化出波纹 */
   .flq{position:absolute;left:0;top:0;bottom:0;width:var(--w,0%);
     background:linear-gradient(90deg,var(--f1),var(--f2));
@@ -190,6 +191,10 @@
     background:repeating-linear-gradient(96deg,rgba(255,255,255,.20) 0 2px,transparent 2px 10px);
     animation:flflow 2.4s linear infinite;}
   @keyframes flflow{to{transform:translateX(10px)}}
+  .flq::after{content:"";position:absolute;inset:0;opacity:.16;
+    background:repeating-linear-gradient(74deg,rgba(255,255,255,.16) 0 3px,transparent 3px 14px);
+    animation:flflow2 5.2s linear infinite;}
+  @keyframes flflow2{to{transform:translateX(-14px)}}
   /* 液面：液体右缘的**波浪边** —— 上面那张 SVG 波浪贴在这里，
      往左压 6px（正好让图案里的"实心段"在 --w 处结束），于是液体的右缘形状**就是**
      那条波浪线；再让它慢慢往下走一个周期 = 液面在起伏。
@@ -201,11 +206,20 @@
   .flnx{position:absolute;top:0;bottom:0;left:var(--w,0%);width:18px;margin-left:-6px;
     background-color:var(--f1);
     -webkit-mask-image:var(--wvm);mask-image:var(--wvm);
-    -webkit-mask-size:18px 20px;mask-size:18px 20px;
+    -webkit-mask-size:18px 60px;mask-size:18px 60px;
     -webkit-mask-repeat:repeat-y;mask-repeat:repeat-y;
     -webkit-mask-position:0 0;mask-position:0 0;
-    animation:flwave 2.6s linear infinite;}
-  @keyframes flwave{to{-webkit-mask-position:0 20px;mask-position:0 20px;}}
+    animation:flwave 5.2s linear infinite;}
+  @keyframes flwave{to{-webkit-mask-position:0 60px;mask-position:0 60px;}}
+  /* 第二层波浪：周期/相位/速度都跟主波不同，两层叠加 → 不规则的水面（自然感） */
+  .flnx2{position:absolute;top:0;bottom:0;left:var(--w,0%);width:24px;margin-left:-13px;
+    background-color:var(--f1);opacity:.55;
+    -webkit-mask-image:var(--wvm2);mask-image:var(--wvm2);
+    -webkit-mask-size:24px 48px;mask-size:24px 48px;
+    -webkit-mask-repeat:repeat-y;mask-repeat:repeat-y;
+    -webkit-mask-position:0 0;mask-position:0 0;
+    animation:flwave2 3.9s linear infinite;}
+  @keyframes flwave2{to{-webkit-mask-position:0 48px;mask-position:0 48px;}}
   /* 这盏灯挪到**波浪外侧**（液体右边、深色区里）：第一版它压在波浪正中，
      9px 的光晕会把波浪整个染成"下一步"的颜色（橙色液体上浮出一条黄绿边）。 */
   .flnx::after{content:"";position:absolute;right:-4px;top:0;bottom:0;width:2px;
@@ -226,7 +240,7 @@
     text-shadow:0 1px 5px rgba(0,0,0,.85);}
   /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径） */
   tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
-  @media (prefers-reduced-motion:reduce){.flq::before,.flnx,.flnx::after{animation:none;}}
+  @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after{animation:none;}}
   .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:.86em;font-weight:800;
     white-space:nowrap;border:1px solid transparent;}
   .pill.s0{background:rgba(255,93,93,.16);color:#ffb3b3;border-color:rgba(255,93,93,.42);}
@@ -555,7 +569,7 @@ function rowHtml(r){
   const pct = Math.round(s / 3 * 100);
   const flw = '<span class="flw s' + s + '" style="--w:' + (pct || 6) + '%">' +
       '<i class="flq"></i>' +
-      (s < 3 ? '<i class="flnx c' + (s + 1) + '"></i>' : '') +
+      (s < 3 ? '<i class="flnx c' + (s + 1) + '"></i><i class="flnx2"></i>' : '') +
       '<span class="flt">' + esc(SL.STEP_NAME[s]) + '</span>' +
       '<span class="flp">' + pct + '%</span>' +
     '</span>';
