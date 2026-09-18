@@ -7,7 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260918b"></script>
+<script src="scan-lib.js?v=20260918c"></script>
 <script src="html2canvas.min.js"></script>
 <style>
   /* ==========================================================================
@@ -240,6 +240,7 @@
   .car{font-weight:800;}
   .car.on{color:var(--green);} .car.off{color:var(--amber);font-weight:700;}
   tr.done .car.off{color:#94a3b8;font-weight:600;}
+  .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
   .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
     background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
@@ -478,7 +479,8 @@ function rowHtml(r){
     '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td><span class="logi' + (self ? " self" : "") + '">' + esc(lg || "未填") + "</span></td>" +
     '<td>' + flw + "</td>" +
-    '<td><span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span></td>" +
+    '<td>' + (r.cx ? '<span class="carx">取消</span>'
+      : '<span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span>") + "</td>" +
     '<td><span class="tm">' + (when ? esc(whenLbl) + " " + esc(when) + byTxt : '<s>还没动</s>') + "</span></td>" +
   "</tr>";
 }
@@ -487,7 +489,7 @@ function render(){
   rows = SL.boardRows(RECORDS, PROG);
   const s = SL.boardStats(rows);
   // 指纹里带上代码：物料库后到（比如刚在另一台机器补了代码）也要触发重绘
-  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.u, r.by, codeOf(r), logisticsOf(r)].join(":")).join("|") + "#" + rows.length;
+  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.cx, r.u, r.by, codeOf(r), logisticsOf(r)].join(":")).join("|") + "#" + rows.length;
   $("kpis").innerHTML = kpiHtml(s);
 
   const empty = rows.length === 0;
