@@ -420,6 +420,11 @@
   .pbone.full .ph{background:#ecfdf5;}
   .pbone .ph b{font-size:14.5px;color:var(--txt);}
   .pbone .ph .pl{font-size:12px;color:var(--muted);}
+  /* 今天 / 明天 标签（看板只放这两天，得一眼分清） */
+  .pbone .ph .daytag{font-size:11px;font-weight:800;padding:1px 7px;border-radius:7px;vertical-align:1px;white-space:nowrap;}
+  .pbone .ph .daytag.today{background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;}
+  .pbone .ph .daytag.tmr{background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe;}
+  .pbone .ph .daytag.none{background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;}
   .pbone .ph .m{font-size:11.5px;color:var(--muted);margin-top:2px;}
   .pbone .ph .rt{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
   .pbstat{font-size:12px;font-weight:800;color:#b45309;}
@@ -458,6 +463,22 @@
   .pb-empty{padding:36px;text-align:center;color:var(--muted);}
   .pbsm{padding:4px 10px;font-size:12px;}
   .pb-legend{font-size:11.5px;color:var(--muted);margin:0 0 10px;}
+  /* 模糊搜索框（发货进度看板） */
+  .prog-mask .head .qbox{position:relative;display:flex;align-items:center;flex:1 1 220px;max-width:330px;min-width:150px;}
+  .prog-mask .head .qbox .mag{position:absolute;left:9px;font-size:13px;color:var(--muted);pointer-events:none;}
+  .pbq{width:100%;height:30px;padding:0 26px 0 27px;font-size:13px;border:1px solid var(--line);
+    border-radius:9px;background:#fff;color:var(--txt);outline:none;}
+  .pbq:focus{border-color:#93c5fd;box-shadow:0 0 0 3px rgba(147,197,253,.25);}
+  .pbq::placeholder{color:#9aa6b6;}
+  /* type=search 在 Chrome 里会自带一个 ✕，和我们自己的清空键会叠在一起 → 藏掉原生的 */
+  .pbq::-webkit-search-cancel-button,.pbq::-webkit-search-decoration{-webkit-appearance:none;display:none;}
+  .pbq-x{position:absolute;right:6px;width:18px;height:18px;line-height:16px;text-align:center;border-radius:50%;
+    border:none;background:#e2e8f0;color:#475569;font-size:11px;cursor:pointer;display:none;padding:0;}
+  .pbq-x.on{display:block;}
+  .pbq-x:hover{background:#cbd5e1;}
+  .pb-hit{font-size:12px;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;
+    padding:2px 8px;white-space:nowrap;display:none;}
+  .pb-hit.on{display:inline-block;}
 </style>
 <script>if(window.self!==window.top){document.documentElement.classList.add('in-iframe');}</script>
 </head>
@@ -3549,6 +3570,7 @@ if(window.CloudSync){
 const SLB = window.ScanLib;
 let PROG = {};
 let progOpen = false, progTimer = 0;
+let progQuery = "";          // 发货进度看板的模糊搜索关键词（空 = 不筛选）
 
 function progStatsOf(rec){
   return SLB ? SLB.progStats(rec, PROG) : { total: 0, done: 0, car: 0, touched: 0, last: 0, step: 0 };
@@ -3618,18 +3640,51 @@ function updateRecProg(){
   });
 }
 
+/* 发货进度看板显示哪些单（2026-09-19 收紧）：
+   只看「今天」和「明天」两天 —— 以前是"最近 7 天"，单子一多就得翻半天才找到今天要发的。
+   发货点要连着干两天，所以明天的一起放出来（明天的单在前，先装先走）。 */
 function boardRecords(){
-  const p = function(n){ return String(n).padStart(2, "0"); };
-  const fmt = function(d){ return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
-  const lo = new Date(); lo.setDate(lo.getDate() - 7);
-  const loStr = fmt(lo);
+  const ok = {}; ok[realTodayStr()] = 1; ok[todayStr()] = 1;
   return loadRec()
-    .filter(function(r){ const d = String(recShipDate(r) || "").slice(0, 10); return !d || d >= loStr; })
+    .filter(function(r){ const d = String(recShipDate(r) || "").slice(0, 10); return !d || ok[d]; })
     .sort(function(a, b){
       const x = String(recShipDate(a) || ""), y = String(recShipDate(b) || "");
       if(x !== y) return x < y ? -1 : 1;
       return (Number(b.id) || 0) - (Number(a.id) || 0);
     });
+}
+
+/* ================= 模糊搜索（2026-09-19） =================
+   现场最常见的问法是「XX那个客户现在到哪一步了」，所以要能用**手边任何一条线索**定位：
+   客户名 / 型号 / 物料编码 / 单号 / 物流 / 计划员 / 送达方代码，拼音首字母也认。
+   匹配规则（每个空格分开的词都要命中 = AND）：
+     ① 直接包含（不区分大小写、忽略空格）
+     ② 顺序子序列："宁泰" 能搜到 "宁波泰友"，"bss" 能搜到 "Bosch"（像输入法那样跳着匹配）
+   只在**同一行（客户）**内匹配，不是把整张表拼成一坨 —— 否则短词会乱命中。 */
+function qNorm(s){ return String(s == null ? "" : s).toLowerCase().replace(/[\s\u3000]+/g, ""); }
+function fuzzyHit(text, q){
+  const t = qNorm(text);
+  if(!t || !q) return false;
+  if(t.indexOf(q) >= 0) return true;
+  let i = 0;
+  for(let k = 0; k < t.length && i < q.length; k++){ if(t.charAt(k) === q.charAt(i)) i++; }
+  return i === q.length;                      // 顺序全都跳到了 → 模糊命中
+}
+function fuzzyAny(list, q){
+  for(let i = 0; i < list.length; i++){ if(fuzzyHit(list[i], q)) return true; }
+  return false;
+}
+// 把查询词切成一个个词（空格分隔，全角空格也算）
+function qTerms(query){
+  return String(query || "").split(/[\s\u3000]+/).map(qNorm).filter(Boolean);
+}
+// 这条明细（客户）身上能搜的东西：客户名 / 物流 / 型号 / 送达方代码
+function groupHay(rec, g, codeMap){
+  return [g.customer, g.logistics, (g.models || []).join(" "), codeMap[g.customer] || ""];
+}
+// 这张单身上能搜的东西：单号 / 计划员 / 发货日期 / 发布时刻
+function recHay(rec){
+  return [rec.no, rec.planner, recShipDate(rec), rec.publishedAt];
 }
 
 /* ================= 是否货好 / 预约货好时间（2026-09-18） =================
@@ -3669,6 +3724,25 @@ function readyCellHtml(c, rk, key, cust){
   return '<div>' + pill + btn + '</div>' + rt;
 }
 
+// 这张单的送达方代码（发布那一刻刻在明细行上的那份，不用再查物料库）
+function custCodeMap(rec){
+  const m = {};
+  ((rec && rec.rows) || []).forEach(function(r){
+    const cu = String(r.customer == null ? "" : r.customer).trim();
+    const cc = String(r.custcode == null ? "" : r.custcode).trim();
+    if(cu && cc) m[cu] = cc;
+  });
+  return m;
+}
+// 「今天 / 明天」小标签：看板只放这两天，得让人一眼看出哪张是今天的
+function dayLabel(rec){
+  const d = String(recShipDate(rec) || "").slice(0, 10);
+  if(!d) return { txt: "未填日期", cls: "none" };
+  if(d === realTodayStr()) return { txt: "今天", cls: "today" };
+  if(d === todayStr()) return { txt: "明天", cls: "tmr" };
+  return null;
+}
+
 function renderBoard(){
   const body = $("pbBody");
   if(!body) return;
@@ -3677,21 +3751,40 @@ function renderBoard(){
   const act = document.activeElement;
   const keep = (act && body.contains(act) && act.classList && act.classList.contains("pbrt"))
     ? { rk: act.getAttribute("data-rk"), ck: act.getAttribute("data-ck"), val: act.value } : null;
-  const list = boardRecords();
-  if(!list.length){
-    body.innerHTML = '<div class="pb-empty">最近 7 天没有已发布的发货单。<br>先在下面「发布记录」里发布，现场就能扫码更新进度了。</div>';
-    $("pbSum").textContent = "";
+  const all = boardRecords();
+  const terms = qTerms(progQuery);
+  const qx = $("pbSearchX");
+  if(qx) qx.classList.toggle("on", !!String(progQuery || "").length);
+  const hitEl = $("pbHit");
+  const setHit = function(txt){
+    if(!hitEl) return;
+    hitEl.textContent = txt || "";
+    hitEl.classList.toggle("on", !!txt);
+  };
+  if(!all.length){
+    body.innerHTML = '<div class="pb-empty">今天和明天还没有已发布的发货单。<br>' +
+      '先在下面「发布记录」里发布，现场就能扫码更新进度了。</div>';
+    $("pbSum").textContent = ""; setHit("");
     return;
   }
-  let doneAll = 0, totAll = 0, carAll = 0, doneRecs = 0;
-  const html = list.map(function(rec){
-    const gs = SLB.custGroups(rec);
-    const st = progStatsOf(rec);
-    doneAll += st.done; totAll += st.total; carAll += st.car;
-    const full = st.total > 0 && st.done === st.total;
-    if(full) doneRecs++;
+  let doneAll = 0, totAll = 0, carAll = 0, doneRecs = 0, shownRecs = 0, matched = 0;
+  const html = all.map(function(rec){
+    const codeMap = custCodeMap(rec);
+    const hayRec = recHay(rec);
+    // 单号 / 计划员 / 日期命中 → 这张单整个都摆出来（找"FH…-3655"就是要看它的全貌）
+    const recAll = terms.length > 0 && terms.every(function(q){ return fuzzyAny(hayRec, q); });
+    const gs = SLB.custGroups(rec).filter(function(g){
+      if(!terms.length || recAll) return true;
+      const hay = groupHay(rec, g, codeMap);
+      return terms.every(function(q){ return fuzzyAny(hay, q); });
+    });
+    if(!gs.length) return "";
+    shownRecs++; matched += gs.length;
+    let d = 0, ca = 0;
     const rows = gs.map(function(g){
       const c = SLB.progOf(rec, g.key, PROG);
+      if(c.s >= 3) d++;
+      if(c.car) ca++;
       const rk = SLB.recKeyOf(rec);
       const cancelled = (c.cx || 0) ? true : false;
       const carHtml = cancelled ? '<span class="carx">已取消</span>'
@@ -3707,8 +3800,14 @@ function renderBoard(){
         '<td class="car-col">' + carHtml + btn + "</td>" +
         '<td class="t">' + (c.u ? SLB.fmtHM(c.u) : "") + "</td></tr>";
     }).join("");
+    const st = { total: gs.length, done: d, car: ca };
+    doneAll += d; totAll += gs.length; carAll += ca;
+    const full = st.total > 0 && st.done === st.total;
+    if(full) doneRecs++;
+    const dl = dayLabel(rec);
     return '<section class="pbone' + (full ? " full" : "") + '">' +
       '<div class="ph"><div><b>' + SLB.esc(String(rec.no || "（无单号）")) + "</b>" +
+        (dl ? ' <span class="daytag ' + dl.cls + '">' + dl.txt + "</span>" : "") +
         (rec.planner ? ' <span class="pl">' + SLB.esc(rec.planner) + "</span>" : "") +
         '<div class="m">发货日期 ' + SLB.esc(SLB.pad(recShipDate(rec))) + " ｜ " + gs.length +
         " 个客户 ｜ 发布 " + SLB.esc(rec.publishedAt || "-") + "</div></div>" +
@@ -3716,12 +3815,20 @@ function renderBoard(){
         " ｜ 车已到 " + st.car + "/" + st.total + "</span></div></div>" +
       '<table class="pbt2"><thead><tr><th>客户</th><th>物流</th><th>吨位</th><th>是否货好 / 预约货好时间</th><th>发货进度</th><th>车辆</th><th>最后更新</th></tr></thead><tbody>' +
       rows + "</tbody></table></section>";
-  }).join("");
+  }).filter(Boolean).join("");
+  if(!html){
+    body.innerHTML = '<div class="pb-empty">今天和明天的发货单里，没有匹配「' +
+      SLB.esc(String(progQuery).trim()) + '」的客户。<br>换个关键词试试，或者点搜索框右边的 ✕ 清空。</div>';
+    $("pbSum").textContent = ""; setHit("");
+    return;
+  }
   body.innerHTML = '<p class="pb-legend">是否货好：点「标记货好」直接置成货好；填「预约」时间后，' +
     '<b>时间一到系统自动变成「货已好」</b>（不用人点，晚上没人开页面也一样）　｜　' +
-    '工序：货待确认 → 货好 → 装货中 → 已完成　｜　车辆：未到 / 已到 / 取消　｜　只显示最近 7 天以来的发货单</p>' + html;
-  $("pbSum").textContent = list.length + " 张单 ｜ 客户 " + totAll + " 个（已完成 " + doneAll + "，车已到 " + carAll + "）" +
+    '工序：货待确认 → 货好 → 装货中 → 已完成　｜　车辆：未到 / 已到 / 取消　｜　' +
+    '<b>只显示今天和明天的发货单</b>；右上角搜索框可在这些单里按客户 / 型号 / 单号 / 物流 / 代码模糊找</p>' + html;
+  $("pbSum").textContent = shownRecs + " 张单 ｜ 客户 " + totAll + " 个（已完成 " + doneAll + "，车已到 " + carAll + "）" +
     (doneRecs ? " ｜ " + doneRecs + " 张已全完成" : "");
+  setHit(terms.length ? ("匹配 " + shownRecs + " 张单 · " + matched + " 个客户") : "");
   if(keep){
     const el = Array.prototype.filter.call(body.querySelectorAll("input.pbrt"), function(x){
       return x.getAttribute("data-rk") === keep.rk && x.getAttribute("data-ck") === keep.ck;
@@ -3772,6 +3879,29 @@ function bootProg(){
   };
   const m = $("progBoard");
   if(m) m.addEventListener("click", function(e){ if(e.target === m) closeBoard(); });
+  /* 顶部模糊搜索：边打边筛。加 120ms 防抖 —— 每敲一个字就重建整张表，
+     输入法组字时会一顿一顿的（尤其手机上）。 */
+  const qin = $("pbSearch"), qclr = $("pbSearchX");
+  let qTimer = 0;
+  if(qin){
+    qin.addEventListener("input", function(){
+      clearTimeout(qTimer);
+      qTimer = setTimeout(function(){ progQuery = qin.value || ""; renderBoard(); }, 120);
+    });
+    // 在搜索框里按 Esc = 清空搜索，不要把整个看板关掉（stopPropagation 拦住外层监听）
+    qin.addEventListener("keydown", function(e){
+      if(e.key !== "Escape") return;
+      e.stopPropagation();
+      if(qin.value){ qin.value = ""; progQuery = ""; renderBoard(); }
+      else closeBoard();
+    });
+  }
+  if(qclr) qclr.onclick = function(){
+    if(qin) qin.value = "";
+    progQuery = "";
+    renderBoard();
+    if(qin) qin.focus();
+  };
   // 发货进度看板里的「车辆取消 / 撤销」：点按钮 → 页面自绘确认弹窗 → 确定后写进度并推云端
   const pbBody = $("pbBody");
   if (pbBody) pbBody.addEventListener("click", function(e){
@@ -3862,6 +3992,13 @@ else bootProg();
     <div class="head">
       <span class="t">发货进度</span>
       <span class="s" id="pbSync">打开期间每 10 秒自动刷新</span>
+      <span class="qbox">
+        <span class="mag">🔍</span>
+        <input id="pbSearch" class="pbq" type="search" autocomplete="off" enterkeyhint="search"
+          placeholder="搜客户 / 型号 / 单号 / 物流 / 代码">
+        <button type="button" class="pbq-x" id="pbSearchX" title="清空搜索">✕</button>
+      </span>
+      <span class="pb-hit" id="pbHit"></span>
       <span class="sp">
         <span class="s" id="pbSum"></span>
         <button class="btn btn-line pbsm" id="pbRefresh">↻ 刷新</button>
