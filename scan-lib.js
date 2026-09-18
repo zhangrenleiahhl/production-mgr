@@ -73,6 +73,7 @@ window.ScanLib = (function () {
         car: w.car || 0,
         ct: w.ct || 0,
         cx: w.cx || 0,
+        rt: w.rt || 0,
         u: w.u || 0,
         by: raw(w.by),
         rv: Math.max(xr, yr)
@@ -100,6 +101,8 @@ window.ScanLib = (function () {
       car: car,
       ct: car > 0 ? pick(x.car || 0, y.car || 0, x.ct, y.ct) : 0,
       cx: cx,
+      // 预约货好时间不是"进度"，两边版本号又相同时取有预约的那个（别把预约弄丢）
+      rt: Math.max(x.rt || 0, y.rt || 0),
       u: us.length ? Math.max.apply(null, us) : 0,
       by: by,
       rv: xr
@@ -137,10 +140,38 @@ window.ScanLib = (function () {
      ========================================================================== */
   function cellAt(prog, rk, ck){
     if (!prog[rk]) prog[rk] = {};
-    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0, cx: 0 };
+    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0, cx: 0, rt: 0 };
     if (prog[rk][ck].rv == null) prog[rk][ck].rv = 0;
     if (prog[rk][ck].cx == null) prog[rk][ck].cx = 0;
+    if (prog[rk][ck].rt == null) prog[rk][ck].rt = 0;
     return prog[rk][ck];
+  }
+  /* ---- 预约货好（2026-09-18 用户要求）----------------------------------------
+     cell.rt = 计划员在管理端填的「预约货好时间」（时间戳 ms，0 = 没预约）。
+     ★ 到点（now >= rt）就算「货已好」，不需要任何人去点 —— 这就是
+       "次日系统更新自动显示货已好"：哪怕一夜之间没人开过页面，第二天谁打开
+       任何一端（内部大屏 / 门口大屏 / 内部码 / 发货进度看板）看到的都是「货好」。
+     各端读的时候统一用 effS() 算"有效工序"，不要各自去比时间（会有人漏、有人写错）。
+     再配合 applyReadyAuto() 把它落成真实数据（rv+1、带操作人留痕），
+     这样工人手机上点"下一步"是从「货好」继续往前走，不会出现"点了没反应"。 */
+  function readyAuto(c){ c = c || {}; return (c.rt || 0) > 0 && Date.now() >= (c.rt || 0); }
+  function rawS(c){ return Math.min(3, (c && c.s) || 0); }
+  function effS(c){
+    var s = rawS(c);
+    return (s < 1 && readyAuto(c)) ? 1 : s;
+  }
+  /* 这一格的「货好」是不是预约自动来的（管理端要标出来，别让人以为是现场点的）：
+     ① 还没落库（工序还是 0 但预约时间已过）→ 算自动；
+     ② 已经落库（工序 >=1，且「货好时间」正好等于「预约时间」）→ 也算自动。
+     ★ ② 这条必须留着：applyReadyAuto() 把数据落成真实值之后，
+       如果只看"还没落库"，页面上「到点自动」标记就会自己消失（探针实测踩到过）。 */
+  function readyIsAuto(c){
+    c = c || {};
+    if (!((c.rt || 0) > 0)) return false;
+    // 兼容两种入参：原始格子（c.s）和 progOf() 返回的视图（c.s 是"有效工序"，真实值在 rs）
+    var s = (c.rs == null) ? rawS(c) : c.rs;
+    if (s < 1) return Date.now() >= (c.rt || 0);
+    return (c.t || 0) === (c.rt || 0);
   }
   // 推进一步工序（delta 一般是 +1；who 是操作人，用于留痕）
   function applyStep(prog, rk, ck, delta, who){
@@ -204,6 +235,62 @@ window.ScanLib = (function () {
     c.u = now;
     c.rv = (c.rv || 0) + 1;
     return { changed: true, cell: c, cx: 0 };
+  }
+  /* 标记 / 撤销「货已好」（管理端「发货进度」看板上的「是否货好」）。
+     v=true  → 工序置到「货好」（只在还停在「货待确认」时才有用）；
+     v=false → 退回「货待确认」，★ 同时清掉预约时间 —— 不清的话时间已经过了，
+               effS() 会立刻又把它算成「货好」，看起来像"撤销不生效"。
+     已经装货/完成的（s>=2）不许退回：那是现场真做过的动作，不能从管理端抹掉。 */
+  function applyReady(prog, rk, ck, v, who){
+    var c = cellAt(prog, rk, ck), now = Date.now(), s = rawS(c);
+    if (v){
+      if (s >= 1) return { changed: false, cell: c, s: s, why: "已经是货好" };
+      c.s = 1; c.t = now;
+      if (raw(who)) c.by = raw(who);
+      c.u = now; c.rv = (c.rv || 0) + 1;
+      return { changed: true, cell: c, s: 1 };
+    }
+    if (s !== 1) return { changed: false, cell: c, s: s, why: s < 1 ? "还没货好" : "已经装货了，不能退回货待确认" };
+    c.s = 0; c.t = 0; c.rt = 0;
+    if (raw(who)) c.by = raw(who);
+    c.u = now; c.rv = (c.rv || 0) + 1;
+    return { changed: true, cell: c, s: 0 };
+  }
+  /* 设置「预约货好时间」：at = 时间戳 ms（0 = 清掉预约）。
+     如果填的时间已经过了，顺手就把工序置成「货好」（和到点自动变一样，不留半截状态）。 */
+  function applyReadyAt(prog, rk, ck, at, who){
+    var c = cellAt(prog, rk, ck), now = Date.now();
+    var v = Number(at) > 0 ? Number(at) : 0;
+    if ((c.rt || 0) === v) return { changed: false, cell: c, rt: v };
+    c.rt = v;
+    if (v && v <= now && rawS(c) < 1){
+      c.s = 1; c.t = v;
+      if (raw(who)) c.by = raw(who);
+    }
+    c.u = now; c.rv = (c.rv || 0) + 1;
+    return { changed: true, cell: c, rt: v };
+  }
+  /* 到点落库：把「预约时间已到但工序还停在货待确认」的格子批量置成「货好」。
+     谁在线谁跑一次（管理端打开/轮询、内部码拉取后），推上去后其他端也就拿到真实数据了。
+     返回改了几格（0 = 没有要改的，调用方就不用推云端）。 */
+  function applyReadyAuto(prog, who, now){
+    now = now || Date.now();
+    var n = 0;
+    Object.keys(prog || {}).forEach(function (rk) {
+      var m = prog[rk];
+      if (!m || typeof m !== "object") return;
+      Object.keys(m).forEach(function (ck) {
+        var c = m[ck];
+        if (!c || typeof c !== "object") return;
+        if ((c.rt || 0) > 0 && now >= c.rt && rawS(c) < 1){
+          c.s = 1; c.t = c.rt; c.u = now;
+          c.by = raw(who) || "预约货好";
+          c.rv = (c.rv || 0) + 1;
+          n++;
+        }
+      });
+    });
+    return n;
   }
 
   function fmtHM(ts){
@@ -273,18 +360,27 @@ window.ScanLib = (function () {
     Object.keys(keys).forEach(function (ck) {
       total++;
       var c = (prog[rk] || {})[ck] || {};
-      if ((c.s || 0) >= 3) done++;
+      var s = effS(c);                       // 预约到点的算「货好」，跟各端显示同一个口径
+      if (s >= 3) done++;
       if ((c.car || 0) >= 1) car++;
-      if ((c.s || 0) > 0 || (c.car || 0) > 0) touched++;
-      step += Math.min(3, c.s || 0);
+      if (s > 0 || (c.car || 0) > 0) touched++;
+      step += s;
       if ((c.u || 0) > last) last = c.u || 0;
     });
     return { total: total, done: done, car: car, step: step, last: last, touched: touched };
   }
-  // 取某一行（客户）的进度
+  /* 取某一行（客户）的进度：返回的 s 是"有效工序"（预约到点的自动算「货好」），
+     rs 是数据里真实的工序值 —— 管理端要靠 rs 判断"这格现在能不能撤销货好"。
+     返回的是副本，随便改不会污染 PROG。 */
   function progOf(rec, ck, prog){
     var m = (prog || {})[recKeyOf(rec)];
-    return (m && m[ck]) || { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0 };
+    var c = (m && m[ck]) || {};
+    return {
+      s: effS(c), rs: rawS(c),
+      t: c.t || 0, car: c.car || 0, ct: c.ct || 0, u: c.u || 0,
+      by: raw(c.by), rv: c.rv || 0, cx: c.cx || 0, rt: c.rt || 0,
+      autoReady: rawS(c) < 1 && readyAuto(c)
+    };
   }
 
   /* ==========================================================================
@@ -367,8 +463,10 @@ window.ScanLib = (function () {
           customer: g.customer, shipdate: d, dateRaw: g.shipdate,
           logistics: g.logistics, remark: g.remark,
           ton: g.ton, qty: g.qty, nrow: g.nrow, models: g.models,
-          s: Math.min(3, c.s || 0), car: carv, cx: cxv,
+          // 有效工序：预约货好时间一到就自动算「货好」（货已好），不需要人去点
+          s: effS(c), car: carv, cx: cxv,
           t: c.t || 0, ct: c.ct || 0, u: c.u || 0, by: raw(c.by),
+          rt: c.rt || 0, autoReady: readyIsAuto(c),
           no: raw(rec.no), planner: raw(rec.planner),
           done: done, isToday: isToday, isYesterday: isYest, stale: !isToday
         });
@@ -1140,7 +1238,8 @@ window.ScanLib = (function () {
     mergeCell: mergeCell, mergeProg: mergeProg, parseObj: parseObj, guardFn: guardFn,
     cellAt: cellAt, applyStep: applyStep, applyCar: applyCar, applyUndo: applyUndo,
     applyCarCancel: applyCarCancel, applyCarUncancel: applyCarUncancel,
-    custGroups: custGroups, progStats: progStats, progOf: progOf,
+    applyReady: applyReady, applyReadyAt: applyReadyAt, applyReadyAuto: applyReadyAuto,
+    effS: effS, rawS: rawS, readyAuto: readyAuto, readyIsAuto: readyIsAuto,    custGroups: custGroups, progStats: progStats, progOf: progOf,
     p2: p2, ymdOf: ymdOf, todayYmd: todayYmd, shiftYmd: shiftYmd, normDate: normDate,
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
     sha256Hex: sha256Hex,
