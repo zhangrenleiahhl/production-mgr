@@ -10,7 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260918b"></script>
+<script src="scan-lib.js?v=20260918c"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -429,6 +429,14 @@
   table.pbt2 td{border-top:1px solid var(--line-2);padding:6px 9px;vertical-align:middle;}
   table.pbt2 td.n{text-align:right;font-variant-numeric:tabular-nums;}
   table.pbt2 td.t{color:var(--muted);white-space:nowrap;}
+  table.pbt2 td.car-col{white-space:nowrap;}
+  table.pbt2 td.car-col .car{font-weight:800;}
+  table.pbt2 td.car-col .car.on{color:#16a34a;} table.pbt2 td.car-col .car.off{color:#d97706;}
+  table.pbt2 td.car-col .carx{color:#ef4444;font-weight:800;margin-right:6px;}
+  .pbcx{margin-left:8px;padding:3px 9px;font-size:12px;border-radius:7px;cursor:pointer;
+    border:1px solid #f0b4b4;background:#fff5f5;color:#dc2626;font-weight:700;}
+  .pbcx:hover{background:#fee2e2;}
+  .pbcx.undo{border-color:#cbd5e1;background:#f8fafc;color:#475569;}
   .pb-empty{padding:36px;text-align:center;color:var(--muted);}
   .pbsm{padding:4px 10px;font-size:12px;}
   .pb-legend{font-size:11.5px;color:var(--muted);margin:0 0 10px;}
@@ -3546,6 +3554,17 @@ async function pullProg(){
   return ok;
 }
 
+// 改完进度（车辆取消 / 撤销）后：先落本机，再合并推上云端（走 guardFn 只增不减）。
+// 推上去后，内部大屏 / 司机页的下一轮拉取就会带上「取消 / 已到」的最新状态。
+function pushProg(){
+  try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
+  if (window.CloudSync && CloudSync.ready()){
+    CloudSync.push(SLB.KEY_PROG, PROG).catch(function(){});
+  }
+  updateRecProg();
+  if (progOpen) renderBoard();
+}
+
 // 发布记录卡上的进度摘要（就地刷新，不动别的）
 function updateRecProg(){
   if(!SLB) return;
@@ -3604,10 +3623,18 @@ function renderBoard(){
     if(full) doneRecs++;
     const rows = gs.map(function(g){
       const c = SLB.progOf(rec, g.key, PROG);
+      const rk = SLB.recKeyOf(rec);
+      const cancelled = (c.cx || 0) ? true : false;
+      const carHtml = cancelled ? '<span class="carx">已取消</span>'
+        : (c.car ? '<span class="car on">✓ 已到</span>' : '<span class="car off">未到</span>');
+      const btn = cancelled
+        ? '<button type="button" class="pbcx undo" data-cx="undo" data-rk="' + SLB.esc(rk) + '" data-ck="' + SLB.esc(g.key) + '">撤销</button>'
+        : '<button type="button" class="pbcx" data-cx="cancel" data-rk="' + SLB.esc(rk) + '" data-ck="' + SLB.esc(g.key) + '" data-cust="' + SLB.esc(g.customer) + '">车辆取消</button>';
       return "<tr><td>" + SLB.esc(g.customer) + "</td>" +
         "<td>" + SLB.esc(g.logistics || "/") + "</td>" +
         '<td class="n">' + (g.ton ? g.ton.toFixed(1) : "/") + "</td>" +
         "<td>" + SLB.progPill(c.s, c.car) + "</td>" +
+        '<td class="car-col">' + carHtml + btn + "</td>" +
         '<td class="t">' + (c.u ? SLB.fmtHM(c.u) : "") + "</td></tr>";
     }).join("");
     return '<section class="pbone' + (full ? " full" : "") + '">' +
@@ -3617,10 +3644,10 @@ function renderBoard(){
         " 个客户 ｜ 发布 " + SLB.esc(rec.publishedAt || "-") + "</div></div>" +
         '<div class="rt"><span class="pbstat' + (full ? " ok" : "") + '">已完成 ' + st.done + "/" + st.total +
         " ｜ 车已到 " + st.car + "/" + st.total + "</span></div></div>" +
-      '<table class="pbt2"><thead><tr><th>客户</th><th>物流</th><th>吨位</th><th>发货进度</th><th>最后更新</th></tr></thead><tbody>' +
+      '<table class="pbt2"><thead><tr><th>客户</th><th>物流</th><th>吨位</th><th>发货进度</th><th>车辆</th><th>最后更新</th></tr></thead><tbody>' +
       rows + "</tbody></table></section>";
   }).join("");
-  body.innerHTML = '<p class="pb-legend">工序：货待确认 → 货好 → 装货中 → 已完成　｜　车辆：未到 / 已到（与工序分开记）　｜　只显示最近 7 天以来的发货单</p>' + html;
+  body.innerHTML = '<p class="pb-legend">工序：货待确认 → 货好 → 装货中 → 已完成　｜　车辆：未到 / 已到 / 取消（点「车辆取消」后，内部大屏该客户车辆栏显示红字「取消」）　｜　只显示最近 7 天以来的发货单</p>' + html;
   $("pbSum").textContent = list.length + " 张单 ｜ 客户 " + totAll + " 个（已完成 " + doneAll + "，车已到 " + carAll + "）" +
     (doneRecs ? " ｜ " + doneRecs + " 张已全完成" : "");
 }
@@ -3667,6 +3694,27 @@ function bootProg(){
   };
   const m = $("progBoard");
   if(m) m.addEventListener("click", function(e){ if(e.target === m) closeBoard(); });
+  // 发货进度看板里的「车辆取消 / 撤销」：点按钮 → 页面自绘确认弹窗 → 确定后写进度并推云端
+  const pbBody = $("pbBody");
+  if (pbBody) pbBody.addEventListener("click", function(e){
+    const btn = e.target && e.target.closest ? e.target.closest("button.pbcx") : null;
+    if (!btn) return;
+    const rk = btn.getAttribute("data-rk"), ck = btn.getAttribute("data-ck"), mode = btn.getAttribute("data-cx");
+    if (mode === "cancel"){
+      const cust = btn.getAttribute("data-cust") || "该客户";
+      if (!SLB || !SLB.uiConfirm){ toast("进度模块没加载，请按 Ctrl+F5 刷新"); return; }
+      SLB.uiConfirm("确定取消【" + cust + "】的车辆吗？\n\n取消后，内部大屏该客户「车辆」栏会显示红字「取消」。", function(){
+        SLB.applyCarCancel(PROG, rk, ck, "");
+        pushProg();
+        toast("已取消【" + cust + "】的车辆，内部大屏将显示红字「取消」");
+      }, { title: "车辆取消" });
+    } else {
+      if (!SLB) return;
+      SLB.applyCarUncancel(PROG, rk, ck, "");
+      pushProg();
+      toast("已撤销车辆取消");
+    }
+  });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape" && progOpen) closeBoard(); });
   pullProg();
   setInterval(function(){ if(!document.hidden && !progOpen) pullProg(); }, 60000);
