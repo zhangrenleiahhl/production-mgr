@@ -60,8 +60,12 @@
 
   /* ============ 顶部 HUD ============ */
   .hud{
-    flex:0 0 auto;position:relative;display:flex;align-items:center;gap:15px;flex-wrap:wrap;
-    padding:8px 18px;margin-bottom:9px;border-radius:16px;overflow:hidden;
+    /* ★ 一行到底（2026-09-19）：原来 flex-wrap:wrap，笔记本一缩放就掉成 3 行，
+       白占掉两行表格高度。现在 nowrap + 各段尺寸都用 clamp(小, vw, 大)，
+       窄屏自动缩、宽屏跟原来一样大。 */
+    flex:0 0 auto;position:relative;display:flex;align-items:center;flex-wrap:nowrap;
+    gap:clamp(6px,.72vw,15px);
+    padding:5px clamp(9px,.9vw,18px);margin-bottom:8px;border-radius:14px;overflow:hidden;
     background:linear-gradient(100deg,rgba(56,200,216,.08),rgba(91,141,239,.05) 45%,rgba(255,255,255,.02));
     border:1px solid rgba(56,200,216,.22);
     box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
@@ -73,37 +77,44 @@
     background:linear-gradient(90deg,transparent,rgba(56,200,216,.07),transparent);
     transform:rotate(18deg);animation:sweep 7s linear infinite;pointer-events:none;}
   @keyframes sweep{0%{left:-20%}100%{left:120%}}
-  .logo{width:38px;height:38px;flex:0 0 38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
-    font-size:18px;background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
-    box-shadow:0 0 22px rgba(56,200,216,.4);}
-  .tt .t{font-size:18px;font-weight:800;letter-spacing:1px;}
-  .tt .s{font-size:10.5px;color:var(--dim);letter-spacing:1.2px;margin-top:1px;}
+  .logo{width:clamp(22px,1.9vw,32px);height:clamp(22px,1.9vw,32px);flex:0 0 auto;
+    border-radius:clamp(6px,.55vw,9px);display:flex;align-items:center;justify-content:center;
+    font-size:clamp(11px,.95vw,16px);background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
+    box-shadow:0 0 18px rgba(56,200,216,.35);}
+  /* 标题块压成一行：原来标题下面还有一行灰色小字说明 —— 那些话页脚已经全说了，
+     挤在头上只会多占一行（窄屏就更明显）。整句说明挪到 title，鼠标放上去还能看全。 */
+  .tt{flex:0 1 auto;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap;}
+  .tt .t{font-size:clamp(12.5px,1vw,17px);font-weight:800;letter-spacing:.6px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
+  .tt .tag{font-size:clamp(8.5px,.6vw,10.5px);font-weight:800;letter-spacing:.5px;color:#9fe8ff;
+    padding:1px 5px;border-radius:5px;background:rgba(56,200,216,.14);border:1px solid rgba(56,200,216,.34);}
 
   /* 「保密」徽章：让现场一眼确认摆的是保密版那一屏（而不是内部看板） */
-  .secbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
-    font-size:11.5px;font-weight:800;letter-spacing:.8px;white-space:nowrap;
+  .secbadge{display:inline-flex;flex:0 0 auto;align-items:center;gap:4px;padding:2px clamp(5px,.55vw,10px);border-radius:999px;
+    font-size:clamp(8.5px,.64vw,11px);font-weight:800;letter-spacing:.5px;white-space:nowrap;
     background:rgba(61,220,151,.13);color:#a9f2d3;border:1px solid rgba(61,220,151,.34);}
 
-  .kpis{display:flex;gap:9px;flex-wrap:wrap;margin-left:4px;}
-  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:11px;
-    padding:4px 12px;min-width:94px;position:relative;overflow:hidden;}
+  .kpis{display:flex;gap:clamp(4px,.45vw,9px);flex-wrap:nowrap;margin-left:2px;min-width:0;}
+  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:9px;flex:0 0 auto;
+    padding:2px clamp(6px,.6vw,12px);min-width:0;position:relative;overflow:hidden;}
   .kpi i{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:.85;}
   .kpi b{display:block;font-size:20px;font-weight:800;line-height:1.12;}
-  .kpi span{display:block;font-size:10.5px;color:var(--muted);letter-spacing:.6px;white-space:nowrap;}
+  .kpi span{display:block;font-size:clamp(8.5px,.6vw,10.5px);color:var(--muted);letter-spacing:.4px;white-space:nowrap;}
   .kpi.red i{background:var(--red);} .kpi.red b{color:var(--red);}
   .kpi.amber i{background:var(--amber);} .kpi.amber b{color:var(--amber);}
   .kpi.green i{background:var(--green);} .kpi.green b{color:var(--green);}
 
-  .spacer{flex:1;}
-  .ctrl{display:flex;align-items:center;gap:8px;}
+  .spacer{flex:1 1 auto;min-width:0;}
+  .ctrl{display:flex;flex:0 0 auto;align-items:center;gap:6px;}
   .ctrl button{background:rgba(34,211,238,.13);border:1px solid rgba(34,211,238,.42);color:var(--txt);
-    padding:6px 12px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;
-    letter-spacing:.5px;white-space:nowrap;}
+    padding:3px clamp(6px,.7vw,12px);border-radius:8px;font-size:clamp(9.5px,.72vw,12.5px);font-weight:700;
+    cursor:pointer;font-family:inherit;letter-spacing:.4px;white-space:nowrap;}
   .ctrl button:hover{background:rgba(34,211,238,.24);}
-  .clock{text-align:right;min-width:116px;}
-  .clock b{display:block;font-size:22px;font-weight:800;letter-spacing:1.4px;line-height:1.08;}
-  .clock span{font-size:10.5px;color:var(--dim);letter-spacing:.8px;}
-  .sync{font-size:10.5px;letter-spacing:.5px;margin-top:1px;}
+  /* 时间 / 日期 / 同步状态**摊在同一行**（原来竖着三行，等于白占两行高） */
+  .clock{display:flex;flex:0 0 auto;align-items:baseline;gap:clamp(6px,.6vw,11px);white-space:nowrap;}
+  .clock b{font-size:clamp(15px,1.42vw,23px);font-weight:800;letter-spacing:1px;line-height:1;}
+  .clock span{font-size:clamp(9px,.62vw,11px);color:var(--dim);letter-spacing:.6px;}
+  .sync{letter-spacing:.4px;}
   .sync.ok{color:var(--green);} .sync.warn{color:var(--amber);} .sync.err{color:var(--red);}
 
   /* ============ 主体表格 ============ */
@@ -261,18 +272,29 @@
   .empty b{font-size:44px;color:rgba(120,180,255,.30);}
   .empty em{font-style:normal;font-size:12.5px;color:var(--dim);letter-spacing:.6px;}
 
-  .ft{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:7px 4px 0;font-size:11.5px;color:var(--dim);letter-spacing:.6px;}
+  .ft{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:5px 14px;padding:6px 4px 0;
+    font-size:clamp(10px,.8vw,11.5px);color:var(--dim);letter-spacing:.5px;}
   .ft .k{display:inline-flex;align-items:center;gap:5px;}
   .ft .k i{width:9px;height:9px;border-radius:50%;display:block;}
 
   /* 全屏时字号再放大一档（门口距离更远） */
   body.fs .wrap{padding:12px 26px 12px;}
-  body.fs .tt .t{font-size:21px;}
-  body.fs .kpi b{font-size:23px;}
+  body.fs .tt .t{font-size:clamp(15px,1.2vw,21px);}
+  body.fs .kpi b{font-size:clamp(16px,1.4vw,23px);}
   body.fs tbody td{font-size:calc(var(--rowfs,17px) * 1.22);}
   /* 全屏时代码也要跟着放大（它自带 font-size，不跟着 td 走，得单独再乘一档） */
   body.fs .cust{font-size:calc(var(--rowfs,17px) * var(--coder,1.5) * 1.22);}
-  body.fs .clock b{font-size:25px;}
+  body.fs .clock b{font-size:clamp(16px,1.55vw,25px);}
+  /* 窄屏兜底（有些笔记本 175% 缩放，CSS 宽度只有 ~1100px）：
+     顶部永远一行 —— 先收字距、再丢日期，绝不换行、绝不把 KPI 挤到第二行 */
+  @media (max-width:1180px){
+    .hud{gap:6px;}
+    .kpi span{letter-spacing:0;}
+  }
+  @media (max-width:1024px){
+    .clock #cdate{display:none;}
+    .kpi span{font-size:9px;}
+  }
   body.hidecur,body.hidecur *{cursor:none !important;}
 </style>
 </head>
@@ -282,8 +304,7 @@
   <div class="hud">
     <div class="logo">◈</div>
     <div class="tt">
-      <div class="t">物流进度</div>
-      <div class="s" id="sub">今日发货计划 · 送达方以代码显示 · 超屏自动滚动</div>
+      <div class="t" title="今日发货计划 · 送达方以代码显示 · 不显示物流 · 超屏自动滚动">物流进度</div>
     </div>
     <div class="secbadge">🛡 保密显示</div>
     <div class="kpis" id="kpis"></div>
@@ -294,7 +315,7 @@
     <div class="clock">
       <b id="clock">--:--:--</b>
       <span id="cdate">----</span>
-      <div class="sync" id="sync">正在连接云端…</div>
+      <span class="sync" id="sync">连接中…</span>
     </div>
   </div>
 
@@ -420,9 +441,11 @@ async function pull(){
   degraded ? badCount++ : (badCount = 0);
   okCount++;
   const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
-  if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
-  else if (degraded) setSync("网络有波动 · 显示上一次数据 · " + t, "warn");
-  else setSync("已同步 ✓ " + t, "ok");
+  /* 文案缩短：顶部只有一行，长句会顶出去（全文留在 title 里） */
+  const sw = $("sync");
+  if (!cs){ setSync("本机缓存 " + t, "warn"); sw.title = "云端未配置，正在显示本机缓存的数据"; }
+  else if (degraded){ setSync("网络波动 " + t, "warn"); sw.title = "网络有波动，正在显示上一次拉到的数据"; }
+  else { setSync("已同步 ✓ " + t, "ok"); sw.title = "已同步云端，时间 " + t; }
 
   render();
 }
@@ -691,7 +714,9 @@ function tickClock(){
   const p = (n) => String(n).padStart(2, "0");
   $("clock").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
   const wd = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
-  $("cdate").textContent = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日 星期" + wd;
+  /* 顶部要挤成一行：日期只留「09月19日 周六」，年份那截挪进 title（鼠标放上去看全） */
+  $("cdate").textContent = p(d.getMonth() + 1) + "月" + p(d.getDate()) + "日 周" + wd;
+  $("cdate").title = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日 星期" + wd;
 }
 
 let idleTimer = 0;
