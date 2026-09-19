@@ -10,7 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260918e"></script>
+<script src="scan-lib.js?v=20260919a"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -715,6 +715,11 @@ function mergeRecords(base, extra){
 const LS_PENDING = "shipping_plans_pending_v1";   // 有改动还没推上云（本机私有标记，不参与同步/备份）
 function markPending(on){ try{ on ? localStorage.setItem(LS_PENDING,"1") : localStorage.removeItem(LS_PENDING); }catch(e){} }
 function isPending(){ try{ return localStorage.getItem(LS_PENDING)==="1"; }catch(e){ return false; } }
+// 进度（发货进度看板）也一样：网络抖一下没推上去，得记着下一轮补传，
+// 否则用户看到"已预约"，10 秒后又被云端旧数据盖回去，像是改动自己丢了。
+const LS_PENDP = "shipping_prog_pending_v1";
+function markPenP(on){ try{ on ? localStorage.setItem(LS_PENDP,"1") : localStorage.removeItem(LS_PENDP); }catch(e){} }
+function isPenP(){ try{ return localStorage.getItem(LS_PENDP)==="1"; }catch(e){ return false; } }
 async function flushRec(silent){
   const run = () => doFlushRec(silent);
   __flushChain = __flushChain.then(run, run);      // 串行化：连点两次发布也不会互相盖
@@ -3578,6 +3583,13 @@ function progStatsOf(rec){
 
 async function pullProg(){
   if(!SLB) return false;
+  /* 先把本机那份合并进来：上一次推送没成功（网络抖）时，改动只在本机 ——
+     直接拿云端覆盖会把它丢掉（表现：填完的预约刷新一下就没了）。
+     mergeProg 是「rv 大者优先 + 只增不减」，本机的陈旧数据不会赢过云端的新数据。 */
+  try{
+    const local = JSON.parse(localStorage.getItem(SLB.KEY_PROG) || "null");
+    if(local && typeof local === "object") PROG = SLB.mergeProg(PROG, local);
+  }catch(e){}
   let ok = true;
   if(window.CloudSync && CloudSync.ready()){
     try{
@@ -3591,24 +3603,26 @@ async function pullProg(){
   try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
   /* 预约货好到点 → 落成真实数据（rv+1、留痕「预约货好」）。
      放在合并之后跑：本地刚拉回来的也行、别处推上来的也行，反正到点就变货好。
-     改了才推云端（n>0），否则每 10 秒空推一次。 */
+     顺带把「上次没推上去的改动」补传一次。两者都没有就别推，否则每 10 秒空推一趟。 */
   let autoN = 0;
   try{ autoN = SLB.applyReadyAuto(PROG, "") || 0; }catch(e){ autoN = 0; }
-  if(autoN){
-    try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
-    if (window.CloudSync && CloudSync.ready()) CloudSync.push(SLB.KEY_PROG, PROG).catch(function(){});
+  if(autoN){ try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){} }
+  if((autoN > 0 || isPenP()) && window.CloudSync && CloudSync.ready()){
+    try{ markPenP(!(await CloudSync.push(SLB.KEY_PROG, PROG))); }catch(e){}
   }
   updateRecProg();
   if(progOpen) renderBoard();
   return ok;
 }
 
-// 改完进度（车辆取消 / 撤销）后：先落本机，再合并推上云端（走 guardFn 只增不减）。
-// 推上去后，内部大屏 / 司机页的下一轮拉取就会带上「取消 / 已到」的最新状态。
+// 改完进度（车辆取消 / 撤销 / 标记货好 / 预约时间）后：先落本机，再合并推上云端（走 guardFn）。
+// 推上去后，内部大屏 / 司机页的下一轮拉取就会带上最新状态。
 function pushProg(){
   try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
   if (window.CloudSync && CloudSync.ready()){
-    CloudSync.push(SLB.KEY_PROG, PROG).catch(function(){});
+    markPenP(true);                       // 万一这次没推上去，下一轮拉取时自动补传
+    Promise.resolve(CloudSync.push(SLB.KEY_PROG, PROG))
+      .then(function(ok){ markPenP(!ok); }).catch(function(){});
   }
   updateRecProg();
   if (progOpen) renderBoard();
