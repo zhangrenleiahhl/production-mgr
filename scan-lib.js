@@ -62,18 +62,43 @@ window.ScanLib = (function () {
         rv 是本地自增的整数（每次动作 +1），**不看手机时钟**，所以个别手机时间不准也不影响。
      ② 版本号相同（或双方都是没有 rv 的旧数据）：退回老的「只增不减」规则，
         任何情况下都不会因为一次陈旧的整体覆盖而丢进度。 */
+  /* ---- 「能设能撤」的状态：预约货好时间 rt、车辆取消 cx -----------------------
+     这两个不是"进度"，不能用"整格以 rv 大的为准"去合并 ——
+     计划员填预约 / 点取消的那一刻，本机常常还没拉到云端最新（页面刚打开、标签在
+     后台、现场刚扫过一道工序），本机那份的 rv 比云端小，整格替换就会把刚填的预约
+     抹成 0；而 push 的合并结果又不会回写本机，界面上还显示着，等下一轮拉取（10 秒）
+     才"自己消失"（2026-09-19 用户报的就是这个）。
+     所以给它俩各配一个独立版本号：谁动过谁 +1（rtv / cxv），合并时版本号大的说了算，
+     与 rv 解耦。版本号相同（含两端都是没有版本号的老数据）才退回"有值优先"，
+     保证老数据里的预约/取消不会因为这次改动被弄丢。 */
+  function mergeRt(x, y){
+    var xv = x.rtv || 0, yv = y.rtv || 0;
+    if (xv > yv) return { rt: x.rt || 0, rtv: xv };
+    if (yv > xv) return { rt: y.rt || 0, rtv: yv };
+    return { rt: Math.max(x.rt || 0, y.rt || 0), rtv: xv };
+  }
+  function mergeCx(x, y){
+    var xv = x.cxv || 0, yv = y.cxv || 0;
+    if (xv > yv) return { cx: (x.cx || 0) ? 1 : 0, cxv: xv };
+    if (yv > xv) return { cx: (y.cx || 0) ? 1 : 0, cxv: yv };
+    return { cx: Math.max(x.cx || 0, y.cx || 0) ? 1 : 0, cxv: xv };
+  }
   function mergeCell(x, y){
     x = x || {}; y = y || {};
+    var R = mergeRt(x, y), X = mergeCx(x, y);
     var xr = x.rv || 0, yr = y.rv || 0;
     if (xr !== yr){
       var w = xr > yr ? x : y;
       return {
         s: Math.min(3, w.s || 0),
         t: w.t || 0,
-        car: w.car || 0,
-        ct: w.ct || 0,
-        cx: w.cx || 0,
-        rt: w.rt || 0,
+        // 取消着的车不能同时又"已到"（isDoneCell 要求 car>=1，两边打架会误判已完成）
+        car: X.cx ? 0 : (w.car || 0),
+        ct: X.cx ? 0 : (w.ct || 0),
+        cx: X.cx,
+        cxv: X.cxv,
+        rt: R.rt,
+        rtv: R.rtv,
         u: w.u || 0,
         by: raw(w.by),
         rv: Math.max(xr, yr)
@@ -86,8 +111,7 @@ window.ScanLib = (function () {
       var a = [bx, by].filter(function (v) { return v > 0; });
       return a.length ? Math.min.apply(null, a) : 0;
     }
-    var car = Math.max(x.car || 0, y.car || 0);
-    var cx  = Math.max(x.cx || 0, y.cx || 0);
+    var car = X.cx ? 0 : Math.max(x.car || 0, y.car || 0);
     var us = [x.u, y.u].filter(function (v) { return v > 0; });
     // 操作人：谁最后更新的算谁的（用来在页面上显示"谁点的这一步"）
     var by = "";
@@ -100,9 +124,10 @@ window.ScanLib = (function () {
       t: s > 0 ? pick(xs, ys, x.t, y.t) : 0,
       car: car,
       ct: car > 0 ? pick(x.car || 0, y.car || 0, x.ct, y.ct) : 0,
-      cx: cx,
-      // 预约货好时间不是"进度"，两边版本号又相同时取有预约的那个（别把预约弄丢）
-      rt: Math.max(x.rt || 0, y.rt || 0),
+      cx: X.cx,
+      cxv: X.cxv,
+      rt: R.rt,
+      rtv: R.rtv,
       u: us.length ? Math.max.apply(null, us) : 0,
       by: by,
       rv: xr
@@ -121,7 +146,7 @@ window.ScanLib = (function () {
         var m = mergeCell(A[ck], B[ck]);
         // rv>0 的"空格子"也要留着：那是「撤回」留下的墓碑。
         // 丢掉它的话，某台离线手机拿着旧版本一推，被撤掉的进度就会自己长回来。
-        if (m.s > 0 || m.car > 0 || (m.rv || 0) > 0) o[ck] = m;
+        if (m.s > 0 || m.car > 0 || (m.rv || 0) > 0 || (m.rt || 0) > 0 || (m.cx || 0) > 0) o[ck] = m;
       });
       if (Object.keys(o).length) out[rk] = o;
     });
@@ -140,10 +165,12 @@ window.ScanLib = (function () {
      ========================================================================== */
   function cellAt(prog, rk, ck){
     if (!prog[rk]) prog[rk] = {};
-    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0, cx: 0, rt: 0 };
+    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0, cx: 0, rt: 0, rtv: 0, cxv: 0 };
     if (prog[rk][ck].rv == null) prog[rk][ck].rv = 0;
     if (prog[rk][ck].cx == null) prog[rk][ck].cx = 0;
     if (prog[rk][ck].rt == null) prog[rk][ck].rt = 0;
+    if (prog[rk][ck].rtv == null) prog[rk][ck].rtv = 0;
+    if (prog[rk][ck].cxv == null) prog[rk][ck].cxv = 0;
     return prog[rk][ck];
   }
   /* ---- 预约货好（2026-09-18 用户要求）----------------------------------------
@@ -224,6 +251,7 @@ window.ScanLib = (function () {
     var c = cellAt(prog, rk, ck), now = Date.now();
     if ((c.cx || 0) === 1 && (c.car || 0) === 0) return { changed: false, cell: c, cx: 1 };
     c.car = 0; c.ct = 0; c.cx = 1;
+    c.cxv = (c.cxv || 0) + 1;      // 取消这个开关有自己的版本号（见 mergeCx）
     c.u = now;
     c.rv = (c.rv || 0) + 1;
     return { changed: true, cell: c, cx: 1 };
@@ -232,6 +260,7 @@ window.ScanLib = (function () {
     var c = cellAt(prog, rk, ck), now = Date.now();
     if ((c.cx || 0) === 0) return { changed: false, cell: c, cx: 0 };
     c.cx = 0; c.car = 0; c.ct = 0;
+    c.cxv = (c.cxv || 0) + 1;
     c.u = now;
     c.rv = (c.rv || 0) + 1;
     return { changed: true, cell: c, cx: 0 };
@@ -251,7 +280,8 @@ window.ScanLib = (function () {
       return { changed: true, cell: c, s: 1 };
     }
     if (s !== 1) return { changed: false, cell: c, s: s, why: s < 1 ? "还没货好" : "已经装货了，不能退回货待确认" };
-    c.s = 0; c.t = 0; c.rt = 0;
+    c.s = 0; c.t = 0;
+    if ((c.rt || 0) > 0){ c.rt = 0; c.rtv = (c.rtv || 0) + 1; }   // 清预约要带自己的版本号，否则会被别人的旧预约盖回来
     if (raw(who)) c.by = raw(who);
     c.u = now; c.rv = (c.rv || 0) + 1;
     return { changed: true, cell: c, s: 0 };
@@ -263,6 +293,7 @@ window.ScanLib = (function () {
     var v = Number(at) > 0 ? Number(at) : 0;
     if ((c.rt || 0) === v) return { changed: false, cell: c, rt: v };
     c.rt = v;
+    c.rtv = (c.rtv || 0) + 1;      // 预约有自己的版本号：本机 rv 落后时也不会被云端高 rv 抹掉
     if (v && v <= now && rawS(c) < 1){
       c.s = 1; c.t = v;
       if (raw(who)) c.by = raw(who);
