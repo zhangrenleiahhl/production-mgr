@@ -140,7 +140,11 @@
   tr.done td:first-child{box-shadow:inset 4px 0 0 var(--green);}
   tr.done .cust{color:#c9d6e8;}
 
-  .cust{font-weight:800;letter-spacing:.3px;color:var(--txt);}
+  /* 客户名可能很长（老客户名本来就带括号，现在还多了「（第二车）」后缀），
+     而这一列只占 17% 宽 —— 超了会被 td 的 overflow:hidden 直接切掉。
+     inline-block + max-width 让「缩到下限仍放不下」时退化成「…」，至少看得出被截断。 */
+  .cust{font-weight:800;letter-spacing:.3px;color:var(--txt);
+    display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:baseline;}
   /* 单号独占一列：整格 nowrap + 省略号，窄的时候宁可切单号尾巴、也绝不动客户名那一列 */
   .no{display:block;font-size:.95em;font-weight:600;color:var(--muted);letter-spacing:.2px;min-width:0;
     line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -461,6 +465,27 @@ function fitRows(n){
   document.documentElement.style.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.42)) + "px");
 }
 
+// 客户名按内容逐档缩字号，保证在客户列里看得全：
+//   · 名字长（老客户名带括号 / 「（第二车）」后缀）在 17% 宽的列里会被 overflow:hidden 切掉；
+//   · 这里先复位到基准字号量一次，放不下才逐档降（最低 48% —— 够 12 字长名挤进窄列）；
+//   · 缩到下限仍放不下，就交给 .cust 的省略号收尾（看得出被截断，不会莫名少字）。
+function fitCustNames(){
+  const tb = $("tbody"); if (!tb) return;
+  const list = tb.querySelectorAll("td:nth-child(2) .cust");
+  for (let i = 0; i < list.length; i++){
+    const el = list[i];
+    if (el.style.fontSize) el.style.fontSize = "";              // 复位到基准字号再量
+    // ★ 必须拿 .cust 自己的 scrollWidth 比：它带 max-width:100% + overflow:hidden，
+    //   客户格（td）因此永远是「不溢出」的 —— 用 td.scrollWidth 判会得出「放得下」而漏缩
+    //   （第一版就栽在这：明明名字被切成「太仓舍弗…」，判定却说没问题）。
+    if (el.scrollWidth <= el.clientWidth + 1) continue;         // 本来就放得下
+    for (let k = 94; k >= 48; k -= 6){                          // 下限 48%（12 字的长名在窄屏也放得下）
+      el.style.fontSize = k + "%";
+      if (el.scrollWidth <= el.clientWidth + 1) break;
+    }
+  }
+}
+
 function kpiHtml(s){
   return [
     { cls: "",      v: s.total, l: "在屏计划（趟）" },
@@ -534,6 +559,7 @@ function render(){
   rendered = true;
   fitRows(rows.length);
   $("tbody").innerHTML = rows.map(rowHtml).join("");
+  fitCustNames();                             // 行出来了才知道客户名列多宽，再定名字字号
   setupScroll();
 }
 
@@ -616,7 +642,7 @@ function onFsChange(){
   const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
   document.body.classList.toggle("fs", on);
   $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
-  stopScroll(); fitRows(rows.length); setupScroll();   // 全屏切换字号变了，滚动要重新量
+  stopScroll(); fitRows(rows.length); fitCustNames(); setupScroll();   // 全屏切换字号变了，名字字号和滚动都要重新量
   pokeCursor();
 }
 
@@ -677,7 +703,7 @@ function boot(){
   document.addEventListener("mousemove", pokeCursor);
   document.addEventListener("touchstart", pokeCursor);
   window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
-  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); setupScroll(); });
+  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCustNames(); setupScroll(); });
   // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
   boxEl.addEventListener("wheel", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
   boxEl.addEventListener("touchstart", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
