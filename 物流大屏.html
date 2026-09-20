@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>物流进度大屏（内部看板）</title>
-<script src="supabase.min.js"></script>
-<script src="cloud-config.js"></script>
-<script src="cloud-sync.js"></script>
+<script src="supabase.min.js?v=lib"></script>
+<script src="cloud-config.js?v=20260920a"></script>
+<script src="cloud-sync.js?v=20260910b"></script>
 <script src="scan-lib.js?v=20260920a"></script>
-<script src="html2canvas.min.js"></script>
+<script src="html2canvas.min.js?v=lib"></script>
 <style>
   /* ==========================================================================
      物流进度大屏 · 内部看板（只读，给内部/办公室看）
@@ -472,9 +472,11 @@ function fitRows(n){
 function fitCustNames(){
   const tb = $("tbody"); if (!tb) return;
   const list = tb.querySelectorAll("td:nth-child(2) .cust");
+  // ★ 性能（2026-09-20）：原来每行「复位字号 → 量宽度」交错做，每行都强制一次同步重排
+  //   （N 行 = N 次布局）。改成读写分离：先整批复位（只触发一次布局），再整批测量。
+  for (let i = 0; i < list.length; i++){ if (list[i].style.fontSize) list[i].style.fontSize = ""; }
   for (let i = 0; i < list.length; i++){
     const el = list[i];
-    if (el.style.fontSize) el.style.fontSize = "";              // 复位到基准字号再量
     // ★ 必须拿 .cust 自己的 scrollWidth 比：它带 max-width:100% + overflow:hidden，
     //   客户格（td）因此永远是「不溢出」的 —— 用 td.scrollWidth 判会得出「放得下」而漏缩
     //   （第一版就栽在这：明明名字被切成「太仓舍弗…」，判定却说没问题）。
