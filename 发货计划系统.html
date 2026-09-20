@@ -3,15 +3,12 @@
 <head data-page-node-id="d7JP8DO3NXQ8eoOfL73lO4">
 <meta charset="UTF-8" data-page-node-id="7wbyOSER2C51d8XTbnssqA">
 <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="HKoTCyrOsDYJJS5jftuh1D">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="V48wFwOpnS0yYK2Q22tJur">
-<meta http-equiv="Pragma" content="no-cache" data-page-node-id="0nVfUstoix6vi1vUP1knvo">
-<meta http-equiv="Expires" content="0" data-page-node-id="wk2xJSIUIDB4SDNKMNlfLj">
 <title>发货计划系统</title>
-<script src="supabase.min.js"></script>
-<script src="cloud-config.js"></script>
+<script src="supabase.min.js?v=lib"></script>
+<script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
 <script src="scan-lib.js?v=20260920a"></script>
-<script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
+<script>var APP_VER="20260920b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -3652,8 +3649,12 @@ if(_draft && ((_draft.rows||[]).length || _draft.date)){
 //   又按发货点拆块，挂错过一批「（第二车）/（第三车）」。页面打开时按现在的
 //   「连在一起=同一车」口径兜底清一遍，错的后缀自动摘掉、并回写草稿，
 //   之后任何一端刷新都会各自修好自己的表。
-if(typeof carFixAll==="function" && carFixAll()>0){ recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow(); }
-reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
+if(typeof carFixAll==="function" && carFixAll()>0){ recalc(); mergeCustomerCells(); saveDraftNow(); }
+reindex(); recalc(); updateCheckAll(); styleShipdate(); markRowStates();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
+// ★ 性能（2026-09-20）：fitTextareas 要逐格量 scrollHeight（强制同步重排），是启动里最重的一步。
+//   延到首帧之后再跑：表格先用默认高度立刻显示出来（打开更快），下一帧再把文本框高度调整到位。
+//   用「有 rAF 就 rAF、没有就 setTimeout」的兜底写法（jsdom 里没有 rAF，不能直接调）。
+(window.requestAnimationFrame||function(fn){return setTimeout(fn,16);})(function(){ try{ fitTextareas(); }catch(e){} });
 // 计划员：首次设置无需密码，设置后自动锁定；再次修改需输入密码 123456
 const PLANNER_KEY="shipping_planner_v1";
 const PLANNER_PWD="123456";
