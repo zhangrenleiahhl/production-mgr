@@ -8,6 +8,8 @@
    2. 二维码里放什么地址，也必须三端一致，否则会出现"有的码扫得开、有的扫不开"。
 
    数据形状：{ "<记录键>": { "客户|发货日期": { s, t, car, ct, u } } }
+     ★ 客户名可带「（第二车）」后缀（一天一家公司发多车，见 custBase / carNoOf）：
+       带后缀的客户是**独立一格**（各自进度、各自吨位），但查代码 / 查物流一律回基名。
      s   = 工序 0 货待确认（默认） / 1 货好 / 2 装货中 / 3 已完成
      car = 车辆 0 未到 / 1 已到
      t / ct = 达到该工序 / 车辆到达 的时间戳(ms)；u = 最后更新时间
@@ -45,6 +47,58 @@ window.ScanLib = (function () {
   /* ---- 键：记录用 id（稳定），进度的行用「客户|发货日期」（换型号/改数量都不影响） ---- */
   function recKeyOf(r){ return (r && r.id != null) ? ("i" + r.id) : (r && r.no ? ("n" + r.no) : null); }
   function custKeyOf(r){ return pad(r.customer) + "|" + pad(r.shipdate); }
+  /* --------------------------------------------------------------------------
+     一天一家公司发 2 车（2026-09-20）：客户名末尾的「（第二车）」后缀
+     ---- 为什么要有后缀 ----
+     同一家公司同一天发第二车时，光看名字分不出是哪一车（现场对单、大屏跟踪都会混）。
+     所以在客户名末尾挂「（第二车）」/「（第三车）」…，第二车在表格 / 大屏 / 司机页
+     里就是**独立的一条**，能分别盯各自的进度、各自的吨位。
+     ---- 关键：后缀只改"名字"，不改"认人" ----
+     · 分组（custKeyOf）用**全名** → 两车天然分开；
+     · 认物料库（送达方代码 / 物流 / 客户名写法变体）一律回**基名** custBase()
+       → 第二车和第一车拿到的代码、物流完全一样，不会因为多个后缀就查不到代码。
+     ---- 后缀长什么样 ----
+     只认**末尾**的「第X车／X车」括号后缀（全角/半角括号都行、中文/阿拉伯数字都行）：
+       宁波泰友（第二车） ／ 宁波泰友(第2车) ／ 宁波泰友（二车）
+     ★ 客户名本来就带括号的不受影响：「宁波泰友（宁波甬微进仓）」不是车号
+       —— carNoOf 返回 1、custBase 原样返回。
+     -------------------------------------------------------------------------- */
+  var CAR_CN = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+  var CAR_WORD = { "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10 };
+  var CAR_SUFFIX_RE = /[（(]\s*第?\s*([一二三四五六七八九十]+|\d{1,2})\s*车\s*[)）]\s*$/;
+  function carLabel(n){                       // 2 → 二；10 → 十；11 → 十一；20 → 二十
+    n = parseInt(n, 10) || 1;
+    if (n < 1) return CAR_CN[0];
+    if (n < 10) return CAR_CN[n];
+    if (n === 10) return "十";
+    var t = Math.floor(n / 10), o = n % 10;
+    return (t > 1 ? CAR_CN[t] : "") + "十" + (o ? CAR_CN[o] : "");
+  }
+  function cnNum(t){                          // 中文数字 → 数字：「十一」11 /「二十」20 /「三」3
+    t = String(t == null ? "" : t).trim();
+    if (/^\d+$/.test(t)) return parseInt(t, 10);
+    if (!/^[一二三四五六七八九十]+$/.test(t)) return 0;
+    var i = t.indexOf("十");
+    if (i < 0) return t.length === 1 ? (CAR_WORD[t] || 0) : 0;
+    var h = i > 0 ? (CAR_WORD[t.charAt(i - 1)] || 1) : 1;
+    var o = i < t.length - 1 ? (CAR_WORD[t.charAt(i + 1)] || 0) : 0;
+    return h * 10 + o;
+  }
+  function carNoOf(name){                     // 「宁波泰友（第二车）」→ 2；没有后缀 → 1
+    var m = CAR_SUFFIX_RE.exec(String(name == null ? "" : name).trim());
+    if (!m) return 1;
+    var n = cnNum(m[1]);
+    return (n >= 2 && n <= 99) ? n : 1;
+  }
+  function custBase(name){                    // 剥掉车号后缀 → 查代码 / 查物流 / 认写法变体都用它
+    return String(name == null ? "" : name).trim().replace(CAR_SUFFIX_RE, "").trim();
+  }
+  function custWithCar(name, n){              // ("宁波泰友", 2) → "宁波泰友（第二车）"；n<=1 → 原样
+    var b = custBase(name);
+    if (!b) return b;
+    n = parseInt(n, 10) || 1;
+    return n > 1 ? (b + "（第" + carLabel(n) + "车）") : b;
+  }
   function recShipDate(rec){
     var rows = (rec && rec.rows) || [];
     for (var i = 0; i < rows.length; i++){ if (rows[i] && raw(rows[i].shipdate)) return raw(rows[i].shipdate); }
@@ -673,7 +727,7 @@ window.ScanLib = (function () {
     idx = idx || {};
     var byPair = idx.byPair || {}, byCust = idx.byCust || {}, byModelCust = idx.byModelCust || {};
     var ms = row.models || [];
-    var cu = String(row.customer || "").trim();
+    var cu = custBase(row.customer);              // 第二车也按原客户名认（后缀在这里剥掉）
     var key = cu.toLowerCase();
     var i, m, cc;
 
@@ -693,7 +747,7 @@ window.ScanLib = (function () {
     for (i = 0; i < src.length; i++){
       var x = src[i];
       if (!x) continue;
-      if ((String(x.customer || "").trim() || "/") !== (cu || "/")) continue;
+      if (custBase(x.customer) !== cu) continue;    // 记录自带那份按基名比 → 第二车也能取到代码
       cc = String(x.custcode || "").trim();
       if (cc) return cc;
     }
@@ -767,16 +821,17 @@ window.ScanLib = (function () {
   }
   function logisticsOf(cust, idx){
     if (!idx) return "";
-    var c = String(cust || "").trim().toLowerCase();
+    var base = custBase(cust);                                       // 「（第二车）」先剥掉再查
+    var c = base.toLowerCase();
     if (idx[c]) return idx[c];
-    var alias = aliasName(String(cust || "").trim(), idx.__names);   // 写法变体 → 认同一个客户
+    var alias = aliasName(base, idx.__names);                        // 写法变体 → 认同一个客户
     return alias ? (idx[alias.toLowerCase()] || "") : "";
   }
   /* 整行版：和 codeOf 用同一个「认人」结果 —— 客户名直接对上 → 写法变体 →
      该行型号在库里只指向一个客户（代码就是靠这条认出来的）。认不出 → "" */
   function logisticsOfRow(row, idx){
     if (!row || !idx) return "";
-    var cu = String(row.customer || "").trim();
+    var cu = custBase(row.customer);                                 // 同上：第二车按原客户名认物流
     if (idx[cu.toLowerCase()]) return idx[cu.toLowerCase()];
     var alias = aliasName(cu, idx.__names);
     if (alias && idx[alias.toLowerCase()]) return idx[alias.toLowerCase()];
@@ -1261,6 +1316,7 @@ window.ScanLib = (function () {
     KEY_DB: KEY_DB, NO_CODE: NO_CODE, codeIndex: codeIndex, codeOf: codeOf, codeText: codeText,
     logisticsIndex: logisticsIndex, logisticsOf: logisticsOf, logisticsOfRow: logisticsOfRow,
     aliasName: aliasName, nameSegs: nameSegs,
+    carNoOf: carNoOf, custBase: custBase, custWithCar: custWithCar, carLabel: carLabel,
     SCAN_PAGE: SCAN_PAGE, DRIVER_PAGE: DRIVER_PAGE, DASH_PAGE: DASH_PAGE,
     PUB_BASE: PUB_BASE, STEP_NAME: STEP_NAME, CAR_NAME: CAR_NAME,
     pad: pad, raw: raw, esc: esc, escAttr: escAttr, fmtHM: fmtHM,
