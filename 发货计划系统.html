@@ -10,7 +10,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
-<script src="scan-lib.js?v=20260919a"></script>
+<script src="scan-lib.js?v=20260920a"></script>
 <script>if(!location.search.includes('_t=')&&!location.hash.includes('no_reload')){location.replace(location.href+(location.href.includes('?')?'&':'?')+'_t='+Date.now());}</script>
 <style>
   :root{
@@ -1323,6 +1323,115 @@ function logisticsForRow(customer, model){
 }
 // 客户列变更时自动带出物流（手填过则不覆盖）
 function autoFillLogistics(tr){ ensureLogistics(tr); }
+/* ==========================================================================
+   一天一家公司发 2 车（2026-09-20）
+   --------------------------------------------------------------------------
+   现场场景：这家公司今天发一车，明天还要再发一车。计划员在表格里跨行加一行、
+   把发货日期改成明天 —— 明天已经有这家了，光看名字分不出是哪一车。
+   所以：同一「客户 + 发货日期 + 发货点」出现第 2 车起，客户名末尾自动挂
+   「（第二车）」/「（第三车）」…；那一组只剩一车时，后缀自动摘掉。
+
+   ★ 后缀只加在**名字**上，认人一律回基名（scan-lib.custBase）：
+     查物料编码 / 物流 / 送达方代码，第二车跟第一车完全一样；
+     而分组（合并单元格、客户吨位、大屏一行）用全名 → 两车各自独立、各自算吨位。
+   ★ 只认末尾的「第X车／X车」括号后缀，客户名本来就带括号的不受影响
+     （例：宁波泰友（宁波甬微进仓）不是车号）。
+   ★ 加错了随时删：把后缀删掉，这一行会被记住（存进草稿、跨刷新保留），
+     系统不再给它自动挂 —— 同一车装多个型号的常规用法就靠这个。
+   ========================================================================== */
+let __carBusy=false;
+function carBase(n){ const L=window.ScanLib; return (L&&L.custBase)?L.custBase(n):String(n==null?"":n).trim(); }
+function carNo(n){ const L=window.ScanLib; return (L&&L.carNoOf)?L.carNoOf(n):1; }
+function custName(base,n){ const L=window.ScanLib; return (L&&L.custWithCar)?L.custWithCar(base,n):String(base==null?"":base).trim(); }
+function carField(tr,f){ const el=tr.querySelector('[data-f="'+f+'"]'); return el?String(el.value||"").trim():""; }
+// 同一「基名 + 发货日期 + 发货点」的全部数据行（跨单块、不受折叠/筛选影响 —— 这是业务事实）
+function carGroupOf(tr){
+  const base=carBase(carField(tr,"customer")), date=carField(tr,"shipdate"), pt=carField(tr,"shippt");
+  if(!base||!date) return null;
+  const rows=[...$("tbody").children].filter(r=>isDataRow(r) &&
+    carBase(carField(r,"customer"))===base && carField(r,"shipdate")===date && carField(r,"shippt")===pt);
+  return { base:base, date:date, pt:pt, rows:rows };
+}
+// 重新判定某一行是这一天的第几车（只在真的变了才动 DOM）
+function syncCarSuffix(tr){
+  if(__carBusy) return false;
+  const inp=(tr&&tr.querySelector)?tr.querySelector('[data-f="customer"]'):null;
+  if(!inp) return false;
+  const g=carGroupOf(tr); if(!g) return false;
+  const cur=String(inp.value||"").trim();
+  const mine=carNo(cur);
+  const others=g.rows.filter(r=>r!==tr);
+  const used=new Set();
+  others.forEach(r=>used.add(carNo(carField(r,"customer"))));
+  let n;
+  if(!others.length) n=1;                          // 这一组只剩它一车 → 后缀摘掉
+  else if(mine>1 && !used.has(mine)) n=mine;       // 已经编好号且不撞车 → 保持原号
+  else if(tr.dataset.carPin==="1") n=1;            // 手动删过后缀的行 → 不再自动挂
+  else { let mx=1; used.forEach(v=>{ if(v>mx) mx=v; }); n=mx+1; }   // 新来的排到「最大号 + 1」
+  const want=custName(g.base,n);
+  if(cur===want) return false;
+  __carBusy=true;
+  try{ inp.value=want; inp.dataset.autoCar=(n>1?"1":"0"); } finally { __carBusy=false; }
+  return true;
+}
+// 兜底修正（粘贴 / 删除 / 撤回之后）：① 那一组只剩一车 → 摘掉孤儿后缀
+//                                    ② 组里出现两个一样的车号（复制整行粘过来）→ 后面的顺延
+function carFixAll(){
+  const L=window.ScanLib; if(!L||!L.custBase) return 0;
+  const groups={}, order=[];
+  [...$("tbody").children].filter(isDataRow).forEach(tr=>{
+    const v=carField(tr,"customer"); if(!v) return;
+    const k=carBase(v)+"|"+carField(tr,"shipdate")+"|"+carField(tr,"shippt");
+    if(!groups[k]){ groups[k]=[]; order.push(k); }
+    groups[k].push(tr);
+  });
+  let n=0;
+  order.forEach(k=>{
+    const arr=groups[k];
+    if(arr.length===1){
+      const inp=arr[0].querySelector('[data-f="customer"]');
+      if(carNo(inp.value)>1){ inp.value=custName(inp.value,1); n++; }
+      return;
+    }
+    const base=carBase(carField(arr[0],"customer"));
+    const used=new Set(), dup=[];
+    arr.forEach(tr=>{
+      const c=carNo(carField(tr,"customer"));
+      if(c<=1) return;
+      if(used.has(c)) dup.push(tr); else used.add(c);
+    });
+    let next=2;
+    dup.forEach(tr=>{
+      while(used.has(next)) next++;
+      used.add(next);
+      tr.querySelector('[data-f="customer"]').value=custName(base,next);
+      n++; next++;
+    });
+  });
+  return n;
+}
+// 用户手动改了客户名：把自动挂上的后缀删掉 = 「这行不要后缀」→ 永久记住（跟草稿一起存）
+function carManualEdit(tr){
+  const inp=tr.querySelector('[data-f="customer"]');
+  if(!inp) return;
+  if(inp.dataset.autoCar==="1" && carNo(inp.value)===1) tr.dataset.carPin="1";
+  delete inp.dataset.autoCar;
+}
+// 送达方定下来 → 判定车号 + 兜底修正；有变化就重建合并格、存草稿（并提示一次）
+function carTick(tr){
+  let hit=false;
+  if(tr && syncCarSuffix(tr)){
+    hit=true;
+    const now=String(tr.querySelector('[data-f="customer"]').value||"").trim();
+    if(carNo(now)>1 && tr.dataset.carPin!=="1"){
+      const tail=now.slice(carBase(now).length);
+      toast("同一天已有这家客户 → 已标为 "+tail+"；若这只是同一车的另一个型号，把后缀删掉即可（删掉后不再自动加）");
+    }
+  }
+  if(carFixAll()>0) hit=true;
+  if(hit){ mergeCustomerCells(); saveDraft(); }
+  return hit;
+}
 function autoResizeTa(ta){ fitTextarea(ta); }
 // 统一匹配物料库：型号 / 物料编码
 // ★ 型号和编码都有时，必须「两者都一致」；都对不上（常见于改过型号、编码还是旧物料的）
@@ -1398,7 +1507,8 @@ let pendingModelRows={};
 function applyCustomerToRow(tr, cust, overwrite){
   const custInp=tr.querySelector('[data-f="customer"]');
   if(!custInp) return;
-  if(overwrite===true || !custInp.value.trim()) custInp.value=cust;   // 粘贴并确认选择时允许覆盖；其余情况保留已有手填值
+  // 换客户名时把这行的车号原样带回来（原本是第二车就别写成第一车），随后由 carTick 复核
+  if(overwrite===true || !custInp.value.trim()) custInp.value=custName(cust, carNo(custInp.value));   // 粘贴并确认选择时允许覆盖；其余情况保留已有手填值
   autoFillLogistics(tr);
   // 型号/物料已填时，自动带出客户后聚焦到发货数量列
   const modelInp=tr.querySelector('[data-f="model"]');
@@ -1406,6 +1516,7 @@ function applyCustomerToRow(tr, cust, overwrite){
   if((modelInp&&modelInp.value.trim()) || (codeInp&&codeInp.value.trim())){
     setTimeout(()=>{ const q=tr.querySelector('[data-f="qty"]'); if(q){ q.focus(); q.select(); } }, 10);
   }
+  carTick(tr);        // 送达方带出来了 → 判定这一天的第几车
 }
 // 根据当前行的型号自动带出送达方：唯一则直接填入；多个则弹窗选择
 // opts.force = true：粘贴批量数据时使用——只要该型号有 2 个以上送达方，就重新询问一次
@@ -1423,11 +1534,12 @@ function autoFillCustomerByModel(tr, opts){
   const custs=customersForModelExactly(model, code);
   if(!custs.length) return;
   const filled=(custInp.value||"").trim();
-  const filledIsCandidate=!!filled && custs.includes(filled);   // 行里已是一个有效候选 → 视为已确认
+  const filledBase=carBase(filled);
+  const filledIsCandidate=!!filled && custs.some(c=>carBase(c).toLowerCase()===filledBase.toLowerCase());   // 行里已是一个有效候选 → 视为已确认
   if(!force){
     // 手动逐格录入：行里已有送达方 → 不再打扰（重复询问的根源就在这里）
     if(filled){
-      if(filledIsCandidate && !modelCustChoice[model]) rememberModelCust(model, filled);
+      if(filledIsCandidate && !modelCustChoice[model]) rememberModelCust(model, filledBase);
       return;
     }
     if(custs.length===1){ applyCustomerToRow(tr, custs[0]); return; }
@@ -1466,7 +1578,7 @@ function fillDbFieldsForRow(tr){
   if(!recs.length) return;
   // 多条候选：优先与当前行送达方一致的，其次本型号已记住的选择，最后首条
   const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
-  let r=(cust && recs.find(x=>(x.customer||"").trim()===cust))||null;
+  let r=(cust && recs.find(x=>carBase(x.customer).toLowerCase()===carBase(cust).toLowerCase()))||null;   // 「（第二车）」也认原客户
   if(!r && model){ const rm=modelCustChoice[model]; if(rm) r=recs.find(x=>(x.customer||"").trim()===rm)||null; }
   if(!r) r=recs[0];
   if(codeInp){
@@ -1593,7 +1705,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   const rc=tr.querySelector(".row-check");
   if(rc) rc.addEventListener("change", updateCheckAll);
   const spSel=tr.querySelector('[data-f="shippt"]');
-  if(spSel){ spSel.addEventListener("change", ()=>{ spSel.dataset.pt=(spSel.value||"").trim(); saveDraft(); }); }
+  if(spSel){ spSel.addEventListener("change", ()=>{ spSel.dataset.pt=(spSel.value||"").trim(); carTick(tr); saveDraft(); }); }
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraftNow(); };
   tr.querySelectorAll("input").forEach(inp=>{
     inp.addEventListener("keydown", onCellKey);
@@ -1606,7 +1718,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
       });
     } else if(inp.dataset.f==="shipdate"){
       inp.addEventListener("input", ()=>scheduleRefresh(recalc, saveDraft, styleShipdate));
-      inp.addEventListener("change", ()=>{ sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
+      inp.addEventListener("change", ()=>{ carTick(tr); sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
     } else if(inp.dataset.f==="qty"){
       inp.addEventListener("input", ()=>scheduleRefresh(recalcLite, saveDraft));   // 打字时实时按算式更新吨位/箱数
       inp.addEventListener("change", ()=>{   // 失焦/回车时把算式换成结果：10*20 → 200
@@ -1662,13 +1774,19 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     trackOrig(ta);
     ta.addEventListener("input", ()=>{ fitTextarea(ta); scheduleRefresh(recalcLite, mergeCustomerCells, saveDraft); });
   });
-  tr.querySelector('[data-f="customer"]').addEventListener("input", ()=>{ autoFillLogistics(tr); scheduleRefresh(mergeCustomerCells, saveDraft); });
+  tr.querySelector('[data-f="customer"]').addEventListener("input", ()=>{   // 手动删掉「（第二车）」→ 这一行不再自动挂后缀
+    carManualEdit(tr);
+    autoFillLogistics(tr); scheduleRefresh(mergeCustomerCells, saveDraft);
+  });
   tr.querySelector('[data-f="customer"]').addEventListener("change", ()=>{   // 手动改送达方 → 记为该型号的选择，后续不再重复询问
     const m=(tr.querySelector('[data-f="model"]')?.value||"").trim();
     const cu=(tr.querySelector('[data-f="customer"]').value||"").trim();
-    if(!m||!cu) return;
-    const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
-    if(customersForModelExactly(m, code).includes(cu)) rememberModelCust(m, cu);
+    const base=carBase(cu);
+    if(m&&base){                                  // ★ 按基名比：「（第二车）」也算这个型号的老客户
+      const code=(tr.querySelector('[data-f="code"]')?.value||"").trim();
+      if(customersForModelExactly(m, code).some(c=>carBase(c).toLowerCase()===base.toLowerCase())) rememberModelCust(m, base);
+    }
+    carTick(tr);                                  // 送达方定下来了 → 判定这是这一天的第几车
   });
   tr.querySelector('[data-f="remark"]').addEventListener("input", ()=>scheduleRefresh(mergeCustomerCells, saveDraft));
   ["model"].forEach(k=>{
@@ -1700,6 +1818,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
   }
   // ★ 物流按客户自动带出：全表所有行都从这里诞生（手动加行 / 草稿恢复 / 撤回恢复 / 粘贴补行），
   //   挂在这一处就全覆盖。这一步必须在写草稿之前（下面 saveDraftNow 才存得到带出来的物流）。
+  if(data.noCar===true||data.noCar==="1") tr.dataset.carPin="1";   // 用户明确不要「第N车」后缀（跟草稿一起存）
   ensureLogistics(tr);
   if(!skipRefresh){ reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates(); }
   return tr;   // 返回新建的行（粘贴/批量添加时需要拿到它）
@@ -1924,8 +2043,9 @@ function collectRowData(tr){
     qty:g("qty"), shippt:g("shippt"), unit:g("unit"), perbox:g("perbox"),
     ton:tonI?tonI.value:"", tonManual:(tonI&&tonI.dataset.manual==="1"),
     delivery:g("delivery"), box:boxI?boxI.value:"", boxManual:(boxI&&boxI.dataset.manual==="1"),
-    cwt:cwtI?cwtI.value:"", cwtDeleted:(cwtI&&cwtI.dataset.deleted==="1"),
-    remark:g("remark")
+    cwt:cwtI.value, cwtDeleted:(cwtI.dataset.deleted==="1"),
+    remark:g("remark"),
+    noCar:tr.dataset.carPin==="1"      // 撤回恢复时别把「不要后缀」弄丢
   };
 }
 function visibleRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("isolation-band")&&!r.classList.contains("date-fold-hidden")&&!r.classList.contains("filter-hidden")&&!r.classList.contains("date-fold-placeholder")); }
@@ -1942,7 +2062,9 @@ function delRow(tr){
   tr.remove();
   undoStack.push({rows:[data], atIndex:idx});
   if(undoStack.length>50) undoStack.shift();
-  reindex(); recalc(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
+  reindex(); recalc();
+  if(carFixAll()) mergeCustomerCells();    // 删掉的若是第二车 → 剩下的"孤儿后缀"自动摘掉
+  saveDraftNow(); updateCheckAll(); updateUndoBtn();
   toast("已删除 1 行，可点「撤回」恢复");
 }
 function undo(){
@@ -2646,7 +2768,9 @@ function writeDraftNow(){
         remark:R.remark?R.remark.value:"",
         logistics:R.logistics?R.logistics.value:"",
         // ★ 手填标记必须一起存：重开页面后标记若丢了，自动带出会把人工填的物流冲掉
-        logisticsManual:!!(R.logistics&&R.logistics.dataset.manual==="1")
+        logisticsManual:!!(R.logistics&&R.logistics.dataset.manual==="1"),
+        // ★ 「这行不要第N车后缀」也要存：否则刷新后系统又把「（第二车）」挂回来
+        noCar:tr.dataset.carPin==="1"
       });
     }
     if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
@@ -3326,6 +3450,7 @@ function pasteFinish(rows, custPasted){
   // 粘贴进来的数据：型号有 2 个以上送达方 → 重新询问选择（不再被旧记忆/残留值静默跳过）
   rows.forEach(tr=>autoFillCustomerByModel(tr, {force:true, respectFilled:!!custPasted}));
   rows.forEach(tr=>ensureLogistics(tr));   // ★ 送达方是这之后才定下来的 → 物流必须在客户定完后再带一次
+  carFixAll();                             // 粘贴可能带来重复车号 / 孤儿后缀 → 兜底修一次（不会主动编号）
   recalc(); mergeCustomerCells(); saveDraftNow();
 }
 function onTablePaste(e){
