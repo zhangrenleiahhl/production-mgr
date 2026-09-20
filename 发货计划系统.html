@@ -1344,69 +1344,67 @@ function carBase(n){ const L=window.ScanLib; return (L&&L.custBase)?L.custBase(n
 function carNo(n){ const L=window.ScanLib; return (L&&L.carNoOf)?L.carNoOf(n):1; }
 function custName(base,n){ const L=window.ScanLib; return (L&&L.custWithCar)?L.custWithCar(base,n):String(base==null?"":base).trim(); }
 function carField(tr,f){ const el=tr.querySelector('[data-f="'+f+'"]'); return el?String(el.value||"").trim():""; }
-// 同一「基名 + 发货日期 + 发货点」的全部数据行（跨单块、不受折叠/筛选影响 —— 这是业务事实）
-function carGroupOf(tr){
-  const base=carBase(carField(tr,"customer")), date=carField(tr,"shipdate"), pt=carField(tr,"shippt");
-  if(!base||!date) return null;
-  const rows=[...$("tbody").children].filter(r=>isDataRow(r) &&
-    carBase(carField(r,"customer"))===base && carField(r,"shipdate")===date && carField(r,"shippt")===pt);
-  return { base:base, date:date, pt:pt, rows:rows };
-}
 // 重新判定某一行是这一天的第几车（只在真的变了才动 DOM）
+// ★ 车号口径（2026-09-20 修正）：按「发货日期」排，不是按行数排。
+//   · 同一客户在**不同日期**发货 = 不同的车（跨行）→ 第 2 个日期起自动挂「（第二车）」；
+//   · 同一客户在**同一天**的多行 = 同一车（不跨行，通常是同一车的不同型号）→ 一律不加后缀。
+//   这样「同一天加两行」不会再被无脑编号，而「改个日期变成另一天」立刻变第二车。
+// 某基名客户的全部「去重发货日期」（yyyy-mm-dd 字符串字典序 = 时间序）
+function carDatesOf(base){
+  const set=new Set();
+  [...$("tbody").children].filter(isDataRow).forEach(tr=>{
+    const v=carField(tr,"customer"); if(!v) return;
+    if(carBase(v)!==base) return;
+    const d=carField(tr,"shipdate"); if(d) set.add(d);
+  });
+  return [...set].sort();
+}
+// 这一行是第几车：它自己的发货日期，在「该客户所有发货日期」里排第几
+function carNumOf(tr){
+  const base=carBase(carField(tr,"customer")), date=carField(tr,"shipdate");
+  if(!base||!date) return 1;                       // 没填日期 → 当成第一车（没法判断跨天）
+  const dates=carDatesOf(base), i=dates.indexOf(date);
+  return i<0 ? 1 : i+1;
+}
 function syncCarSuffix(tr){
   if(__carBusy) return false;
   const inp=(tr&&tr.querySelector)?tr.querySelector('[data-f="customer"]'):null;
   if(!inp) return false;
-  const g=carGroupOf(tr); if(!g) return false;
   const cur=String(inp.value||"").trim();
-  const mine=carNo(cur);
-  const others=g.rows.filter(r=>r!==tr);
-  const used=new Set();
-  others.forEach(r=>used.add(carNo(carField(r,"customer"))));
-  let n;
-  if(!others.length) n=1;                          // 这一组只剩它一车 → 后缀摘掉
-  else if(mine>1 && !used.has(mine)) n=mine;       // 已经编好号且不撞车 → 保持原号
-  else if(tr.dataset.carPin==="1") n=1;            // 手动删过后缀的行 → 不再自动挂
-  else { let mx=1; used.forEach(v=>{ if(v>mx) mx=v; }); n=mx+1; }   // 新来的排到「最大号 + 1」
-  const want=custName(g.base,n);
+  const base=carBase(cur); if(!base) return false;  // 空名字不处理
+  let want;
+  if(tr.dataset.carPin==="1") want=base;           // 用户明确不要后缀
+  else { const n=carNumOf(tr); want=(n>1)?custName(base,n):base; }
   if(cur===want) return false;
   __carBusy=true;
-  try{ inp.value=want; inp.dataset.carPrev=want; inp.dataset.autoCar=(n>1?"1":"0"); } finally { __carBusy=false; }
+  try{ inp.value=want; inp.dataset.carPrev=want; inp.dataset.autoCar=(want!==base?"1":"0"); } finally { __carBusy=false; }
   return true;
 }
-// 兜底修正（粘贴 / 删除 / 撤回之后）：① 那一组只剩一车 → 摘掉孤儿后缀
-//                                    ② 组里出现两个一样的车号（复制整行粘过来）→ 后面的顺延
+// 兜底修正（粘贴 / 删除 / 撤回 / 改日期之后）：按日期重排车号，孤儿后缀自动摘掉
 function carFixAll(){
   const L=window.ScanLib; if(!L||!L.custBase) return 0;
   const groups={}, order=[];
   [...$("tbody").children].filter(isDataRow).forEach(tr=>{
     const v=carField(tr,"customer"); if(!v) return;
-    const k=carBase(v)+"|"+carField(tr,"shipdate")+"|"+carField(tr,"shippt");
-    if(!groups[k]){ groups[k]=[]; order.push(k); }
-    groups[k].push(tr);
+    const b=carBase(v); if(!groups[b]){ groups[b]=[]; order.push(b); } groups[b].push(tr);
   });
   let n=0;
-  order.forEach(k=>{
-    const arr=groups[k];
-    if(arr.length===1){
-      const inp=arr[0].querySelector('[data-f="customer"]');
-      if(carNo(inp.value)>1){ inp.value=custName(inp.value,1); inp.dataset.carPrev=inp.value; n++; }
-      return;
-    }
-    const base=carBase(carField(arr[0],"customer"));
-    const used=new Set(), dup=[];
+  order.forEach(base=>{
+    const arr=groups[base];
+    // 该客户所有去重日期 → 各自的第几车
+    const dates=[...new Set(arr.map(tr=>carField(tr,"shipdate")).filter(Boolean))].sort();
+    const numOf={}; dates.forEach((d,i)=>numOf[d]=i+1);
     arr.forEach(tr=>{
-      const c=carNo(carField(tr,"customer"));
-      if(c<=1) return;
-      if(used.has(c)) dup.push(tr); else used.add(c);
-    });
-    let next=2;
-    dup.forEach(tr=>{
-      while(used.has(next)) next++;
-      used.add(next);
-      const cinp=tr.querySelector('[data-f="customer"]');
-      cinp.value=custName(base,next); cinp.dataset.carPrev=cinp.value;
-      n++; next++;
+      const inp=tr.querySelector('[data-f="customer"]'); if(!inp) return;
+      const cur=String(inp.value||"").trim();
+      let want;
+      if(tr.dataset.carPin==="1") want=base;        // 豁免行 → 永远不挂
+      else {
+        const d=carField(tr,"shipdate");
+        const num = d ? (numOf[d]||1) : 1;
+        want = num>1 ? custName(base,num) : base;
+      }
+      if(cur!==want){ inp.value=want; inp.dataset.carPrev=want; inp.dataset.autoCar=(want!==base?"1":"0"); n++; }
     });
   });
   return n;
@@ -1435,7 +1433,7 @@ function carTick(tr){
     const now=String(tr.querySelector('[data-f="customer"]').value||"").trim();
     if(carNo(now)>1 && tr.dataset.carPin!=="1"){
       const tail=now.slice(carBase(now).length);
-      toast("同一天已有这家客户 → 已标为 "+tail+"；若这只是同一车的另一个型号，把后缀删掉即可（删掉后不再自动加）");
+      toast("已按发货日期自动排为 "+tail+"（不同日期=不同车）；若其实是同一车的不同型号，把后缀删掉即可（删掉后不再自动加）");
     }
   }
   if(carFixAll()>0) hit=true;
