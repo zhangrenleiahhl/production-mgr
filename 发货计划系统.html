@@ -1371,7 +1371,7 @@ function syncCarSuffix(tr){
   const want=custName(g.base,n);
   if(cur===want) return false;
   __carBusy=true;
-  try{ inp.value=want; inp.dataset.autoCar=(n>1?"1":"0"); } finally { __carBusy=false; }
+  try{ inp.value=want; inp.dataset.carPrev=want; inp.dataset.autoCar=(n>1?"1":"0"); } finally { __carBusy=false; }
   return true;
 }
 // 兜底修正（粘贴 / 删除 / 撤回之后）：① 那一组只剩一车 → 摘掉孤儿后缀
@@ -1390,7 +1390,7 @@ function carFixAll(){
     const arr=groups[k];
     if(arr.length===1){
       const inp=arr[0].querySelector('[data-f="customer"]');
-      if(carNo(inp.value)>1){ inp.value=custName(inp.value,1); n++; }
+      if(carNo(inp.value)>1){ inp.value=custName(inp.value,1); inp.dataset.carPrev=inp.value; n++; }
       return;
     }
     const base=carBase(carField(arr[0],"customer"));
@@ -1404,17 +1404,27 @@ function carFixAll(){
     dup.forEach(tr=>{
       while(used.has(next)) next++;
       used.add(next);
-      tr.querySelector('[data-f="customer"]').value=custName(base,next);
+      const cinp=tr.querySelector('[data-f="customer"]');
+      cinp.value=custName(base,next); cinp.dataset.carPrev=cinp.value;
       n++; next++;
     });
   });
   return n;
 }
-// 用户手动改了客户名：把自动挂上的后缀删掉 = 「这行不要后缀」→ 永久记住（跟草稿一起存）
+// 用户手动改了客户名。只有「把后缀那一截删掉」才算「这行不要后缀」（永久记住，跟草稿一起存）：
+//   ★ 判据是「新值 = 旧值的基名」——即被删掉的正好是「（第N车）」。
+//     不能只看「改完没后缀」：那样「全选删掉再手打原名」「先清空再输入」都会被误判成
+//     「用户主动放弃后缀」，于是这一行被钉上 carPin，以后改回这家也永远加不了后缀
+//     （现场反馈的「手写的客户不跳第二车」就是这条踩出来的）。
+//   ★ 反过来，用户把名字改成**另一家客户**了 → 旧的豁免作废，重新交给 carTick 判定。
 function carManualEdit(tr){
   const inp=tr.querySelector('[data-f="customer"]');
   if(!inp) return;
-  if(inp.dataset.autoCar==="1" && carNo(inp.value)===1) tr.dataset.carPin="1";
+  const prev=inp.dataset.carPrev||"";
+  const cur=String(inp.value||"").trim();
+  if(inp.dataset.autoCar==="1" && carNo(prev)>1 && cur===carBase(prev)) tr.dataset.carPin="1";   // 只是删了后缀
+  else if(tr.dataset.carPin==="1" && cur && carBase(cur)!==carBase(prev)) delete tr.dataset.carPin;  // 换成别家了
+  inp.dataset.carPrev=cur;
   delete inp.dataset.autoCar;
 }
 // 送达方定下来 → 判定车号 + 兜底修正；有变化就重建合并格、存草稿（并提示一次）
@@ -1953,8 +1963,50 @@ function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客
 // 不这么做的话，窄窗口下量出的「一行高度」会被缓存住，窗口拉宽/拉窄后长文本就一直被截断。
 let __fitEpoch=1, __fitSeen=0;
 function invalidateFitCache(){ __fitEpoch++; }
+// 「（第二车）」后缀会让客户名一下子长一截：固定宽的格子里放不下就折行，
+// 行高从 31px 顶到 43px，整张表的节奏就乱了。这里按内容把字号缩一档（最低 12px），
+// 只要缩完能放回一行就缩；缩到 12px 还放不下（超长公司名 / 窄屏）就不缩，
+// 照旧交给 fitTextarea 折行 —— 宁可折行，绝不裁字。
+let __custFsCache=new WeakMap();
+const CUST_FS_BASE=14;          // ★ 跟 .tbl td textarea 的 font-size 保持一致
+const CUST_FS_MIN=11.5;         // 缩到这个字号仍放不下 → 回原字号折行（绝不裁字）
+const CUST_ONE_LINE=27;         // 单行的 scrollHeight 上限（min-height:26px + 1px 余量）
+// 「（第二车）」后缀会让客户名一下子长一截：固定宽的格子里放不下就折行，行高从 31px 顶到 43px，
+// 整张表的节奏就乱了。这里逐档试字号，能回到一行就缩一档；缩到下限还放不下就回原字号照旧折行。
+// ★ 用**真实排版反馈**（设字号 → 读 scrollHeight）而不是「先算文字宽度再决定」：
+//   预算宽度跟 textarea 实际排版差 1~2px（字距、字体回退、浏览器内部内边距），
+//   在「刚好卡边」的地方会算出「放得下」而实际折行 —— 这个坑实测踩过两次。
+function custFontFor(ta){
+  const val=(ta.value||"").trim();
+  const box=ta.clientWidth-8;                   // 没有布局盒（折叠 / 被合并隐藏）时 ≈ 0
+  if(!val || box<=10) return 0;
+  const hit=__custFsCache.get(ta);
+  if(hit && hit.val===val && hit.box===box) return hit.fs;
+  // ★ 先关掉过渡再量：`.tbl td textarea` 上有 `transition:.15s`（focus 边框渐变用的），
+  //   它连 font-size 一起做成了 150ms 动画 —— 设完字号立刻读 scrollHeight，
+  //   读到的是**过渡中间态**（字号几乎还停在旧值），表现为「怎么降都还是两行」。
+  ta.style.transition="none";
+  ta.style.fontSize="";
+  ta.style.height="auto";
+  let out=0;
+  if(ta.scrollHeight>CUST_ONE_LINE){            // 折行了 → 逐档降字号，直到回到一行
+    for(let fs=CUST_FS_BASE-0.5; fs>=CUST_FS_MIN-0.01; fs-=0.5){
+      ta.style.fontSize=fs+"px";
+      ta.style.height="auto";
+      if(ta.scrollHeight<=CUST_ONE_LINE){ out=Math.round(fs*10)/10; break; }
+    }
+    if(!out) ta.style.fontSize="";              // 缩到底仍折行 → 回原字号
+  }
+  ta.style.transition="";
+  __custFsCache.set(ta, { val:val, box:box, fs:out });
+  return out;
+}
 function fitTextarea(ta){
   if(!ta) return;
+  if(ta.dataset.f==="customer"){               // 客户名：先定字号，再量高度（字号会影响换行）
+    const fs3=custFontFor(ta), v3=fs3?fs3+"px":"";
+    if(ta.style.fontSize!==v3) ta.style.fontSize=v3;
+  }
   ta.style.height="auto";
   const raw=ta.scrollHeight;
   // ★ 元素此刻没有布局盒（被折叠、被合并隐藏、所在列被隐藏）→ scrollHeight 恒为 0，
@@ -1993,6 +2045,14 @@ function fitTextareas(force){
     if(force || ta._fitVal!==ta.value || !ta.style.height){ ta._fitVal=ta.value; dirty.push(ta); }
   }
   if(!dirty.length) return;
+  // 客户名：先按内容定字号（能缩回一行就缩），再统一量高度 —— 顺序不能反，
+  // 否则量到的高度是「还没缩字号」那份，缩完又要重排一次。
+  for(let i=0;i<dirty.length;i++){
+    const ta0=dirty[i];
+    if(ta0.dataset.f!=="customer") continue;
+    const fs0=custFontFor(ta0), v0=fs0?fs0+"px":"";
+    if(ta0.style.fontSize!==v0) ta0.style.fontSize=v0;
+  }
   // 读写分离：先批量写 auto，再批量读高度（这样浏览器只会做一次布局）
   for(let i=0;i<dirty.length;i++) dirty[i].style.height="auto";
   const raw=[];
