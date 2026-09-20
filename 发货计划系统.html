@@ -1324,15 +1324,18 @@ function logisticsForRow(customer, model){
 // 客户列变更时自动带出物流（手填过则不覆盖）
 function autoFillLogistics(tr){ ensureLogistics(tr); }
 /* ==========================================================================
-   一天一家公司发 2 车（2026-09-20 定稿口径）
+   一天一家公司发 2 车（2026-09-20 定稿口径 v3：连在一起=同一车）
    --------------------------------------------------------------------------
-   现场场景：这家公司今天发一车，明天还要再发一车；或同一天分两个发货点各发一车。
-   光看客户名分不出是哪一车 → 客户名末尾自动挂「（第二车）」/「（第三车）」…。
+   现场场景：同一天同一家发好几车（中间隔着别家 / 分开放），光看客户名分不出
+   是哪一车 → 客户名末尾自动挂「（第二车）」/「（第三车）」…。
 
-   ★ 车号**只看同一天**，绝不跨日期累计：
-     同一客户某天只有一个发货块（同发货点多行=同一车装多型号）→ 不挂后缀；
-     同一天拆成多个块（不同发货点 / 中间隔着别家）→ 第 2 块起挂后缀；
-     不同日期各自从第一车算起（按日期全局累计会闹出「当天就一车却挂第五车」）。
+   ★ 车号**只看同一天**，绝不跨日期累计（按日期全局累计会闹出「当天就一车
+     却挂第五车」的笑话，2026-09-20 现场反馈）：
+     · **连在一起的行 = 同一车**：表格里相邻的同「客户+发货日期」行，哪怕
+       发货点不同、装的是不同型号，都算同一车 → 一律不挂后缀；
+     · **跨行了才编下一车**：同客户同日期的另一块，中间隔着别家客户（或空行/
+       没填日期的行）→ 按当天块数挂「（第二车）」「（第三车）」…；
+     · 不同日期各自从第一车算起，互不相干。
 
    ★ 后缀只加在**名字**上，认人一律回基名（scan-lib.custBase）：
      查物料编码 / 物流 / 送达方代码，第二车跟第一车完全一样；
@@ -1348,32 +1351,29 @@ function carNo(n){ const L=window.ScanLib; return (L&&L.carNoOf)?L.carNoOf(n):1;
 function custName(base,n){ const L=window.ScanLib; return (L&&L.custWithCar)?L.custWithCar(base,n):String(base==null?"":base).trim(); }
 function carField(tr,f){ const el=tr.querySelector('[data-f="'+f+'"]'); return el?String(el.value||"").trim():""; }
 // 重新判定某一行是这一天的第几车（只在真的变了才动 DOM）
-// ★ 车号口径（2026-09-20 定稿）：车号**只看同一天**，绝不跨日期累计。
-//   · 同一客户同一天只有一个发货块（同发货点的多行=同一车装多个型号）→ 不挂后缀；
-//   · 同一天被拆成多个块（不同发货点 / 中间隔着别家）→ 第 2 块起自动挂「（第二车）」「（第三车）」…；
-//   · **不同日期各自从第一车算起** —— 客户在这个月已经发过几次货，跟今天这车没关系
-//     （按日期全局累计会闹出「同一天就一车却挂第五车」的笑话，2026-09-20 现场反馈）。
-//   块的划分与合并格一致：按表格行序，**连续**的同「基名+发货日期+发货点」行为一块。
+// ★ 车号口径（2026-09-20 定稿 v3）：车号**只看同一天**，绝不跨日期累计。
+//   · **连在一起（表格里相邻）的同「基名+发货日期」行 = 同一车**——发货点不同、
+//     型号不同都不拆，一律不挂后缀；
+//   · 中间隔着别家客户（或空行/没填日期的行）才拆成新块 → 按当天块数挂后缀；
+//   · **不同日期各自从第一车算起** —— 客户在这个月已经发过几次货，跟今天这车没关系。
 // 全表算一遍「每一行是第几车」，返回 Map(tr → 车号)。syncCarSuffix / carFixAll 共用，口径唯一。
 function carNumsAll(){
   const L=window.ScanLib; const map=new Map();
   if(!L||!L.custBase) return map;
   const cnt={};                        // base|date → 该客户当天已见到的块数
-  let runKey=null;                     // 当前连续块键（换行/空行/缺日期都会打断）
+  let runKey=null;                     // 当前连续块键（中间隔别家/空行/缺日期都会打断）
   [...$("tbody").children].filter(isDataRow).forEach(tr=>{
     const v=carField(tr,"customer");
     const b=v?carBase(v):"";
     const d=b?carField(tr,"shipdate"):"";
-    const pt=(b&&d)?carField(tr,"shippt"):"";
     let num=1;
     if(b&&d){
-      const k=b+"|"+d+"|"+pt;
+      const k=b+"|"+d;
       if(k!==runKey){                  // 新的一块 → 该客户当天块数 +1
         runKey=k;
-        const ck=b+"|"+d;
-        cnt[ck]=(cnt[ck]||0)+1;
+        cnt[k]=(cnt[k]||0)+1;
       }
-      num=cnt[b+"|"+d];
+      num=cnt[k];
     } else runKey=null;
     map.set(tr,num);
   });
@@ -1440,7 +1440,7 @@ function carTick(tr){
     const now=String(tr.querySelector('[data-f="customer"]').value||"").trim();
     if(carNo(now)>1 && tr.dataset.carPin!=="1"){
       const tail=now.slice(carBase(now).length);
-      toast("同一天分开发货，已自动排为 "+tail+"；若其实是同一车的不同型号，把后缀删掉即可（删掉后不再自动加）");
+      toast("同一天分开发货（中间隔着别家），已自动排为 "+tail+"；若其实是同一车的不同型号，把后缀删掉即可（删掉后不再自动加）");
     }
   }
   if(carFixAll()>0) hit=true;
@@ -3648,6 +3648,11 @@ if(_draft && ((_draft.rows||[]).length || _draft.date)){
 }else{
   addRow(); addRow();
 }
+// ★ 旧数据一次性修复（2026-09-20）：更早的版本把「第几车」按发货日期全局累计、
+//   又按发货点拆块，挂错过一批「（第二车）/（第三车）」。页面打开时按现在的
+//   「连在一起=同一车」口径兜底清一遍，错的后缀自动摘掉、并回写草稿，
+//   之后任何一端刷新都会各自修好自己的表。
+if(typeof carFixAll==="function" && carFixAll()>0){ recalc(); fitTextareas(); mergeCustomerCells(); saveDraftNow(); }
 reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();   // 数据全部加载后再统一折叠/合并一次，确保最终状态正确
 // 计划员：首次设置无需密码，设置后自动锁定；再次修改需输入密码 123456
 const PLANNER_KEY="shipping_planner_v1";
