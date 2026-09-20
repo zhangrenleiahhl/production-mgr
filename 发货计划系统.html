@@ -1324,12 +1324,15 @@ function logisticsForRow(customer, model){
 // 客户列变更时自动带出物流（手填过则不覆盖）
 function autoFillLogistics(tr){ ensureLogistics(tr); }
 /* ==========================================================================
-   一天一家公司发 2 车（2026-09-20）
+   一天一家公司发 2 车（2026-09-20 定稿口径）
    --------------------------------------------------------------------------
-   现场场景：这家公司今天发一车，明天还要再发一车。计划员在表格里跨行加一行、
-   把发货日期改成明天 —— 明天已经有这家了，光看名字分不出是哪一车。
-   所以：同一「客户 + 发货日期 + 发货点」出现第 2 车起，客户名末尾自动挂
-   「（第二车）」/「（第三车）」…；那一组只剩一车时，后缀自动摘掉。
+   现场场景：这家公司今天发一车，明天还要再发一车；或同一天分两个发货点各发一车。
+   光看客户名分不出是哪一车 → 客户名末尾自动挂「（第二车）」/「（第三车）」…。
+
+   ★ 车号**只看同一天**，绝不跨日期累计：
+     同一客户某天只有一个发货块（同发货点多行=同一车装多型号）→ 不挂后缀；
+     同一天拆成多个块（不同发货点 / 中间隔着别家）→ 第 2 块起挂后缀；
+     不同日期各自从第一车算起（按日期全局累计会闹出「当天就一车却挂第五车」）。
 
    ★ 后缀只加在**名字**上，认人一律回基名（scan-lib.custBase）：
      查物料编码 / 物流 / 送达方代码，第二车跟第一车完全一样；
@@ -1345,26 +1348,40 @@ function carNo(n){ const L=window.ScanLib; return (L&&L.carNoOf)?L.carNoOf(n):1;
 function custName(base,n){ const L=window.ScanLib; return (L&&L.custWithCar)?L.custWithCar(base,n):String(base==null?"":base).trim(); }
 function carField(tr,f){ const el=tr.querySelector('[data-f="'+f+'"]'); return el?String(el.value||"").trim():""; }
 // 重新判定某一行是这一天的第几车（只在真的变了才动 DOM）
-// ★ 车号口径（2026-09-20 修正）：按「发货日期」排，不是按行数排。
-//   · 同一客户在**不同日期**发货 = 不同的车（跨行）→ 第 2 个日期起自动挂「（第二车）」；
-//   · 同一客户在**同一天**的多行 = 同一车（不跨行，通常是同一车的不同型号）→ 一律不加后缀。
-//   这样「同一天加两行」不会再被无脑编号，而「改个日期变成另一天」立刻变第二车。
-// 某基名客户的全部「去重发货日期」（yyyy-mm-dd 字符串字典序 = 时间序）
-function carDatesOf(base){
-  const set=new Set();
+// ★ 车号口径（2026-09-20 定稿）：车号**只看同一天**，绝不跨日期累计。
+//   · 同一客户同一天只有一个发货块（同发货点的多行=同一车装多个型号）→ 不挂后缀；
+//   · 同一天被拆成多个块（不同发货点 / 中间隔着别家）→ 第 2 块起自动挂「（第二车）」「（第三车）」…；
+//   · **不同日期各自从第一车算起** —— 客户在这个月已经发过几次货，跟今天这车没关系
+//     （按日期全局累计会闹出「同一天就一车却挂第五车」的笑话，2026-09-20 现场反馈）。
+//   块的划分与合并格一致：按表格行序，**连续**的同「基名+发货日期+发货点」行为一块。
+// 全表算一遍「每一行是第几车」，返回 Map(tr → 车号)。syncCarSuffix / carFixAll 共用，口径唯一。
+function carNumsAll(){
+  const L=window.ScanLib; const map=new Map();
+  if(!L||!L.custBase) return map;
+  const cnt={};                        // base|date → 该客户当天已见到的块数
+  let runKey=null;                     // 当前连续块键（换行/空行/缺日期都会打断）
   [...$("tbody").children].filter(isDataRow).forEach(tr=>{
-    const v=carField(tr,"customer"); if(!v) return;
-    if(carBase(v)!==base) return;
-    const d=carField(tr,"shipdate"); if(d) set.add(d);
+    const v=carField(tr,"customer");
+    const b=v?carBase(v):"";
+    const d=b?carField(tr,"shipdate"):"";
+    const pt=(b&&d)?carField(tr,"shippt"):"";
+    let num=1;
+    if(b&&d){
+      const k=b+"|"+d+"|"+pt;
+      if(k!==runKey){                  // 新的一块 → 该客户当天块数 +1
+        runKey=k;
+        const ck=b+"|"+d;
+        cnt[ck]=(cnt[ck]||0)+1;
+      }
+      num=cnt[b+"|"+d];
+    } else runKey=null;
+    map.set(tr,num);
   });
-  return [...set].sort();
+  return map;
 }
-// 这一行是第几车：它自己的发货日期，在「该客户所有发货日期」里排第几
+// 这一行是第几车（单行查询入口；批量修正请走 carNumsAll，避免每行重算全表）
 function carNumOf(tr){
-  const base=carBase(carField(tr,"customer")), date=carField(tr,"shipdate");
-  if(!base||!date) return 1;                       // 没填日期 → 当成第一车（没法判断跨天）
-  const dates=carDatesOf(base), i=dates.indexOf(date);
-  return i<0 ? 1 : i+1;
+  return carNumsAll().get(tr)||1;
 }
 function syncCarSuffix(tr){
   if(__carBusy) return false;
@@ -1380,32 +1397,22 @@ function syncCarSuffix(tr){
   try{ inp.value=want; inp.dataset.carPrev=want; inp.dataset.autoCar=(want!==base?"1":"0"); } finally { __carBusy=false; }
   return true;
 }
-// 兜底修正（粘贴 / 删除 / 撤回 / 改日期之后）：按日期重排车号，孤儿后缀自动摘掉
+// 兜底修正（粘贴 / 删除 / 撤回 / 改日期之后）：按当天分块重排车号，孤儿后缀自动摘掉
 function carFixAll(){
   const L=window.ScanLib; if(!L||!L.custBase) return 0;
-  const groups={}, order=[];
-  [...$("tbody").children].filter(isDataRow).forEach(tr=>{
-    const v=carField(tr,"customer"); if(!v) return;
-    const b=carBase(v); if(!groups[b]){ groups[b]=[]; order.push(b); } groups[b].push(tr);
-  });
+  const nums=carNumsAll();
   let n=0;
-  order.forEach(base=>{
-    const arr=groups[base];
-    // 该客户所有去重日期 → 各自的第几车
-    const dates=[...new Set(arr.map(tr=>carField(tr,"shipdate")).filter(Boolean))].sort();
-    const numOf={}; dates.forEach((d,i)=>numOf[d]=i+1);
-    arr.forEach(tr=>{
-      const inp=tr.querySelector('[data-f="customer"]'); if(!inp) return;
-      const cur=String(inp.value||"").trim();
-      let want;
-      if(tr.dataset.carPin==="1") want=base;        // 豁免行 → 永远不挂
-      else {
-        const d=carField(tr,"shipdate");
-        const num = d ? (numOf[d]||1) : 1;
-        want = num>1 ? custName(base,num) : base;
-      }
-      if(cur!==want){ inp.value=want; inp.dataset.carPrev=want; inp.dataset.autoCar=(want!==base?"1":"0"); n++; }
-    });
+  [...$("tbody").children].filter(isDataRow).forEach(tr=>{
+    const inp=tr.querySelector('[data-f="customer"]'); if(!inp) return;
+    const cur=String(inp.value||"").trim();
+    const base=carBase(cur); if(!base) return;      // 空名字不处理
+    let want;
+    if(tr.dataset.carPin==="1") want=base;          // 豁免行 → 永远不挂
+    else {
+      const num=nums.get(tr)||1;
+      want = num>1 ? custName(base,num) : base;
+    }
+    if(cur!==want){ inp.value=want; inp.dataset.carPrev=want; inp.dataset.autoCar=(want!==base?"1":"0"); n++; }
   });
   return n;
 }
@@ -1433,7 +1440,7 @@ function carTick(tr){
     const now=String(tr.querySelector('[data-f="customer"]').value||"").trim();
     if(carNo(now)>1 && tr.dataset.carPin!=="1"){
       const tail=now.slice(carBase(now).length);
-      toast("已按发货日期自动排为 "+tail+"（不同日期=不同车）；若其实是同一车的不同型号，把后缀删掉即可（删掉后不再自动加）");
+      toast("同一天分开发货，已自动排为 "+tail+"；若其实是同一车的不同型号，把后缀删掉即可（删掉后不再自动加）");
     }
   }
   if(carFixAll()>0) hit=true;
