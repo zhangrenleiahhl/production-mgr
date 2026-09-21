@@ -262,6 +262,8 @@
   tr.done .car.off{color:#94a3b8;font-weight:600;}
   .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
   .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
+  /* 工序更新列：允许折行，超长也显示全（绝不省略号截断）；nth-child(5) 是工序更新 */
+  tbody td:nth-child(5){white-space:normal;word-break:break-word;}
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
     background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
 
@@ -323,8 +325,8 @@
            「最后更新」拆成两列 —— 「工序更新」紧跟工序（只报四道工序的进度时间），
            「车辆更新」跟在车辆后面（只报司机签到/车已到的时间）。 -->
       <colgroup>
-        <col style="width:14%"><col style="width:9%"><col style="width:20%">
-        <col style="width:20%"><col style="width:10%"><col style="width:11%"><col style="width:16%">
+        <col style="width:12%"><col style="width:9%"><col style="width:14%">
+        <col style="width:20%"><col style="width:18%"><col style="width:11%"><col style="width:16%">
       </colgroup>
       <thead><tr>
         <th>送达方代码</th><th>吨位</th><th>单号</th>
@@ -364,7 +366,7 @@
 const SL = window.ScanLib;
 const $ = (id) => document.getElementById(id);
 const esc = SL.esc, raw = SL.raw;
-const POLL_MS = 10000;
+const POLL_MS = 60000;
 const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
 
 const KEY_DB = SL.KEY_DB;            // 物料库（含送达方代码）—— 用于把客户名换成代码
