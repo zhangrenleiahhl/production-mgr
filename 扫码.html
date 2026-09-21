@@ -220,6 +220,29 @@
 
 <div id="tip"></div>
 
+<script src="auth.js"></script>
+<script>
+  /* 铸运通账号 ↔ 内部人员码 合并（2026-09-21）：
+     已用 Supabase 账号登录，则自动补一张合法内部会话，四道工序门禁直接认领（免输姓名+口令）。
+     仅在「存在 Supabase 会话」且「账号姓名在内部名单」时触发；不影响原「姓名+口令」登录。 */
+  (function () {
+    try {
+      var SLb = window.ScanLib;
+      if (window.Auth && Auth.getSession && Auth.getSession() && SLb) {
+        var name = Auth.currentOp();
+        if (name && SLb.staffFind(name)) {
+          var exp = Date.now() + 30 * 86400000;
+          var ver = (window.STAFF && window.STAFF.ver) || "";
+          var salt = (window.STAFF && window.STAFF.salt) || "";
+          var tok = SLb.sha256Hex(salt + ":" + name + ":" + exp + ":" + ver + ":sess");
+          localStorage.setItem("staff_session_v1",
+            JSON.stringify({ id: name, name: name, exp: exp, v: ver, tok: tok }));
+        }
+      }
+    } catch (e) {}
+  })();
+</script>
+
 <script>
 /* ==========================================================================
    发货进度 · 内部工序操作页
