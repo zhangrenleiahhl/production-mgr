@@ -314,12 +314,12 @@
            「最后更新」拆成两列 —— 「工序更新」紧跟工序（只报四道工序的进度时间），
            「车辆更新」跟在车辆后面（只报司机签到/车已到的时间）。 -->
       <colgroup>
-        <col style="width:19%"><col style="width:8%"><col style="width:17%">
-        <col style="width:7%"><col style="width:6%"><col style="width:18%"><col style="width:9%"><col style="width:8%"><col style="width:8%">
+        <col style="width:19%"><col style="width:8%"><col style="width:7%">
+        <col style="width:17%"><col style="width:6%"><col style="width:18%"><col style="width:9%"><col style="width:8%"><col style="width:8%">
       </colgroup>
       <thead><tr>
-        <th>客户</th><th>送达方代码</th><th>单号</th>
-        <th style="text-align:right">吨位</th><th>物流</th><th>工序</th><th>工序更新</th><th>车辆</th><th>车辆更新</th>
+        <th>客户</th><th>送达方代码</th><th>吨位</th>
+        <th>单号</th><th>物流</th><th>工序</th><th>工序更新</th><th>车辆</th><th>车辆更新</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -527,8 +527,8 @@ function rowHtml(r){
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + stale + '<span class="cust">' + esc(r.customer) + '</span></td>' +
     '<td>' + codeCell + '</td>' +
+    '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td>' + noCell + '</td>' +
-    '<td style="text-align:right"><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td><span class="logi' + (self ? " self" : "") + '">' + esc(lg || "未填") + "</span></td>" +
     '<td>' + flw + "</td>" +
     '<td><span class="tm">' + (stepWhen ? "工序 " + esc(stepWhen) + byTxt : '<s>还没动</s>') + "</span></td>" +
