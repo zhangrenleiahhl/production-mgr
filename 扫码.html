@@ -7,7 +7,7 @@
 <title>发货进度 · 内部操作</title>
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
-<script src="cloud-sync.js?v=20260922c"></script>
+<script src="cloud-sync.js?v=20260922d"></script>
 <script src="scan-lib.js?v=20260920a"></script>
 <script src="staff-config.js?v=20260920a"></script>
 <style>
@@ -256,6 +256,7 @@
    ========================================================================== */
 const SL = window.ScanLib;
 const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
+const KEY_PLANS_STAMP = "shipping_plans_stamp_v1";  /* 云端计划数据的 updated_at 戳（弱网免拉全文） */
 const $ = (id) => document.getElementById(id);
 const esc = SL.esc;
 const POLL_MS = 60000;
@@ -330,17 +331,36 @@ async function saveProg(msg){
 function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
 async function pull(){
   const cs = !!(window.CloudSync && CloudSync.ready());
-  let okA = !cs, okP = !cs;
+  let okA = !cs, okP = !cs, whyA = "", whyP = "";
   if (cs){
-    /* 并行拉取：两个键同时请求，最坏等待从 30s 降到 15s */
+    /* 计划数据大(~268KB)：先查 updated_at 戳(几十字节)，没变就免下载直接用本机缓存 */
+    let skipA = false, newStamp = null;
+    if (CloudSync.pullStamp && RECORDS.length){
+      try {
+        const st = await withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000);
+        if (st && localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; }
+        else if (st) newStamp = st;
+      } catch(e){}
+    }
+    /* 并行拉取：两个键同时请求 */
     const rs = await Promise.allSettled([
-      withTimeout(CloudSync.pullResult(KEY_PLANS), 15000),
+      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_PLANS), 30000),
       withTimeout(CloudSync.pullResult(KEY_PROG), 15000)
     ]);
     const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
     const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
-    okA = !!(ra && ra.ok); if (okA && Array.isArray(ra.value)) RECORDS = ra.value;
+    if (!skipA){
+      okA = !!(ra && ra.ok);
+      if (okA && Array.isArray(ra.value)){
+        RECORDS = ra.value;
+        /* ★ 拉到就存手机：下次秒开，弱网/断网也有数据可显 */
+        try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
+              if (newStamp) localStorage.setItem(KEY_PLANS_STAMP, newStamp); } catch(e){}
+      }
+    }
     okP = !!(rp && rp.ok); if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
+    whyA = skipA ? "" : (ra ? (ra.ok ? "" : (ra.reason || "错误")) : "超时");
+    whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
   }
   if (!RECORDS.length) loadLocal();
   try {
@@ -361,7 +381,10 @@ async function pull(){
   const bad = !okA || !okP;
   const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
-  else if (bad) setSync("网络有波动 · 显示上一次数据 · " + t, "warn");
+  else if (bad){
+    const why = [whyA ? "计划:" + whyA : "", whyP ? "进度:" + whyP : ""].filter(Boolean).join("；");
+    setSync("云端没拉到(" + why + ") · 显示已有数据 · " + t, "warn");
+  }
   else setSync("已同步 ✓ " + t, "ok");
   render();
   const needPush = (cs && !bad && ((isPending()) || autoN)) && !pushing;
