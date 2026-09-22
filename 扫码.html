@@ -258,7 +258,7 @@ const SL = window.ScanLib;
 const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
 const $ = (id) => document.getElementById(id);
 const esc = SL.esc;
-const POLL_MS = 10000;
+const POLL_MS = 60000;
 const LITTLE = ["待确认", "货好", "装货中", "已完成"];
 
 let RECORDS = [], PROG = {}, ROWS = [], TAB = "left", ONLY = "", rendered = false, lastFp = "";
@@ -332,8 +332,15 @@ async function pull(){
   const cs = !!(window.CloudSync && CloudSync.ready());
   let okA = !cs, okP = !cs;
   if (cs){
-    try { const r = await withTimeout(CloudSync.pullResult(KEY_PLANS), 15000); okA = !!(r && r.ok); if (r && r.ok && Array.isArray(r.value)) RECORDS = r.value; } catch(e){ okA = false; }
-    try { const r = await withTimeout(CloudSync.pullResult(KEY_PROG), 15000); okP = !!(r && r.ok); if (r && r.ok && r.value && typeof r.value === "object") PROG = SL.mergeProg(PROG, r.value); } catch(e){ okP = false; }
+    /* 并行拉取：两个键同时请求，最坏等待从 30s 降到 15s */
+    const rs = await Promise.allSettled([
+      withTimeout(CloudSync.pullResult(KEY_PLANS), 15000),
+      withTimeout(CloudSync.pullResult(KEY_PROG), 15000)
+    ]);
+    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
+    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
+    okA = !!(ra && ra.ok); if (okA && Array.isArray(ra.value)) RECORDS = ra.value;
+    okP = !!(rp && rp.ok); if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
   }
   if (!RECORDS.length) loadLocal();
   try {
@@ -561,6 +568,10 @@ function boot(){
   loadLocal();
   applyLoginState();
   $("pwd").value = "";
+  if (session() && RECORDS.length){
+    render();  /* 先画本机缓存，秒开不白屏；云端拉到后 pull() 内部会再 render 覆盖 */
+    if (window.CloudSync && CloudSync.ready()) setSync("正在刷新云端…", "warn");
+  }
   pull();
   setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
