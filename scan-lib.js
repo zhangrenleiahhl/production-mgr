@@ -1151,7 +1151,10 @@ window.ScanLib = (function () {
     '.smk2-act button{flex:1;padding:9px 14px;border-radius:5px;border:1px solid #d0d7de;background:#fff;' +
     'font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;}' +
     '.smk2-act button.pri{background:#2563eb;border-color:#2563eb;color:#fff;}' +
-    '@media(max-width:560px){.smk2-cards{flex-direction:column;}.smk2-card canvas{width:170px;height:170px;}}';
+    '.smk2-lay{display:flex;align-items:center;gap:4px;font-size:13px;color:#374151;white-space:nowrap;}' +
+    '.smk2-lay select{font-size:13px;padding:6px 6px;border:1px solid #d0d7de;border-radius:5px;font-family:inherit;background:#fff;}' +
+    '@media(max-width:560px){.smk2-cards{flex-direction:column;}.smk2-card canvas{width:170px;height:170px;}' +
+    '.smk2-act{flex-wrap:wrap;}.smk2-lay{order:3;flex-basis:100%;justify-content:center;}}';
 
   function codesCss(){
     if (document.getElementById("smk2Css")) return;
@@ -1178,12 +1181,21 @@ window.ScanLib = (function () {
       m.innerHTML = '<div class="smk2-box"><div class="smk2-h">发货进度 · 两个码</div>' +
         '<div class="smk2-p">贴在物流门口 / 工作群里发这两张就够，不用每张单单独出码</div>' +
         '<div class="smk2-cards" id="smk2Cards"></div>' +
-        '<div class="smk2-act"><button type="button" class="pri" id="smk2Print">🖨 打印张贴</button>' +
+        '<div class="smk2-act">' +
+        '<label class="smk2-lay">版式 <select id="smk2Lay">' +
+        '<option value="big">海报纸·1张/页</option>' +
+        '<option value="small8">小码·8张/A4</option></select></label>' +
+        '<button type="button" class="pri" id="smk2Print0">🖨 打印内部码</button>' +
+        '<button type="button" class="pri" id="smk2Print1">🖨 打印司机码</button>' +
         '<button type="button" id="smk2Close">关闭</button></div></div>';
       document.body.appendChild(m);
       m.addEventListener("click", function (e) { if (e.target === m) m.style.display = "none"; });
       document.getElementById("smk2Close").onclick = function () { m.style.display = "none"; };
-      document.getElementById("smk2Print").onclick = printCodes;
+      var laySel = document.getElementById("smk2Lay");
+      function curLay(){ return laySel ? laySel.value : "big"; }
+      /* 两张码「分别打印」：点哪个按钮只印那一张；版式下拉决定印大码海报纸还是一页八张小码 */
+      document.getElementById("smk2Print0").onclick = function () { printCodes(defs[0], curLay()); };
+      document.getElementById("smk2Print1").onclick = function () { printCodes(defs[1], curLay()); };
     }
     var box = document.getElementById("smk2Cards");
     var defs = codeDefs();
@@ -1223,36 +1235,68 @@ window.ScanLib = (function () {
     try { return decodeURIComponent(String(u)); } catch (e){ return String(u); }
   }
 
-  function printCodes(){
-    var defs = codeDefs();
+  function printCodes(def, layout){
+    if (!def) return;
     var w = window.open("", "_blank");
     if (!w){ alert("打印窗口被浏览器拦住了，请允许本站弹出窗口后重试。"); return; }
     ensureQRCode().then(function (okLib) {
-      var imgs = defs.map(function (d) { return okLib ? qrDataUrl(d.url, PRINT_QR_PX) : Promise.resolve(null); });
-      Promise.all(imgs).then(function (urls) {
-        var html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">' +
-          '<title>发货进度 · 两张码（A4 一页一张）</title>' +
-          '<style>@page{size:A4;margin:6mm;}' +
-          'html,body{margin:0;padding:0;background:#fff;}' +
-          'body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#111;}' +
-          /* 每张占满整页（A4 去掉 6mm 页边 = 198×285mm，留 3mm 余量防止溢出到下一页）、内容整页居中 */
-          '.pg{height:282mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}' +
-          '.pg+.pg{page-break-before:always;break-before:page;}' +
-          '.pg h2{font-size:34px;font-weight:800;margin:0 0 7mm;letter-spacing:3px;}' +
-          '.pg .d{font-size:17px;color:#333;margin:0 0 6mm;line-height:1.55;max-width:172mm;}' +
-          '.pg img{width:192mm;height:192mm;display:block;image-rendering:pixelated;}' +
-          '.pg .bad{width:192mm;height:192mm;line-height:192mm;color:#c00;font-size:18px;}' +
-          '.pg .u{font-size:12px;color:#666;margin-top:6mm;word-break:break-all;line-height:1.5;}' +
-          '@media print{.pg{page-break-inside:avoid;}}</style></head><body>' +
-          defs.map(function (d, i) {
-            return '<div class="pg"><h2>' + esc(d.title) + '</h2><p class="d">' + esc(d.desc) + '</p>' +
-              (urls[i] ? '<img src="' + urls[i] + '">' : '<div class="bad">二维码没生成出来</div>') +
-              '<div class="u">' + esc(prettyUrl(d.url)) + '</div></div>';
-          }).join("") +
-          '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr' + 'ipt></body></html>';
-        w.document.write(html); w.document.close(); w.focus();
-      });
+      var px = (layout === "small8") ? 800 : PRINT_QR_PX;
+      var img = okLib ? qrDataUrl(def.url, px) : null;
+      var html = (layout === "small8")
+        ? codesSheetHtml(def, img, 8, "小码·8张/A4")
+        : codesPageHtml(def, img);
+      w.document.write(html); w.document.close(); w.focus();
     });
+  }
+
+  /* 大海报版式：一张 A4 只放一个码，放大到 192mm，门口隔远也能扫。
+     分页用「.pg+.pg{page-break-before}」而不是给每张加 page-break-after ——
+     后者会在最后多印一张空白页。 */
+  function codesPageHtml(def, img){
+    return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">' +
+      '<title>' + esc(def.title) + '（A4 一页一张）</title>' +
+      '<style>@page{size:A4;margin:6mm;}' +
+      'html,body{margin:0;padding:0;background:#fff;}' +
+      'body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#111;}' +
+      '.pg{height:282mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}' +
+      '.pg h2{font-size:34px;font-weight:800;margin:0 0 7mm;letter-spacing:3px;}' +
+      '.pg .d{font-size:17px;color:#333;margin:0 0 6mm;line-height:1.55;max-width:172mm;}' +
+      '.pg img{width:192mm;height:192mm;display:block;image-rendering:pixelated;}' +
+      '.pg .bad{width:192mm;height:192mm;line-height:192mm;color:#c00;font-size:18px;}' +
+      '.pg .u{font-size:12px;color:#666;margin-top:6mm;word-break:break-all;line-height:1.5;}' +
+      '@media print{.pg{page-break-inside:avoid;}}</style></head><body>' +
+      '<div class="pg"><h2>' + esc(def.title) + '</h2><p class="d">' + esc(def.desc) + '</p>' +
+      (img ? '<img src="' + img + '">' : '<div class="bad">二维码没生成出来</div>') +
+      '<div class="u">' + esc(prettyUrl(def.url)) + '</div></div>' +
+      '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr' + 'ipt></body></html>';
+  }
+
+  /* 小码版式：一张 A4 切成 N 张小标签（默认 8 张，2 列 × 4 行），每张都印同一个码，
+     印出来裁开就能一张张贴。二维码用 800px 源图，缩到 62mm 仍清晰好扫。 */
+  function codesSheetHtml(def, img, n, label){
+    var cell = '<div class="cell">' +
+      (img ? '<img src="' + img + '">' : '<div class="noqr">二维码未生成</div>') +
+      '<div class="t">' + esc(def.title) + '</div>' +
+      '<div class="u">' + esc(prettyUrl(def.url)) + '</div></div>';
+    var cells = "", i;
+    for (i = 0; i < n; i++) cells += cell;
+    var cols = 2, rows = Math.ceil(n / cols);
+    return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">' +
+      '<title>' + esc(def.title) + '（' + esc(label || (n + "张/A4")) + '）</title>' +
+      '<style>@page{size:A4;margin:5mm;}' +
+      'html,body{margin:0;padding:0;background:#fff;}' +
+      'body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#111;}' +
+      '.sheet{width:200mm;height:287mm;display:grid;grid-template-columns:1fr 1fr;' +
+      'grid-template-rows:repeat(' + rows + ',1fr);}' +
+      '.cell{display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+      'border:1px dashed #cbd5e1;box-sizing:border-box;padding:2mm;}' +
+      '.cell img{width:62mm;height:62mm;display:block;image-rendering:pixelated;}' +
+      '.cell .noqr{width:62mm;height:62mm;line-height:62mm;text-align:center;color:#c00;font-size:13px;}' +
+      '.cell .t{font-size:14px;font-weight:800;margin-top:3mm;color:#111;}' +
+      '.cell .u{font-size:7.5px;color:#888;margin-top:2mm;word-break:break-all;max-width:92mm;line-height:1.4;}' +
+      '@media print{.cell{page-break-inside:avoid;}}</style></head><body>' +
+      '<div class="sheet">' + cells + '</div>' +
+      '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},400);};</scr' + 'ipt></body></html>';
   }
 
   /* ==========================================================================
