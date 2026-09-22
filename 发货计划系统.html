@@ -10,7 +10,7 @@
 <script src="scan-lib.js?v=20260922f"></script>
 <script src="auth.js?v=20260922e"></script>
 <script>if(window.Auth)Auth.guard();</script>
-<script>var APP_VER="20260922d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20260922e";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -508,6 +508,7 @@
       <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
     </div>
     <button class="btn btn-line" id="cleanEmptyBtn" title="一键删除所有空白行（送达方/型号/发货数量/发货点/交货单/时效要求/物料编码 全都没填的行）">删空行</button>
+    <button class="btn btn-danger" id="delCheckedBtn" title="删除表格里所有勾选的行：先用最左边「✓」列的复选框勾选要删的行（可多选；按住 Shift 可连选一片），再点这个按钮。删错了点旁边的「↶」一键撤回。" disabled>🗑 批量删除</button>
     <div class="btn-group">
       <button class="btn btn-line" id="toggleFolded" title="显示/隐藏折叠日期" data-page-node-id="qVSItG6bm1HDlGzOnYRr3C">折叠</button>
       <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">当天前</button>
@@ -1718,7 +1719,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"></td>`;
   tr.querySelector(".del-x").onclick=()=>delRow(tr);
   const rc=tr.querySelector(".row-check");
-  if(rc) rc.addEventListener("change", updateCheckAll);
+  if(rc) rc.addEventListener("change", (ev)=>onRowCheck(tr, ev));
   const spSel=tr.querySelector('[data-f="shippt"]');
   if(spSel){ spSel.addEventListener("change", ()=>{ spSel.dataset.pt=(spSel.value||"").trim(); carTick(tr); saveDraft(); }); }
   tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraftNow(); };
@@ -2146,7 +2147,9 @@ function undo(){
     const ref=list[item.atIndex]||null;
     item.rows.forEach(d=>{ addRow(d, null, ref, true); });
   }
-  reindex(); recalc(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
+  reindex(); recalc();
+  if(carFixAll()) mergeCustomerCells();   // 撤回的行若是同一天第 2 车 → 后缀要跟着正确显示/摘除
+  styleShipdate(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
   toast("已撤回删除，恢复 "+(item.positions?item.positions.length:item.rows.length)+" 行");
 }
 // ===================== 一键删除空白行 =====================
@@ -2179,6 +2182,54 @@ function cleanEmptyRows(){
   toast(`已删除 ${blanks.length} 行空白行，可点「撤回」恢复`);
 }
 function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=undoStack.length===0; }
+
+// ===================== 多选批量删除 =====================
+let lastCheckRow=null;   // Shift 连选的锚点（上一次勾选的那行）
+function checkedRows(){   // 当前所有勾选中的数据行（含被折叠/筛选隐藏的行：用户勾了就算数）
+  return allRows().filter(tr=>{ const R=rowRefs(tr); return R.rowCheck && R.rowCheck.checked; });
+}
+function updateDelCheckedBtn(){   // 按钮跟着勾选数量走：没勾=灰掉，勾了=亮起并显示数量
+  const b=$("delCheckedBtn"); if(!b) return;
+  const n=checkedRows().length;
+  b.disabled = n===0;
+  b.textContent = n ? ("🗑 批量删除("+n+")") : "🗑 批量删除";
+}
+function onRowCheck(tr, ev){
+  const R=rowRefs(tr), box=R.rowCheck;
+  if(!box){ updateCheckAll(); return; }
+  if(ev && ev.shiftKey && lastCheckRow && lastCheckRow!==tr && lastCheckRow.parentNode){
+    const rows=visibleRows();                       // Shift 连选只在当前看得见的行之间生效
+    const a=rows.indexOf(lastCheckRow), b=rows.indexOf(tr);
+    if(a>=0 && b>=0){
+      const v=box.checked, from=Math.min(a,b), to=Math.max(a,b);
+      for(let i=from;i<=to;i++){ const Bi=rowRefs(rows[i]).rowCheck; if(Bi) Bi.checked=v; }
+    }
+  }
+  if(box.checked) lastCheckRow=tr;
+  updateCheckAll();
+}
+function delCheckedRows(){
+  const list=allRows();
+  const sel=list.filter(tr=>{ const R=rowRefs(tr); return R.rowCheck && R.rowCheck.checked; });
+  if(!sel.length){ toast("请先勾选要删除的行（表格最左边「✓」列的小方框）"); return; }
+  const names=sel.slice(0,3).map(tr=>{ const c=rowRefs(tr).customer; const v=(c?c.value:"").trim(); return v||"（没填送达方）"; });
+  const msg="确认删除勾选的 "+sel.length+" 行？\n\n"
+    +names.join("、")+(sel.length>3 ? (" 等共 "+sel.length+" 行") : "")
+    +"\n\n删除后可通过「撤回」按钮（或 Ctrl+Z）一次性恢复。";
+  const go=()=>{
+    const positions=sel.map(tr=>({data:collectRowData(tr), atIndex:list.indexOf(tr)}));   // 先记位置，再删
+    sel.forEach(tr=>tr.remove());
+    undoStack.push({rows:positions.map(p=>p.data), positions});
+    if(undoStack.length>50) undoStack.shift();
+    reindex(); recalc();
+    if(carFixAll()) mergeCustomerCells();    // 删掉的若是第二车 → 剩下的"孤儿后缀"自动摘掉
+    fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
+    toast("已删除 "+sel.length+" 行，可点「撤回」恢复");
+  };
+  const SL=window.ScanLib;
+  if(SL && SL.uiConfirm) SL.uiConfirm(msg, go, {title:"批量删除", okText:"删除", cancelText:"取消"});
+  else go();
+}
 function findCell(tr, colNum){
   const td=tr.children[colNum-1];
   if(!td) return null;
@@ -3258,6 +3309,7 @@ function updateCheckAll(){
     all.indeterminate = checked>0 && checked<rows;
   }
   writeKPIs(rows, qty, ton, checked);
+  updateDelCheckedBtn();   // 勾选变化 → 同步「批量删除」按钮的可用状态与数量
 }
 // 只负责把 KPI 写进 DOM（数据由调用方给）—— recalc / updateCheckAll 都已遍历过，不必再扫全表
 function writeKPIs(rows, qty, ton, checked){
@@ -3471,7 +3523,7 @@ function exportRowsCsv(rows, name){
 
 // ===================== 其它按钮 =====================
 $("addRow").onclick=()=>{ addRow(); saveDraftNow(); };
-$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); };
+$("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); updateCheckAll(); };
 $("publish").onclick=publish;
 $("filterCustomer").oninput=applyFilter;
 $("filterModel").oninput=applyFilter;
@@ -3521,6 +3573,7 @@ function importBackup(file){
 }
 $("undoBtn").onclick=undo;
 $("cleanEmptyBtn").onclick=cleanEmptyRows;
+$("delCheckedBtn").onclick=delCheckedRows;
 if($("dupCleanBtn")) $("dupCleanBtn").onclick=cleanDupRecs;
 updateUndoBtn();
 document.addEventListener("keydown", e=>{
