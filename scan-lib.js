@@ -254,12 +254,32 @@ window.ScanLib = (function () {
     if (s < 1) return Date.now() >= (c.rt || 0);
     return (c.t || 0) === (c.rt || 0);
   }
+  /* ---- 没车不许装货（2026-09-22 用户要求）--------------------------------------
+     现场现象：司机根本没扫码签到（车辆还是「未到」），工序却能一路推到
+     「装货中 / 已完成」—— 大屏上就出现「已完成 100% + 车辆未到」这种自相矛盾的行。
+     车都不在场，装什么货？所以「装货中(2)」「已完成(3)」这两步必须以「车已到」为前提。
+     ★ 只拦"往后走"这一步：货好(1)、车辆标记、撤回（applyUndo）全都不受影响 ——
+       否则已经推错的老数据就永远退不回来了。
+     返回 "" = 允许；返回非空字符串 = 拦下来的原因（页面直接拿去弹提示）。
+     ★ 口径只留这一份：扫码页拿它做提示，applyStep 拿它做硬拦截（双保险，
+       将来谁再写一个新入口忘了判断，也脏不了数据）。 */
+  function stepBlock(c, to){
+    to = parseInt(to, 10) || 0;
+    if (to < 2) return "";
+    if (to > 3) to = 3;
+    c = c || {};
+    if (c.cx || 0) return "这一趟车已经「取消」了，不能推进「" + STEP_NAME[to] + "」";
+    if ((c.car || 0) < 1) return "司机还没签到（车辆：未到），不能推进「" + STEP_NAME[to] + "」";
+    return "";
+  }
   // 推进一步工序（delta 一般是 +1；who 是操作人，用于留痕）
   function applyStep(prog, rk, ck, delta, who){
     var c = cellAt(prog, rk, ck), now = Date.now();
     var from = c.s || 0;
     var to = Math.max(0, Math.min(3, from + (delta || 0)));
     if (to === from) return { changed: false, cell: c, to: to, from: from };
+    var blocked = stepBlock(c, to);
+    if (blocked) return { changed: false, cell: c, to: from, from: from, blocked: blocked };
     c.s = to;
     c.t = to === 0 ? 0 : now;
     if (to > 0 && raw(who)) c.by = raw(who);
@@ -1358,8 +1378,35 @@ window.ScanLib = (function () {
     return { close: close, mask: mask, yes: yes, no: no };
   }
 
+  // 只有「知道了」一个按钮的提示框（被拦下来的原因要说清楚，别让人以为点了没反应）
+  function uiAlert(msg, opt){
+    opt = opt || {};
+    cfCss();
+    var mask = document.createElement("div"); mask.className = "smkcf-mask";
+    var box  = document.createElement("div"); box.className = "smkcf-box";
+    var ttl  = document.createElement("div"); ttl.className = "smkcf-ttl";
+    ttl.textContent = opt.title || "提示";
+    var body = document.createElement("div"); body.className = "smkcf-msg";
+    body.textContent = msg == null ? "" : String(msg);
+    var act  = document.createElement("div"); act.className = "smkcf-act";
+    var yes  = document.createElement("button"); yes.className = "smkcf-yes"; yes.type = "button";
+    yes.textContent = opt.okText || "知道了";
+    act.appendChild(yes);
+    box.appendChild(ttl); box.appendChild(body); box.appendChild(act);
+    mask.appendChild(box);
+    (document.body || document.documentElement).appendChild(mask);
+
+    function close(){ if (mask.parentNode) mask.parentNode.removeChild(mask); }
+    yes.onclick  = function(){ close(); if (opt.onOk) opt.onOk(); };
+    mask.onclick = function(e){ if (e.target === mask) close(); };
+    setTimeout(function(){ try { yes.focus(); } catch (e){} }, 30);
+    return { close: close, mask: mask, yes: yes };
+  }
+
   return {
     uiConfirm: uiConfirm,
+    uiAlert: uiAlert,
+    stepBlock: stepBlock,
     KEY_PLANS: KEY_PLANS, KEY_PROG: KEY_PROG, KEY_DEL: KEY_DEL, KEY_PENDING: KEY_PENDING,
     KEY_DB: KEY_DB, NO_CODE: NO_CODE, codeIndex: codeIndex, codeOf: codeOf, codeText: codeText,
     logisticsIndex: logisticsIndex, logisticsOf: logisticsOf, logisticsOfRow: logisticsOfRow,
