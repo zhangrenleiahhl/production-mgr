@@ -8,7 +8,7 @@
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260910b"></script>
 <script src="scan-lib.js?v=20260920a"></script>
-<script>var APP_VER="20260920b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20260922a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -569,6 +569,7 @@
         </tr></tfoot>
       </table>
       <div class="doc-foot" id="docFoot" data-page-node-id="cyWPLDT0uWFXvaOD5iYSrC">共 0 行 ｜ 发布时间：-</div>
+      <div class="doc-foot" id="opStatus" style="color:#b45309"></div>
     </div>
   </div>
 
@@ -2802,6 +2803,32 @@ function saveDraft(){
   _draftTimer=setTimeout(()=>{ _draftTimer=0; if(_draftDirty){ _draftDirty=false; writeDraftNow(); } }, 250);
 }
 function saveDraftNow(){ _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
+// ===================== 责任到人：记录当前操作人（接统一登录） =====================
+// 取登录人姓名：优先用统一登录会话 auth_session_v1（auth.js 写入），
+// 兼容旧的「内部人员码」会话 staff_session_v1；都没登录则返回空串。
+function currentOperator(){
+  try{ const a=localStorage.getItem("auth_session_v1"); if(a){ const o=JSON.parse(a); if(o&&o.name) return o.name; } }catch(e){}
+  try{ const s=localStorage.getItem("staff_session_v1"); if(s){ const o=JSON.parse(s); if(o&&o.name) return o.name; } }catch(e){}
+  return "";
+}
+function _fmtOpTime(ts){
+  if(!ts) return "";
+  const d=new Date(ts); const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
+}
+// 顶部状态条：显示当前登录人与末次保存时间；未登录时提示“不记录到人”。
+function updateOpStatus(){
+  const el=document.getElementById("opStatus"); if(!el) return;
+  const op=currentOperator();
+  if(op){
+    const t=window.__lastEditAt?_fmtOpTime(window.__lastEditAt):"";
+    el.innerHTML="当前登录：<b>"+esc(op)+"</b>"+(t?(" ｜ 末次保存："+t):"");
+    el.style.color="#2563eb";
+  }else{
+    el.textContent="（未登录 · 修改不记录到人，开通门禁后自动记录）";
+    el.style.color="#b45309";
+  }
+}
 function writeDraftNow(){
   try{
     syncShipptColors();   // 发货点颜色跟随值（粘贴/还原/带出等不走 change 的路径也在这里刷到）
@@ -2836,10 +2863,14 @@ function writeDraftNow(){
       });
     }
     if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
-    safeSet(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows}));
+    const _op=currentOperator();
+    if(_op){ window.__lastEditor=_op; window.__lastEditAt=Date.now(); }
+    safeSet(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows,
+      __lastEditor:_op, __lastEditAt:_op?new Date().toISOString():""}));
+    updateOpStatus();
   }catch(e){}
 }
-function loadDraft(){ try{ return JSON.parse(localStorage.getItem(LS_DRAFT))||null; }catch(e){ return null; } }
+function loadDraft(){ try{ const d=JSON.parse(localStorage.getItem(LS_DRAFT)); if(d){ if(d.__lastEditor) window.__lastEditor=d.__lastEditor; if(d.__lastEditAt) window.__lastEditAt=d.__lastEditAt; } return d||null; }catch(e){ return null; } }
 function clearDraft(){ try{ localStorage.removeItem(LS_DRAFT); }catch(e){} }
 $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=genPlanNo(); saveDraft(); foldByDate(); });
 
@@ -3138,6 +3169,8 @@ function publish(){
   const pubShipDate = recShipDate({rows:rows, date:$("shipDate").value}) || $("shipDate").value;
   const rec={id:Date.now(),date:$("shipDate").value,no:fixPlanNo($("planNo").value, pubShipDate),
     planner:($("planner")?.value||"").trim(),
+    operator:currentOperator(),
+    operatedAt:new Date().toISOString(),
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
     sumQty:sumQty||"0",sumTon:sumTon.toFixed(1),sumBox:sumBox>0?sumBox:"/",
     sumSubTon:sumSubTon>0?sumSubTon.toFixed(1):"0.0",custTon,fingerprint:fp};
@@ -3333,7 +3366,7 @@ function renderRecords(){
       const noText=esc(rec.no||"")+(rec.planner?` · ${esc(rec.planner)}`:"");
       card.innerHTML=`
         <div class="info"><b>${noText}</b><br>日期：${esc(rec.date||"")}${rec.maker?' ｜ 制单：'+esc(rec.maker):''}<br>
-          共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")}
+          共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")} ｜ 操作人：${esc(rec.operator||"未登录")}
           <div data-prog class="recprog"></div></div>
         <div class="acts">
           <button class="btn btn-line" data-act="codes" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机签到码（只勾车已到）">▣ 两个码</button>
@@ -4195,6 +4228,8 @@ function bootProg(){
 //   bootProg 里的 $("pbClose")/$("progBoard") 还是 null，关闭按钮会点不动。
 if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootProg);
 else bootProg();
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", updateOpStatus);
+else updateOpStatus();
 </script>
 <!-- 发货进度看板（现场扫码实时更新） -->
 <div class="prog-mask" id="progBoard">
