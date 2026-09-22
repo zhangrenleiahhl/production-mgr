@@ -6,6 +6,8 @@
 window.CloudSync = (function () {
   const CFG = window.CLOUD_CONFIG || {};
   let client = null, ready = false, statusEl = null, timers = {};
+  let lastErrorText = "";   // 最近一次失败的具体原因（红标悬停可见）
+  const pushedKeys = new Set(); // 本会话推过的键（点红标一键重推）
   let pullErr = false;      // ⚠ 共享状态（会被并发拉取覆盖），仅为兼容旧调用方保留；新代码请用 pullResult
 
   function configured() {
@@ -28,8 +30,19 @@ window.CloudSync = (function () {
 
   function setStatus(txt, cls) {
     if (statusEl) { statusEl.textContent = txt; statusEl.className = "cloud-pill " + (cls || ""); }
+    if (cls !== "err") { lastErrorText = ""; if (statusEl) statusEl.title = ""; }
   }
-  function bindStatus(el) { statusEl = el; }
+  function setStatusErr(prefix, e) {
+    lastErrorText = String((e && e.message) || e || "未知错误");
+    setStatus(prefix, "err");
+    if (statusEl) statusEl.title = prefix + " 原因：" + lastErrorText + "（点此立即重试上传）";
+  }
+  function bindStatus(el) {
+    statusEl = el;
+    if (el) el.addEventListener("click", function () {
+      if (el.className.indexOf("err") >= 0) retryAll();
+    });
+  }
 
   // ★ 单次拉取的"自带结果"（不依赖任何共享状态）
   //   以前用模块级变量 pullErr 记录成败，但页面上同时有多个拉取在跑（60 秒自动校对、
@@ -65,6 +78,7 @@ window.CloudSync = (function () {
 
   async function push(key, value) {
     if (!ready) return false;
+    pushedKeys.add(key);
     const g = guards[key];
     // 没有注册合并函数、但要推的是"空数组"时，也核对一次云端：
     // 本机空 + 云端非空 ⇒ 这台电脑只是还没拉到数据（新电脑 / 拉取失败），
@@ -92,10 +106,10 @@ window.CloudSync = (function () {
     try {
       const { error } = await client.from("app_data")
         .upsert({ key: key, value: value, updated_at: new Date().toISOString() });
-      if (error) { setStatus("同步失败", "err"); return false; }
+      if (error) { setStatusErr("同步失败", error); return false; }
       setStatus("已同步 ☁", "ok");
       return true;
-    } catch (e) { setStatus("同步失败", "err"); return false; }
+    } catch (e) { setStatusErr("同步失败", e); return false; }
   }
 
   // 改动后防抖上传（读取当前 localStorage 值）
@@ -156,9 +170,23 @@ window.CloudSync = (function () {
     return { failed: failed, ok: keys.length - failed.length };
   }
 
+  // 点状态标一键重推（诊断+自愈）：只重推本会话推过的键，push 内有护栏不会覆盖别人数据
+  async function retryAll() {
+    if (!ready) return 0;
+    let ok = 0;
+    for (const k of pushedKeys) {
+      let v; try { v = JSON.parse(localStorage.getItem(k)); } catch (e) { v = localStorage.getItem(k); }
+      if (v === null || v === undefined) continue;
+      try { if (await push(k, v)) ok++; } catch (e) {}
+    }
+    if (ok) setStatus("已同步 ☁", "ok");
+    return ok;
+  }
+
   return {
     init, ready: () => ready, configured,
     pull, pullResult, push, autoPush, pullAll, bindStatus, setStatus, guard,
-    lastPullFailed: () => pullErr       // ⚠ 共享状态，并发拉取会互相覆盖，仅兼容旧代码；新代码用 pullResult
+    lastPullFailed: () => pullErr,      // ⚠ 共享状态，并发拉取会互相覆盖，仅兼容旧代码；新代码用 pullResult
+    retryAll, lastErrorText: () => lastErrorText
   };
 })();
