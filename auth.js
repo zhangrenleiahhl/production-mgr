@@ -86,6 +86,8 @@ window.LOGIN_REQUIRED = false;
   }
 
   async function logout() {
+    // 退出前先把未保存的草稿落盘（本机草稿与登录无关，退出不会清数据，这里是双保险）
+    try { if (window.flushDraft) window.flushDraft(); } catch (e) {}
     const c = sb();
     if (c) { try { await c.auth.signOut(); } catch (e) {} }
     try { localStorage.removeItem(LS_KEY); } catch (e) {}
@@ -107,6 +109,7 @@ window.LOGIN_REQUIRED = false;
     if (/jsdom/i.test(navigator.userAgent || "")) return;
     if (window.LOGIN_REQUIRED && !getSession()) {
       const back = encodeURIComponent(location.pathname.split("/").pop() + location.search);
+      try { if (window.flushDraft) window.flushDraft(); } catch (e) {}   // 跳登录前先把未保存的草稿落盘
       location.href = "login.html?redirect=" + back;
     }
   }
