@@ -1241,11 +1241,15 @@ window.ScanLib = (function () {
     if (!w){ alert("打印窗口被浏览器拦住了，请允许本站弹出窗口后重试。"); return; }
     ensureQRCode().then(function (okLib) {
       var px = (layout === "small8") ? 800 : PRINT_QR_PX;
-      var img = okLib ? qrDataUrl(def.url, px) : null;
-      var html = (layout === "small8")
-        ? codesSheetHtml(def, img, 8, "小码·8张/A4")
-        : codesPageHtml(def, img);
-      w.document.write(html); w.document.close(); w.focus();
+      /* ★ qrDataUrl 是 async 函数，返回 Promise —— 必须等它 resolve 拿到 dataURL
+         再拼 HTML。曾经直接把 Promise 塞进 <img src>，打印出来全是裂图。 */
+      var p = okLib ? qrDataUrl(def.url, px) : Promise.resolve(null);
+      Promise.resolve(p).then(function (img) {
+        var html = (layout === "small8")
+          ? codesSheetHtml(def, img, 8, "小码·8张/A4")
+          : codesPageHtml(def, img);
+        w.document.write(html); w.document.close(); w.focus();
+      });
     });
   }
 
