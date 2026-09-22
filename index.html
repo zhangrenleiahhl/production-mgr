@@ -88,6 +88,7 @@
       <button class="tab" data-page="仪表盘.html">📊 仪表盘</button>
       <button class="tab" data-page="订单管理系统.html">🧾 订单管理</button>
       <button class="tab" data-page="物料数据库.html">📦 物料数据库</button>
+      <button class="tab" data-page="数据急救.html" title="数据急救：找回误删 / 误覆盖的数据（系统自动留的快照）">🚑 数据急救</button>
     </div>
     <button class="btn" id="loginBtn">🔑 登录</button>
     <div class="spacer"></div>
@@ -100,6 +101,7 @@
     <button class="btn" id="backupBtn">💾 数据备份</button>
     <div class="bpanel" id="bpanel">
       <div class="ttl">数据备份与恢复</div>
+      <div class="brow"><button class="bbtn" id="rescueBtn" style="border-color:#fca5a5;color:#dc2626;">🚑 数据急救（找回误删）</button></div>
       <div class="brow"><button class="bbtn" id="expBtn">⬇ 导出备份文件</button></div>
       <div class="brow"><label class="bbtn">⬆ 导入备份恢复<input type="file" id="impFile" accept=".json" hidden></label></div>
       <div class="brow toggle"><input type="checkbox" id="autoChk"><label for="autoChk">发布时自动备份</label></div>
@@ -120,7 +122,7 @@
     const sep=page.includes("?")?"&":"?";
     frame.src=page+sep+"_t="+Date.now();
     tabs.forEach(t=>t.classList.toggle("active",t.dataset.page===page));
-    try{localStorage.setItem("last_client_tab",page);}catch(e){}
+    try{ if(page!=="数据急救.html") localStorage.setItem("last_client_tab",page); }catch(e){}   // 急救页只是工具页，别让它成为"上次打开的页"
   }
   tabs.forEach(t=>t.addEventListener("click",()=>switchTo(t.dataset.page)));
   try{
@@ -365,6 +367,7 @@
   $("expBtn").onclick=()=>{downloadBackup();$("bpanel").classList.remove("show");};
   $("impFile").onchange=e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); $("bpanel").classList.remove("show"); e.target.value=""; };
   $("backupBtn").onclick=()=>$("bpanel").classList.toggle("show");
+  $("rescueBtn").onclick=()=>{ $("bpanel").classList.remove("show"); switchTo("数据急救.html"); };
   document.addEventListener("click",e=>{ if(!$("bpanel").contains(e.target)&&e.target!==$("backupBtn")) $("bpanel").classList.remove("show"); });
   // 自动备份开关
   const autoChk=$("autoChk");
