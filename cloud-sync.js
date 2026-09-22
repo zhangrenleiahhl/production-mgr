@@ -65,6 +65,16 @@ window.CloudSync = (function () {
     pullErr = !r.ok;                       // 仅保留给旧调用方，新代码请用 pullResult
     return r.ok ? r.value : null;
   }
+  /* 轻量探针：只查某个键的最后更新时间(几十字节)，不下载内容。
+     手机弱网下用来判断「数据没变就不拉全文」，省流量省时间。 */
+  async function pullStamp(key) {
+    if (!ready) return null;
+    try {
+      const { data, error } = await client.from("app_data").select("updated_at").eq("key", key).maybeSingle();
+      if (error) return null;
+      return data ? (data.updated_at || null) : null;
+    } catch (e) { return null; }
+  }
 
   // ★ 上传护栏（最后一道防线）
   //   只要给某个键注册了合并函数，push 之前一定会：先拉云端 → 与本次要推的值合并 → 再上传。
@@ -185,7 +195,7 @@ window.CloudSync = (function () {
 
   return {
     init, ready: () => ready, configured,
-    pull, pullResult, push, autoPush, pullAll, bindStatus, setStatus, guard,
+    pull, pullResult, pullStamp, push, autoPush, pullAll, bindStatus, setStatus, guard,
     lastPullFailed: () => pullErr,      // ⚠ 共享状态，并发拉取会互相覆盖，仅兼容旧代码；新代码用 pullResult
     retryAll, lastErrorText: () => lastErrorText
   };
