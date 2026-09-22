@@ -10,7 +10,7 @@
 <script src="scan-lib.js?v=20260922f"></script>
 <script src="auth.js?v=20260922e"></script>
 <script>if(window.Auth)Auth.guard();</script>
-<script>var APP_VER="20260922c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20260922d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -3394,7 +3394,7 @@ function renderRecords(){
           共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")} ｜ 操作人：${esc(rec.operator||"未登录")}
           <div data-prog class="recprog"></div></div>
         <div class="acts">
-          <button class="btn btn-line" data-act="reedit" title="把这单导回上方表格，改完点「发布」即可重新发布（覆盖表格前会自动留档）">✎ 导入重编</button>
+          <button class="btn btn-line" data-act="reedit" title="把这单的明细行追加到上方表格（原有行一行都不动），改完点「发布」即可重新发布">✎ 导入重编</button>
           <button class="btn btn-line" data-act="codes" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机签到码（只勾车已到）">▣ 两个码</button>
           <button class="btn btn-line" data-act="csv">导出CSV</button>
           <button class="btn btn-danger" data-act="del">删除</button>
@@ -3427,7 +3427,9 @@ function renderRecords(){
 
 // ===================== 发布记录 → 一键导回表格重新编辑 =====================
 // 用途：翻到老单子想改一改再发一次，不用手动一行行敲回去。
-// 安全：覆盖表格前先 snapshot(LS_DRAFT) 留档（可在「数据急救」找回）；导完立刻写草稿，刷新/断网都不丢。
+// ★ 只新增、绝不删除：把这条记录的明细行**追加**进上方表格（按发货日期插到对应位置），
+//   表格里原有的行一行都不动。想只要这一单，自己删掉多余的行即可。
+// 安全：导入前先 snapshot(LS_DRAFT) 留档（可在「数据急救」页找回）；导完立刻写草稿，刷新/断网都不丢。
 function importRecToEditor(rec){
   if(!rec || !(rec.rows||[]).length){ try{ toast("这条发布记录没有明细行，无法导入"); }catch(e){} return; }
   const rows=(rec.rows||[]).map(r=>({
@@ -3439,33 +3441,19 @@ function importRecToEditor(rec){
     logisticsManual:(r.logisticsManual===true||r.logisticsManual==="1"),
     noCar:(r.noCar===true||r.noCar==="1")            // 手删过「（第二车）」后缀的行，导入后别被自动挂回来
   }));
-  const doImport=()=>{
-    snapshot(LS_DRAFT, "导入发布记录");               // 覆盖前留档
-    const tb=$("tbody");
-    [...tb.children].forEach(tr=>{ if(isDataRow(tr)) tr.remove(); });
-    undoStack=[];                                     // 整表换掉，旧的撤回栈已失效，留着会插错行
-    if(typeof updateUndoBtn==="function") updateUndoBtn();
-    const d=recShipDate(rec)||$("shipDate").value||todayStr();
-    $("shipDate").value=d;
-    $("planNo").value=genPlanNo();                     // 单号按新日期重编（重新发布就是一条新记录）
-    rows.forEach(r=>addRow(Object.assign({}, r, {shipdate:r.shipdate||d}), null, null, true));
-    syncDocHead(); reindex(); sortRowsByDate(); recalc(); foldByDate(); styleShipdate(); fitTextareas(true);
-    saveDraftNow();
-    try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} }
-    toast("已导入 "+rows.length+" 行（来源 "+(rec.no||"发布记录")+"），改完点「发布」即可重新发布");
-  };
-  // 只有"真填过内容"的行才算要保护的数据：页面默认那两行空行不该每次拦一下（否则一键变两键）
-  const cur=[...$("tbody").children].filter(isDataRow).filter(tr=>{
-    const c=(tr.querySelector('[data-f="customer"]')||{}).value||"";
-    const m=(tr.querySelector('[data-f="model"]')||{}).value||"";
-    return c.trim()||m.trim();
-  }).length;
-  if(!cur){ doImport(); return; }
-  const msg="上方表格现有 "+cur+" 行，将被这条记录（"+rows.length+" 行）替换。\n\n覆盖前会自动留档，之后可在「数据急救」页找回。要继续吗？";
-  // ★ 弹窗一律走 SL.uiConfirm，不引入原生 confirm（test_confirm_dlg 卡着"原生 confirm 只减不增"）
-  const ask=(window.ScanLib&&window.ScanLib.uiConfirm)?window.ScanLib.uiConfirm:null;
-  if(ask) ask(msg, doImport, { title:"导入发布记录重新编辑", okText:"覆盖并导入", cancelText:"取消" });
-  else doImport();   // 没有 SL 的极老环境：直接导入（覆盖前已留档，数据不会丢）
+  const tb=$("tbody");
+  const before=[...tb.children].filter(isDataRow).length;   // 只用于提示，不做任何删除
+  snapshot(LS_DRAFT, "导入发布记录");                        // 留档（「数据急救」页可找回）
+  const d=recShipDate(rec)||todayStr();                     // 行里没写日期的，用这条记录自己的发货日期兜底
+  let firstTr=null;
+  rows.forEach(r=>{
+    const tr=addRow(Object.assign({}, r, {shipdate:r.shipdate||d}), null, null, true);   // 只加行，不动任何已有行
+    if(!firstTr) firstTr=tr;
+  });
+  reindex(); sortRowsByDate(); recalc(); foldByDate(); styleShipdate(); fitTextareas(true);
+  saveDraftNow();
+  try{ if(firstTr) firstTr.scrollIntoView({block:"center"}); }catch(e){}   // 直接看到新进来的那几行
+  toast("已新增 "+rows.length+" 行（来源 "+(rec.no||"发布记录")+"），原有 "+before+" 行没动；改完点「发布」即可重新发布");
 }
 
 // ===================== 导出 =====================
