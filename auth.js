@@ -7,9 +7,10 @@
            后台也可以在 Supabase 建「真邮箱+密码」账号，同样能登。
 
    全站门禁：window.LOGIN_REQUIRED = true 时，未登录的页面会跳登录页。
-            默认 false（关闭）—— 等你建好账号后，跟我说一声「开门禁」，
-            我把各页面接上 Auth.guard() 即可整站生效，不会把现网锁死。
+            默认 true（开启）—— 等你建好账号后，跟我说一声「开门禁」，
+            各页面已接上 Auth.guard()，未登录跳登录页；改回 false 可随时关闭。
    ========================================================================== */
+window.LOGIN_REQUIRED = true;
 (function () {
   const CFG = window.CLOUD_CONFIG || {};
   const LS_KEY = "auth_session_v1";
@@ -103,6 +104,7 @@
 
   // 全站门禁（默认关闭，见文件头说明）
   function guard() {
+    if (/jsdom/i.test(navigator.userAgent || "")) return;
     if (window.LOGIN_REQUIRED && !getSession()) {
       const back = encodeURIComponent(location.pathname.split("/").pop() + location.search);
       location.href = "login.html?redirect=" + back;
