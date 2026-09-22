@@ -3440,7 +3440,7 @@ function importRecToEditor(rec){
     noCar:(r.noCar===true||r.noCar==="1")            // 手删过「（第二车）」后缀的行，导入后别被自动挂回来
   }));
   const doImport=()=>{
-    snapshot(LS_DRAFT, "导入发布记录前");               // 覆盖前留档
+    snapshot(LS_DRAFT, "导入发布记录");               // 覆盖前留档
     const tb=$("tbody");
     [...tb.children].forEach(tr=>{ if(isDataRow(tr)) tr.remove(); });
     undoStack=[];                                     // 整表换掉，旧的撤回栈已失效，留着会插错行
