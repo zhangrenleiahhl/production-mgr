@@ -8,9 +8,9 @@
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
 <script src="scan-lib.js?v=20260922f"></script>
-<script src="auth.js?v=20260922d"></script>
+<script src="auth.js?v=20260922e"></script>
 <script>if(window.Auth)Auth.guard();</script>
-<script>var APP_VER="20260922b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20260922c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -2799,7 +2799,9 @@ let _draftTimer=0, _draftDirty=false;
 function flushDraft(){ if(!_draftDirty) return; _draftDirty=false; clearTimeout(_draftTimer); _draftTimer=0; writeDraftNow(); }
 window.addEventListener("beforeunload", flushDraft);
 document.addEventListener("visibilitychange", ()=>{ if(document.hidden) flushDraft(); });
+window.addEventListener("pagehide", flushDraft);   // 手机切走/回退/关标签：pagehide 比 beforeunload 更可靠
 function saveDraft(){
+  if(!_draftDirty) updateOpStatus(true);   // 状态条立刻变「正在保存…」：保存看得见，不用猜
   _draftDirty=true;
   clearTimeout(_draftTimer);
   _draftTimer=setTimeout(()=>{ _draftTimer=0; if(_draftDirty){ _draftDirty=false; writeDraftNow(); } }, 250);
@@ -2815,22 +2817,40 @@ function currentOperator(){
 }
 function _fmtOpTime(ts){
   if(!ts) return "";
-  const d=new Date(ts); const p=n=>String(n).padStart(2,"0");
-  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
+  const d=new Date(ts); if(isNaN(d.getTime())) return "";
+  const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
 }
-// 顶部状态条：显示当前登录人与末次保存时间；未登录时提示“不记录到人”。
-function updateOpStatus(){
+// 相对时间（刚刚 / 3 分钟前）：状态条看着是活的，不会被误当成"时间没动 / 保存有延迟"
+function _relTime(ts){
+  const d=new Date(ts); if(isNaN(d.getTime())) return "";
+  const s=Math.max(0,Math.round((Date.now()-d.getTime())/1000));
+  if(s<10) return "刚刚";
+  if(s<60) return s+" 秒前";
+  if(s<3600) return Math.floor(s/60)+" 分钟前";
+  return Math.floor(s/3600)+" 小时前";
+}
+// 顶部状态条：当前登录人 + 保存状态（正在保存 / 已自动保存 HH:MM:SS（刚刚） / 保存失败）
+// ★ 2026-09-22：原来只显示「末次保存 HH:MM」，用户看到 13:40 会以为"保存卡住了、有延迟"——
+//   其实那是"最后一次真正落盘"的时刻。现在：①秒级精度 + 相对时间；②打字瞬间先显示「正在保存…」；
+//   ③写盘失败立刻红字告警（不再静默）。未登录也照样记时间，状态条不再是死的。
+function updateOpStatus(pending){
   const el=document.getElementById("opStatus"); if(!el) return;
   const op=currentOperator();
-  if(op){
-    const t=window.__lastEditAt?_fmtOpTime(window.__lastEditAt):"";
-    el.innerHTML="当前登录：<b>"+esc(op)+"</b>"+(t?(" ｜ 末次保存："+t):"");
-    el.style.color="#2563eb";
-  }else{
-    el.textContent="（未登录 · 修改不记录到人，开通门禁后自动记录）";
-    el.style.color="#b45309";
-  }
+  if(!op){ el.textContent="（未登录 · 修改不记录到人，开通门禁后自动记录）"; el.style.color="#b45309"; return; }
+  const ts=window.__lastEditAt;
+  let tail;
+  if(pending) tail='<span style="color:#b45309">正在保存…</span>';
+  else if(window.__lastSaveFailed) tail='<span style="color:#dc2626">⚠ 本机保存失败！请立即用顶部「数据备份」导出文件</span>';
+  else if(ts) tail="已自动保存 "+_fmtOpTime(ts)+"（"+_relTime(ts)+"）";
+  else if(window.__lastEditor) tail="本机草稿：最近保存人 "+esc(window.__lastEditor);
+  else tail="还没有改动";
+  el.innerHTML="当前登录：<b>"+esc(op)+"</b> ｜ "+tail;
+  el.style.color="#2563eb";
 }
+// 每 20 秒刷一次相对时间（"刚刚"→"1 分钟前"），状态条始终是活的
+setInterval(()=>{ try{ updateOpStatus(_draftDirty); }catch(e){} }, 20000);
+setTimeout(()=>{ try{ updateOpStatus(); }catch(e){} }, 400);
 function writeDraftNow(){
   try{
     syncShipptColors();   // 发货点颜色跟随值（粘贴/还原/带出等不走 change 的路径也在这里刷到）
@@ -2866,9 +2886,12 @@ function writeDraftNow(){
     }
     if(!rows.length && !$("shipDate").value){ localStorage.removeItem(LS_DRAFT); return; }
     const _op=currentOperator();
-    if(_op){ window.__lastEditor=_op; window.__lastEditAt=Date.now(); }
-    safeSet(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows,
-      __lastEditor:_op, __lastEditAt:_op?new Date().toISOString():""}));
+    // ★ 无论是否登录都记时间：状态条要能立刻反映"刚刚存过"
+    window.__lastEditAt=Date.now();
+    if(_op) window.__lastEditor=_op;
+    const _ok=safeSet(LS_DRAFT, JSON.stringify({date:$("shipDate").value,no:$("planNo").value,rows,
+      __lastEditor:_op, __lastEditAt:_op?new Date(window.__lastEditAt).toISOString():""}));
+    window.__lastSaveFailed=!_ok;   // 写盘失败 → 红字告警，绝不静默
     updateOpStatus();
   }catch(e){}
 }
@@ -3371,11 +3394,13 @@ function renderRecords(){
           共 ${(rec.rows||[]).length} 行 ｜ 数量 ${rec.sumQty} ｜ ${rec.sumTon}t ｜ 客户吨位 ${rec.sumSubTon||"/"}t ｜ ${rec.sumBox}箱<br>发布：${esc(rec.publishedAt||"")} ｜ 操作人：${esc(rec.operator||"未登录")}
           <div data-prog class="recprog"></div></div>
         <div class="acts">
+          <button class="btn btn-line" data-act="reedit" title="把这单导回上方表格，改完点「发布」即可重新发布（覆盖表格前会自动留档）">✎ 导入重编</button>
           <button class="btn btn-line" data-act="codes" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机签到码（只勾车已到）">▣ 两个码</button>
           <button class="btn btn-line" data-act="csv">导出CSV</button>
           <button class="btn btn-danger" data-act="del">删除</button>
         </div>`;
       card.querySelector('[data-act="codes"]').onclick=()=>showCodes();
+      card.querySelector('[data-act="reedit"]').onclick=()=>importRecToEditor(rec);
       card.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows||[], rec.no);
       card.querySelector('[data-act="del"]').onclick=()=>{
         askDeletePwd(rec, ()=>{
@@ -3398,6 +3423,49 @@ function renderRecords(){
     box.appendChild(sec);
   });
   updateKPIs();
+}
+
+// ===================== 发布记录 → 一键导回表格重新编辑 =====================
+// 用途：翻到老单子想改一改再发一次，不用手动一行行敲回去。
+// 安全：覆盖表格前先 snapshot(LS_DRAFT) 留档（可在「数据急救」找回）；导完立刻写草稿，刷新/断网都不丢。
+function importRecToEditor(rec){
+  if(!rec || !(rec.rows||[]).length){ try{ toast("这条发布记录没有明细行，无法导入"); }catch(e){} return; }
+  const rows=(rec.rows||[]).map(r=>({
+    shipdate:r.shipdate||"", customer:r.customer||"", code:r.code||"", model:r.model||"",
+    qty:r.qty||"", shippt:r.shippt||"", unit:r.unit||"", perbox:r.perbox||"",
+    ton:r.ton||"", tonManual:(r.tonManual===true||r.tonManual==="1"), delivery:r.delivery||"",
+    box:r.box||"", cwt:r.cwt||"", cwtDeleted:!!r.cwtDeleted,
+    remark:r.remark||"", logistics:r.logistics||"",
+    logisticsManual:(r.logisticsManual===true||r.logisticsManual==="1"),
+    noCar:(r.noCar===true||r.noCar==="1")            // 手删过「（第二车）」后缀的行，导入后别被自动挂回来
+  }));
+  const doImport=()=>{
+    snapshot(LS_DRAFT, "导入发布记录前");               // 覆盖前留档
+    const tb=$("tbody");
+    [...tb.children].forEach(tr=>{ if(isDataRow(tr)) tr.remove(); });
+    undoStack=[];                                     // 整表换掉，旧的撤回栈已失效，留着会插错行
+    if(typeof updateUndoBtn==="function") updateUndoBtn();
+    const d=recShipDate(rec)||$("shipDate").value||todayStr();
+    $("shipDate").value=d;
+    $("planNo").value=genPlanNo();                     // 单号按新日期重编（重新发布就是一条新记录）
+    rows.forEach(r=>addRow(Object.assign({}, r, {shipdate:r.shipdate||d}), null, null, true));
+    syncDocHead(); reindex(); sortRowsByDate(); recalc(); foldByDate(); styleShipdate(); fitTextareas(true);
+    saveDraftNow();
+    try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} }
+    toast("已导入 "+rows.length+" 行（来源 "+(rec.no||"发布记录")+"），改完点「发布」即可重新发布");
+  };
+  // 只有"真填过内容"的行才算要保护的数据：页面默认那两行空行不该每次拦一下（否则一键变两键）
+  const cur=[...$("tbody").children].filter(isDataRow).filter(tr=>{
+    const c=(tr.querySelector('[data-f="customer"]')||{}).value||"";
+    const m=(tr.querySelector('[data-f="model"]')||{}).value||"";
+    return c.trim()||m.trim();
+  }).length;
+  if(!cur){ doImport(); return; }
+  const msg="上方表格现有 "+cur+" 行，将被这条记录（"+rows.length+" 行）替换。\n\n覆盖前会自动留档，之后可在「数据急救」页找回。要继续吗？";
+  // ★ 弹窗一律走 SL.uiConfirm，不引入原生 confirm（test_confirm_dlg 卡着"原生 confirm 只减不增"）
+  const ask=(window.ScanLib&&window.ScanLib.uiConfirm)?window.ScanLib.uiConfirm:null;
+  if(ask) ask(msg, doImport, { title:"导入发布记录重新编辑", okText:"覆盖并导入", cancelText:"取消" });
+  else doImport();   // 没有 SL 的极老环境：直接导入（覆盖前已留档，数据不会丢）
 }
 
 // ===================== 导出 =====================
