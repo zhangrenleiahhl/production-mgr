@@ -9,6 +9,10 @@
  */
 (function () {
   "use strict";
+  // ★ 被外壳页（index.html / 生产管理客户端.html 的 <iframe id="frame">）嵌着时直接不插：
+  //   外壳自己的顶栏已经插了一个，子页再插就会「重复成两个」
+  //   （一个在外壳顶栏，一个固定在右上角叠在下面）。子页单独打开时不受影响，照旧会插。
+  try { if (window.self !== window.top) return; } catch (e) { return; }
   var SRC = "logo.png?v=1";
   var page = "";
   try { page = decodeURIComponent(location.pathname.split("/").pop() || ""); }
