@@ -8,7 +8,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260922f"></script>
+<script src="scan-lib.js?v=20260922g"></script>
 <script src="staff-config.js?v=20260920a"></script>
 <style>
   /* ==========================================================================
@@ -114,6 +114,10 @@
   .go.s2{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 3px 12px rgba(217,119,6,.30);}
   .go.s3{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 3px 12px rgba(5,150,105,.30);}
   .go.fin{background:#e8f6ef;color:#047857;box-shadow:none;border:2px solid #a7f3d0;font-size:16px;}
+  /* 司机没签到 → 「装货中 / 已完成」暂时推不了（2026-09-22）：按钮压暗 + 上方写明原因 */
+  .go.lock{background:linear-gradient(135deg,#cbd5e1,#94a3b8);box-shadow:none;}
+  .needcar{display:flex;gap:7px;align-items:flex-start;font-size:13px;line-height:1.4;color:#b45309;
+    background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:7px 10px;}
   .row2{display:flex;gap:8px;align-items:stretch;}
   .car{flex:1;display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#f8fafc;}
   .car button{flex:1;min-height:46px;border:none;background:transparent;cursor:pointer;font-size:14.5px;
@@ -452,8 +456,12 @@ function rowHtml(r){
     if (i < 3) track += '<span class="ln ' + (i < s ? "on" : "") + '"></span>';
     lbls += '<span class="' + (on ? "on" : (cur ? "cur" : "")) + '">' + LITTLE[i] + "</span>";
   }
+  /* 司机没签到就点「装货中 / 已完成」→ 按钮压暗 + 上方写明原因，点了也会弹提示拦下 */
+  const needCar = s < 3 ? SL.stepBlock({ car: car, cx: r.cx }, s + 1) : "";
   const goHtml = s < 3
-    ? '<button type="button" class="go' + (s === 1 ? " s2" : (s === 2 ? " s3" : "")) + '" data-go="1">点一下完成「' + esc(SL.STEP_NAME[s + 1]) + '」</button>'
+    ? '<button type="button" class="go' + (s === 1 ? " s2" : (s === 2 ? " s3" : "")) + (needCar ? " lock" : "") +
+      '" data-go="1"' + (needCar ? ' title="' + esc(needCar) + '"' : "") +
+      '>点一下完成「' + esc(SL.STEP_NAME[s + 1]) + '」</button>'
     : '<button type="button" class="go fin" data-go="0">已完成 ✓（再点无变化）</button>';
   const tsTxt = (r.t ? "工序 <b>" + esc(SL.STEP_NAME[s]) + "</b> " + esc(SL.fmtHM(r.t)) + (r.by ? " · " + esc(r.by) : "") : "") +
                 (r.ct ? "　车已到 <b>" + esc(SL.fmtHM(r.ct)) + "</b>" : "");
@@ -470,7 +478,8 @@ function rowHtml(r){
     "</div>" +
     '<span class="badge s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>" +
     '<div class="steps"><div class="track">' + track + '</div><div class="lbls">' + lbls + "</div></div>" +
-    '<div class="acts">' + goHtml +
+    '<div class="acts">' + (needCar ? '<div class="needcar"><b>🚫</b><span>' + esc(needCar) +
+        '。<br>让司机扫「司机签到码」签到，或在本行点「✓ 车已到」。</span></div>' : "") + goHtml +
       '<div class="row2"><div class="car">' +
         '<button type="button" class="' + (car ? "" : "act") + '" data-car="0">🚚 车未到</button>' +
         '<button type="button" class="' + (car ? "act2" : "") + '" data-car="1">✓ 车已到</button>' +
@@ -499,9 +508,22 @@ function who(){ return SL.staffName(); }
 
 function step(rk, ck){
   if (!session()){ tip("请先登录", "err"); return; }
-  const s = ((PROG[rk] || {})[ck] || {}).s || 0;
+  const cur = (PROG[rk] || {})[ck] || {};
+  const s = cur.s || 0;
   if (s >= 3){ tip("已经是最后一步「已完成」了"); return; }
   const cust = String(ck).split("|")[0];
+  /* ★ 司机没签到（车未到）→ 「装货中 / 已完成」推不了（2026-09-22 用户要求）。
+     用「知道了」的提示框说清楚怎么回事、怎么解 —— 不要静默无反应。 */
+  const blocked = SL.stepBlock(cur, s + 1);
+  if (blocked){
+    SL.uiAlert("【" + cust + "】" + blocked + "。\n\n" +
+      "怎么解：\n" +
+      "① 让司机扫「司机签到码」签到（车已到）；\n" +
+      "② 或在本行点「✓ 车已到」手动标记；\n" +
+      "③ 如果这一步是点错的，点「↩」撤回一格。",
+      { title: "🚫 不能推进工序", okText: "知道了" });
+    return;
+  }
   SL.uiConfirm("确认把【" + cust + "】的工序推进到「" + SL.STEP_NAME[s + 1] + "」？\n（点错了可随时按「↩」撤回）", () => {
     const r = SL.applyStep(PROG, rk, ck, +1, who());
     if (!r.changed){ tip("已经是「" + SL.STEP_NAME[s + 1] + "」了"); return; }
