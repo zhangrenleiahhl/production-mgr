@@ -10,7 +10,7 @@
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;}
   body{font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
-    background:radial-gradient(1200px 600px at 50% -10%,#13315c 0%,#0b1220 60%);
+    background:linear-gradient(160deg,rgba(11,18,32,.78) 0%,rgba(11,18,32,.45) 45%,rgba(11,18,32,.82) 100%),url(login-bg.jpg) center/cover no-repeat fixed;
     color:#e6edf6;display:flex;align-items:center;justify-content:center;padding:20px;}
   .card{width:100%;max-width:380px;background:rgba(255,255,255,.04);border:1px solid rgba(120,170,255,.18);
     border-radius:18px;padding:30px 24px;box-shadow:0 20px 60px rgba(0,0,0,.45);backdrop-filter:blur(6px);}
@@ -98,5 +98,6 @@
   $("pw").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
   $("ac").addEventListener("keydown", e => { if (e.key === "Enter") $("pw").focus(); });
 </script>
+<script src="brand.js?v=1"></script>
 </body>
 </html>
