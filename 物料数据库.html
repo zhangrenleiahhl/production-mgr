@@ -7,6 +7,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
+<script src="scan-lib.js?v=20260923a"></script>
 <style>
   :root{
     --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
@@ -109,6 +110,7 @@
       <button class="btn btn-primary" id="importDb">导入表格</button>
       <button class="btn btn-ghost" id="addDbRow">＋ 新增物料</button>
       <button class="btn btn-line" id="exportDb">导出数据库</button>
+      <button class="btn btn-line" id="auditDb" title="扫一遍物料库：有没有填错的送达方代码">🔍 代码体检</button>
       <button class="btn btn-line" id="tplDb">下载模板</button>
       <button class="btn btn-line" id="sampleDb">载入示例</button>
       <button class="btn btn-danger" id="clearDb">清空</button>
@@ -218,6 +220,7 @@ function renderDB(){
   // 库里没编代码的送达方，大屏只能显示「未编代码」占位（保密要求不能回落显示名称）。
   // 所以这里把「还差几个」摆在明面上，点一下就能看到是哪些。
   updateCodeWarn();
+  updateAuditBadge();          // 送达方代码体检角标（发现问题时亮起数量）
   const info=$("dbSearchInfo");
   if(info) info.textContent = dbKeyword ? ("匹配 "+total+" 条") : (DB.length>dbPageSize ? ("共 "+DB.length+" 条，每页显示 "+dbPageSize+" 条") : "");
   const clr=$("dbSearchClear"); if(clr) clr.style.display = dbKeyword?"":"none";
@@ -490,6 +493,68 @@ $("tplDb").onclick=async ()=>{
       "怎么补：点「🔓 解锁修改」，在对应那一行的「送达方代码」格里填上；"+
       "或者在表格里补好这一列后整表导入。");
   }; }
+
+/* ==========================================================================
+   送达方代码「体检」（2026-09-23 现场事故后加）
+   --------------------------------------------------------------------------
+   现场症状：屏幕上「上海佳喆 → 100064」（100064 是**上海萨克斯**的码）、
+             「上海西工 → 100178」（100178 是**巴西舍弗勒**的码）。
+   查下来匹配逻辑没坏，是这一列**人工填的时候串了行**（复制上一行忘了改）。
+   这种错不会报错、只是安静地显示错的代码 —— 所以必须有一处能主动扫出来。
+   口径在 scan-lib.auditCodes（和 codeIndex 同一份实现），这里只负责把结果说人话。
+   ========================================================================== */
+function updateAuditBadge(){
+  const b=$("auditDb"); if(!b) return;
+  const SL=window.ScanLib;
+  const r=(SL&&SL.auditCodes)?SL.auditCodes(DB):null;
+  if(!r || !r.count){
+    b.textContent="🔍 代码体检";
+    b.style.background=""; b.style.borderColor=""; b.style.color="";
+    b.title="扫一遍物料库：有没有填错的送达方代码";
+    return;
+  }
+  b.textContent="🔍 代码体检 ("+r.count+")";
+  b.style.background="#fff7e0"; b.style.borderColor="#f6d48a"; b.style.color="#b45309";
+  b.title="发现 "+r.count+" 处可疑的送达方代码，点开看明细";
+}
+{ const b=$("auditDb"); if(b) b.onclick=()=>{
+  const SL=window.ScanLib;
+  if(!SL || !SL.auditCodes){ alert("scan-lib.js 没加载上，体检用不了（刷新一次试试）。"); return; }
+  const r=SL.auditCodes(DB);
+  if(!r.count){
+    const n=new Set(DB.map(x=>String(x.customer==null?"":x.customer).trim()).filter(Boolean)).size;
+    alert("物料库代码体检：没发现问题 ✓\n\n"+DB.length+" 条记录、"+n+" 个送达方，\n没有「同一个客户两个代码」或「同一个代码被两个客户占用」。");
+    return;
+  }
+  const L=[];
+  L.push("物料库代码体检：发现 "+r.count+" 处可疑");
+  if(r.multiCust.length){
+    L.push("");
+    L.push("【一】同一个代码被两个客户占用（一个代码只该属于一个客户，多半是复制上一行忘了改）");
+    r.multiCust.slice(0,12).forEach(x=>L.push("  · "+x.code+" ← "+x.customers.join(" / ")));
+    if(r.multiCust.length>12) L.push("  …等共 "+r.multiCust.length+" 组");
+  }
+  if(r.multiCode.length){
+    L.push("");
+    L.push("【二】同一个客户名下有多个代码（少数派就是嫌疑行）");
+    r.multiCode.slice(0,12).forEach(x=>{
+      const sure = x.goodN >= x.total*(2/3);
+      L.push("  · "+x.customer+"："+(sure
+        ? "多数是 "+x.good+"（"+x.goodN+"/"+x.total+" 条）"
+        : "两种都差不多（"+x.good+" "+x.goodN+" 条 vs "+x.suspects.map(s=>s.code+" "+s.n+" 条").join("、")+"）"));
+      x.suspects.forEach(s=>L.push("      └ 可疑 "+s.code+"（"+s.n+" 条），型号："+
+        s.models.slice(0,3).join("、")+(s.models.length>3?" 等":"")));
+      if(!sure) L.push("      ⚠ 两边票数接近，别自动改，请人工确认哪个才对");
+    });
+    if(r.multiCode.length>12) L.push("  …等共 "+r.multiCode.length+" 个客户");
+  }
+  L.push("");
+  L.push("怎么修：点「🔓 解锁修改」，把可疑那一行的「送达方代码」改成正确的值；");
+  L.push("或者在这一列改好后整表重新导入。改完再点一次体检确认 ✓");
+  L.push("");
+  L.push("（代码填错不会报错，大屏只是安静地显示错的代码 —— 建议每次导入后体检一次。）");
+  alert(L.join("\n"));
+}; }
 $("sampleDb").onclick=()=>mergeDbRows([
   {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",custcode:"C10001",remark:"标准件"},
   {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",custcode:"C10002",remark:"加急"},
