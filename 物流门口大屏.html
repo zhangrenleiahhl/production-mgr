@@ -166,23 +166,21 @@
      ★ 2026-09-21 状态列删掉后，代码是第 1 格 */
   tbody td:nth-child(1){padding-top:2px;padding-bottom:2px;}
   /* 单号（2026-09-17 起从代码格里分出来，独占一列）：单号本身用等宽字体，
-     后面跟的计划员姓名**打码显示**（两字遮第二个、三字遮中间）——
-     一眼分清哪段是单号、哪段是人名，同时又不在门口屏幕上报出完整姓名 */
+     后面跟的计划员姓名真名显示（★ 2026-09-23 老板要求恢复姓名，打码已删）——
+     一眼分清哪段是单号、哪段是人名 */
   /* ★ 2026-09-23：单号必须完整（同内部屏）。改成 inline-flex，单号自己优先占位、
-     字号由 fitNoFont 按实测降档；后面打码的计划员让位（可省略）。 */
+     字号由 fitNoFont 按实测降档；后面的计划员让位（可省略）。 */
   /* 容器不用 gap（gap 不参与收缩，计划员缩到 0 后间隙还占着）—— 间距交给 .pl */
   .no{display:inline-flex;align-items:baseline;max-width:100%;color:var(--muted);
     font-size:.8em;font-weight:600;letter-spacing:.3px;white-space:nowrap;overflow:hidden;
     vertical-align:baseline;}
-  /* 单号不收缩、优先占够空间；打码后的计划员整段让位（放不下就缩到 0） */
+  /* 单号不收缩、优先占够空间；计划员整段让位（放不下就缩到 0） */
   .no .sn{flex:0 0 auto;white-space:nowrap;font-weight:700;color:#c9d6e8;
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:.2px;}
   body.nowrap .no .sn{white-space:normal;overflow-wrap:anywhere;line-height:1.15;}
   .no .pl{flex:0 1 auto;min-width:0;margin-left:4px;overflow:hidden;text-overflow:ellipsis;}
   .no.nopl .pl{display:none;}
   .no .sep{color:var(--dim);}
-  /* 打码的那一个星号：正体、暗一档。远处看仍是个姓名，近看能认出是被遮住的字 */
-  .no .mk{font-style:normal;color:var(--dim);font-weight:800;margin:0 .5px;}
   .ton{font-weight:800;font-size:1.12em;}
   .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
 
@@ -619,24 +617,8 @@ function kpiHtml(s){
   ].map(k => '<div class="kpi ' + k.cls + '"><i></i><b>' + esc(String(k.v)) + "</b><span>" + esc(k.l) + "</span></div>").join("");
 }
 
-/* 计划员姓名打码（2026-09-17）——门口这一屏连人名也只显示一部分：
-     两个字  王明   → 王*
-     三个字  王小明 → 王*明
-     四个以上 欧阳小明 → 欧**明
-     一个字  没地方遮，原样显示
-   只把中间的字换成星号，长度不变，远处仍然读得出这是个人名。 */
-function maskName(name){
-  const t = String(name == null ? "" : name).trim();
-  if (t.length <= 1) return t;
-  if (t.length === 2) return t.charAt(0) + "*";
-  let mid = "";
-  for (let i = 0; i < t.length - 2; i++) mid += "*";
-  return t.charAt(0) + mid + t.charAt(t.length - 1);
-}
-/* 打码后的姓名 → HTML：星号单独包一层，好让它暗一档 */
-function maskNameHtml(name){
-  return esc(maskName(name)).replace(/\*/g, '<i class="mk">*</i>');
-}
+/* 计划员 / 经手人姓名显示（2026-09-23）：老板要求恢复真名，此前的
+   maskName / maskNameHtml 打码逻辑已整块删除。姓名一律经 esc() 输出。 */
 
 /* 一行怎么画 —— 注意：这里**没有**任何一处输出客户名，改动前先想清楚这句话 */
 function rowHtml(r){
@@ -653,9 +635,9 @@ function rowHtml(r){
     '</span>';
   const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
   /* 两列更新分开报（2026-09-21）：
-     · 工序更新 = 只报四道工序的进度时间（谁点的一并带出，★ 门口屏人名打码）；
+     · 工序更新 = 只报四道工序的进度时间（谁点的一并带出真名，2026-09-23 恢复姓名）；
      · 车辆更新 = 只报司机签到（车已到）的时间 —— 司机扫码签到了才冒出来。 */
-  const byTxt = r.by ? " · " + maskNameHtml(r.by) : "";
+  const byTxt = r.by ? " · " + esc(r.by) : "";
   const stepWhen = r.t ? SL.fmtHM(r.t) : "";
   const carWhen = r.car && r.ct ? SL.fmtHM(r.ct) : "";
   const code = codeOf(r);
@@ -663,9 +645,9 @@ function rowHtml(r){
   const codeCell = code
     ? '<span class="cust">' + esc(code) + "</span>"
     : '<span class="cust miss">未编代码</span>';
-  // 单号独立成一列（2026-09-17）：后面的计划员姓名打码显示（王小明 → 王*明）
+  // 单号独立成一列（2026-09-17）：后面的计划员姓名真名显示（2026-09-23 老板要求恢复姓名）
   const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" +
-    (r.planner ? '<span class="pl"><span class="sep"> · </span>' + maskNameHtml(r.planner) + "</span>" : "") + "</span>";
+    (r.planner ? '<span class="pl"><span class="sep"> · </span>' + esc(r.planner) + "</span>" : "") + "</span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + stale + codeCell + "</td>" +
     '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
@@ -678,7 +660,7 @@ function rowHtml(r){
   "</tr>";
 }
 
-/* 查不到代码的行数 → 页脚提醒（只报条数，不报是谁：这屏本来就不能出现名字） */
+/* 查不到代码的行数 → 页脚提醒（只报条数：这屏不出现客户名，与 2026-09-23 恢复的人名无关） */
 function updateMissNote(){
   const el = $("missNote");
   if (!el) return;
