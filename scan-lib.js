@@ -137,9 +137,21 @@ window.ScanLib = (function () {
     if (yv > xv) return { cx: (y.cx || 0) ? 1 : 0, cxv: yv };
     return { cx: Math.max(x.cx || 0, y.cx || 0) ? 1 : 0, cxv: xv };
   }
+  /* ---- 品一质保书（2026-09-23 用户要求）------------------------------------
+     cell.bz = 质保书是否备好（0/1）；能设能撤 → ★ 必须独立版本号 bzv（大者赢），
+     跟 rt/cx 同一套教训：跟着 rv 走会被高 rv 快照通吃，症状是「过一会儿才消失」。
+     bzt/bzb = 确认时间 / 谁确认的（撤掉时一并清零）。 ---- */
+  function mergeBz(x, y){
+    var xv = x.bzv || 0, yv = y.bzv || 0;
+    if (xv > yv) return { bz: (x.bz || 0) ? 1 : 0, bzv: xv, bzt: x.bzt || 0, bzb: raw(x.bzb) };
+    if (yv > xv) return { bz: (y.bz || 0) ? 1 : 0, bzv: yv, bzt: y.bzt || 0, bzb: raw(y.bzb) };
+    var wx = (x.bz || 0) ? 1 : 0, wy = (y.bz || 0) ? 1 : 0;
+    var w = (wx && !wy) ? x : ((!wx && wy) ? y : x);
+    return { bz: Math.max(wx, wy), bzv: xv, bzt: w.bzt || 0, bzb: raw(w.bzb) };
+  }
   function mergeCell(x, y){
     x = x || {}; y = y || {};
-    var R = mergeRt(x, y), X = mergeCx(x, y);
+    var R = mergeRt(x, y), X = mergeCx(x, y), Z = mergeBz(x, y);
     var xr = x.rv || 0, yr = y.rv || 0;
     if (xr !== yr){
       var w = xr > yr ? x : y;
@@ -153,6 +165,7 @@ window.ScanLib = (function () {
         cxv: X.cxv,
         rt: R.rt,
         rtv: R.rtv,
+        bz: Z.bz, bzv: Z.bzv, bzt: Z.bzt, bzb: Z.bzb,
         u: w.u || 0,
         by: raw(w.by),
         rv: Math.max(xr, yr)
@@ -182,6 +195,7 @@ window.ScanLib = (function () {
       cxv: X.cxv,
       rt: R.rt,
       rtv: R.rtv,
+      bz: Z.bz, bzv: Z.bzv, bzt: Z.bzt, bzb: Z.bzb,
       u: us.length ? Math.max.apply(null, us) : 0,
       by: by,
       rv: xr
@@ -200,7 +214,7 @@ window.ScanLib = (function () {
         var m = mergeCell(A[ck], B[ck]);
         // rv>0 的"空格子"也要留着：那是「撤回」留下的墓碑。
         // 丢掉它的话，某台离线手机拿着旧版本一推，被撤掉的进度就会自己长回来。
-        if (m.s > 0 || m.car > 0 || (m.rv || 0) > 0 || (m.rt || 0) > 0 || (m.cx || 0) > 0) o[ck] = m;
+        if (m.s > 0 || m.car > 0 || (m.rv || 0) > 0 || (m.rt || 0) > 0 || (m.cx || 0) > 0 || (m.bz || 0) > 0) o[ck] = m;
       });
       if (Object.keys(o).length) out[rk] = o;
     });
@@ -219,12 +233,15 @@ window.ScanLib = (function () {
      ========================================================================== */
   function cellAt(prog, rk, ck){
     if (!prog[rk]) prog[rk] = {};
-    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0, cx: 0, rt: 0, rtv: 0, cxv: 0 };
+    if (!prog[rk][ck]) prog[rk][ck] = { s: 0, t: 0, car: 0, ct: 0, u: 0, by: "", rv: 0, cx: 0, rt: 0, rtv: 0, cxv: 0, bz: 0, bzv: 0, bzt: 0, bzb: "" };
     if (prog[rk][ck].rv == null) prog[rk][ck].rv = 0;
     if (prog[rk][ck].cx == null) prog[rk][ck].cx = 0;
     if (prog[rk][ck].rt == null) prog[rk][ck].rt = 0;
     if (prog[rk][ck].rtv == null) prog[rk][ck].rtv = 0;
     if (prog[rk][ck].cxv == null) prog[rk][ck].cxv = 0;
+    if (prog[rk][ck].bz == null) prog[rk][ck].bz = 0;
+    if (prog[rk][ck].bzv == null) prog[rk][ck].bzv = 0;
+    if (prog[rk][ck].bzt == null) prog[rk][ck].bzt = 0;
     return prog[rk][ck];
   }
   /* ---- 预约货好（2026-09-18 用户要求）----------------------------------------
@@ -344,6 +361,17 @@ window.ScanLib = (function () {
      v=false → 退回「货待确认」，★ 同时清掉预约时间 —— 不清的话时间已经过了，
                effS() 会立刻又把它算成「货好」，看起来像"撤销不生效"。
      已经装货/完成的（s>=2）不许退回：那是现场真做过的动作，不能从管理端抹掉。 */
+  /* ---- 品一质保书确认（2026-09-23）：扫码页单独按钮，能设能撤，★ bzv 必须 +1 ---- */
+  function applyBz(prog, rk, ck, v, who){
+    var c = cellAt(prog, rk, ck);
+    var nv = v ? 1 : 0;
+    if ((c.bz || 0) === nv) return { changed: false, cell: c, bz: nv };
+    c.bz = nv;
+    c.bzv = (c.bzv || 0) + 1;
+    if (nv){ c.bzt = Date.now(); c.bzb = raw(who); }
+    else { c.bzt = 0; c.bzb = ""; }
+    return { changed: true, cell: c, bz: nv };
+  }
   function applyReady(prog, rk, ck, v, who){
     var c = cellAt(prog, rk, ck), now = Date.now(), s = rawS(c);
     if (v){
@@ -572,6 +600,7 @@ window.ScanLib = (function () {
           s: effS(c), car: carv, cx: cxv,
           t: c.t || 0, ct: c.ct || 0, u: c.u || 0, by: raw(c.by),
           rt: c.rt || 0, autoReady: readyIsAuto(c),
+          bz: c.bz || 0, bzt: c.bzt || 0, bzb: raw(c.bzb),
           no: raw(rec.no), planner: raw(rec.planner),
           done: done, isToday: isToday, isYesterday: isYest, stale: !isToday
         });
@@ -1490,6 +1519,7 @@ window.ScanLib = (function () {
     cellAt: cellAt, applyStep: applyStep, applyCar: applyCar, applyUndo: applyUndo,
     applyCarCancel: applyCarCancel, applyCarUncancel: applyCarUncancel,
     applyReady: applyReady, applyReadyAt: applyReadyAt, applyReadyAuto: applyReadyAuto,
+    applyBz: applyBz,
     effS: effS, rawS: rawS, readyAuto: readyAuto, readyIsAuto: readyIsAuto,    custGroups: custGroups, progStats: progStats, progOf: progOf,
     p2: p2, ymdOf: ymdOf, todayYmd: todayYmd, shiftYmd: shiftYmd, normDate: normDate,
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
