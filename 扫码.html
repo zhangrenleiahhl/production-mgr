@@ -9,7 +9,7 @@
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
 <script src="scan-lib.js?v=20260923a"></script>
-<script src="staff-config.js?v=20260920a"></script>
+<script src="staff-config.js?v=20260923b"></script>
 <style>
   /* ==========================================================================
      内部工序操作页（手机端）—— 四道工序只有内部人员能点
@@ -228,7 +228,8 @@
 <!-- ★ 2026-09-23：这一页**不挂全站门禁**（Auth.guard）。
      理由：它自己有更严格的门 —— 只认内部名单里的 15 个姓名 + 口令，没登录连按钮都不渲染。
      再叠一层 Supabase 账号登录会变成「先登账号、再登姓名」，而名单里的
-     贾春雷/周霞/黄鑫/赵兵/胡开龙 还没建 Supabase 账号 → 一开门禁他们当场进不来。
+     周霞/赵兵/胡开龙 还没建 Supabase 账号 → 一开门禁他们当场进不来。
+     （贾春雷、黄鑫 2026-09-23 已建号，等剩下 3 人也建好就能整体挂上。）
      等这几位也建了账号，想改成双重门禁，把这行注释放开即可。 -->
 <!-- <script>if(window.Auth)Auth.guard();</script> -->
 <script>
