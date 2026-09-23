@@ -26,6 +26,7 @@ window.STAFF = {
   salt: "hg-fhjd-2026-09",
   days: 30,
   ver: "v2026-09-23e",
+  adminPhone: "16655052098",   // ★ 管理员（老板）手机号 —— 只有这个号登录后才看得到「账号管理」入口
   users: [
     { id: "张仁磊", name: "张仁磊", phone: "16655052098", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
     { id: "贾春雷", name: "贾春雷", phone: "15952496025", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
