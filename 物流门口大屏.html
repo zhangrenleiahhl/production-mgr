@@ -7,7 +7,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260923a"></script>
+<script src="scan-lib.js?v=20260923b"></script>
 <style>
   /* ==========================================================================
      物流门口大屏 · 保密版（只读，摆在物流门口给现场远远地看）
@@ -269,6 +269,7 @@
   tr.done .car.off{color:#94a3b8;font-weight:600;}
   .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
   .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
+  .bzon{color:var(--green);font-weight:800;} .bzoff{color:var(--dim);}  /* 品一质保书（2026-09-23） */
   /* 工序更新列：允许折行，超长也显示全（绝不省略号截断）；nth-child(5) 是工序更新 */
   tbody td:nth-child(5){white-space:normal;word-break:break-word;}
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
@@ -333,11 +334,11 @@
            「车辆更新」跟在车辆后面（只报司机签到/车已到的时间）。 -->
       <colgroup>
         <col style="width:12%"><col style="width:9%"><col style="width:14%">
-        <col style="width:20%"><col style="width:14%"><col style="width:11%"><col style="width:20%">
+        <col style="width:17%"><col style="width:12%"><col style="width:12%"><col style="width:10%"><col style="width:12%">
       </colgroup>
       <thead><tr>
         <th>送达方代码</th><th>吨位</th><th>单号</th>
-        <th>工序</th><th>工序更新</th><th>车辆</th><th>车辆更新</th>
+        <th>工序</th><th>工序更新</th><th>品一质保书</th><th>车辆</th><th>车辆更新</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -645,15 +646,15 @@ function rowHtml(r){
   const codeCell = code
     ? '<span class="cust">' + esc(code) + "</span>"
     : '<span class="cust miss">未编代码</span>';
-  // 单号独立成一列（2026-09-17）：后面的计划员姓名真名显示（2026-09-23 老板要求恢复姓名）
-  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" +
-    (r.planner ? '<span class="pl"><span class="sep"> · </span>' + esc(r.planner) + "</span>" : "") + "</span>";
+  // 单号独立成一列（2026-09-17）；计划员隐藏（2026-09-23 用户要求，姓名在「工序更新」列看）
+  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span></span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + stale + codeCell + "</td>" +
     '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td>' + noCell + "</td>" +
     '<td>' + flw + "</td>" +
     '<td><span class="tm">' + (stepWhen ? "工序 " + esc(stepWhen) + byTxt : '<s>还没动</s>') + "</span></td>" +
+    '<td>' + (r.cx ? '<s>已取消</s>' : (r.bz ? '<span class="bzon">✓ 已备好' + (r.bzt ? " " + esc(SL.fmtHM(r.bzt)) : "") + (r.bzb ? " · " + esc(r.bzb) : "") + "</span>" : '<span class="bzoff">未确认</span>')) + "</td>" +
     '<td>' + (r.cx ? '<span class="carx">取消</span>' : '<span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span>") + "</td>" +
     '<td><span class="tm">' + (r.cx ? '<s>已取消</s>'
       : (carWhen ? "车到 " + esc(carWhen) : '<s>还没签到</s>')) + "</span></td>" +
@@ -676,7 +677,7 @@ function updateMissNote(){
 function render(){
   rows = SL.boardRows(RECORDS, PROG);
   const s = SL.boardStats(rows);
-  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.cx, r.u, r.by, r.t, r.ct].join(":")).join("|") + "#" + rows.length;
+  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.cx, r.u, r.by, r.t, r.ct, r.bz].join(":")).join("|") + "#" + rows.length;
   $("kpis").innerHTML = kpiHtml(s);
 
   const empty = rows.length === 0;
