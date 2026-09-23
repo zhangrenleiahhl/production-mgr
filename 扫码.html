@@ -8,7 +8,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260923b"></script>
+<script src="scan-lib.js?v=20260923c"></script>
 <script src="staff-config.js?v=20260923c"></script>
 <style>
   /* ==========================================================================
@@ -509,7 +509,10 @@ function rowHtml(r){
     lbls += '<span class="' + (on ? "on" : (cur ? "cur" : "")) + '">' + LITTLE[i] + "</span>";
   }
   /* 司机没签到就点「装货中 / 已完成」→ 按钮压暗 + 上方写明原因，点了也会弹提示拦下 */
-  const needCar = s < 3 ? SL.stepBlock({ car: car, cx: r.cx }, s + 1) : "";
+  const needCar = s < 3 ? SL.stepBlock({ car: car, cx: r.cx, bz: r.bz }, s + 1) : "";
+  /* 被拦时给「怎么解」的建议：缺车说车、缺质保书说质保书（文案只在这一处生成） */
+  const needHint = /质保书/.test(needCar) ? "先在本行点「✓ 质保书好了」。"
+                                          : "让司机扫「司机签到码」签到，或在本行点「✓ 车已到」。";
   const goHtml = s < 3
     ? '<button type="button" class="go' + (s === 1 ? " s2" : (s === 2 ? " s3" : "")) + (needCar ? " lock" : "") +
       '" data-go="1"' + (needCar ? ' title="' + esc(needCar) + '"' : "") +
@@ -532,7 +535,7 @@ function rowHtml(r){
     '<span class="badge s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>" +
     '<div class="steps"><div class="track">' + track + '</div><div class="lbls">' + lbls + "</div></div>" +
     '<div class="acts">' + (needCar ? '<div class="needcar"><b>🚫</b><span>' + esc(needCar) +
-        '。<br>让司机扫「司机签到码」签到，或在本行点「✓ 车已到」。</span></div>' : "") + goHtml +
+        '。<br>' + needHint + '</span></div>' : "") + goHtml +
       '<div class="row2"><div class="car">' +
         '<button type="button" class="' + (r.bz ? "" : "act") + '" data-bz="0">📄 质保书未好</button>' +
         '<button type="button" class="' + (r.bz ? "act2" : "") + '" data-bz="1">✓ 质保书好了</button>' +
@@ -570,15 +573,21 @@ function step(rk, ck){
   const s = cur.s || 0;
   if (s >= 3){ tip("已经是最后一步「已完成」了"); return; }
   const cust = String(ck).split("|")[0];
-  /* ★ 司机没签到（车未到）→ 「装货中 / 已完成」推不了（2026-09-22 用户要求）。
+  /* ★ 司机没签到（车未到）/ 品一质保书没好 → 对应的工序推不了（2026-09-22 / 09-23 用户要求）。
      用「知道了」的提示框说清楚怎么回事、怎么解 —— 不要静默无反应。 */
   const blocked = SL.stepBlock(cur, s + 1);
   if (blocked){
-    SL.uiAlert("【" + cust + "】" + blocked + "。\n\n" +
-      "怎么解：\n" +
-      "① 让司机扫「司机签到码」签到（车已到）；\n" +
-      "② 或在本行点「✓ 车已到」手动标记；\n" +
-      "③ 如果这一步是点错的，点「↩」撤回一格。",
+    /* 「怎么解」跟着被拦的原因走：缺车说车、缺质保书说质保书（别把车的话术套到质保书上） */
+    const how = /质保书/.test(blocked)
+      ? "怎么解：\n" +
+        "① 先确认品一质保书已经备好（在本行点「✓ 质保书好了」）；\n" +
+        "② 备好之后再点这一步；\n" +
+        "③ 如果这一步是点错的，点「↩」撤回一格。"
+      : "怎么解：\n" +
+        "① 让司机扫「司机签到码」签到（车已到）；\n" +
+        "② 或在本行点「✓ 车已到」手动标记；\n" +
+        "③ 如果这一步是点错的，点「↩」撤回一格。";
+    SL.uiAlert("【" + cust + "】" + blocked + "。\n\n" + how,
       { title: "🚫 不能推进工序", okText: "知道了" });
     return;
   }
