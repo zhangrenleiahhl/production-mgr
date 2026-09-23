@@ -2,8 +2,10 @@
    铸运通 · 统一账号登录（接 Supabase Auth）
    --------------------------------------------------------------------------
    复用现有 supabase 客户端（window.supabase + CLOUD_CONFIG），不新增任何密钥。
-   账号标识：内部人员用「手机号」登录，系统自动补 @neibu.local 当邮箱去对接
+   账号标识：内部人员用「手机号」登录，系统自动补 @neibu.fhjd.com 当邮箱去对接
             Supabase Auth（这样不必配置短信网关，零成本）。
+            ⚠ 域名必须带**真实顶级域**：原来的 @neibu.local 会被 Supabase 判
+              email_address_invalid（".local" 不是有效 TLD），注册/登录全过不去。
            后台也可以在 Supabase 建「真邮箱+密码」账号，同样能登。
 
    全站门禁：window.LOGIN_REQUIRED = true 时，未登录的页面会跳登录页。
@@ -24,13 +26,16 @@ window.LOGIN_REQUIRED = false;
     return _sb;
   }
 
-  // 手机号 / 任意账号 → Supabase 需要的 email 格式
+  /* 手机号 / 任意账号 → Supabase 需要的 email 格式。
+     ★ 2026-09-23 修：原来拼的是 @neibu.local —— ".local" 不是有效顶级域，
+       Supabase 的邮箱校验直接判 email_address_invalid，**连注册都过不去**（实测）。
+       换成带真实 TLD 的内部域名即可（不真发信，只是拼个格式给 Auth 用）。 */
+  var INTERNAL_DOMAIN = "@neibu.fhjd.com";
   function toEmail(id) {
     id = (id || "").trim();
     if (!id) return "";
     if (id.indexOf("@") >= 0) return id;
-    if (/^[\d]{6,15}$/.test(id)) return id + "@neibu.local";   // 手机号当账号
-    return id + "@neibu.local";
+    return id + INTERNAL_DOMAIN;                                  // 手机号 / 姓名 当账号
   }
 
   function nameOf(u) {
