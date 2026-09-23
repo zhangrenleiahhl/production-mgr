@@ -2,11 +2,14 @@
    铸运通 · 统一账号登录（接 Supabase Auth）
    --------------------------------------------------------------------------
    复用现有 supabase 客户端（window.supabase + CLOUD_CONFIG），不新增任何密钥。
-   账号标识：内部人员用「手机号」登录，系统自动补 @neibu.fhjd.com 当邮箱去对接
+   账号标识：内部人员用「手机号」登录，系统自动补 @neibu.local 当邮箱去对接
             Supabase Auth（这样不必配置短信网关，零成本）。
-            ⚠ 域名必须带**真实顶级域**：原来的 @neibu.local 会被 Supabase 判
-              email_address_invalid（".local" 不是有效 TLD），注册/登录全过不去。
-           后台也可以在 Supabase 建「真邮箱+密码」账号，同样能登。
+   ⚠ 域名这件事有两个坑，都实测过（2026-09-23）——别再改错：
+     · **后台手动建的账号**（Authentication → Users → Add user）用 @neibu.local
+       完全正常，登录/签发 token 都没问题；现网十几个人全建在这个域名下。
+     · **API 自助注册**（signUp）只认带真实顶级域的写法，@neibu.local 会被判
+       email_address_invalid。所以注册用 @neibu.fhjd.com。
+   → 登录按「上次成功的域名」优先、两个域名依次尝试，账号建在哪边都能登。
 
    全站门禁：window.LOGIN_REQUIRED = true 时，未登录的页面会跳登录页。
             = false（关闭，默认）—— 各页面已接上 Auth.guard()，建好账号后跟我说一声「开门禁」即开启；
@@ -27,15 +30,26 @@ window.LOGIN_REQUIRED = false;
   }
 
   /* 手机号 / 任意账号 → Supabase 需要的 email 格式。
-     ★ 2026-09-23 修：原来拼的是 @neibu.local —— ".local" 不是有效顶级域，
-       Supabase 的邮箱校验直接判 email_address_invalid，**连注册都过不去**（实测）。
-       换成带真实 TLD 的内部域名即可（不真发信，只是拼个格式给 Auth 用）。 */
-  var INTERNAL_DOMAIN = "@neibu.fhjd.com";
-  function toEmail(id) {
+     INTERNAL_DOMAINS：登录时依次尝试的域名（上次成功的排最前，少一次无谓请求）。
+     SIGNUP_DOMAIN   ：只能用带真实顶级域的那个 —— API 注册不认 .local。 */
+  var INTERNAL_DOMAINS = ["@neibu.local", "@neibu.fhjd.com"];
+  var SIGNUP_DOMAIN = "@neibu.fhjd.com";
+  var DOM_LS = "auth_dom_v1";
+
+  function domOrder() {
+    var last = "";
+    try { last = localStorage.getItem(DOM_LS) || ""; } catch (e) {}
+    var arr = INTERNAL_DOMAINS.slice();
+    var i = arr.indexOf(last);
+    if (i > 0) { arr.splice(i, 1); arr.unshift(last); }
+    return arr;
+  }
+
+  function toEmail(id, dom) {
     id = (id || "").trim();
     if (!id) return "";
     if (id.indexOf("@") >= 0) return id;
-    return id + INTERNAL_DOMAIN;                                  // 手机号 / 姓名 当账号
+    return id + (dom || INTERNAL_DOMAINS[0]);                     // 手机号 / 姓名 当账号
   }
 
   function nameOf(u) {
@@ -71,18 +85,30 @@ window.LOGIN_REQUIRED = false;
   async function login(identifier, password) {
     const c = sb();
     if (!c) return { ok: false, msg: "云端未配置（CLOUD_CONFIG 缺失，先配置云端同步）" };
-    const { data, error } = await c.auth.signInWithPassword({ email: toEmail(identifier), password: password });
-    if (error) return { ok: false, msg: humanErr(error) };
-    if (!data.user) return { ok: false, msg: "登录失败" };
-    saveSession(data.user);
-    return { ok: true, name: nameOf(data.user) };
+    const raw = (identifier || "").trim();
+    if (!raw) return { ok: false, msg: "请输入账号" };
+    // 用户自己写了完整邮箱 → 只试这一次，不猜域名
+    const doms = raw.indexOf("@") >= 0 ? [""] : domOrder();
+    let msg = "账号或密码错误";
+    for (let i = 0; i < doms.length; i++) {
+      const { data, error } = await c.auth.signInWithPassword({ email: toEmail(raw, doms[i]), password: password });
+      if (!error && data && data.user) {
+        try { if (doms[i]) localStorage.setItem(DOM_LS, doms[i]); } catch (e) {}
+        saveSession(data.user);
+        return { ok: true, name: nameOf(data.user) };
+      }
+      msg = humanErr(error);
+      // ★ 只有「账号或密码不对」才值得换域名再试；「没激活/格式错」换域名结果一样
+      if (msg !== "账号或密码错误") return { ok: false, msg: msg };
+    }
+    return { ok: false, msg: msg };
   }
 
   async function signup(identifier, password, name) {
     const c = sb();
     if (!c) return { ok: false, msg: "云端未配置" };
     const { data, error } = await c.auth.signUp({
-      email: toEmail(identifier),
+      email: toEmail(identifier, SIGNUP_DOMAIN),
       password: password,
       options: { data: { name: name || toEmail(identifier).split("@")[0] } }
     });
@@ -119,5 +145,6 @@ window.LOGIN_REQUIRED = false;
     }
   }
 
-  window.Auth = { login, signup, logout, getSession, currentName, currentOp, guard, toEmail, nameOf };
+  window.Auth = { login, signup, logout, getSession, currentName, currentOp, guard, toEmail, nameOf,
+                  domains: INTERNAL_DOMAINS, signupDomain: SIGNUP_DOMAIN, domOrder: domOrder };
 })();
