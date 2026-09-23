@@ -168,9 +168,18 @@
   /* 单号（2026-09-17 起从代码格里分出来，独占一列）：单号本身用等宽字体，
      后面跟的计划员姓名**打码显示**（两字遮第二个、三字遮中间）——
      一眼分清哪段是单号、哪段是人名，同时又不在门口屏幕上报出完整姓名 */
-  .no{display:inline-block;font-size:.8em;color:var(--muted);font-weight:600;letter-spacing:.3px;}
-  .no .sn{font-weight:700;color:#c9d6e8;
+  /* ★ 2026-09-23：单号必须完整（同内部屏）。改成 inline-flex，单号自己优先占位、
+     字号由 fitNoFont 按实测降档；后面打码的计划员让位（可省略）。 */
+  /* 容器不用 gap（gap 不参与收缩，计划员缩到 0 后间隙还占着）—— 间距交给 .pl */
+  .no{display:inline-flex;align-items:baseline;max-width:100%;color:var(--muted);
+    font-size:.8em;font-weight:600;letter-spacing:.3px;white-space:nowrap;overflow:hidden;
+    vertical-align:baseline;}
+  /* 单号不收缩、优先占够空间；打码后的计划员整段让位（放不下就缩到 0） */
+  .no .sn{flex:0 0 auto;white-space:nowrap;font-weight:700;color:#c9d6e8;
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:.2px;}
+  body.nowrap .no .sn{white-space:normal;overflow-wrap:anywhere;line-height:1.15;}
+  .no .pl{flex:0 1 auto;min-width:0;margin-left:4px;overflow:hidden;text-overflow:ellipsis;}
+  .no.nopl .pl{display:none;}
   .no .sep{color:var(--dim);}
   /* 打码的那一个星号：正体、暗一档。远处看仍是个姓名，近看能认出是被遮住的字 */
   .no .mk{font-style:normal;color:var(--dim);font-weight:800;margin:0 .5px;}
@@ -556,6 +565,48 @@ function fitCodeFont(){
     r = up;
   }
 }
+/* 单号自适应字号（2026-09-23）
+   为什么需要：大屏字号按行数自适应（--rowfs 15~26px），行少字号就大 ——
+   单号是 15 位等宽字符，字号一大就把这一格撑破，td 的 overflow:hidden 会把最后 1~2 位吃掉
+   （真机实测 26px 时缺 11px）。单号缺一位就查不到单，比显示小字糟得多。
+   做法同 fitCustNames：先整批复位（只触发一次布局），再整批量（读写分离，别交错触发重排）。
+   下限 62%：15 位单号 × 0.62 在 175% 缩放的 1097px 视口里也放得下。
+   降到下限仍放不下（超长单号）→ 加 body.nowrap 折行，绝不丢字。 */
+const NO_R_MIN = 0.56;
+function fitNoFont(){
+  const tb = document.getElementById("tbody"); if (!tb) return;
+  document.body.classList.remove("nowrap");
+  const list = Array.prototype.slice.call(tb.querySelectorAll(".no"));
+  if (!list.length) return;
+  const sns = list.map(no => no.querySelector(".sn"));
+  for (let i = 0; i < list.length; i++){                 // 整批复位（只触发一次布局）
+    if (sns[i]) sns[i].style.fontSize = "";
+    list[i].classList.remove("nopl");
+  }
+  const over = no => no.scrollWidth > no.clientWidth + 1;
+  let fold = false;
+  for (let i = 0; i < list.length; i++){
+    const no = list[i], sn = sns[i];
+    if (!sn) continue;
+    // ⓪ 计划员放不下一个完整人名（3 字 ≈ 76px）就整段撤掉 ——
+    //    挤成「· …」只有半个字，比不显示还难看。单号这一格宁可只留单号。
+    const pl = no.querySelector(".pl");
+    if (pl && pl.clientWidth > 0 && pl.clientWidth < 76) no.classList.add("nopl");
+    if (!over(no)) continue;                             // 本来就放得下
+    // ① 先撤计划员（它本来就是"让位的那一段"）—— 撤完放得下就一档字号都不用降
+    no.classList.add("nopl");
+    if (!over(no)) continue;
+    // ② 还放不下 → 逐档降单号字号
+    let k = NO_R_MIN;
+    for (k = 0.96; k >= NO_R_MIN - 1e-6; k -= 0.04){
+      sn.style.fontSize = Math.round(k * 100) + "%";
+      if (!over(no)) break;
+    }
+    // ③ 降到下限仍放不下（超长单号）→ 折行，一位都不丢
+    if (k < NO_R_MIN - 1e-6){ fold = true; sn.style.fontSize = Math.round(NO_R_MIN * 100) + "%"; }
+  }
+  if (fold) document.body.classList.add("nowrap");
+}
 
 function kpiHtml(s){
   return [
@@ -614,7 +665,7 @@ function rowHtml(r){
     : '<span class="cust miss">未编代码</span>';
   // 单号独立成一列（2026-09-17）：后面的计划员姓名打码显示（王小明 → 王*明）
   const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" +
-    (r.planner ? '<span class="sep"> · </span>' + maskNameHtml(r.planner) : "") + "</span>";
+    (r.planner ? '<span class="pl"><span class="sep"> · </span>' + maskNameHtml(r.planner) + "</span>" : "") + "</span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + stale + codeCell + "</td>" +
     '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
@@ -667,6 +718,7 @@ function render(){
   missCount = 0;
   $("tbody").innerHTML = rows.map(rowHtml).join("");
   fitCodeFont();                       // 行出来了才知道这一列多宽，再定代码字号
+  fitNoFont();                         // 单号必须完整：按实测宽度逐档降字号
   updateMissNote();
   setupScroll();
 }
@@ -750,7 +802,7 @@ function onFsChange(){
   const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
   document.body.classList.toggle("fs", on);
   $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
-  stopScroll(); fitRows(rows.length); fitCodeFont(); setupScroll();   // 全屏切换字号变了，滚动要重新量
+  stopScroll(); fitRows(rows.length); fitCodeFont(); fitNoFont(); setupScroll();   // 全屏切换字号变了，滚动要重新量
   pokeCursor();
 }
 
@@ -767,7 +819,7 @@ function boot(){
   document.addEventListener("mousemove", pokeCursor);
   document.addEventListener("touchstart", pokeCursor);
   window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
-  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCodeFont(); setupScroll(); });
+  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCodeFont(); fitNoFont(); setupScroll(); });
   // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
   boxEl.addEventListener("wheel", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
   boxEl.addEventListener("touchstart", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
