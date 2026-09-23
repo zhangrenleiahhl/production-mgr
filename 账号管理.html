@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>账号管理 · 仅管理员可见</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f4f6fb;color:#1f2328;padding:18px;}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#64748b;font-size:13px;margin:0 0 16px}
+  .bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .bar button{height:34px;padding:0 14px;border:1px solid #d8dee9;background:#fff;border-radius:8px;font-size:13px;cursor:pointer}
+  .bar button.primary{background:#1f6feb;color:#fff;border:none}
+  .wrap{background:#fff;border:1px solid #e6eaf0;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(31,45,77,.06)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:11px 14px;text-align:left;border-bottom:1px solid #eef2f7}
+  th{background:#f8fafc;color:#64748b;font-weight:700;font-size:12px;letter-spacing:.3px}
+  tr:last-child td{border-bottom:none}
+  td.pwd{font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .acts{display:flex;gap:6px}
+  .acts button{height:28px;padding:0 10px;border:1px solid #d8dee9;background:#fff;border-radius:6px;font-size:12px;cursor:pointer}
+  .acts button.show{border-color:#bfdbfe;color:#1f6feb}
+  .tag{display:inline-block;padding:1px 7px;border-radius:5px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700}
+  .deny{padding:48px 20px;text-align:center;color:#94a3b8}
+  .deny b{color:#dc2626}
+  .tip{margin-top:14px;color:#94a3b8;font-size:12px;line-height:1.6}
+  #copied{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#1f6feb;color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;opacity:0;transition:.25s;pointer-events:none}
+  #copied.on{opacity:1}
+</style>
+</head>
+<body>
+  <h1>👥 内部人员账号管理</h1>
+  <p class="sub">只有管理员（老板）登录后才看得到此页。员工忘密码时，在这里查手机号 + 密码告诉他。</p>
+  <div class="bar">
+    <button class="primary" id="toggleAll">全部显示 / 隐藏</button>
+    <button id="goBack">返回上一页</button>
+    <button id="logout">退出登录</button>
+  </div>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>姓名</th><th>手机号（登录账号）</th><th>密码</th><th>操作</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="deny" class="deny" style="display:none">⛔ <b>无权限</b><br>只有管理员才能查看账号密码。<br>请用管理员手机号登录后访问。</div>
+  </div>
+  <p class="tip">⚠ 提示：本系统是公开网页，这份清单写在代码里，懂技术的人「查看网页源代码」仍可能翻到——属界面层保护，非加密。老板自用、防员工误看足够。员工改密码后，让管理员把对应密码改掉（staff-secrets.js）。</p>
+  <div id="copied">已复制</div>
+
+  <script src="supabase.min.js"></script>
+  <script src="cloud-config.js"></script>
+  <script src="auth.js?v=20260923a"></script>
+  <script src="staff-config.js?v=20260923e"></script>
+  <script src="staff-secrets.js"></script>
+  <script>
+  (function () {
+    function deny() {
+      document.getElementById('rows').parentElement.style.display = 'none';
+      document.querySelector('.bar').style.display = 'none';
+      document.getElementById('deny').style.display = 'block';
+    }
+    if (window.Auth) Auth.guard();           // 未登录 → 跳登录页
+    var s = (window.Auth && Auth.getSession && Auth.getSession()) || null;
+    if (!s) { location.href = "login.html?redirect=" + encodeURIComponent("账号管理.html"); return; }
+    var phone = String(s.email || "").split("@")[0];
+    var ADMIN = (window.STAFF && window.STAFF.adminPhone) || "16655052098";
+    if (phone !== ADMIN) { deny(); return; }
+
+    var list = window.STAFF_SECRETS || [];
+    var tbody = document.getElementById('rows');
+    var revealed = {};
+    list.forEach(function (it, i) {
+      var tr = document.createElement('tr');
+      var mask = '••••••••';
+      tr.innerHTML =
+        '<td>' + esc(it.name) + (it.name === '张仁磊' ? ' <span class="tag">管理员</span>' : '') + '</td>' +
+        '<td>' + esc(it.phone) + '</td>' +
+        '<td class="pwd" data-i="' + i + '">' + mask + '</td>' +
+        '<td><div class="acts">' +
+          '<button class="show" data-act="show" data-i="' + i + '">显示</button>' +
+          '<button data-act="copy" data-i="' + i + '">复制</button>' +
+        '</div></td>';
+      tbody.appendChild(tr);
+    });
+
+    function realPwd(i) { return (list[i] && list[i].pwd) || ''; }
+    function esc(x) { return String(x).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+    tbody.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      var i = +b.getAttribute('data-i');
+      var act = b.getAttribute('data-act');
+      var cell = tbody.querySelector('td.pwd[data-i="' + i + '"]');
+      if (act === 'show') {
+        if (revealed[i]) { cell.textContent = '••••••••'; b.textContent = '显示'; revealed[i] = false; }
+        else { cell.textContent = realPwd(i); b.textContent = '隐藏'; revealed[i] = true; }
+      } else if (act === 'copy') {
+        copyText(realPwd(i));
+      }
+    });
+
+    document.getElementById('toggleAll').onclick = function () {
+      var allShown = list.every(function (_, i) { return revealed[i]; });
+      list.forEach(function (_, i) {
+        var cell = tbody.querySelector('td.pwd[data-i="' + i + '"]');
+        var btn = tbody.querySelector('button.show[data-i="' + i + '"]');
+        if (allShown) { cell.textContent = '••••••••'; btn.textContent = '显示'; revealed[i] = false; }
+        else { cell.textContent = realPwd(i); btn.textContent = '隐藏'; revealed[i] = true; }
+      });
+    };
+    document.getElementById('goBack').onclick = function () { history.length > 1 ? history.back() : (location.href = 'index.html'); };
+    document.getElementById('logout').onclick = function () {
+      if (window.confirm('退出登录？下次要重新输手机号和密码。')) {
+        try { if (window.Auth && Auth.logout) Auth.logout(); } catch (e) {}
+        location.href = 'login.html';
+      }
+    };
+
+    function copyText(t) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(t).then(showCopied, fallback);
+        } else fallback();
+      } catch (e) { fallback(); }
+      function fallback() {
+        var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta);
+        ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove(); showCopied();
+      }
+    }
+    function showCopied() { var c = document.getElementById('copied'); c.classList.add('on'); setTimeout(function () { c.classList.remove('on'); }, 1100); }
+  })();
+  </script>
+</body>
+</html>
