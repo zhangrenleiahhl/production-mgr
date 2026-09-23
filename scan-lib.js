@@ -717,13 +717,23 @@ window.ScanLib = (function () {
     return n === 1 ? hit : "";
   }
 
+  /* ★ 2026-09-23 「一票否决」改「多数投票」（现场实拍踩到）
+     背景：库里「上海佳喆」17 条记录里 16 条是 100065、只有 1 条写成 100064（那是萨克斯的码）。
+     旧写法「同一个键出现两种代码 → 标 null」会把**整个客户**的索引废掉，
+     ①②③ 三层兜底集体落空 —— 一条脏数据就能瘫痪一个客户的代码显示。
+     现在按**多数投票**：占比 ≥ 2/3 的代码胜出（少数派当脏数据忽略）；
+     占比不到 2/3（例如 5:4 这种「两个客户名混用」的真歧义）仍然标 null 不猜
+     —— 「宁可不显示，也不显示错的」这条保密底线不变。 */
+  var CODE_VOTE_MIN = 2 / 3;
+
   function codeIndex(db){
     var byPair = {}, byCust = {}, byModel = {}, byModelCust = {}, names = [];
     var seen = {};
-    var put = function (o, k, cc) {
+    var box = { pair: {}, cust: {}, model: {} };       // 票箱：key → { 代码: 票数 }
+    var vote = function (o, k, cc) {
       if (!k) return;
-      if (o[k] === undefined) o[k] = cc;
-      else if (o[k] !== cc) o[k] = null;               // 同一个键出现两种代码 → 标冲突
+      var b = o[k] || (o[k] = {});
+      b[cc] = (b[cc] || 0) + 1;
     };
     (db || []).forEach(function (r) {
       if (!r) return;
@@ -731,14 +741,25 @@ window.ScanLib = (function () {
       if (!cc) return;                                 // 没填代码的记录不进索引
       var c = String(r.customer || "").trim().toLowerCase();
       var m = String(r.model || "").trim().toLowerCase();
-      if (c && m) put(byPair, c + CODE_PAIR + m, cc);
-      put(byCust, c, cc);
-      put(byModel, m, cc);
+      if (c && m) vote(box.pair, c + CODE_PAIR + m, cc);
+      vote(box.cust, c, cc);
+      vote(box.model, m, cc);
       if (c && m){                                     // 型号 → 它挂在哪些客户名下
         (byModelCust[m] = byModelCust[m] || {})[c] = 1;
       }
       if (c && !seen[c]){ seen[c] = 1; names.push(String(r.customer || "").trim()); }
     });
+    var settle = function (b, o) {                     // 票箱 → 结果：多数胜出；平分标 null
+      Object.keys(b).forEach(function (k) {
+        var tally = b[k], ks = Object.keys(tally), total = 0, i;
+        for (i = 0; i < ks.length; i++) total += tally[ks[i]];
+        ks.sort(function (x, y) { return tally[y] - tally[x]; });
+        o[k] = (total > 0 && tally[ks[0]] >= total * CODE_VOTE_MIN) ? ks[0] : null;
+      });
+    };
+    settle(box.pair, byPair);
+    settle(box.cust, byCust);
+    settle(box.model, byModel);
     return { byPair: byPair, byCust: byCust, byModel: byModel, byModelCust: byModelCust, names: names };
   }
 
@@ -751,14 +772,19 @@ window.ScanLib = (function () {
     var key = cu.toLowerCase();
     var i, m, cc;
 
+    var byCustWin = byCust[key];                       // 该客户「多数派」代码（真歧义时是 null）
     for (i = 0; i < ms.length; i++){                   // ① 客户 + 型号
       m = String(ms[i] || "").trim().toLowerCase();
       if (!m) continue;
       cc = byPair[key + CODE_PAIR + m];
-      if (cc) return cc;
+      if (!cc) continue;
+      /* ★ 型号级只由「库里那一条记录」说话，客户级是几十条的多数派。
+         两者打架时（上海佳喆那条型号记录被填成萨克斯的 100064）多数证据更强
+         → 以客户级为准，把单条脏数据的错码纠正回来。 */
+      if (byCustWin && cc !== byCustWin) return byCustWin;
+      return cc;
     }
-    cc = byCust[key];                                  // ② 只按客户名
-    if (cc) return cc;
+    if (byCustWin) return byCustWin;                   // ② 只按客户名（多数派）
 
     var alias = aliasName(cu, idx.names);               // ③ 客户名的写法变体
     if (alias) { cc = byCust[alias.toLowerCase()]; if (cc) return cc; }
@@ -790,6 +816,48 @@ window.ScanLib = (function () {
        渲染方一律调它，不要自己去拼 row.customer。 */
   function codeText(row, idx){
     return codeOf(row, idx) || NO_CODE;
+  }
+
+  /* --------------------------------------------------------------------------
+     送达方代码「体检」—— 把物料库里填错的代码揪出来
+     （物料数据库页面的「🔍 代码体检」按钮调它）
+     --------------------------------------------------------------------------
+     为什么必须有：代码是**人工维护**的一列，现场真实踩到过「复制上一行忘了改」，
+     把 A 客户的代码填给了 B 客户 —— 上海佳喆 100064(萨克斯)、湘潭舍弗勒 100049(太仓)、
+     上海西工 100178(巴西舍弗勒)。这类错不报错、只安静地显示错的代码，
+     不主动扫一遍根本发现不了。体检项：
+       ① 同一客户名下有多个代码 —— 少数派就是嫌疑行（给出具体型号，便于定位）
+       ② 同一个代码被多个客户占用 —— 串位的另一半（一张表里一个码只该属于一个客户）
+     返回 { multiCode: [...], multiCust: [...], count: n }；clean 时 count === 0。
+     ★ 只报告、绝不自动改数据：改代码属于业务判断，交给人。
+     -------------------------------------------------------------------------- */
+  function auditCodes(db){
+    var byCust = {}, code2cust = {};
+    (db || []).forEach(function (r) {
+      if (!r) return;
+      var cu = String(r.customer || "").trim();
+      var cc = String(r.custcode || "").trim();
+      if (!cu) return;
+      var b = byCust[cu] || (byCust[cu] = { codes: {}, n: 0 });
+      b.n++;
+      if (!cc) return;
+      (b.codes[cc] = b.codes[cc] || []).push(String(r.model || "").trim());
+      (code2cust[cc] = code2cust[cc] || {})[cu] = 1;
+    });
+    var multiCode = Object.keys(byCust).filter(function (cu) {
+      return Object.keys(byCust[cu].codes).length > 1;
+    }).map(function (cu) {
+      var codes = byCust[cu].codes, ks = Object.keys(codes);
+      ks.sort(function (a, b) { return codes[b].length - codes[a].length; });   // 多数派排最前
+      return {
+        customer: cu, total: byCust[cu].n, good: ks[0], goodN: codes[ks[0]].length,
+        suspects: ks.slice(1).map(function (k) { return { code: k, n: codes[k].length, models: codes[k].slice(0, 8) }; })
+      };
+    });
+    var multiCust = Object.keys(code2cust).filter(function (cc) {
+      return Object.keys(code2cust[cc]).length > 1;
+    }).map(function (cc) { return { code: cc, customers: Object.keys(code2cust[cc]) }; });
+    return { multiCode: multiCode, multiCust: multiCust, count: multiCode.length + multiCust.length };
   }
 
   /* --------------------------------------------------------------------------
@@ -1409,6 +1477,7 @@ window.ScanLib = (function () {
     stepBlock: stepBlock,
     KEY_PLANS: KEY_PLANS, KEY_PROG: KEY_PROG, KEY_DEL: KEY_DEL, KEY_PENDING: KEY_PENDING,
     KEY_DB: KEY_DB, NO_CODE: NO_CODE, codeIndex: codeIndex, codeOf: codeOf, codeText: codeText,
+    auditCodes: auditCodes,
     logisticsIndex: logisticsIndex, logisticsOf: logisticsOf, logisticsOfRow: logisticsOfRow,
     aliasName: aliasName, nameSegs: nameSegs,
     carNoOf: carNoOf, custBase: custBase, custWithCar: custWithCar, carLabel: carLabel,
