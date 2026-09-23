@@ -7,7 +7,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260923a"></script>
+<script src="scan-lib.js?v=20260923b"></script>
 <script src="html2canvas.min.js?v=lib"></script>
 <style>
   /* ==========================================================================
@@ -193,7 +193,7 @@
      · 液面右缘有一点"奔向下一道工序"的脉动光（颜色 = 下一道工序的颜色）；
      · 右侧是进度百分比（数字比液体准，够大，远处一眼读）。
      四道工序四种液体：待确认红 · 货好青 · 装货中琥珀 · 已完成绿（与整行底色同一套色）。
-     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(5)）：
+     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(5)，2026-09-23 物流列隐藏后工序回到第 5 格）：
        进度条自带高度，让它"吃自己的"内边距，整行高度仍由别的列说了算，
        不许它把行顶高（行一高，整屏就要滚，门口能看到的单子就少了）。 */
   .flw{position:relative;display:flex;align-items:center;justify-content:space-between;gap:.45em;
@@ -260,8 +260,8 @@
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
     text-shadow:0 1px 5px rgba(0,0,0,.85);}
   /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径）
-     ★ 2026-09-21 状态列删掉后，工序从第 7 格变成第 6 格 */
-  tbody td:nth-child(6){padding-top:0;padding-bottom:0;}
+     ★ 2026-09-21 状态列删掉后曾是第 6 格；2026-09-23 物流列隐藏后又回到第 5 格 */
+  tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
   @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after{animation:none;}}
   /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
      旧的 .pill 状态徽章跟着状态列一起移除（不留死样式） */
@@ -271,8 +271,10 @@
   tr.done .car.off{color:#94a3b8;font-weight:600;}
   .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
   .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
-  /* 工序更新列：允许折行，超长也显示全（绝不省略号截断）；nth-child(7) 是工序更新 */
-  tbody td:nth-child(7){white-space:normal;word-break:break-word;}
+  .bzon{color:var(--green);font-weight:800;} .bzoff{color:var(--dim);}  /* 品一质保书（2026-09-23） */
+  /* 工序更新列：允许折行，超长也显示全（绝不省略号截断）
+     ★ 2026-09-23 物流列隐藏后：工序(5) · 工序更新(6) · 品一质保书(7) · 车辆(8) · 车辆更新(9) */
+  tbody td:nth-child(6){white-space:normal;word-break:break-word;}
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
     background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
 
@@ -334,11 +336,11 @@
            「车辆更新」跟在车辆后面（只报司机签到/车已到的时间）。 -->
       <colgroup>
         <col style="width:17%"><col style="width:8%"><col style="width:7%">
-        <col style="width:16%"><col style="width:6%"><col style="width:16%"><col style="width:12%"><col style="width:8%"><col style="width:12%">
+        <col style="width:16%"><col style="width:16%"><col style="width:10%"><col style="width:10%"><col style="width:8%"><col style="width:8%">
       </colgroup>
       <thead><tr>
         <th>客户</th><th>送达方代码</th><th>吨位</th>
-        <th>单号</th><th>物流</th><th>工序</th><th>工序更新</th><th>车辆</th><th>车辆更新</th>
+        <th>单号</th><th>工序</th><th>工序更新</th><th>品一质保书</th><th>车辆</th><th>车辆更新</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -573,8 +575,6 @@ function rowHtml(r){
       '<span class="flt">' + esc(SL.STEP_NAME[s]) + '</span>' +
       '<span class="flp">' + pct + '%</span>' +
     '</span>';
-  const lg = logisticsOf(r);                       // 记录里没有就按客户实时补
-  const self = /自提/.test(lg || "");
   const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
   const byTxt = r.by ? " · " + esc(r.by) : "";
   /* 两列更新分开报（2026-09-21）：
@@ -584,16 +584,16 @@ function rowHtml(r){
   const carWhen = r.car && r.ct ? SL.fmtHM(r.ct) : "";
   const code = codeOf(r);
   const codeCell = code ? '<span class="ccode">' + esc(code) + "</span>" : '<span class="cmiss">未编代码</span>';
-  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" +
-    (r.planner ? '<span class="pl"><span class="sep">·</span>' + esc(r.planner) + "</span>" : "") + "</span>";
+  // 计划员隐藏（2026-09-23 用户要求）：姓名在「工序更新」列看
+  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span></span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + stale + '<span class="cust">' + esc(r.customer) + '</span></td>' +
     '<td>' + codeCell + '</td>' +
     '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td>' + noCell + '</td>' +
-    '<td><span class="logi' + (self ? " self" : "") + '">' + esc(lg || "未填") + "</span></td>" +
     '<td>' + flw + "</td>" +
     '<td><span class="tm">' + (stepWhen ? "工序 " + esc(stepWhen) + byTxt : '<s>还没动</s>') + "</span></td>" +
+    '<td>' + (r.cx ? '<s>已取消</s>' : (r.bz ? '<span class="bzon">✓ 已备好' + (r.bzt ? " " + esc(SL.fmtHM(r.bzt)) : "") + (r.bzb ? " · " + esc(r.bzb) : "") + "</span>" : '<span class="bzoff">未确认</span>')) + "</td>" +
     '<td>' + (r.cx ? '<span class="carx">取消</span>'
       : '<span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span>") + "</td>" +
     '<td><span class="tm">' + (r.cx ? '<s>已取消</s>'
@@ -605,7 +605,7 @@ function render(){
   rows = SL.boardRows(RECORDS, PROG);
   const s = SL.boardStats(rows);
   // 指纹里带上代码：物料库后到（比如刚在另一台机器补了代码）也要触发重绘
-  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.cx, r.u, r.by, r.t, r.ct, codeOf(r), logisticsOf(r)].join(":")).join("|") + "#" + rows.length;
+  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.cx, r.u, r.by, r.t, r.ct, r.bz, codeOf(r)].join(":")).join("|") + "#" + rows.length;
   $("kpis").innerHTML = kpiHtml(s);
 
   const empty = rows.length === 0;
