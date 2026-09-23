@@ -1089,6 +1089,8 @@ document.addEventListener("visibilitychange", function(){ if(!document.hidden) s
 // 数据可能由其它页面写入，回到本页时自动刷新
 window.addEventListener("focus", render);
 </script>
+<script src="auth.js?v=20260923a"></script>
+<script>if(window.Auth)Auth.guard();</script>
 <script src="brand.js?v=3"></script>
 </body>
 </html>
