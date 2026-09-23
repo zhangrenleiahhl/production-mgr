@@ -11,7 +11,7 @@
 <script src="auth.js?v=20260922e"></script>
 <script>if(window.Auth)Auth.guard();</script>
   <script src="staff-admin.js?v=20260923f"></script>
-<script>var APP_VER="20260923c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20260923d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -123,7 +123,7 @@
     .tbl td input,.tbl td textarea{font-size:14px;}
     .card{padding:16px;}
   }
-  .topbar{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;
+  .topbar{display:flex;flex-wrap:wrap;gap:5px 6px;align-items:center;
     background:#fff;border:1px solid #d0d7de;border-radius:0;
     padding:5px 10px;margin-bottom:6px;box-shadow:0 2px 8px rgba(15,23,42,.06);overflow:visible;
     position:sticky;top:36px;z-index:200;}
@@ -133,8 +133,8 @@
   .topbar .btn-group .btn:last-child{border-radius:0 6px 6px 0;}
   .topbar .btn-group .btn:disabled{z-index:0;}
   .topbar .btn-group .btn:not(:disabled):hover,.topbar .btn-group .btn:not(:disabled):focus{z-index:1;}
-  .filter-group{display:inline-flex;align-items:center;gap:5px;flex-wrap:nowrap;background:#f6f8fa;border-radius:6px;padding:4px 9px;border:1px solid #d0d7de;}
-  .filter-group input{border:1px solid #d0d7de;border-radius:4px;padding:4px 8px;font-size:13px;outline:none;width:82px;background:#fff;transition:.15s;color:#1f2328;height:28px;box-sizing:border-box;}
+  .filter-group{display:inline-flex;align-items:center;gap:3px;flex-wrap:nowrap;background:#f6f8fa;border-radius:6px;padding:3px 7px;border:1px solid #d0d7de;}
+  .filter-group input{border:1px solid #d0d7de;border-radius:4px;padding:4px 6px;font-size:13px;outline:none;width:58px;background:#fff;transition:.15s;color:#1f2328;height:28px;box-sizing:border-box;}
   .filter-group input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
   .filter-label{align-self:center;font-size:13px;font-weight:700;color:#4b5563;padding:0 2px;white-space:nowrap;}
   .filter-group .hint{font-size:13px;color:#6b7280;font-weight:600;white-space:nowrap;padding:0 3px;}
@@ -142,13 +142,17 @@
   .field label{font-size:13px;color:#4b5563;font-weight:700;letter-spacing:0;}
   .field input{border:1px solid #d0d7de;border-radius:4px;padding:4px 8px;font-size:13px;outline:none;background:#fff;transition:.15s;color:#1f2328;height:28px;box-sizing:border-box;}
   .field-inline{flex-direction:row;align-items:center;gap:5px;}
-  .field-inline input{width:96px;padding:4px 8px;font-size:13px;}
+  .field-inline input{width:88px;padding:4px 8px;font-size:13px;}
+  /* 计划员：2026-09-23 老板要求顶栏不再显示。★ 只隐藏不删元素 ——
+     #planner 的值仍由 applyPlannerLock() 从 localStorage 读入、发布时照旧记录；
+     删掉元素会让 $("planner").addEventListener 直接报错。 */
+  #plannerWrap{display:none !important;}
   .field input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.12);}
   .field input[readonly]{background:#f3f4f6;color:#6b7280;border-style:dashed;cursor:pointer;}
   .card h2.section-head{border:none;background:transparent;padding-left:0;margin:0;min-height:0;display:none;}
   .card h2.section-head::before{display:none;}
   .spacer{flex:1;}
-  .btn{border:1px solid #d0d7de;border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;background:#fff;color:#1f2328;height:30px;box-sizing:border-box;}
+  .btn{border:1px solid #d0d7de;border-radius:6px;padding:5px 7px;font-size:13px;cursor:pointer;font-weight:600;transition:.15s;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;background:#fff;color:#1f2328;height:30px;box-sizing:border-box;}
   .btn:active{transform:none;}
   .btn-primary{background:#2563eb;color:#fff;border-color:#2563eb;}
   .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8;}
