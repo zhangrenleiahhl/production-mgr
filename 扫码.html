@@ -9,12 +9,14 @@
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
 <script src="scan-lib.js?v=20260923a"></script>
-<script src="staff-config.js?v=20260923b"></script>
+<script src="staff-config.js?v=20260923c"></script>
 <style>
   /* ==========================================================================
      内部工序操作页（手机端）—— 四道工序只有内部人员能点
      · 一个码通吃：扫开就是「今天」的所有客户行，不用每张单一个码
-     · 先登录（姓名 + 口令，本机记住 30 天）才出现任何可点按钮
+     · 先登录才出现任何可点按钮
+       ★ 2026-09-23 起**统一用手机号 + 密码登录**（和发货计划 / 订单管理同一套账号）；
+         登录后按手机号在 staff-config.js 名册里查出中文姓名 = 工序记录里的「谁点的」。
      · 司机请扫「司机签到码」，那一页只有车已到和撤回
      ========================================================================== */
   :root{
@@ -189,14 +191,14 @@
   <div id="login">
     <div class="lg">
       <h2>内部人员登录</h2>
-      <p>四道工序（待确认 / 货好 / 装货中 / 已完成）只有内部人员能点。<br>输入姓名和口令，这台手机会记住，之后不用每次输。</p>
-      <label>姓名</label>
-      <input id="uid" autocomplete="name" placeholder="例如 张仁磊">
-      <label>口令</label>
-      <input id="pwd" type="password" autocomplete="current-password" placeholder="请输入口令">
+      <p>四道工序（待确认 / 货好 / 装货中 / 已完成）只有内部人员能点。<br>用管理员给你的<b>手机号 + 密码</b>登录，这台手机会记住，之后不用每次输。</p>
+      <label>手机号</label>
+      <input id="uid" type="tel" inputmode="numeric" autocomplete="username" placeholder="例如 13800138000">
+      <label>密码</label>
+      <input id="pwd" type="password" autocomplete="current-password" placeholder="请输入密码">
       <button type="button" id="doLogin">登录</button>
       <div class="msg" id="lgMsg"></div>
-      <div class="note">只认内部名单里的 <b>15 个姓名</b>：姓名写错、或用别的名字，都会提示「账号不存在」。<br>名单里没有的人（比如已经离岗的）登不进来，以前登录过的也会被要求重新登录。</div>
+      <div class="note">和「发货计划」「订单管理」是 <b>同一套账号</b>：手机号 + 密码。<br>登不进来 → 找管理员确认这个手机号有没有开通账号。</div>
     </div>
     <div class="note">
       <b>司机请扫「司机签到码」。</b>司机那一页只能勾「车已到」和撤回，不需要登录，也点不到工序 —— 这是故意的。
@@ -225,30 +227,55 @@
 <div id="tip"></div>
 
 <script src="auth.js?v=20260923a"></script>
-<!-- ★ 2026-09-23：这一页**不挂全站门禁**（Auth.guard）。
-     理由：它自己有更严格的门 —— 只认内部名单里的 15 个姓名 + 口令，没登录连按钮都不渲染。
-     再叠一层 Supabase 账号登录会变成「先登账号、再登姓名」，而名单里的
-     周霞/赵兵/胡开龙 还没建 Supabase 账号 → 一开门禁他们当场进不来。
-     （贾春雷、黄鑫 2026-09-23 已建号，等剩下 3 人也建好就能整体挂上。）
-     等这几位也建了账号，想改成双重门禁，把这行注释放开即可。 -->
-<!-- <script>if(window.Auth)Auth.guard();</script> -->
+<!-- ★ 2026-09-23：这一页**不挂全站门禁**（Auth.guard）——
+     它自己就是登录页（手机号 + 密码），登进来才有按钮；再挂 guard 会变成
+     「先跳 login.html → 回扫码页 → 已登录直接进」的绕圈，没有任何额外作用。 -->
 <script>
-  /* 铸运通账号 ↔ 内部人员码 合并（2026-09-21）：
-     已用 Supabase 账号登录，则自动补一张合法内部会话，四道工序门禁直接认领（免输姓名+口令）。
-     仅在「存在 Supabase 会话」且「账号姓名在内部名单」时触发；不影响原「姓名+口令」登录。 */
+  /* ==========================================================================
+     账号 ↔ 工序身份（2026-09-23 定稿）
+     · 登录 = Supabase 账号（手机号 + 密码），和发货计划 / 订单管理同一套。
+     · 姓名**不来自 Supabase**（账号里只存了邮箱，没有中文名）：
+       拿手机号到 staff-config.js 名册里查 → 查到谁就是谁。
+     · 名册里查不到 = 不是工序操作人 → 不放行（提示找管理员加人）。
+     · 页面内部仍然只用 staff_session_v1 这一张会话（工序记录靠它写「谁点的」），
+       账号会话换成它，只是「开机自动补一张」，换手机/清缓存才需要再输一次密码。
+     ========================================================================== */
+  function phoneOfAuth(s){
+    var em = (s && s.email) || "";
+    return em.indexOf("@") >= 0 ? em.split("@")[0] : em;
+  }
+  /* 手机号 → 姓名（名册唯一口径）；手机号对不上再退回「账号里的姓名」比对 */
+  function staffNameFor(authSess){
+    var phone = String(phoneOfAuth(authSess) || "").trim();
+    var nm = String((authSess && authSess.name) || "").trim();
+    var list = (window.STAFF && window.STAFF.users) || [];
+    for (var i = 0; i < list.length; i++){
+      if (phone && String(list[i].phone || "").trim() === phone) return String(list[i].name || list[i].id || "");
+    }
+    for (var j = 0; j < list.length; j++){
+      var u = list[j];
+      if (nm && (String(u.name || "") === nm || String(u.id || "") === nm)) return String(u.name || u.id || "");
+    }
+    return "";
+  }
+  /* 把账号会话换成一张本机「内部工序」会话（合法签名字，staffSession 才认） */
+  function claimStaffSession(name){
+    var SLb = window.ScanLib;
+    if (!name || !SLb) return false;
+    var cfg = window.STAFF || {};
+    var exp = Date.now() + (Number(cfg.days) > 0 ? Number(cfg.days) : 30) * 86400000;
+    var ver = String(cfg.ver || ""), salt = String(cfg.salt || "");
+    var tok = SLb.sha256Hex(salt + ":" + name + ":" + exp + ":" + ver + ":sess");
+    try { localStorage.setItem("staff_session_v1", JSON.stringify({ id: name, name: name, exp: exp, v: ver, tok: tok })); }
+    catch (e) { return false; }
+    return true;
+  }
+  /* 开机：已经有账号会话 → 直接认领，免再输一次密码 */
   (function () {
     try {
-      var SLb = window.ScanLib;
-      if (window.Auth && Auth.getSession && Auth.getSession() && SLb) {
-        var name = Auth.currentOp();
-        if (name && SLb.staffFind(name)) {
-          var exp = Date.now() + 30 * 86400000;
-          var ver = (window.STAFF && window.STAFF.ver) || "";
-          var salt = (window.STAFF && window.STAFF.salt) || "";
-          var tok = SLb.sha256Hex(salt + ":" + name + ":" + exp + ":" + ver + ":sess");
-          localStorage.setItem("staff_session_v1",
-            JSON.stringify({ id: name, name: name, exp: exp, v: ver, tok: tok }));
-        }
+      if (window.Auth && Auth.getSession && Auth.getSession()) {
+        var nm = staffNameFor(Auth.getSession());
+        if (nm) claimStaffSession(nm);
       }
     } catch (e) {}
   })();
@@ -274,7 +301,7 @@ const LITTLE = ["待确认", "货好", "装货中", "已完成"];
 
 let RECORDS = [], PROG = {}, ROWS = [], TAB = "left", ONLY = "", rendered = false, lastFp = "";
 
-/* ---------- 登录 ---------- */
+/* ---------- 登录（手机号 + 密码 → Supabase 账号，和发货计划页同一套） ---------- */
 function session(){ return SL.staffSession(); }
 function applyLoginState(){
   const s = session();
@@ -284,20 +311,39 @@ function applyLoginState(){
   if (s) $("whoName").textContent = s.name || s.id;
   lastFp = "";
 }
-function doLogin(){
-  const r = SL.staffLogin($("uid").value, $("pwd").value);
-  if (!r.ok){ $("lgMsg").textContent = r.msg; return; }
-  $("lgMsg").textContent = "";
+/* 登录：先过云端账号（手机号 + 密码），再拿手机号去名册里换姓名。
+   两道都过才算登录成功 —— 光有账号、不在工序名单里，照样点不到工序。 */
+async function doLogin(){
+  const acc = $("uid").value.trim(), pwd = $("pwd").value;
+  const btn = $("doLogin");
+  if (!acc || !pwd){ $("lgMsg").textContent = "请输入手机号和密码"; return; }
+  if (!window.Auth || !Auth.login){ $("lgMsg").textContent = "登录组件没加载上，请刷新页面再试"; return; }
+  btn.disabled = true; btn.textContent = "登录中…"; $("lgMsg").textContent = "";
+  let r;
+  try { r = await Auth.login(acc, pwd); }
+  catch (e) { r = { ok: false, msg: "连不上云端，检查一下网络再试" }; }
+  btn.disabled = false; btn.textContent = "登录";
+  if (!r.ok){ $("lgMsg").textContent = r.msg || "登录失败"; return; }
+  const name = staffNameFor(Auth.getSession());
+  if (!name){
+    const phone = phoneOfAuth({ email: acc });
+    try { await Auth.logout(); } catch (e) {}
+    $("lgMsg").textContent = "账号 " + phone + " 不在工序名单里，找管理员把你加进去";
+    return;
+  }
+  claimStaffSession(name);
   $("pwd").value = "";
+  $("lgMsg").textContent = "";
   applyLoginState();
-  tip("欢迎，" + (r.session.name || r.session.id));
+  tip("欢迎，" + name);
   render();
 }
 $("doLogin").onclick = doLogin;
 $("pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 $("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").focus(); });
 $("logout").onclick = () => {
-  SL.uiConfirm("退出登录？下次要重新输账号和口令。", () => {
+  SL.uiConfirm("退出登录？下次要重新输手机号和密码。", async () => {
+    try { if (window.Auth && Auth.logout) await Auth.logout(); } catch (e) {}
     SL.staffLogout(); applyLoginState(); render(); tip("已退出登录");
   }, { title: "确认退出登录" });
 };
