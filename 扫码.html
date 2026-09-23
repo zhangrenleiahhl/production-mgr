@@ -8,7 +8,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260923a"></script>
+<script src="scan-lib.js?v=20260923b"></script>
 <script src="staff-config.js?v=20260923c"></script>
 <style>
   /* ==========================================================================
@@ -477,7 +477,7 @@ function render(){
   $("tabs").innerHTML = tabs.map(t => '<button type="button" data-t="' + t[0] + '" class="' +
     (TAB === t[0] ? "on" : "") + '">' + esc(t[1]) + "</button>").join("");
 
-  const fp = TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.u, r.by].join(":")).join("|");
+  const fp = TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.bz, r.u, r.by].join(":")).join("|");
   if (rendered && fp === lastFp) return;       // 内容没变就不重绘（别打断现场操作）
   lastFp = fp; rendered = true;
 
@@ -516,7 +516,8 @@ function rowHtml(r){
       '>点一下完成「' + esc(SL.STEP_NAME[s + 1]) + '」</button>'
     : '<button type="button" class="go fin" data-go="0">已完成 ✓（再点无变化）</button>';
   const tsTxt = (r.t ? "工序 <b>" + esc(SL.STEP_NAME[s]) + "</b> " + esc(SL.fmtHM(r.t)) + (r.by ? " · " + esc(r.by) : "") : "") +
-                (r.ct ? "　车已到 <b>" + esc(SL.fmtHM(r.ct)) + "</b>" : "");
+                (r.ct ? "　车已到 <b>" + esc(SL.fmtHM(r.ct)) + "</b>" : "") +
+                (r.bz && r.bzt ? "　质保书 <b>" + esc(SL.fmtHM(r.bzt)) + "</b>" + (r.bzb ? " · " + esc(r.bzb) : "") : "");
   return '<div class="row ' + (r.done ? "done" : "") + (r.stale && !r.done ? " late" : "") +
     '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '">' +
     '<div class="rh"><div class="nm">' +
@@ -532,6 +533,10 @@ function rowHtml(r){
     '<div class="steps"><div class="track">' + track + '</div><div class="lbls">' + lbls + "</div></div>" +
     '<div class="acts">' + (needCar ? '<div class="needcar"><b>🚫</b><span>' + esc(needCar) +
         '。<br>让司机扫「司机签到码」签到，或在本行点「✓ 车已到」。</span></div>' : "") + goHtml +
+      '<div class="row2"><div class="car">' +
+        '<button type="button" class="' + (r.bz ? "" : "act") + '" data-bz="0">📄 质保书未好</button>' +
+        '<button type="button" class="' + (r.bz ? "act2" : "") + '" data-bz="1">✓ 质保书好了</button>' +
+      '</div></div>' +
       '<div class="row2"><div class="car">' +
         '<button type="button" class="' + (car ? "" : "act") + '" data-car="0">🚚 车未到</button>' +
         '<button type="button" class="' + (car ? "act2" : "") + '" data-car="1">✓ 车已到</button>' +
@@ -549,6 +554,7 @@ function bind(){
     const go = row.querySelector("[data-go]");
     if (go) go.onclick = () => step(rk, ck);
     row.querySelectorAll("[data-car]").forEach(b => { b.onclick = () => setCar(rk, ck, b.dataset.car === "1"); });
+    row.querySelectorAll("[data-bz]").forEach(b => { b.onclick = () => setBz(rk, ck, b.dataset.bz === "1"); });
     const un = row.querySelector("[data-undo]");
     if (un) un.onclick = () => undo(rk, ck);
   });
@@ -594,6 +600,18 @@ function setCar(rk, ck, v){
     saveProg(v ? "已标记：车已到" : "已标记：车未到");
     refresh();
   }, { title: "确认车辆状态" });
+}
+function setBz(rk, ck, v){
+  if (!session()){ tip("请先登录", "err"); return; }
+  const cur = ((PROG[rk] || {})[ck] || {});
+  if ((cur.bz || 0) === (v ? 1 : 0)){ tip(v ? "已经是「质保书好了」" : "本来就是「质保书未好」"); return; }
+  const cust = String(ck).split("|")[0];
+  SL.uiConfirm("确认【" + cust + "】的品一质保书已经" + (v ? "备好了？" : "没好？（撤掉「已备好」）"), () => {
+    const r = SL.applyBz(PROG, rk, ck, v, who());
+    if (!r.changed){ tip(v ? "已经是「质保书好了」" : "本来就是「质保书未好」"); return; }
+    saveProg(v ? "已确认：品一质保书好了" : "已撤回：品一质保书未好");
+    refresh();
+  }, { title: "确认品一质保书" });
 }
 function undo(rk, ck){
   if (!session()){ tip("请先登录", "err"); return; }
