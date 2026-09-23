@@ -31,12 +31,12 @@
 window.STAFF = {
   salt: "hg-fhjd-2026-09",
   days: 30,
-  ver: "v2026-09-18",
+  ver: "v2026-09-23",
   users: [
     { id: "张仁磊", name: "张仁磊", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
     { id: "贾春雷", name: "贾春雷", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
     { id: "周霞",   name: "周霞",   h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
-    { id: "黄鑫",   name: "黄鑫",   h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
+    { id: "黄鑫",   name: "黄鑫",   h: "dc2802a9192802b74de92faab0231762657724ff2579de1412cc3ddd93205dd3" },
     { id: "陈昌平", name: "陈昌平", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
     { id: "赵兵",   name: "赵兵",   h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
     { id: "胡开龙", name: "胡开龙", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
