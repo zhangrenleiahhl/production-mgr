@@ -463,21 +463,24 @@ window.ScanLib = (function () {
     return Object.keys(map).map(function (k) {
       var g = map[k];
       /* 客户吨位取数（与发货员端 custTonVal 同一口径）：
-         计划员在合并格里手改过的吨位，发布那一刻被刻进 rec.custTon ——
-         这种客户明细行里可能根本没有吨数（总数只写在合并格上），
+         计划员在手改格里改过的吨位，发布那一刻被刻进 rec.custTon ——
+         这种客户明细行里可能根本没有吨数（总数只写在那个格子上），
          只把明细行加总会得 0，大屏吨位列就显示「/」。
-         ① 三段 key 客户|日期|发货点：有覆盖值的区域用覆盖值，没有的区域仍用自动合计；
-         ② 旧两段 key 客户|日期：这块客户+日期没被拆成多个发货点时才沿用（拆过不共用）；
+         ★ 2026-09-24 用户改口径：吨位按「车」—— 同一客户同一天只算一个吨位，
+           走几个发货点都合起来；第二车的客户名带「（第二车）」后缀，key 天然不同 → 单独一个吨位。
+         ① 主 key「客户|日期」（客户名含车次后缀）：有手改值就用它；
+         ② 没有 → 旧口径「客户|日期|发货点」各区域的值相加（手改值优先、否则该区域自动小计）
+            = 本车合计（改版前屏幕上显示的就是这个数，旧值不丢）；
          ③ 都没有 → 行明细自动合计。 */
-      var pts = Object.keys(g._byPt), any3 = false;
-      pts.forEach(function (pt) {
-        var ov = ovNum(pad(g.customer) + "|" + pad(g.shipdate) + "|" + pt);
-        if (ov !== null) { any3 = true; g.ton += ov; }
-        else g.ton += g._byPt[pt];
-      });
-      if (!any3 && pts.length === 1) {
-        var ov2 = ovNum(pad(g.customer) + "|" + pad(g.shipdate));
-        if (ov2 !== null) g.ton = ov2;
+      var k2 = pad(g.customer) + "|" + pad(g.shipdate);
+      var ov2 = ovNum(k2);
+      if (ov2 !== null) {
+        g.ton = ov2;
+      } else {
+        Object.keys(g._byPt).forEach(function (pt) {
+          var ov3 = ovNum(k2 + "|" + pt);
+          g.ton += (ov3 !== null ? ov3 : g._byPt[pt]);
+        });
       }
       delete g._byPt;
       return g;
