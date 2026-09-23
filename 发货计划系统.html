@@ -10,7 +10,7 @@
 <script src="scan-lib.js?v=20260922g"></script>
 <script src="auth.js?v=20260922e"></script>
 <script>if(window.Auth)Auth.guard();</script>
-<script>var APP_VER="20260922e";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20260923a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -1780,6 +1780,12 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     tonReset.addEventListener("mousedown", e=>e.preventDefault());   // 避免输入框失焦
     tonReset.addEventListener("click", ()=>{
       const tonInp=tr.querySelector('[data-f="ton"]');
+      // ★ 自动带出 = 数量×单重÷1000。没有单重就算不出来 —— 这时不能把值清掉（点一下丢一个数）
+      const qEl=tr.querySelector('[data-f="qty"]'), uEl=tr.querySelector('[data-f="unit"]');
+      if(!(qtyNum(qEl?qEl.value:"")>0 && (parseFloat(uEl?uEl.value:"")||0)>0)){
+        toast("这行没有「单重」，算不出自动值；请先补单重，或直接手填产品重量T");
+        return;
+      }
       if(tonInp) delete tonInp.dataset.manual;
       recalc(); mergeCustomerCells(); saveDraftNow();
       toast("已恢复产品重量T自动带出 ✓");
@@ -2111,6 +2117,12 @@ function collectRowData(tr){
     delivery:g("delivery"), box:boxI?boxI.value:"", boxManual:(boxI&&boxI.dataset.manual==="1"),
     cwt:cwtI.value, cwtDeleted:(cwtI.dataset.deleted==="1"),
     remark:g("remark"),
+    // ★★ 物流值本身也必须在这份字段表里！原来漏了这一项：
+    //    发布时读不到 → 记录里物流变成 "/"（2026-09-23 实测踩到）；
+    //    撤回时也读不到 → 只能靠 addRow 再按客户自动带一次，手填过的物流就串了。
+    logistics:g("logistics"),
+    // ★ 手填物流标记也要带上：撤回/发布都走这一份字段表，缺了它「手填的物流」会被自动带出冲掉
+    logisticsManual:!!(R.logistics&&R.logistics.dataset.manual==="1"),
     noCar:tr.dataset.carPin==="1"      // 撤回恢复时别把「不要后缀」弄丢
   };
 }
@@ -2808,34 +2820,6 @@ function recalc(skipFold){
   $("sumSubTon").textContent=subCells?(sst>0?sst.toFixed(1):"0.0"):"/";
   writeKPIs(kpiRows, kpiQty, kpiTon, kpiChecked);   // 直接用上面那趟遍历的结果，不再单独再扫一遍全表
 }
-function collectRows(){
-  // ★ 性能：改用行引用缓存，避免每行 13 次 querySelector（发布/导出时会全表扫）
-  const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
-  const out=[];
-  const kids=$("tbody").children;
-  for(let i=0;i<kids.length;i++){
-    const tr=kids[i];
-    if(!isDataRow(tr)) continue;
-    const R=rowRefs(tr);
-    const val=k=>R[k]?R[k].value:"";
-    out.push({
-      shipdate:f(val("shipdate")),
-      customer:f(val("customer")),
-      code:f(val("code")),
-      model:f(val("model")),
-      qty:f(val("qty")),
-      shippt:f(val("shippt")),
-      perbox:f(val("perbox")),
-      ton:f(val("ton")),
-      box:f(val("box")),
-      cwt:f(val("cwt")),
-      delivery:f(val("delivery")),
-      remark:f(val("remark")),
-      logistics:f(val("logistics"))
-    });
-  }
-  return out;
-}
 function syncDocHead(){
   const d=$("shipDate").value;
   if(d){
@@ -3163,25 +3147,32 @@ function publish(){
 
   const f=v=>{ v=(v==null?"":String(v).trim()); return v===""?"/":v; };
   const rows=checkedTrs.map(tr=>{
-    const cust=f(tr.querySelector('[data-f="customer"]').value);
-    const shipdate=f(tr.querySelector('[data-f="shipdate"]').value);
+    // ★★ 一份口径：一行有哪些字段，一律由 collectRowData 决定（撤回 / 草稿 / 发布 共用同一份），
+    //     绝不在这里另抄一张字段表 —— 少抄一个字段，值就会在别处静默丢掉。
+    //     2026-09-23 事故：这里漏了 unit（单重）+ tonManual（是否手填），
+    //     导入重编时 recalc 以为「产品重量T 该按 数量×单重/1000 自动算」，单重又查不到 → 整列被清成空。
+    const b=collectRowData(tr);
+    const cust=f(b.customer);
+    const shipdate=f(b.shipdate);
     const key=(cust==="/"?"":cust)+"|"+(shipdate==="/"?"":shipdate);
-    let remark=f(tr.querySelector('[data-f="remark"]').value);
+    let remark=f(b.remark);
     if(remark==="/") remark=remarkMap[key]||"/";
     return {
       shipdate,
       customer:cust,
-      code:f(tr.querySelector('[data-f="code"]').value),
-      model:f(tr.querySelector('[data-f="model"]').value),
-      qty:f(tr.querySelector('[data-f="qty"]').value),
-      shippt:f(tr.querySelector('[data-f="shippt"]').value),
-      perbox:f(tr.querySelector('[data-f="perbox"]').value),
-      ton:f(tr.querySelector('[data-f="ton"]').value),
-      box:f(tr.querySelector('[data-f="box"]').value),
-      cwt:f(tr.querySelector('[data-f="cwt"]').value),
-      delivery:f(tr.querySelector('[data-f="delivery"]').value),
+      code:f(b.code),
+      model:f(b.model),
+      qty:f(b.qty),
+      shippt:f(b.shippt),
+      unit:b.unit,
+      perbox:f(b.perbox),
+      ton:b.ton, tonManual:!!b.tonManual,
+      box:b.box, boxManual:!!b.boxManual,
+      cwt:b.cwt, cwtDeleted:!!b.cwtDeleted,
+      delivery:f(b.delivery),
       remark,
-      logistics:f(tr.querySelector('[data-f="logistics"]')?.value)
+      logistics:f(b.logistics), logisticsManual:!!b.logisticsManual,
+      noCar:!!b.noCar
     };
   });
   // ===== 内容防重：与已发布记录比对，完全相同则提醒确认 =====
@@ -3484,15 +3475,26 @@ function renderRecords(){
 // 安全：导入前先 snapshot(LS_DRAFT) 留档（可在「数据急救」页找回）；导完立刻写草稿，刷新/断网都不丢。
 function importRecToEditor(rec){
   if(!rec || !(rec.rows||[]).length){ try{ toast("这条发布记录没有明细行，无法导入"); }catch(e){} return; }
-  const rows=(rec.rows||[]).map(r=>({
-    shipdate:r.shipdate||"", customer:r.customer||"", code:r.code||"", model:r.model||"",
-    qty:r.qty||"", shippt:r.shippt||"", unit:r.unit||"", perbox:r.perbox||"",
-    ton:r.ton||"", tonManual:(r.tonManual===true||r.tonManual==="1"), delivery:r.delivery||"",
-    box:r.box||"", cwt:r.cwt||"", cwtDeleted:!!r.cwtDeleted,
-    remark:r.remark||"", logistics:r.logistics||"",
-    logisticsManual:(r.logisticsManual===true||r.logisticsManual==="1"),
-    noCar:(r.noCar===true||r.noCar==="1")            // 手删过「（第二车）」后缀的行，导入后别被自动挂回来
-  }));
+  const rows=(rec.rows||[]).map(r=>{
+    // ★ 老记录（2026-09-23 之前发的）里没有 unit / tonManual：
+    //   这时只要记录里有产品重量值，就必须按「手填值」导进来，不能被当成"自动计算"。
+    //   否则 recalc 会拿 数量×单重/1000 重算，而单重没存=0 → 值被清成空（用户看到的"没带过来"）。
+    const rawTon=(r.ton==null?"":String(r.ton)).trim();
+    const tNum=parseFloat(rawTon);
+    const uNum=parseFloat(r.unit);
+    //   记录里写的是什么就带什么（含 "0.0"；只有 ""/"-" 这种空值才不标）
+    const keepTon=(r.tonManual===true||r.tonManual==="1") ||
+                  (!(uNum>0) && rawTon!=="" && rawTon!=="/" && isFinite(tNum));
+    return {
+      shipdate:r.shipdate||"", customer:r.customer||"", code:r.code||"", model:r.model||"",
+      qty:r.qty||"", shippt:r.shippt||"", unit:r.unit||"", perbox:r.perbox||"",
+      ton:(rawTon==="/"?"":rawTon), tonManual:keepTon, delivery:r.delivery||"",
+      box:r.box||"", cwt:r.cwt||"", cwtDeleted:!!r.cwtDeleted,
+      remark:r.remark||"", logistics:r.logistics||"",
+      logisticsManual:(r.logisticsManual===true||r.logisticsManual==="1"),
+      noCar:(r.noCar===true||r.noCar==="1")            // 手删过「（第二车）」后缀的行，导入后别被自动挂回来
+    };
+  });
   const tb=$("tbody");
   const before=[...tb.children].filter(isDataRow).length;   // 只用于提示，不做任何删除
   snapshot(LS_DRAFT, "导入发布记录");                        // 留档（「数据急救」页可找回）
