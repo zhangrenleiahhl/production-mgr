@@ -25,7 +25,7 @@
 window.STAFF = {
   salt: "hg-fhjd-2026-09",
   days: 30,
-  ver: "v2026-09-23e",
+  ver: "v2026-09-23f",   // ★ 2026-09-23 晚：加欧成义/仲崇雨 → 旧会话全部作废，重登一次
   adminPhone: "16655052098",   // ★ 管理员（老板）手机号 —— 只有这个号登录后才看得到「账号管理」入口
   users: [
     { id: "张仁磊", name: "张仁磊", phone: "16655052098", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
@@ -43,6 +43,8 @@ window.STAFF = {
     { id: "范明奇", name: "范明奇", phone: "18056557227", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
     { id: "张永洋", name: "张永洋", phone: "18856539061", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
     { id: "傅皓楠", name: "傅皓楠", phone: "18855510603", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
-    { id: "沈梅梅", name: "沈梅梅", phone: "18656519897", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" }
+    { id: "沈梅梅", name: "沈梅梅", phone: "18656519897", h: "aaefc7797de6f4864744e2d4ad8595b507121bab76ebec0e3487b9172639eb56" },
+    { id: "欧成义", name: "欧成义", phone: "15705659960", h: "dc2802a9192802b74de92faab0231762657724ff2579de1412cc3ddd93205dd3" },
+    { id: "仲崇雨", name: "仲崇雨", phone: "13195550629", h: "ed24350b316a0ecbbc176c7fffd9217712c3a5ecb15500d09a5cd234b99e28ff" }
   ]
 };
