@@ -7,7 +7,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260923c"></script>
+<script src="scan-lib.js?v=20260924a"></script>
 <script src="auth.js?v=20260922e"></script>
 <script>if(window.Auth)Auth.guard();</script>
   <script src="staff-admin.js?v=20260923f"></script>
@@ -502,9 +502,8 @@ function card(rec){
   const sumQty = rows.reduce((a,r)=>a+_n(r.qty), 0);
   const sumTon = rows.reduce((a,r)=>a+_n(r.ton), 0);
   const sumBox = rows.reduce((a,r)=>a+_n(r.box), 0);
-  // 客户吨位按「客户+发货日期」去重，有手动覆盖值优先用覆盖值
-  const tonByKey = {};
-  rows.forEach(r => { const key = custTonKey(r); tonByKey[key] = (tonByKey[key] || 0) + _n(r.ton) + _n(r.cwt); });
+  // 客户吨位按「车」（客户+发货日期）去重，有手动覆盖值优先用覆盖值
+  const tonByKey = buildTonIndex(rows);
   const seen = new Set();
   let sumSubTon = 0;
   rows.forEach(r => {
@@ -574,39 +573,58 @@ function uiConfirm(msg, onOk, opt){
 }
 
 // ===================== 客户吨位：可手动修改（带覆盖值）=====================
-// 覆盖值存在 rec.custTon = { "客户|发货日期|发货点": 数值 } —— 按合并区域各改各的：
-// 同一客户分开发货（不同发货点/不挨着的几块）时，每块区域的吨位各算各的、互不影响。
-// 兼容旧记录：老版本 key 只有「客户|发货日期」两段（整个客户共享一个数）——
-// 只有当该客户+日期在这张单里没有被拆成多个发货点时才沿用旧值；拆开过就只认三段 key。
-function custTonKey(r){ return pad(r.customer) + "|" + pad(r.shipdate) + "|" + pad(r.shippt); }
-function custTonKeyLegacy(r){ return pad(r.customer) + "|" + pad(r.shipdate); }
+// ★ 2026-09-24 用户改口径：吨位按「车」算 —— rec.custTon = { "客户|发货日期": 数值 }。
+//   同一客户同一天（同一辆车）只有一个吨位，走几个发货点都合成这一个数；
+//   第二车（客户名带「（第二车）」后缀）的 customer 与第一车不同 → 天然是独立的一个数。
+// 兼容旧记录：老版按「客户|发货日期|发货点」各改各的（三段 key）——
+//   这里把该车各区域的值（手改值优先、否则该区域的自动小计）相加 = 该车合计，计划员改过的数不会丢。
+function custTonKey(r){ return pad(r.customer) + "|" + pad(r.shipdate); }     // 主 key：一辆车一个吨位
+function custPtKey(r){ return custTonKey(r) + "|" + pad(r.shippt); }          // 旧三段 key：只在读旧值时用
 function hasOverride(rec, key){
   const ov = rec && rec.custTon;
   return !!(ov && ov[key] !== undefined && ov[key] !== null && String(ov[key]).trim() !== "");
 }
-// 该「客户|发货日期」在这张单里被拆成了几个发货点（>1 = 分开发货）
-function ctRegionCount(rec, r){
+// 这辆车（同客户含车次后缀 + 同日期）在这张单里走过哪几个发货点
+function carPts(rec, r){
+  const set = new Set();
   try{
-    const pts = new Set();
-    (rec.rows || []).forEach(x => {
-      if (pad(x.customer) === pad(r.customer) && pad(x.shipdate) === pad(r.shipdate)) pts.add(pad(x.shippt));
-    });
-    return pts.size;
-  }catch(e){ return 1; }
+    (rec.rows || []).forEach(x => { if (custTonKey(x) === custTonKey(r)) set.add(pad(x.shippt)); });
+  }catch(e){}
+  return [...set];
 }
-// 取某一行的客户吨位：有手动覆盖值用覆盖值，否则用自动合计值
-function custTonVal(rec, r, tonByKey){
+// 自动吨位小计表：同一行同时按「车」（客户|日期）与「旧三段」（客户|日期|发货点）累加。
+// ★ 两张 key 都要有：本车合计用前者，旧三段折算用后者。
+function buildTonIndex(rows){
+  const m = {};
+  (rows || []).forEach(r => {
+    const t = (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0);
+    const k2 = custTonKey(r), k3 = custPtKey(r);
+    m[k2] = (m[k2] || 0) + t;
+    m[k3] = (m[k3] || 0) + t;
+  });
+  return m;
+}
+// 取某一行的客户吨位：
+//   ① 本车有手改值 → 用它；
+//   ② 否则把该车各发货点的值相加（旧三段手改值优先、否则该区域自动小计）；
+//   ③ 都没有 → 本车自动合计。
+function custTonVal(rec, r, tonByPt){
   const key = custTonKey(r);
   if (hasOverride(rec, key)) return parseFloat(rec.custTon[key]) || 0;
-  if (ctRegionCount(rec, r) <= 1 && hasOverride(rec, custTonKeyLegacy(r))) return parseFloat(rec.custTon[custTonKeyLegacy(r)]) || 0;
-  return tonByKey[key] || 0;
+  let sum = 0, anyPt = false;
+  carPts(rec, r).forEach(pt => {
+    const k3 = custPtKey({ customer: r.customer, shipdate: r.shipdate, shippt: pt });
+    if (hasOverride(rec, k3)){ sum += parseFloat(rec.custTon[k3]) || 0; anyPt = true; }
+    else sum += (tonByPt && tonByPt[k3]) || 0;
+  });
+  if (anyPt) return sum;
+  return sum || (tonByPt && tonByPt[key]) || 0;
 }
 
 function detailTable(rec, tonByCust){
   const rows = rec.rows || [];
-  // 先用「rec.rows 原始数据」算 tonByKey（key 与 custTonKey 一致：客户|发货日期|发货点），与下方构建的 raw 数组所用字段完全一致
-  const tonByKey = {};
-  rows.forEach(r => { const key = custTonKey(r); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  // 先用「rec.rows 原始数据」算 tonByKey（同时含「客户|日期」与本车各发货点两种 key），与下方构建的 raw 数组所用字段完全一致
+  const tonByKey = buildTonIndex(rows);
 
   // 构建行数据（不做单元格合并，每行都完整显示客户 / 时效要求 / 客户吨位）
   const numCols = [4, 6, 7, 9];            // 发货数量 / 箱重T / 产品重量T / 箱数
@@ -685,7 +703,7 @@ function bindDetail(d, rec){
       const oldTxt = old === "" ? "（空）" : old;
       const newTxt = nv === "" ? "（清空，恢复自动合计）" : nv;
       uiConfirm(
-        `客户：${cust}\n原值：${oldTxt}\n新值：${newTxt}\n\n只更新这一块合并区域（同客户+同日期+同发货点），同一客户分开发货的其他区域互不影响；并同步到导出与打印。`,
+        `客户：${cust}\n原值：${oldTxt}\n新值：${newTxt}\n\n只更新这一辆车（同客户+同日期）：几个发货点合成这一个数，第二车（客户名带「（第二车）」）单独算；并同步到导出与打印。`,
         () => {
           if (!rec.custTon) rec.custTon = {};
           if (nv === "") delete rec.custTon[key];        // 清空 = 恢复自动合计
@@ -730,8 +748,7 @@ function bindDetail(d, rec){
 // 把 rec.custTon 的最新值刷回表格（同 key 的所有行 + 合计行）
 function applyCustTon(d, rec){
   const rows = rec.rows || [];
-  const tonByKey = {};
-  rows.forEach(r => { const k = custTonKey(r); tonByKey[k] = (tonByKey[k] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  const tonByKey = buildTonIndex(rows);
   const finalByKey = {};
   rows.forEach(r => { const k = custTonKey(r); if (finalByKey[k] === undefined) finalByKey[k] = custTonVal(rec, r, tonByKey); });
 
@@ -862,9 +879,8 @@ function csvText(head, data, tonCol){
 // rec 可选：传入后「客户吨位」优先取 rec.custTon 里的手动修改值
 function matrix(rows, date, rec){
   const head = ["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","物料编码"];
-  // 先把行数据（不含客户吨位列）按 rec.rows 算 tonByKey，key 与 custTonKey 一致（客户|发货日期|发货点）
-  const tonByKey = {};
-  rows.forEach(r => { const key = custTonKey(r); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(r.ton) || 0) + (parseFloat(r.cwt) || 0); });
+  // 先把行数据（不含客户吨位列）按 rec.rows 算 tonByKey（同时含「客户|日期」与各发货点两种 key）
+  const tonByKey = buildTonIndex(rows);
   // data 第 0 列是「发货日期」（用传入的 date 兜底），第 1 列是「客户」
   const data = rows.map(r => {
     const key = custTonKey(r);
@@ -922,8 +938,7 @@ function batchMatrix(recs){
   const data = [];
   recs.forEach(rec => {
     const sd = pad(recShipDate(rec));
-    const tonByKey = {};
-    (rec.rows || []).forEach(x => { const key = custTonKey(x); tonByKey[key] = (tonByKey[key] || 0) + (parseFloat(x.ton) || 0) + (parseFloat(x.cwt) || 0); });
+    const tonByKey = buildTonIndex(rec.rows);
     (rec.rows || []).forEach(r => {
       const key = pad(r.customer) + "|" + pad(r.shipdate);
       data.push([pad(rec.no), sd, pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
