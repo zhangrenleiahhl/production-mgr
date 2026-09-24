@@ -1095,7 +1095,7 @@ window.ScanLib = (function () {
     var days = Number(staffConf().days) > 0 ? Number(staffConf().days) : 30;
     var idn = String(u.id || u.name || ""), exp = Date.now() + days * 86400000;
     var ses = { id: idn, name: String(u.name || u.id || ""), exp: exp, v: staffVer(), tok: staffToken(idn, exp) };
-    try { localStorage.setItem(KEY_STAFF, JSON.stringify(ses)); } catch (e){}
+    staffPersist(ses);
     return { ok: true, session: ses };
   }
   /* 读会话：下面每一条不过关就当场删掉，回到登录页 —— 绝不留着一个"半有效"的会话。
@@ -1103,21 +1103,53 @@ window.ScanLib = (function () {
      ② 名册版本对不上    → 删（名单/口令重置过，必须重新登录）
      ③ 姓名已不在名单里  → 删（比如人已离职被从 staff-config.js 里去掉）
      ④ 签名字对不上      → 删（手动伪造的会话）                                        */
-  function staffSession(){
-    var s = null;
-    try { s = JSON.parse(localStorage.getItem(KEY_STAFF) || "null"); } catch (e){ return null; }
+  /* ---- 本机兜底会话（cookie，2026-09-24）----
+     微信内置浏览器会时不时清 localStorage，一清工人就得重输密码。
+     把会话再存一份到 cookie（同样受 四道关 约束），localStorage 丢了自动恢复。
+     换名单/换口令仍由 ver 一键作废，安全口径不变。 */
+  var CK_STAFF = "staff_sess_bk_v1";
+  function staffCookieRead(){
+    try {
+      var m = document.cookie.match(new RegExp("(?:^|;\\s*)" + CK_STAFF + "=([^;]*)"));
+      return m ? JSON.parse(decodeURIComponent(m[1])) : null;
+    } catch (e){ return null; }
+  }
+  function staffCookieWrite(s){
+    try { document.cookie = CK_STAFF + "=" + encodeURIComponent(JSON.stringify(s)) + ";max-age=31536000;path=/;SameSite=Lax"; } catch (e){}
+  }
+  function staffCookieClear(){ try { document.cookie = CK_STAFF + "=;max-age=0;path=/;SameSite=Lax"; } catch (e){} }
+  /* 会话合法性四道关（localStorage / cookie 共用）：过期、名册版本、名单在册、签名字 */
+  function staffCheck(s){
     if (!s || typeof s !== "object") return null;
-    var kill = function(){ try { localStorage.removeItem(KEY_STAFF); } catch (e){} return null; };
-    if (!s.id) return kill();
-    if (!(Number(s.exp) > Date.now())) return kill();
-    if (String(s.v || "") !== staffVer()) return kill();
+    if (!s.id) return null;
+    if (!(Number(s.exp) > Date.now())) return null;
+    if (String(s.v || "") !== staffVer()) return null;
     var u = staffFind(s.id);
-    if (!u) return kill();
-    if (String(s.tok || "") !== staffToken(u.id || u.name, s.exp)) return kill();
+    if (!u) return null;
+    if (String(s.tok || "") !== staffToken(u.id || u.name, s.exp)) return null;
     /* 姓名以名册为准（名册改了显示名，这里立刻跟着变） */
     return { id: String(u.id || u.name || ""), name: String(u.name || u.id || ""), exp: Number(s.exp), v: s.v, tok: s.tok };
   }
-  function staffLogout(){ try { localStorage.removeItem(KEY_STAFF); } catch (e){} }
+  /* 双写：localStorage + cookie（登录和「开机自动补会话」都走这里） */
+  function staffPersist(ses){
+    try { localStorage.setItem(KEY_STAFF, JSON.stringify(ses)); } catch (e){}
+    staffCookieWrite(ses);
+  }
+  function staffSession(){
+    var s = null, broken = false;
+    try { s = JSON.parse(localStorage.getItem(KEY_STAFF) || "null"); } catch (e){ broken = true; }
+    var ok = staffCheck(s);
+    if (ok){ staffCookieWrite(ok); return ok; }
+    /* localStorage 没有合法会话 → 尝试从 cookie 恢复；两处都不行才全清 */
+    var c = staffCheck(staffCookieRead());
+    if (c){ staffPersist(c); return c; }
+    if (broken || s != null || staffCookieRead() != null){
+      try { localStorage.removeItem(KEY_STAFF); } catch (e){}
+      staffCookieClear();
+    }
+    return null;
+  }
+  function staffLogout(){ try { localStorage.removeItem(KEY_STAFF); } catch (e){} staffCookieClear(); }
   function staffName(){ var s = staffSession(); return s ? String(s.name || s.id) : ""; }
 
   /* ==========================================================================
@@ -1631,6 +1663,7 @@ window.ScanLib = (function () {
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
     sha256Hex: sha256Hex,
     KEY_STAFF: KEY_STAFF, staffUsers: staffUsers, staffLogin: staffLogin, staffSession: staffSession,
+    staffPersist: staffPersist,
     staffLogout: staffLogout, staffName: staffName, staffVer: staffVer, staffFind: staffFind, staffHash: staffHash,
     OP_NAME: OP_NAME, OP_ALL: OP_ALL, opName: opName, opOfStep: opOfStep, opList: opList, myOps: myOps,
     canOp: canOp, opBlock: opBlock, undoOpOf: undoOpOf, staffPhoneOf: staffPhoneOf, staffRecOf: staffRecOf,
