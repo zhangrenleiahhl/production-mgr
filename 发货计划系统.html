@@ -10,8 +10,11 @@
 <script src="scan-lib.js?v=20260924a"></script>
 <script src="auth.js?v=20260922e"></script>
 <script>if(window.Auth)Auth.guard();</script>
-  <script src="staff-admin.js?v=20260923f"></script>
-<script>var APP_VER="20260924a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+  <!-- 右下悬浮条显示「👋 欢迎 当前账号」：姓名靠下面这份名册（手机号 → 中文姓名） -->
+  <script src="staff-config.js?v=20260924a"></script>
+  <script>window.STAFF_WELCOME = 1;</script>
+  <script src="staff-admin.js?v=20260924a"></script>
+<script>var APP_VER="20260924b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
