@@ -31,22 +31,25 @@
     color:var(--txt);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
     padding-bottom:calc(26px + env(safe-area-inset-bottom));}
   .hd{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
-    color:#fff;padding:12px 14px;box-shadow:0 3px 14px rgba(15,23,42,.28);}
-  .hd .r1{display:flex;align-items:center;gap:8px;}
+    color:#fff;padding:7px 12px 6px;box-shadow:0 3px 14px rgba(15,23,42,.28);}
+  .hd .r1{display:flex;align-items:center;gap:7px;white-space:nowrap;}
   .hd .r1 .dot{width:6px;height:20px;background:#38bdf8;border-radius:2px;flex-shrink:0;
     box-shadow:0 0 10px rgba(56,189,248,.85);}
-  .hd h1{font-size:17px;font-weight:800;margin:0;letter-spacing:.5px;}
-  .hd h1 em{font-style:normal;font-size:12px;font-weight:600;color:#94a3b8;margin-left:5px;}
-  .hd .who{margin-left:auto;display:none;align-items:center;gap:8px;font-size:12.5px;color:#cbd5e1;}
+  .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;}
+  .hd h1 em{font-style:normal;font-size:11px;font-weight:600;color:#94a3b8;margin-left:5px;}
+  @media (max-width:380px){.hd h1 em{display:none;}}
+  .hd .who{margin-left:auto;display:none;align-items:center;gap:6px;font-size:12px;color:#cbd5e1;min-width:0;}
   .hd .who.on{display:flex;}
   .hd .who b{color:#fff;font-weight:800;}
-  .hd .who .ops{color:#94a3b8;font-weight:600;}
-  .hd .who .ops:empty{display:none;}
+  .hd .who .nm{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hd .ops{margin-top:2px;font-size:11.5px;color:#94a3b8;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hd .ops:empty{display:none;}
   .hd .who button{background:rgba(255,255,255,.10);border:1px solid rgba(148,163,184,.4);color:#cbd5e1;
-    padding:4px 9px;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;}
-  .hd .r2{margin-top:5px;font-size:12.5px;color:#cbd5e1;}
+    padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;}
+  .hd .r2{display:inline;margin-top:0;font-size:12px;color:#cbd5e1;}
   .hd .r2 b{color:#fff;font-weight:700;}
-  .sync{font-size:11.5px;letter-spacing:.4px;margin-top:3px;}
+  .sync{display:inline;font-size:11.5px;letter-spacing:.4px;margin-left:10px;}
   .sync.ok{color:#7dd3fc;} .sync.warn{color:#fbbf24;} .sync.err{color:#f87171;}
 
   .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
@@ -187,10 +190,11 @@
   <div class="r1">
     <span class="dot"></span>
     <h1>发货进度 <em>内部操作</em></h1>
-    <div class="who" id="who"><span>操作人 <b id="whoName">—</b></span><span class="ops" id="whoOps"></span><button type="button" id="logout">退出</button></div>
+    <div class="who" id="who"><span class="nm">操作人 <b id="whoName">—</b></span><button type="button" id="logout">退出</button></div>
   </div>
   <div class="r2" id="sumTxt">正在读取…</div>
   <div class="sync" id="sync">正在连接云端…</div>
+  <div class="ops" id="whoOps"></div>
 </div>
 
 <div class="wrap">
@@ -323,7 +327,7 @@ function applyLoginState(){
     /* ★ 我这次登录能点哪几步，写在右上角 —— 免得工人以为「按钮坏了」
        （口径来自名册的 ops，唯一实现在 scan-lib.myOps） */
     const my = SL.myOps ? SL.myOps() : [];
-    $("whoOps").textContent = my.length ? "我的工序：" + my.map(SL.opName).join("、") : "未分配工序";
+    $("whoOps").textContent = my.length ? "工序：" + my.map(SL.opName).join("·") : "未分配工序";
   }
   lastFp = "";
 }
