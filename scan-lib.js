@@ -283,14 +283,34 @@ window.ScanLib = (function () {
      返回 "" = 允许；返回非空字符串 = 拦下来的原因（页面直接拿去弹提示）。
      ★ 口径只留这一份：扫码页拿它做提示，applyStep 拿它做硬拦截（双保险，
        将来谁再写一个新入口忘了判断，也脏不了数据）。 */
-  function stepBlock(c, to){
+  /* ---- 免质保书客户（2026-09-24 用户名单）：这些客户不用质保书，各端读数自动当「已备好」----
+     匹配口径：客户名与名单项完全相等，或以名单项开头（前缀）。
+       「土耳其」能盖住云端实际名「土耳其法雷奥」；「尼得科」盖住「尼得科-丰泰」；
+       「上海海立」盖住「上海海立新能源」「上海海立电器有限公司」；
+       「芜湖海立新能源」「安徽海立精密铸造…」前缀对不上，不会被误伤。
+     ★ 只改"读"不改"写"：云端 bz 数据一字不动，标记/撤回/取证照旧；
+       门禁（stepBlock / applyStep）对这些客户不再卡「质保书没好」。 */
+  var BZ_EXEMPT = ["恒精", "广州全德", "尼得科", "宇泰精密", "海立铸造", "上海海立",
+    "土耳其", "法国", "匈牙利", "日本", "突尼斯", "西班牙", "宁波泰友", "意大利",
+    "派格", "郑州海立", "南昌海立", "上海西工", "荣正", "印度海立", "海立电器（印度）有限公司"];
+  function bzExempt(cust){
+    var t = String(cust == null ? "" : cust).trim();
+    if (!t) return false;
+    for (var i = 0; i < BZ_EXEMPT.length; i++)
+      if (t === BZ_EXEMPT[i] || t.indexOf(BZ_EXEMPT[i]) === 0) return true;
+    return false;
+  }
+  /* 有效质保书状态：真标过（bz>=1）用真值；免质保书客户读成 1；其余 0 */
+  function bzEff(bz, cust){ return (bz || 0) >= 1 ? (bz || 0) : (bzExempt(cust) ? 1 : 0); }
+  function stepBlock(c, to, cust){
     to = parseInt(to, 10) || 0;
     if (to < 2) return "";
     if (to > 3) to = 3;
     c = c || {};
     if (c.cx || 0) return "这一趟车已经「取消」了，不能推进「" + STEP_NAME[to] + "」";
     if ((c.car || 0) < 1) return "司机还没签到（车辆：未到），不能推进「" + STEP_NAME[to] + "」";
-    if (to >= 3 && (c.bz || 0) < 1) return "品一质保书还没好，不能推进「" + STEP_NAME[to] + "」";
+    if (to >= 3 && (c.bz || 0) < 1 && !bzExempt(cust == null ? c.cust : cust))
+      return "品一质保书还没好，不能推进「" + STEP_NAME[to] + "」";
     return "";
   }
   // 推进一步工序（delta 一般是 +1；who 是操作人，用于留痕）
@@ -299,7 +319,7 @@ window.ScanLib = (function () {
     var from = c.s || 0;
     var to = Math.max(0, Math.min(3, from + (delta || 0)));
     if (to === from) return { changed: false, cell: c, to: to, from: from };
-    var blocked = stepBlock(c, to);
+    var blocked = stepBlock(c, to, String(ck || "").split("|")[0]);
     if (blocked) return { changed: false, cell: c, to: from, from: from, blocked: blocked };
     /* ★ 工序分工（2026-09-24）：这一步有没有分配给他（who 为空 = 计划员/系统，不拦） */
     var lost = opBlock(who, opOfStep((delta || 0) < 0 ? from : to));
@@ -628,7 +648,8 @@ window.ScanLib = (function () {
           s: effS(c), car: carv, cx: cxv,
           t: c.t || 0, ct: c.ct || 0, u: c.u || 0, by: raw(c.by),
           rt: c.rt || 0, autoReady: readyIsAuto(c),
-          bz: c.bz || 0, bzt: c.bzt || 0, bzb: raw(c.bzb),
+          bz: bzEff(c.bz, g.customer), bzt: c.bzt || 0, bzb: raw(c.bzb),
+          bzAuto: !(c.bz || 0) && bzExempt(g.customer),
           no: raw(rec.no), planner: raw(rec.planner),
           done: done, isToday: isToday, isYesterday: isYest, stale: !isToday
         });
@@ -1658,7 +1679,8 @@ window.ScanLib = (function () {
     applyCarCancel: applyCarCancel, applyCarUncancel: applyCarUncancel,
     applyReady: applyReady, applyReadyAt: applyReadyAt, applyReadyAuto: applyReadyAuto,
     applyBz: applyBz,
-    effS: effS, rawS: rawS, readyAuto: readyAuto, readyIsAuto: readyIsAuto,    custGroups: custGroups, progStats: progStats, progOf: progOf,
+    effS: effS, rawS: rawS, readyAuto: readyAuto, readyIsAuto: readyIsAuto,
+    bzExempt: bzExempt, bzEff: bzEff,    custGroups: custGroups, progStats: progStats, progOf: progOf,
     p2: p2, ymdOf: ymdOf, todayYmd: todayYmd, shiftYmd: shiftYmd, normDate: normDate,
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
     sha256Hex: sha256Hex,
