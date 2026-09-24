@@ -14,7 +14,7 @@
   <script src="staff-config.js?v=20260924a"></script>
   <script>window.STAFF_WELCOME = 1;</script>
   <script src="staff-admin.js?v=20260924a"></script>
-<script>var APP_VER="20260924b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20260924c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <style>
   :root{
     --bg:#f8f7ff; --bg-2:#eef2ff; --bg-3:#f5f3ff;
@@ -735,6 +735,35 @@ async function flushRec(silent){
   return __flushChain;
 }
 let __flushChain = Promise.resolve();
+// ===================== 归档区同步：先拉云端 → 合并（只增不减）→ 再推 =====================
+// 背景：归档区（超出 200 条上限的老记录 + 被删除的记录）以前是「整份 push 到云端」，而且**只推不拉**。
+// 于是任何一台「归档比较少」的电脑（比如从没删过东西、归档是空的）一推，
+// 就把云端上别的电脑积累的归档整份冲掉 —— 被删的记录从此再也找不回来。
+// ★ 2026-09-24 实测：云端删除墓碑已有 45 个，而云端归档只剩 2 条（还是 9/10 的）。
+// 现在改成和发布记录一样的「只增不减」：拉云端 → 按 id 并集（本机优先）→ 推合并结果；
+// 拉不到云端就**绝不推送**（不能拿本机这份可能不完整的归档去覆盖云端更全的那份）。
+let __archChain = Promise.resolve();
+function syncArchive(){
+  const run = async () => {
+    if(!window.CloudSync || !CloudSync.ready()) return false;
+    let got = false, cloud = null;
+    try{ const pr = await CloudSync.pullResult(LS_ARCHIVE); if(pr && pr.ok){ got = true; cloud = pr.value; } }catch(e){}
+    let cloudArr = [];
+    try{ cloudArr = (typeof cloud === "string") ? (JSON.parse(cloud)||[]) : (Array.isArray(cloud)?cloud:[]); }catch(e){ cloudArr = []; }
+    const mine = loadArchive();
+    const map = new Map();
+    cloudArr.forEach(r=>{ if(r && r.no!=null) r.no = fixPlanNo(r.no, recShipDate(r)); const k = recKeyOf(r); if(k) map.set(k, r); });
+    mine.forEach(r=>{ const k = recKeyOf(r); if(k) map.set(k, r); });     // 本机优先：刚删进来的新归档必须留住
+    let out = [...map.values()].sort((x,y)=>((Number(y && y.id)||0) - (Number(x && x.id)||0)));
+    if(out.length > 500) out = out.slice(0, 500);
+    const outStr = JSON.stringify(out);
+    if(outStr !== JSON.stringify(mine)) safeSet(LS_ARCHIVE, outStr);
+    if(!got) return false;                        // 没拉到 → 只写本机，不推（避免冲掉云端更全的归档）
+    try{ return await CloudSync.push(LS_ARCHIVE, out); }catch(e){ return false; }
+  };
+  __archChain = __archChain.then(run, run);
+  return __archChain;
+}
 async function doFlushRec(silent){
   if(!window.CloudSync || !CloudSync.ready()){ markPending(true); return false; }
   let cloud = null;
@@ -762,7 +791,7 @@ async function doFlushRec(silent){
   let ok = false;
   try{ ok = await CloudSync.push(LS_REC, merged); }catch(e){ ok = false; }
   try{ CloudSync.push(LS_DEL, loadDeletedIds()); }catch(e){}       // 墓碑一起同步，删掉的不会被别的端"复活"
-  try{ if(loadArchive().length) CloudSync.push(LS_ARCHIVE, loadArchive()); }catch(e){}   // 归档一起同步（超过上限转归档的记录在别的端也能看到）
+  try{ await syncArchive(); }catch(e){}   // 归档一起同步（★ 必须"先拉再合并"，别整份覆盖，见 syncArchive 注释）
   markPending(!ok);
   if(!ok && !silent){ try{ toast("⚠ 没能同步到云端，已存本机，稍后自动补传"); }catch(e){} }
   return ok;
@@ -3467,14 +3496,18 @@ function renderRecords(){
       card.querySelector('[data-act="csv"]').onclick=()=>exportRowsCsv(rec.rows||[], rec.no);
       card.querySelector('[data-act="del"]').onclick=()=>{
         askDeletePwd(rec, ()=>{
-          snapshot(LS_REC, "删除记录前");   // 删除前自动留档，误删可打开「数据急救.html」→「⑤ 一键找回」恢复
+          snapshot(LS_REC, "删除记录前");   // 删除前自动留档（快照只留最近 3 份、总 ≤1.2MB，会被后续"发布前"挤掉，仅当临时保险）
+          // ★★ 删除前必须把这条记录写进「归档区」：归档才是长期留档（上限 500 条）。
+          //    2026-09-24 实测事故：9/22 被删的 6 条记录，事后在自动快照里已经找不到，
+          //    只有归档区/用户导出的备份文件能救回 —— 删了不写归档就等于真丢。
+          archiveRecs([rec]);
           markDeleted(rec.id);              // 记墓碑：别的端合并时不会再把它"复活"
           const keep = loadRec().filter(r=>r.id!==rec.id);
           safeSet(LS_REC, JSON.stringify(keep));
           renderRecords();
           // 删除是关键操作，立刻同步（墓碑随 flushRec 一起推；合并时会剔除墓碑，删除在所有端都生效）
           if(window.CloudSync) flushRec(false);
-          toast("已删除发布记录 "+(rec.no||"")+"（已留档，误删可在「数据急救」页一键找回）");
+          toast("已删除发布记录 "+(rec.no||"")+"（已存入归档，误删可在「数据急救」页「⑥ 找回被误删的发布记录」里找回来）");
         });
       };
       body.appendChild(card);
