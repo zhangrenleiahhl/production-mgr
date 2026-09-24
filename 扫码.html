@@ -8,7 +8,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260924c"></script>
+<script src="scan-lib.js?v=20260924d"></script>
 <script src="staff-config.js?v=20260924c"></script>
 <style>
   /* ==========================================================================
@@ -667,7 +667,7 @@ function setBz(rk, ck, v){
   const cust = String(ck).split("|")[0];
   SL.uiConfirm("确认【" + cust + "】的品一质保书已经" + (v ? "备好了？" : "没好？（撤掉「已备好」）"), () => {
     const r = SL.applyBz(PROG, rk, ck, v, who());
-    if (!r.changed){ tip(v ? "已经是「质保书好了」" : "本来就是「质保书未好」"); return; }
+    if (!r.changed){ tip(r.blocked || (v ? "已经是「质保书好了」" : "本来就是「质保书未好」")); return; }
     saveProg(v ? "已确认：品一质保书好了" : "已撤回：品一质保书未好");
     refresh();
   }, { title: "确认品一质保书" });
