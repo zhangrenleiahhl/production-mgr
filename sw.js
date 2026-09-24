@@ -1,7 +1,8 @@
 // 铸运通 PWA Service Worker
-// 策略：页面导航 network-first（保证 APP_VER 缓存刷新仍生效）；同源静态资源 cache-first；
-//      跨域（supabase.co 等）一律直接走网络，绝不拦截云同步。
-const CACHE = "zytd-shell-v1";
+// 策略：全站 network-first（页面和 JS 都拿最新 —— 2026-09-24 取证：手机端 cache-first 的旧
+//      scan-lib.js 让「质保书/车到」门禁失效，出现没有质保书却点成已完成的单子）；
+//      断网时才回退缓存。跨域（supabase.co 等）一律直接走网络，绝不拦截云同步。
+const CACHE = "zytd-shell-v2";
 const STATIC = ["manifest.json", "icon.svg", "auth.js", "cloud-config.js", "cloud-sync.js", "scan-lib.js", "staff-config.js"];
 
 self.addEventListener("install", e => {
@@ -23,25 +24,8 @@ self.addEventListener("fetch", e => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;       // 跨域直走网络（云同步不受影响）
 
-  if (req.mode === "navigate") {                      // HTML 页面：network-first
-    e.respondWith((async () => {
-      try {
-        const net = await fetch(req);
-        const c = await caches.open(CACHE);
-        c.put(req, net.clone());
-        return net;
-      } catch (_) {
-        const cached = await caches.match(req);
-        return cached || (await caches.match("index.html")) || Response.error();
-      }
-    })());
-    return;
-  }
-
-  // 同源静态资源：cache-first（命中即返，未命中再拉并缓存）
+  // 同源一律 network-first：拿到新的就顺手更新缓存；断网才用缓存兜底
   e.respondWith((async () => {
-    const cached = await caches.match(req);
-    if (cached) return cached;
     try {
       const net = await fetch(req);
       if (net.ok) {
@@ -50,7 +34,8 @@ self.addEventListener("fetch", e => {
       }
       return net;
     } catch (_) {
-      return Response.error();
+      const cached = await caches.match(req);
+      return cached || (await caches.match("index.html")) || Response.error();
     }
   })());
 });
