@@ -38,6 +38,13 @@
   .mini:hover{background:#e2e8f0;}
   .rst-ok{color:var(--ok);font-weight:600;}
   .rst-warn{color:var(--warn);font-weight:600;}
+  /* ⑥ 从备份文件找回被误删的发布记录 */
+  #rpTable th{width:auto;color:#64748b;}
+  #rpTable th:first-child,#rpTable td:first-child{width:34px;text-align:center;}
+  #rpTable td.what{font-family:inherit;color:#1e293b;font-weight:600;}
+  #rpTable td.note{font-family:inherit;color:#64748b;}
+  #rpTable tr.rpdel td.what{border-left:3px solid var(--warn);padding-left:8px;}
+  #rpTable tr.rparch td.what{border-left:3px solid #94a3b8;padding-left:8px;}
 </style>
 </head>
 <body>
@@ -88,6 +95,29 @@
     <div id="rescueInfo" style="font-size:13px;color:#64748b;margin-bottom:8px;"></div>
     <table id="rescueTable"><tr><td class="empty">正在读取…</td></tr></table>
     <div id="rescueResult" style="margin-top:10px;font-size:13px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑥ 找回被误删的发布记录</h2>
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">
+      这是一个"被删掉的发布计划"回收站。下面会自动列出<b>系统里现在没有、但归档区/云端归档或备份文件里还在</b>的发布计划。
+      <br><b>找回是"只增不减"的</b>：你现在有的记录一条都不会被删；恢复时会同时解除这些单子的<b>「删除标记」</b>
+      —— 不解除的话下次同步又会被删一次，等于白找回。
+      <br>★ ⑤ 只能从「最近 3 份自动快照」里找；记录删得久了快照就被挤掉了，这时用这里。
+    </p>
+    <div class="row" style="margin-top:0;">
+      <label class="btn btn2" style="display:inline-block;cursor:pointer;">
+        再选一份备份文件 (.json) 一起找
+        <input type="file" id="rpFile" accept=".json" hidden>
+      </label>
+      <button class="btn btn2" id="rpReload">重新扫描</button>
+    </div>
+    <div id="rpInfo" style="font-size:13px;color:#64748b;margin:10px 0;"></div>
+    <table id="rpTable"><tr><td class="empty">正在读取…</td></tr></table>
+    <div style="margin-top:10px;">
+      <button class="btn" id="rpDo" style="display:none;">找回勾选的记录</button>
+    </div>
+    <div id="rpResult" style="margin-top:10px;font-size:13px;"></div>
   </div>
 </div>
 
@@ -459,6 +489,199 @@ $('rescueTable').addEventListener('click',async e=>{
   }
 });
 rRefresh();
+
+// ===================== 6. 找回被误删的发布记录（归档区 / 备份文件） =====================
+// 背景（2026-09-24 实测丢失事件）：9/22 发货的 11 条计划里，有 6 条被删掉并打上了「删除墓碑」。
+//   墓碑的作用是让所有端都认为"这单已删"，于是 mergeRecords 每次都把它们过滤掉 → 永远回不来。
+//   而自动快照只留最近 3 份，被后续「发布前」快照一挤，⑤ 里就再也找不到它们了。
+// 这个模块换一条路：直接拿「归档区（本机/云端）+ 用户导出的 .json 备份」当数据源，
+//   跟主列表比对，把「备份里有、现在没了」的记录捞回来，并**摘掉对应的删除墓碑**。
+const ARCH_KEY = 'shipping_plans_archive_v1';
+const RP_MAX = 100;                 // 最多列 100 条，避免一次刷出几百行
+let rpArr = [];                     // 候选：[{ rec, del:bool, src:'归档'|'云端归档'|'备份' }]
+
+function rpKey(r){ return rKeyOf(r); }
+// 现在「系统里真正有」的 = 发布记录主列表（归档区不算"有"，那是备查区）
+function rpHaveSet(){
+  const s = new Set();
+  const a = rParse(localStorage.getItem(REC_KEY));
+  if(Array.isArray(a)) a.forEach(x => s.add(rpKey(x)));
+  return s;
+}
+function rpShipDate(rec){
+  const rows = (rec && rec.rows) || [];
+  for(let i=0;i<rows.length;i++){ const v = String((rows[i]&&rows[i].shipdate)||'').trim(); if(v && v!=='/') return v; }
+  return String((rec && rec.date) || '');
+}
+function rpTombSet(){
+  const d = rParse(localStorage.getItem(DEL_KEY));
+  return new Set(Array.isArray(d) ? d.map(String) : []);
+}
+// 把一批记录并进候选池（按 key 去重，先来的 src 不被覆盖）
+function rpAdd(list, src){
+  if(!Array.isArray(list) || !list.length) return 0;
+  const have = rpHaveSet();
+  const seen = new Set(rpArr.map(x => rpKey(x.rec)));
+  const del = rpTombSet();
+  let n = 0;
+  list.forEach(r=>{
+    if(!r || typeof r !== 'object') return;
+    const k = rpKey(r);
+    if(!k || have.has(k) || seen.has(k)) return;
+    seen.add(k);
+    rpArr.push({ rec:r, del:(r.id!=null && del.has(String(r.id))), src:src });
+    n++;
+  });
+  return n;
+}
+function rpSort(){
+  rpArr.sort((a,b)=>{                        // 曾被删除的排最前，其次按 id 新→旧
+    const ca = a.del?0:1, cb = b.del?0:1;
+    if(ca !== cb) return ca - cb;
+    return (Number(b.rec.id)||0) - (Number(a.rec.id)||0);
+  });
+}
+function rpRender(){
+  const tbl=$('rpTable'), info=$('rpInfo'), btn=$('rpDo');
+  rpSort();
+  if(!rpArr.length){
+    tbl.innerHTML='<tr><td class="empty">没有发现"被删掉、系统里现在没有"的发布记录 —— 说明没丢东西</td></tr>';
+    info.innerHTML=''; if(btn) btn.style.display='none'; return;
+  }
+  const show = rpArr.slice(0, RP_MAX);
+  const delN = rpArr.filter(x=>x.del).length;
+  info.innerHTML = '共发现 <b>'+rpArr.length+'</b> 条系统里现在没有的发布计划'
+    + (delN ? '，其中 <span class="rst-warn">'+delN+' 条曾被打上「删除」标记</span>（默认已勾选）' : '（在归档区里，没被删过）')
+    + '。来源：' + rpArr.map(x=>x.src).filter((v,i,a)=>a.indexOf(v)===i).join('、')
+    + (rpArr.length>RP_MAX ? ('　★ 只列出最新的 '+RP_MAX+' 条') : '');
+  const rows = show.map((x,i)=>{
+    const rec = x.rec, rs = (rec && rec.rows) || [];
+    const custs = [];
+    rs.forEach(rr=>{ const c=String((rr&&rr.customer)||'').trim(); if(c && c!=='/' && custs.indexOf(c)<0) custs.push(c); });
+    return '<tr class="'+(x.del?'rpdel':'rparch')+'">'
+      + '<td><input type="checkbox" class="rpck" data-i="'+i+'"'+(x.del?' checked':'')+'></td>'
+      + '<td class="what">'+rEsc(rec.no||'（无单号）')
+        + '<br><span style="color:#64748b;font-weight:400">'+rEsc(custs.slice(0,3).join('、'))+(custs.length>3?(' 等 '+custs.length+' 个'):'')+'</span></td>'
+      + '<td class="note">计划员 '+rEsc(rec.planner||'—')+' ｜ 操作人 '+rEsc(rec.operator||'—')
+        + '<br>发货 '+rEsc(rpShipDate(rec))+' ｜ 共 '+rs.length+' 行 ｜ 数量 '+rEsc(rec.sumQty)+'</td>'
+      + '<td class="note">发布 '+rEsc(rec.publishedAt||'')+'</td>'
+      + '<td>'+rEsc(x.src)+(x.del?' <span class="rst-warn">曾被删除</span>':'')+'</td>'
+      + '</tr>';
+  });
+  tbl.innerHTML = '<tr><th><input type="checkbox" id="rpAll" checked></th><th>单号 / 客户</th><th>计划员 / 发货日期</th><th>发布时间</th><th>来源</th></tr>'+rows.join('');
+  if(btn) btn.style.display='';
+  const all=$('rpAll');
+  if(all) all.onchange=()=>{ tbl.querySelectorAll('.rpck').forEach(c=>{ c.checked=all.checked; }); };
+}
+function rpReset(){
+  rpArr = [];
+  const a = rParse(localStorage.getItem(ARCH_KEY));      // ① 本机归档区
+  const n1 = rpAdd(a, '归档');
+  rpRender();
+  // ② 云端归档区（别的电脑删的记录，归档可能在这台上）
+  return fetchCloud(ARCH_KEY, '读取云端归档', true).then(v=>{
+    if(Array.isArray(v)) rpAdd(v, '云端归档');
+    rpRender();
+    return n1;
+  }).catch(()=>{});
+}
+$('rpReload').onclick = ()=>{ $('rpResult').innerHTML=''; rpReset(); };
+$('rpFile').onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const fr = new FileReader();
+  fr.onload = ()=>{
+    let obj = null;
+    try{ obj = JSON.parse(fr.result); }
+    catch(err){ $('rpInfo').innerHTML = '<span class="rst-warn">文件格式错误：'+rEsc(err.message)+'</span>'; return; }
+    let bk = obj ? obj[REC_KEY] : null;
+    if(typeof bk === 'string') bk = rParse(bk);
+    if(!Array.isArray(bk)){
+      $('rpInfo').innerHTML = '<span class="rst-warn">这份文件里没有「发布记录」（'+rEsc(REC_KEY)+'），请换一份备份文件</span>';
+      return;
+    }
+    const n = rpAdd(bk, '备份');
+    rpRender();
+    if(!n) $('rpResult').innerHTML = '这份备份里没有「现在缺失」的记录 —— 里面的发布计划系统里都已经有了';
+  };
+  fr.readAsText(f);
+};
+$('rpDo').onclick = async ()=>{
+  const picked = [];
+  $('rpTable').querySelectorAll('.rpck').forEach(c=>{ if(c.checked){ const x=rpArr[Number(c.dataset.i)]; if(x) picked.push(x); } });
+  if(!picked.length){ $('rpResult').innerHTML='<span class="rst-warn">还没有勾选要找回的记录</span>'; return; }
+  const ids = picked.map(x=>x.rec).filter(r=>r && r.id!=null).map(r=>r.id);
+  const delN = picked.filter(x=>x.del).length;
+  const lines = [
+    '将从归档区/备份文件里找回 '+picked.length+' 条发布计划：',
+    '',
+    picked.slice(0,10).map(x=>'· '+(x.rec.no||'?')+'（'+(x.rec.planner||'—')+'，'+rpShipDate(x.rec)+'，'+((x.rec.rows||[]).length)+' 行）').join('\n'),
+    picked.length>10 ? ('  …等共 '+picked.length+' 条') : '',
+    '',
+    '· 你现在有的记录一条都不会被删（只增不减）',
+    delN ? ('· 会同时解除 '+delN+' 条「删除标记」，否则下次同步又会被删一次') : '',
+    '',
+    '恢复前会先把本机当前的发布记录下载成备份文件。',
+    '',
+    '确定找回吗？'
+  ].filter(Boolean);
+  if(!confirm(lines.join('\n'))) return;
+  const btn=$('rpDo'); btn.disabled = true;
+  const out = [];
+  try{
+    // ① 先下载本机当前发布记录当保险
+    let fname='';
+    try{ fname = rDownload('急救前本机_发布记录_'+rStamp()+'.json', {[REC_KEY]: rParse(localStorage.getItem(REC_KEY))||[]}); }catch(e){}
+    // ② 摘掉这些记录的「删除墓碑」（本机先摘，稍后连墓碑一起推上云端）
+    const cleared = rReviveTombstones(ids);
+    // ③ 只增不减地并进本机主列表
+    const addStr = JSON.stringify(picked.map(x=>x.rec));
+    const cur = localStorage.getItem(REC_KEY);
+    let m;
+    if(cur == null) m = { text:addStr, added:picked.length, total:picked.length };
+    else m = rMerge(cur, addStr);
+    let wrote = false;
+    try{ localStorage.setItem(REC_KEY, m.text); wrote = true; }catch(e){}
+    if(wrote) try{ localStorage.removeItem(REC_KEY + '__bak'); }catch(e){}
+    // ④ 推云端 —— ★ 顺序不能反：先推「删空后的墓碑」，再推记录。
+    //    反过来的话，本机墓碑还在（旧值），云端合并时又把刚找回的记录剔掉了。
+    const pushed = [];
+    if(wrote && cfg.url && cfg.key && cfg.url.indexOf('YOUR-') < 0){
+      try{
+        if(cleared){
+          const dv = rParse(localStorage.getItem(DEL_KEY)) || [];
+          pushed.push('删除标记' + (await pushCloud(DEL_KEY, dv) ? '' : '（失败）'));
+        }
+        const cv = await fetchCloud(REC_KEY, '找回后同步', true);
+        let toPush = m.text;
+        if(cv != null){
+          const cs = (typeof cv === 'string') ? cv : JSON.stringify(cv);
+          toPush = rMerge(cs, m.text).text;                  // 云端当"现有"，找回的内容优先
+          try{ localStorage.setItem(REC_KEY, toPush); }catch(e){}
+        }
+        const pv = rParse(toPush);
+        pushed.push(REC_KEY + (await pushCloud(REC_KEY, pv != null ? pv : toPush) ? '' : '（失败）'));
+      }catch(e){ pushed.push('云端同步出错'); }
+    }
+    // ⑤ 汇总
+    out.push('<span class="rst-ok">✅ 已找回 '+picked.length+' 条发布计划</span>');
+    if(!wrote) out.push('<span class="rst-warn">⚠ 写入本机失败，可能是空间满了 —— 请先去发货系统导出备份并清理后重试</span>');
+    out.push('新增 '+m.added+' 条，现在共 '+(m.total!=null?m.total:'?')+' 条');
+    if(cleared) out.push('解除了 '+cleared+' 条删除标记（否则下次同步又被删一次）');
+    if(fname) out.push('恢复前的数据已下载：<b>'+rEsc(fname)+'</b>');
+    out.push(pushed.length ? ('已同步到云端：'+pushed.map(rEsc).join('、')) : '（未配置云端，只写回本机）');
+    out.push('请刷新发货系统页面查看结果');
+  }catch(err){
+    out.push('<span class="rst-warn">出错了：'+rEsc(err.message)+'</span>');
+  }
+  $('rpResult').innerHTML = out.join('　|　');
+  btn.disabled = false;
+  scanLocal(); rRefresh();
+  // 已找回的从候选里去掉
+  const have = rpHaveSet();
+  rpArr = rpArr.filter(x=>!have.has(rpKey(x.rec)));
+  rpRender();
+};
+rpReset();
 </script>
 <script src="auth.js?v=20260923a"></script>
 <script>if(window.Auth)Auth.guard();</script>
