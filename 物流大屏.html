@@ -1,870 +1,870 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>物流进度大屏（内部看板）</title>
-<script src="supabase.min.js?v=lib"></script>
-<script src="cloud-config.js?v=20260920a"></script>
-<script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260924f"></script>
-<script src="html2canvas.min.js?v=lib"></script>
-<style>
-  /* ==========================================================================
-     物流进度大屏 · 内部看板（只读，给内部/办公室看）
-     --------------------------------------------------------------------------
-     ★ 这一屏**带送达方名称和物流** —— 只给内部看，请勿摆在物流门口。
-       现场涉及保密（2026-09-16 用户提出）：物流门口请用「物流门口大屏.html」，
-       那一屏送达方只显示「送达方代码」、不显示物流。
-       两屏的「取哪些行 / 什么算完成 / 怎么排序 / 配色 / 字号 / 自动滚动」
-       完全一致（同一份 scan-lib.js 实现），只是这一屏信息更全。
-     --------------------------------------------------------------------------
-     · 只展示「今天的计划」（2026-09-16 起从今天开始算，不再带昨天）
-     · 完成工序最多的排最顶（2026-09-16 下午改）：有动静的单往上走，
-       四道工序各用一种颜色分类 —— 待确认红 · 货好青 · 装货中琥珀 · 已完成绿
-     · 深色高对比 + 字号随行数自动缩放；超出一屏时自动慢速循环滚动
-       （字号缩到下限就不再硬塞，滚着看）
-     ========================================================================== */
-  :root{
-    --bg:#0a0e15;
-    --panel:rgba(255,255,255,.032);
-    --line:rgba(148,163,184,.16);
-    --txt:#f2f6fc; --muted:#a9b8cf; --dim:#6d7d99;
-    --cyan:#38c8d8; --green:#3ddc97; --amber:#ffb454; --red:#ff5d5d; --blue:#5b8def;
-    --rows:14;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;}
-  body{
-    font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
-    color:var(--txt); font-variant-numeric:tabular-nums; overflow:hidden;
-    background:
-      radial-gradient(1100px 560px at 12% -10%, rgba(56,140,216,.10), transparent 60%),
-      linear-gradient(180deg,#0a0e15 0%,#0d131d 46%,#0a0e15 100%);
-    background-attachment:fixed;
-  }
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
-    background-image:linear-gradient(rgba(148,180,220,.03) 1px, transparent 1px),
-                     linear-gradient(90deg, rgba(148,180,220,.03) 1px, transparent 1px);
-    background-size:44px 44px;
-    mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);
-    -webkit-mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);}
-
-  .wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:14px 20px 14px;}
-
-  /* ============ 顶部 HUD ============ */
-  .hud{
-    /* ★ 一行到底（2026-09-19）：原来 flex-wrap:wrap，笔记本一缩放就掉成 3 行，
-       白占掉两行表格高度。现在 nowrap + 各段尺寸都用 clamp(小, vw, 大)，
-       窄屏自动缩、宽屏跟原来一样大。 */
-    flex:0 0 auto;position:relative;display:flex;align-items:center;flex-wrap:nowrap;
-    gap:clamp(6px,.72vw,15px);
-    padding:5px clamp(9px,.9vw,18px);margin-bottom:8px;border-radius:14px;overflow:hidden;
-    background:linear-gradient(100deg,rgba(56,200,216,.08),rgba(91,141,239,.05) 45%,rgba(255,255,255,.02));
-    border:1px solid rgba(56,200,216,.22);
-    box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
-    backdrop-filter:blur(16px);
-  }
-  .hud::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
-    background:linear-gradient(90deg,transparent,rgba(56,200,216,.7),transparent);}
-  .hud::after{content:"";position:absolute;top:-60%;left:-10%;width:34%;height:220%;
-    background:linear-gradient(90deg,transparent,rgba(56,200,216,.07),transparent);
-    transform:rotate(18deg);animation:sweep 7s linear infinite;pointer-events:none;}
-  @keyframes sweep{0%{left:-20%}100%{left:120%}}
-  .logo{width:clamp(22px,1.9vw,32px);height:clamp(22px,1.9vw,32px);flex:0 0 auto;
-    border-radius:clamp(6px,.55vw,9px);display:flex;align-items:center;justify-content:center;
-    font-size:clamp(11px,.95vw,16px);background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
-    box-shadow:0 0 18px rgba(56,200,216,.35);}
-  /* 标题块压成一行：原来标题下面还有一行灰色小字说明 —— 那些话页脚已经全说了，
-     挤在头上只会多占一行（窄屏就更明显）。整句说明挪到 title，鼠标放上去还能看全。 */
-  .tt{flex:0 1 auto;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap;}
-  .tt .t{font-size:clamp(12.5px,1vw,17px);font-weight:800;letter-spacing:.6px;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;}
-  .tt .tag{font-size:clamp(8.5px,.6vw,10.5px);font-weight:800;letter-spacing:.5px;color:#9fe8ff;
-    padding:1px 5px;border-radius:5px;background:rgba(56,200,216,.14);border:1px solid rgba(56,200,216,.34);}
-
-  /* 醒目提醒：这一屏带送达方名称，只能内部看，别摆到物流门口 */
-  .warnbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
-    font-size:11.5px;font-weight:800;letter-spacing:.6px;white-space:nowrap;
-    background:rgba(255,180,84,.14);color:#ffd9a0;border:1px solid rgba(255,180,84,.42);}
-
-  .kpis{display:flex;gap:clamp(4px,.45vw,9px);flex-wrap:nowrap;margin-left:2px;min-width:0;}
-  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:9px;flex:0 0 auto;
-    padding:2px clamp(6px,.6vw,12px);min-width:0;position:relative;overflow:hidden;}
-  .kpi i{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:.85;}
-  .kpi b{display:block;font-size:clamp(14px,1.3vw,22px);font-weight:800;line-height:1.12;white-space:nowrap;}
-  .kpi span{display:block;font-size:clamp(8.5px,.6vw,11px);color:var(--muted);letter-spacing:.4px;white-space:nowrap;}
-  .kpi.red i{background:var(--red);} .kpi.red b{color:var(--red);}
-  .kpi.amber i{background:var(--amber);} .kpi.amber b{color:var(--amber);}
-  .kpi.green i{background:var(--green);} .kpi.green b{color:var(--green);}
-
-  .spacer{flex:1 1 auto;min-width:0;}
-  .ctrl{display:flex;flex:0 0 auto;align-items:center;gap:6px;}
-  .ctrl button{background:rgba(34,211,238,.13);border:1px solid rgba(34,211,238,.42);color:var(--txt);
-    padding:3px clamp(6px,.7vw,12px);border-radius:8px;font-size:clamp(9.5px,.72vw,12.5px);font-weight:700;
-    cursor:pointer;font-family:inherit;letter-spacing:.4px;white-space:nowrap;}
-  .ctrl button:hover{background:rgba(34,211,238,.24);}
-  /* 时间 / 日期 / 同步状态**摊在同一行**（原来竖着三行，等于白占两行高） */
-  .clock{display:flex;flex:0 0 auto;align-items:baseline;gap:clamp(6px,.6vw,11px);white-space:nowrap;}
-  .clock b{font-size:clamp(15px,1.42vw,23px);font-weight:800;letter-spacing:1px;line-height:1;}
-  .clock span{font-size:clamp(9px,.62vw,11px);color:var(--dim);letter-spacing:.6px;}
-  .sync{letter-spacing:.4px;}
-  .sync.ok{color:var(--green);} .sync.warn{color:var(--amber);} .sync.err{color:var(--red);}
-
-  /* ============ 主体表格 ============ */
-  .box{flex:1 1 auto;min-height:0;position:relative;border-radius:16px;overflow:auto;
-    border:1px solid var(--line);background:var(--panel);box-shadow:0 12px 40px rgba(0,0,0,.38);}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  thead th{
-    position:sticky;top:0;z-index:2;
-    font-size:12.5px;color:var(--muted);font-weight:700;text-align:left;
-    padding:9px 12px;letter-spacing:1px;background:rgba(9,14,26,.96);
-    border-bottom:1px solid var(--line);white-space:nowrap;
-  }
-  tbody td{padding:var(--rowpad,8px) 12px;border-bottom:1px solid rgba(120,180,255,.09);
-    font-size:var(--rowfs,17px);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-
-  /* 每道工序一种颜色（左细条 + 极淡同色底），一眼分清走到哪一步：
-     货待确认=红 · 货好=青 · 装货中=琥珀 · 已完成=绿（红只是标记，正文保持清晰） */
-  tr.st0{background:linear-gradient(90deg,rgba(255,93,93,.075),rgba(255,93,93,.02) 55%,transparent);}
-  tr.st0 td:first-child{box-shadow:inset 4px 0 0 var(--red);}
-  tr.st1{background:linear-gradient(90deg,rgba(56,200,216,.07),rgba(56,200,216,.02) 55%,transparent);}
-  tr.st1 td:first-child{box-shadow:inset 4px 0 0 var(--cyan);}
-  tr.st2{background:linear-gradient(90deg,rgba(255,180,84,.07),rgba(255,180,84,.02) 55%,transparent);}
-  tr.st2 td:first-child{box-shadow:inset 4px 0 0 var(--amber);}
-  /* st3 = 工序已经走完、但车还没到（所以不算 done）：淡一档的绿 ——
-     之前只有 st0/st1/st2/done 四档，st3 这一档漏了色条，整行看着像"没着色"。 */
-  tr.st3{background:linear-gradient(90deg,rgba(61,220,151,.045),rgba(61,220,151,.015) 55%,transparent);}
-  tr.st3 td:first-child{box-shadow:inset 4px 0 0 rgba(61,220,151,.5);}
-  tr.done{background:linear-gradient(90deg,rgba(61,220,151,.07),transparent 62%);}
-  tr.done td:first-child{box-shadow:inset 4px 0 0 var(--green);}
-  tr.done .cust{color:#c9d6e8;}
-
-  /* 客户名可能很长（老客户名本来就带括号，现在还多了「（第二车）」后缀），
-     而这一列只占 17% 宽 —— 超了会被 td 的 overflow:hidden 直接切掉。
-     inline-block + max-width 让「缩到下限仍放不下」时退化成「…」，至少看得出被截断。 */
-  .cust{font-weight:800;letter-spacing:.3px;color:var(--txt);
-    display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:baseline;}
-  /* 单号独占一列：整格 nowrap + 省略号，窄的时候宁可切单号尾巴、也绝不动客户名那一列 */
-  /* 单号独占一列。★ 2026-09-23：单号是查单的唯一凭据，**必须完整显示** ——
-     真机实测：行数少时 --rowfs 自动放大到 26px，15 位等宽单号在这一格里差 11px 放不下，
-     td 的 overflow:hidden 就把最后 1~2 位吃掉了。改成 flex：
-     单号自己优先占位、字号由 fitNoFont 按实测宽度逐档降；名字放不下先缩字号（2026-09-24 恢复显示）。
-     优先级：单号完整 > 名字显示（可缩小、绝不换行）。 */
-  .no{display:flex;align-items:baseline;font-size:.85em;font-weight:600;color:var(--muted);
-    letter-spacing:.2px;min-width:0;line-height:1.3;white-space:nowrap;overflow:hidden;}
-  /* ★ 容器上故意**不用 gap**：flex 的 gap 不参与收缩 —— 计划员缩到 0 了，那 5px 间隙还占着，
-     窄屏（175% 缩放，1097px 视口）实测就卡在这 3px 上。改由 .pl 自带 margin-left。 */
-  /* ★ 单号 flex:0 0 auto = 不收缩，先把空间占够（优先级最高）；fitNoFont 靠量 .no 有没有溢出
-     来判断"字号是不是太大"（inline 元素的 clientWidth 恒为 0，量不出来 —— 第一版就栽在这）。 */
-  .no .sn{flex:0 0 auto;white-space:nowrap;
-    font-family:ui-monospace,Consolas,"Courier New",monospace;color:var(--txt);font-weight:700;letter-spacing:.3px;}
-  /* 真遇到"降到下限仍放不下"的超长单号：折行。宁可占两行，也绝不让省略号吃掉一位 */
-  body.nowrap .no .sn{white-space:normal;overflow-wrap:anywhere;line-height:1.15;}
-  /* 计划员姓名（2026-09-24 用户要求恢复显示）：跟在单号后面，一眼对上人。
-     ★ 绝不换行：放不下先缩名字字号（fitNoFont ①），再缩单号（②）。
-     ellipsis 只是极端兜底 —— 名字宁可被省略号截尾，也绝不折行顶高行。 */
-  .no .pl{flex:0 1 auto;min-width:0;margin-left:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .no .sep{opacity:.45;margin:0 3px;}
-  /* 代码列里查不到时的占位：只报「未编代码」，**绝不回落客户名**（和门口保密屏同口径） */
-  .cmiss{color:var(--dim);font-weight:600;font-size:.82em;letter-spacing:.5px;}
-  /* 送达方代码徽章：放在「单号 · 计划员」那行的**最前面**，竖着一列对齐，一眼能扫。
-     ★ 为什么不跟在客户名后面：客户/送达方那一格是 nowrap + 省略号（见 #tbl td），
-       长客户名本来就在临界点上，再塞个徽章会把名字切得更早（比如"安徽海立精密铸造有限公司上海分公司"）。
-       挪到第二行，名字一个像素都不占它的。 */
-  .ccode{display:inline-block;flex:0 0 auto;margin-right:7px;padding:0 5px;border-radius:5px;
-    font-family:ui-monospace,Consolas,"Courier New",monospace;font-weight:800;font-size:1.16em;
-    letter-spacing:.6px;color:#7ef0c2;background:rgba(61,220,151,.13);
-    /* ★ 描边必须用内阴影，不能用 border —— border 上下各 1px 会把这一行的行盒顶高，
-       整行跟着涨 3px（真渲染实测 82 vs 基线 79），36 行就多出 100 多像素、白送一次滚动。 */
-    box-shadow:inset 0 0 0 1px rgba(61,220,151,.32);
-    vertical-align:1px;white-space:nowrap;}
-  .ton{font-weight:800;font-size:1.12em;}
-  .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
-  .logi{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.82em;font-weight:700;
-    background:rgba(91,141,239,.18);color:#c4d9ff;border:1px solid rgba(91,141,239,.32);}
-  .logi.self{background:rgba(148,163,184,.14);color:#d3dce8;border-color:rgba(148,163,184,.28);}
-
-  /* ============ 工序 · 流体进度条（2026-09-17）============
-     把原来的「四个圆点 + 工序名徽章」换成一条**会流动的液体进度条**：
-     · 左侧液体按工序进度涨（0% / 33% / 67% / 100%）；
-     · 液面一直在轻轻起伏，液体内部有流光在走，看着像液体在流；
-     · 液面右缘有一点"奔向下一道工序"的脉动光（颜色 = 下一道工序的颜色）；
-     · 右侧是进度百分比（数字比液体准，够大，远处一眼读）。
-     四道工序四种液体：待确认红 · 货好青 · 装货中琥珀 · 已完成绿（与整行底色同一套色）。
-     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(5)，2026-09-23 物流列隐藏后工序回到第 5 格）：
-       进度条自带高度，让它"吃自己的"内边距，整行高度仍由别的列说了算，
-       不许它把行顶高（行一高，整屏就要滚，门口能看到的单子就少了）。 */
-  .flw{position:relative;display:flex;align-items:center;justify-content:space-between;gap:.45em;
-    height:1.62em;padding:0 .5em 0 .66em;border-radius:999px;overflow:hidden;
-    background:rgba(6,10,18,.9);font-size:.9em;line-height:1;white-space:nowrap;
-    box-shadow:inset 0 0 0 1px rgba(148,163,184,.26), inset 0 1px 0 rgba(255,255,255,.06), 0 2px 10px rgba(0,0,0,.42);
-    /* 液面波浪的图案（内联 SVG，不依赖任何外部文件）：宽 13 / 高 26，
-       左半实心、右边鼓出两个波峰；竖向重复时上下无缝，所以能一直往下滚。 */
-    --wvm:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='60'><path d='M0 0H6C17 4 17 9 6 13L6 20C11 24 11 28 6 31L6 38C19 44 19 50 6 52L6 60H0Z' fill='%23fff'/></svg>");
-    --wvm2:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='48'><path d='M0 0H7C22 6 22 12 7 17L7 26C16 30 16 34 7 38L7 48H0Z' fill='%23fff'/></svg>");}
-  /* 液体本体：宽度 = 进度。左端跟着胶囊的圆角走，右缘靠 ::after 那个自转的椭圆化出波纹 */
-  .flq{position:absolute;left:0;top:0;bottom:0;width:var(--w,0%);
-    background:linear-gradient(90deg,var(--f1),var(--f2));
-    box-shadow:0 0 16px -2px var(--fglow);filter:saturate(1.2);}
-  .flq::before{content:"";position:absolute;inset:0;opacity:.4;
-    background:repeating-linear-gradient(96deg,rgba(255,255,255,.20) 0 2px,transparent 2px 10px);
-    animation:flflow 2.4s linear infinite;}
-  @keyframes flflow{to{transform:translateX(10px)}}
-  .flq::after{content:"";position:absolute;inset:0;opacity:.16;
-    background:repeating-linear-gradient(74deg,rgba(255,255,255,.16) 0 3px,transparent 3px 14px);
-    animation:flflow2 5.2s linear infinite;}
-  @keyframes flflow2{to{transform:translateX(-14px)}}
-  /* 液面：液体右缘的**波浪边** —— 上面那张 SVG 波浪贴在这里，
-     往左压 6px（正好让图案里的"实心段"在 --w 处结束），于是液体的右缘形状**就是**
-     那条波浪线；再让它慢慢往下走一个周期 = 液面在起伏。
-     ★ 别用"自转椭圆"那套（第一版试过）：椭圆会鼓到液体右边变成一个球，看着像浮了颗蛋。
-     ★ 也别把波做小：周期 26px / 波幅 3px 那版（第二版）在 38px 高的胶囊里只有 1.5 个波，
-       看着是"扇贝花边"。现在的 20px 周期 / 7.5px 波幅才有液面的样子。
-     液面正中的那盏灯 = 「下一道工序」（颜色 = 下一道工序色）：四步
-     货待确认 → 货好(青) → 装货中(琥珀) → 已完成(绿)。 */
-  .flnx{position:absolute;top:0;bottom:0;left:var(--w,0%);width:18px;margin-left:-6px;
-    background-color:var(--f1);
-    -webkit-mask-image:var(--wvm);mask-image:var(--wvm);
-    -webkit-mask-size:18px 60px;mask-size:18px 60px;
-    -webkit-mask-repeat:repeat-y;mask-repeat:repeat-y;
-    -webkit-mask-position:0 0;mask-position:0 0;
-    animation:flwave 5.2s linear infinite;}
-  @keyframes flwave{to{-webkit-mask-position:0 60px;mask-position:0 60px;}}
-  /* 第二层波浪：周期/相位/速度都跟主波不同，两层叠加 → 不规则的水面（自然感） */
-  .flnx2{position:absolute;top:0;bottom:0;left:var(--w,0%);width:24px;margin-left:-13px;
-    background-color:var(--f1);opacity:.55;
-    -webkit-mask-image:var(--wvm2);mask-image:var(--wvm2);
-    -webkit-mask-size:24px 48px;mask-size:24px 48px;
-    -webkit-mask-repeat:repeat-y;mask-repeat:repeat-y;
-    -webkit-mask-position:0 0;mask-position:0 0;
-    animation:flwave2 3.9s linear infinite;}
-  @keyframes flwave2{to{-webkit-mask-position:0 48px;mask-position:0 48px;}}
-  /* 这盏灯挪到**波浪外侧**（液体右边、深色区里）：第一版它压在波浪正中，
-     9px 的光晕会把波浪整个染成"下一步"的颜色（橙色液体上浮出一条黄绿边）。 */
-  .flnx::after{content:"";position:absolute;right:-4px;top:0;bottom:0;width:2px;
-    background:linear-gradient(180deg,transparent,var(--nc),transparent);
-    box-shadow:0 0 7px 0 var(--nc);opacity:.92;animation:flpulse 1.6s ease-in-out infinite;}
-  .flnx.c1{--nc:var(--cyan);} .flnx.c2{--nc:var(--amber);} .flnx.c3{--nc:var(--green);}
-  @keyframes flpulse{0%,100%{opacity:.25;} 50%{opacity:1;}}
-  /* 液体颜色：左亮右暗（像光从左打进液体里），与整行底色同一套色系 */
-  .flw.s0{--f1:#ff5d5d;--f2:#6d1120;--fglow:rgba(255,93,93,.55);}
-  .flw.s1{--f1:#38c8d8;--f2:#0f4f6d;--fglow:rgba(56,200,216,.5);}
-  .flw.s2{--f1:#ffb454;--f2:#7d4306;--fglow:rgba(255,180,84,.5);}
-  .flw.s3{--f1:#3ddc97;--f2:#0d6448;--fglow:rgba(61,220,151,.5);}
-  /* 仪表盘 HUD 同款「从左到右的高亮光标」（2026-09-24）：扫过还没走完的三种状态
-     （货待确认 0 / 货好 1 / 装货中 2）；已完成 3 不扫（满进度不用再催）。
-     光带压在液体上、工序名/百分比文字之下（文字 z-index:1），.flw 的 overflow:hidden 负责裁边。 */
-  .flw.s0::after,.flw.s1::after,.flw.s2::after{content:"";position:absolute;top:-20%;bottom:-20%;
-    left:-45%;width:55%;pointer-events:none;
-    background:
-      linear-gradient(100deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%),
-      linear-gradient(100deg,transparent 0%,rgba(255,255,255,.12) 38%,rgba(255,255,255,.12) 62%,transparent 100%);
-    transform:translateX(0) skewX(-16deg);will-change:transform,opacity;
-    animation:flsweep 4.6s cubic-bezier(.6,.05,.4,.95) infinite;}
-  @keyframes flsweep{0%{transform:translateX(0) skewX(-16deg);opacity:0}
-    10%{opacity:1}86%{opacity:1}
-    100%{transform:translateX(300%) skewX(-16deg);opacity:0}}
-  /* 压在液体上面的字：工序名在左、百分比在右，都带投影，泡在液体里也读得清 */
-  .flt{position:relative;z-index:1;font-weight:800;letter-spacing:.6px;color:#eef4ff;
-    text-shadow:0 1px 4px rgba(0,0,0,.8);}
-  .flp{position:relative;z-index:1;font-size:1.3em;font-weight:800;letter-spacing:.4px;color:#fff;
-    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
-    text-shadow:0 1px 5px rgba(0,0,0,.85);}
-  /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径）
-     ★ 2026-09-21 状态列删掉后曾是第 6 格；2026-09-23 物流列隐藏后又回到第 5 格 */
-  tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
-  @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after{animation:none;}}
-  /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
-     旧的 .pill 状态徽章跟着状态列一起移除（不留死样式） */
-
-  .car{font-weight:800;}
-  .car.on{color:var(--green);} .car.off{color:var(--amber);font-weight:700;}
-  tr.done .car.off{color:#94a3b8;font-weight:600;}
-  .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
-  .tm{font-size:.74em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
-  .bzon{color:var(--green);font-weight:800;}
-  /* 品一质保书（2026-09-24 上色，跟车辆列同一套）：已备好=绿、未确认=琥珀；
-     已完成的行里「未确认」转灰（跟 tr.done .car.off 同一口径，别再催已走完的单） */
-  .bzoff{color:var(--amber);font-weight:700;}
-  tr.done .bzoff{color:#94a3b8;font-weight:600;}
-  /* 时间两列（工序更新 8 / 车辆更新 9，2026-09-24 换位后）绝不换行也绝不被切：
-     全局 td 本就是 nowrap+省略号；字号由 fitUpdFont 逐格量宽自动降（下限 55%），
-     放不下先缩字、到底才轮到省略号兜底（2026-09-24 用户要求：不换行、不看不见）。 */
-  .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
-    background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
-
-  .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
-    color:var(--dim);font-size:17px;letter-spacing:1px;background:rgba(4,7,15,.55);}
-  .empty b{font-size:44px;color:rgba(120,180,255,.30);}
-  .empty em{font-style:normal;font-size:12.5px;color:var(--dim);letter-spacing:.6px;}
-
-  .ft{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:5px 14px;padding:6px 4px 0;
-    font-size:clamp(10px,.8vw,11.5px);color:var(--dim);letter-spacing:.5px;}
-  .ft .k{display:inline-flex;align-items:center;gap:5px;}
-  .ft .k i{width:9px;height:9px;border-radius:50%;display:block;}
-
-  /* 全屏时字号再放大一档（门口距离更远） */
-  body.fs .wrap{padding:16px 26px 16px;}
-  body.fs .tt .t{font-size:clamp(15px,1.25vw,23px);}
-  body.fs .kpi b{font-size:clamp(16px,1.5vw,27px);}
-  body.fs tbody td{font-size:calc(var(--rowfs,17px) * 1.22);}
-  body.fs .clock b{font-size:clamp(17px,1.65vw,29px);}
-  /* 窄屏兜底（有些笔记本 175% 缩放，CSS 宽度只有 ~1100px）：
-     顶部永远一行 —— 先收字距、再丢日期，绝不换行、绝不把 KPI 挤到第二行 */
-  @media (max-width:1180px){
-    .hud{gap:6px;}
-    .kpi span{letter-spacing:0;}
-  }
-  @media (max-width:1024px){
-    .clock #cdate{display:none;}
-    .kpi span{font-size:9px;}
-  }
-  body.hidecur,body.hidecur *{cursor:none !important;}
-</style>
-</head>
-<body>
-<div class="wrap">
-
-  <div class="hud">
-    <div class="logo">◈</div>
-    <div class="tt">
-      <div class="t" title="今日发货计划 · 进度高的排最前 · 超屏自动滚动 · 含送达方名称（仅限内部）">物流进度<span class="tag">内部</span></div>
-    </div>
-    <div class="warnbadge" title="本屏含送达方名称与物流，只给内部看，请勿摆到物流门口（物流门口请用「物流门口大屏.html」保密版）">⚠ 含送达方名称 · 勿摆门口</div>
-    <div class="kpis" id="kpis"></div>
-    <div class="spacer"></div>
-    <div class="ctrl">
-      <button id="shotBtn">📷 截图</button>
-      <button id="fsBtn">⛶ 全屏显示</button>
-    </div>
-    <div class="clock">
-      <b id="clock">--:--:--</b>
-      <span id="cdate">----</span>
-      <span class="sync" id="sync">连接中…</span>
-    </div>
-  </div>
-
-  <div class="box">
-    <table id="tbl">
-      <!-- 列序（2026-09-24 改：车辆列与工序更新列换位）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
-           「工序」「车辆」两个状态列相邻靠前，后面跟「品一质保书」；
-           「工序更新」「车辆更新」两个时间列相邻放在最右（前者只报四道工序的进度时间，后者只报司机签到）。 -->
-      <colgroup>
-        <col style="width:16%"><col style="width:8%"><col style="width:7%">
-        <col style="width:14%"><col style="width:16%"><col style="width:8%"><col style="width:8%"><col style="width:12%"><col style="width:11%">
-      </colgroup>
-      <thead><tr>
-        <th>客户</th><th>送达方代码</th><th>吨位</th>
-        <th>单号</th><th>工序</th><th>车辆</th><th>品一质保书</th><th>工序更新</th><th>车辆更新</th>
-      </tr></thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div class="empty" id="empty" style="display:none">
-      <b>✓</b><span>今天没有待发的计划</span>
-      <em id="emptySub">今天没有发货计划</em>
-    </div>
-  </div>
-
-  <div class="ft">
-    <span class="k"><i style="background:#ff5d5d"></i>货待确认</span>
-    <span class="k"><i style="background:#38c8d8"></i>货好</span>
-    <span class="k"><i style="background:#ffb454"></i>装货中</span>
-    <span class="k"><i style="background:#3ddc97"></i>已完成（工序走完 + 车已到）</span>
-    <span class="k" style="margin-left:auto">进度高的排最前 · 物流门口请用「门口大屏」保密版 · 每 10 秒自动刷新 · 超出一屏自动慢速滚动</span>
-  </div>
-
-</div>
-
-<script>
-/* ==========================================================================
-   物流进度大屏 · 内部看板（只读）
-   ★ 含送达方名称与物流 —— 仅限内部；物流门口请用「物流门口大屏.html」保密版。
-   设计要点：
-   1. 「取哪些行、什么算没走完、怎么排序」全部来自 scan-lib.js 的 boardRows ——
-      和手机端、管理端用的是同一份实现。三处数字不可能对不上。
-   2. 本页**永远不写**任何数据。只读，避免门岗手滑把进度点了。
-   3. 字号按行数自动缩放 + 全屏再加一档，保证整屏不滚动、站在门口能看清。
-   ========================================================================== */
-const SL = window.ScanLib;
-const $ = (id) => document.getElementById(id);
-const esc = SL.esc, raw = SL.raw;
-const POLL_MS = 60000;
-const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
-
-const KEY_DB = SL.KEY_DB;
-const KEY_PLANS_STAMP = "shipping_plans_stamp_v1", KEY_DB_STAMP = "shipping_db_stamp_v1";            // 物料库（含送达方代码）—— 用于把客户名换成代码
-
-let RECORDS = [];
-let PROG = {};
-let DB = [];                         // 物料库
-let IDX = { byPair: {}, byCust: {}, byModel: {} };  // 代码索引（客户+型号 / 客户名 / 型号），由 scan-lib 构建
-let LGIDX = {};                                     // 物流索引（客户 → 物流），由 scan-lib 构建
-let rows = [];
-let lastFp = "";
-let rendered = false;
-let okCount = 0, badCount = 0;
-
-/* ---------- 从本机兜底读（断网时大屏不能变白板） ---------- */
-function loadLocal(){
-  try { const v = JSON.parse(localStorage.getItem(SL.KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
-  try { const v = JSON.parse(localStorage.getItem(SL.KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
-  loadLocalDb();
-}
-/* 物料库单独兜底：★ 别把它混进上面那个整体兜底 ——
-   否则"物料库为空"会把刚拉到的最新计划又用本机旧缓存盖回去。 */
-function loadLocalDb(){
-  if (DB.length){ buildDbIndex(); return; }
-  try { const v = JSON.parse(localStorage.getItem(KEY_DB) || "null"); if (Array.isArray(v)) DB = v; } catch(e){}
-  buildDbIndex();
-}
-function setSync(txt, cls){ const e = $("sync"); e.textContent = txt; e.className = "sync " + (cls || ""); }
-
-/* ---------- 送达方代码 / 物流：解析口径只有 scan-lib 一份（门口屏/司机页共用） ----------
-   代码：客户+型号 → 客户名 → 记录自带 → 型号（库里的解析结果优先，能自动纠正老单里的
-         错码）。查不到返回 ""，调用方显示占位、**绝不回落客户名**。
-   物流：记录里有值就用记录里的（尊重发布当时那份快照）；记录里没有（老单发布时还没带
-         物流，字段是 "/"）就按客户从物料库**实时补**，不用等重发。 */
-function buildDbIndex(){ IDX = SL.codeIndex(DB); LGIDX = SL.logisticsIndex(DB); }
-function codeOf(r){ return SL.codeOf(r, IDX); }
-function logisticsOf(r){
-  const lg = String((r && r.logistics) || "").trim();
-  if (lg && lg !== "/") return lg;                 // 记录里有值 → 尊重当时那份
-  // 记录里没有 → 实时补。★ 用整行版：客户名对不上时，靠「型号唯一指向的客户」
-  // 认人（和旁边那列代码用的是同一个判断），否则会出现「有代码、没物流」的半截行。
-  return (SL.logisticsOfRow ? SL.logisticsOfRow(r, LGIDX) : SL.logisticsOf(r && r.customer, LGIDX));
-}
-
-/* ---------- 拉取（超时保护：卡住的请求不能让整屏停摆） ---------- */
-function withTimeout(p, ms){
-  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
-}
-
-async function pull(){
-  const cs = !!(window.CloudSync && CloudSync.ready());
-  let okA = !cs, okP = !cs;
-  if (cs){
-    /* 性能（2026-09-24）：先并行查「更新时间戳」（几十字节），没变就不下载全文。
-       计划(~268KB)和物料库(大)都极少变；剩下的请求三路同时发，弱网同步时间约降为 1/3。 */
-    let skipA = false, newAStamp = null, skipDb = false, newDbStamp = null;
-    if (CloudSync.pullStamp && RECORDS.length){
-      try {
-        const st = await withTimeout(CloudSync.pullStamp(SL.KEY_PLANS), 8000);
-        if (st){ if (localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; } else newAStamp = st; }
-      } catch(e){}
-    }
-    if (CloudSync.pullStamp && DB.length){
-      try {
-        const st = await withTimeout(CloudSync.pullStamp(KEY_DB), 8000);
-        if (st){ if (localStorage.getItem(KEY_DB_STAMP) === st) skipDb = true; else newDbStamp = st; }
-      } catch(e){}
-    }
-    const rs = await Promise.allSettled([
-      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(SL.KEY_PLANS), FETCH_MS),
-      withTimeout(CloudSync.pullResult(SL.KEY_PROG), FETCH_MS),
-      skipDb ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_DB), FETCH_MS)
-    ]);
-    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
-    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
-    const rd = rs[2].status === "fulfilled" ? rs[2].value : null;
-    if (!skipA){
-      okA = !!(ra && ra.ok);
-      if (okA && Array.isArray(ra.value)){
-        RECORDS = ra.value;
-        try { localStorage.setItem(SL.KEY_PLANS, JSON.stringify(RECORDS));
-              if (newAStamp) localStorage.setItem(KEY_PLANS_STAMP, newAStamp); } catch(e){}
-      }
-    }
-    okP = !!(rp && rp.ok);
-    if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
-    if (!skipDb && rd && rd.ok && Array.isArray(rd.value)){
-      DB = rd.value;
-      try { localStorage.setItem(KEY_DB, JSON.stringify(DB));
-            if (newDbStamp) localStorage.setItem(KEY_DB_STAMP, newDbStamp); } catch(e){}
-      buildDbIndex();
-    }
-  }
-
-  if (!RECORDS.length) loadLocal();
-  if (!DB.length) loadLocalDb();        // 物料库单独兜底（不动刚拉到的计划）
-  // 墓碑：管理端删掉的单不再上屏
-  try {
-    const del = JSON.parse(localStorage.getItem(SL.KEY_DEL) || "null");
-    if (Array.isArray(del) && del.length){
-      const st = new Set(del.map(String));
-      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
-    }
-  } catch(e){}
-  try { localStorage.setItem(SL.KEY_PROG, JSON.stringify(PROG)); } catch(e){}
-
-  const degraded = !okA || !okP;
-  degraded ? badCount++ : (badCount = 0);
-  okCount++;
-  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
-  /* 文案缩短：顶部只有一行，长句会顶出去（全文留在 title 里） */
-  const sw = $("sync");
-  if (!cs){ setSync("本机缓存 " + t, "warn"); sw.title = "云端未配置，正在显示本机缓存的数据"; }
-  else if (degraded){ setSync("网络波动 " + t, "warn"); sw.title = "网络有波动，正在显示上一次拉到的数据"; }
-  else { setSync("已同步 ✓ " + t, "ok"); sw.title = "已同步云端，时间 " + t; }
-
-  render();
-}
-
-/* ---------- 渲染 ---------- */
-function fmtTime(ts){
-  if (!ts) return "";
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return "";
-  const p = (n) => String(n).padStart(2, "0");
-  const today = SL.todayYmd();
-  const day = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
-  return (day === today ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + p(d.getHours()) + ":" + p(d.getMinutes());
-}
-
-// 字号按行数自动缩放：行少就放大（门口看得清），行多就收紧。
-// 下限提到 15px：再小门口就看不清了，塞不下交给自动慢速滚动（不再硬缩到看不清）。
-function fitRows(n){
-  const vh = window.innerHeight;
-  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 192 : 172));
-  const per = avail / Math.max(1, n);
-  const fs = Math.max(15, Math.min(26, Math.floor(per * 0.52)));
-  document.documentElement.style.setProperty("--rowfs", fs + "px");
-  document.documentElement.style.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.42)) + "px");
-}
-
-// 客户名按内容逐档缩字号，保证在客户列里看得全：
-//   · 名字长（老客户名带括号 / 「（第二车）」后缀）在 17% 宽的列里会被 overflow:hidden 切掉；
-//   · 这里先复位到基准字号量一次，放不下才逐档降（最低 48% —— 够 12 字长名挤进窄列）；
-//   · 缩到下限仍放不下，就交给 .cust 的省略号收尾（看得出被截断，不会莫名少字）。
-function fitCustNames(){
-  const tb = $("tbody"); if (!tb) return;
-  const list = tb.querySelectorAll("td:nth-child(1) .cust");   // ★ 2026-09-21 状态列删掉后，客户是第 1 格
-  // ★ 性能（2026-09-20）：原来每行「复位字号 → 量宽度」交错做，每行都强制一次同步重排
-  //   （N 行 = N 次布局）。改成读写分离：先整批复位（只触发一次布局），再整批测量。
-  for (let i = 0; i < list.length; i++){ if (list[i].style.fontSize) list[i].style.fontSize = ""; }
-  for (let i = 0; i < list.length; i++){
-    const el = list[i];
-    // ★ 必须拿 .cust 自己的 scrollWidth 比：它带 max-width:100% + overflow:hidden，
-    //   客户格（td）因此永远是「不溢出」的 —— 用 td.scrollWidth 判会得出「放得下」而漏缩
-    //   （第一版就栽在这：明明名字被切成「太仓舍弗…」，判定却说没问题）。
-    if (el.scrollWidth <= el.clientWidth + 1) continue;         // 本来就放得下
-    for (let k = 94; k >= 48; k -= 6){                          // 下限 48%（12 字的长名在窄屏也放得下）
-      el.style.fontSize = k + "%";
-      if (el.scrollWidth <= el.clientWidth + 1) break;
-    }
-  }
-}
-
-/* 单号自适应字号（2026-09-23；2026-09-24 起名字恢复显示，口径改为「缩字号、绝不撤名字」）
-   为什么需要：大屏字号按行数自适应（--rowfs 15~26px），行少字号就大 ——
-   单号是 15 位等宽字符，字号一大就把这一格撑破，td 的 overflow:hidden 会把最后 1~2 位吃掉
-   （真机实测 26px 时缺 11px）。单号缺一位就查不到单，比显示小字糟得多。
-   优先级（2026-09-24 用户要求）：单号必须完整 > 名字必须显示（不换行、可以缩小）。
-   做法：先整批复位（只触发一次布局），再整批量（读写分离，别交错触发重排）。
-   ① 先缩名字（96%→56%）；② 名字到底了还放不下 → 缩单号（96%→56%）；
-   ③ 都到下限仍放不下（超长单号）→ 折行，一位都不丢（极端兜底）。 */
-const NO_R_MIN = 0.56;
-const PL_R_MIN = 0.56;
-function fitNoFont(){
-  const tb = document.getElementById("tbody"); if (!tb) return;
-  document.body.classList.remove("nowrap");
-  const list = Array.prototype.slice.call(tb.querySelectorAll(".no"));
-  if (!list.length) return;
-  const sns = list.map(no => no.querySelector(".sn"));
-  const pls = list.map(no => no.querySelector(".pl"));
-  for (let i = 0; i < list.length; i++){                 // 整批复位（只触发一次布局）
-    if (sns[i]) sns[i].style.fontSize = "";
-    if (pls[i]) pls[i].style.fontSize = "";
-  }
-  const over = no => no.scrollWidth > no.clientWidth + 1;
-  let fold = false;
-  for (let i = 0; i < list.length; i++){
-    const no = list[i], sn = sns[i], pl = pls[i];
-    if (!sn) continue;
-    if (!over(no)) continue;                             // 本来就放得下
-    // ① 先缩名字（用户明确：名字可以缩小）—— 单号保持原字号
-    if (pl){
-      let pk;
-      for (pk = 0.96; pk >= PL_R_MIN - 1e-6; pk -= 0.04){
-        pl.style.fontSize = Math.round(pk * 100) + "%";
-        if (!over(no)) break;
-      }
-      if (!over(no)) continue;
-    }
-    // ② 名字到底了还放不下 → 逐档降单号字号（名字停在 56% 不再动）
-    let k = NO_R_MIN;
-    for (k = 0.96; k >= NO_R_MIN - 1e-6; k -= 0.04){
-      sn.style.fontSize = Math.round(k * 100) + "%";
-      if (!over(no)) break;
-    }
-    // ③ 都到下限仍放不下（超长单号）→ 折行，一位都不丢
-    if (k < NO_R_MIN - 1e-6){ fold = true; sn.style.fontSize = Math.round(NO_R_MIN * 100) + "%"; }
-  }
-  if (fold) document.body.classList.add("nowrap");
-}
-
-/* ★ 时间两列（工序更新/车辆更新）自动缩字号（2026-09-24）：逐格量 scrollWidth，
-   放不下就降字号（下限 55%），保证单行放得下 —— 不换行、也绝不让省略号吃掉。 */
-const TM_R_MIN = 0.55;
-function fitUpdFont(){
-  const tb = document.getElementById("tbody"); if (!tb) return;
-  const tds = tb.querySelectorAll("td:nth-child(8),td:nth-child(9)");
-  const tms = Array.prototype.map.call(tds, td => td.querySelector(".tm"));
-  tms.forEach(el => { if (el) el.style.fontSize = ""; });   // 整批复位（只触发一次布局）
-  tms.forEach(el => {
-    if (!el) return;
-    const td = el.parentElement;
-    if (td.scrollWidth <= td.clientWidth + 1) return;       // 本来就放得下
-    for (let k = 0.96; k >= TM_R_MIN - 1e-6; k -= 0.04){
-      el.style.fontSize = Math.round(k * 100) + "%";
-      if (td.scrollWidth <= td.clientWidth + 1) break;
-    }
-  });
-}
-
-function kpiHtml(s){
-  return [
-    { cls: "",      v: s.total, l: "在屏计划（趟）" },
-    { cls: "red",   v: s.left,  l: "未完成" },
-    { cls: "amber", v: s.tonLeft.toFixed(1), l: "未完成吨位" },
-    { cls: "green", v: s.car + "/" + s.total, l: "车已到" },
-    { cls: "",      v: s.pct + "%", l: "整体进度" },
-    { cls: "",      v: s.ton.toFixed(1), l: "在屏吨位" }
-  ].map(k => '<div class="kpi ' + k.cls + '"><i></i><b>' + esc(String(k.v)) + "</b><span>" + esc(k.l) + "</span></div>").join("");
-}
-
-function rowHtml(r){
-  const s = Math.min(3, r.s || 0);
-  /* 流体进度条（2026-09-17）：液体宽度 = 工序进度（0 / 33 / 67 / 100）。
-     0 档给一小片"刚起步"的液滴（6%），但右边的数字仍按真实进度印 0% ——
-     数字永远准，液体只负责好看（别把这一小片读成"已经有进度了"）。 */
-  const pct = Math.round(s / 3 * 100);
-  const flw = '<span class="flw s' + s + '" style="--w:' + (pct || 6) + '%">' +
-      '<i class="flq"></i>' +
-      (s < 3 ? '<i class="flnx c' + (s + 1) + '"></i><i class="flnx2"></i>' : '') +
-      '<span class="flt">' + esc(SL.STEP_NAME[s]) + '</span>' +
-      '<span class="flp">' + pct + '%</span>' +
-    '</span>';
-  const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
-  const byTxt = r.by ? "·" + esc(r.by) : "";   // 紧凑（2026-09-24）：时间列字少一点，单行更容易放得下
-  /* 两列更新分开报（2026-09-21；2026-09-24 换位后两列相邻放在最右）：
-     · 工序更新 = 只报四道工序的进度时间（谁点的一并带出）；
-     · 车辆更新 = 只报司机签到（车已到）的时间 —— 司机扫码签到了才冒出来。 */
-  const stepWhen = r.t ? SL.fmtHM(r.t) : "";
-  const carWhen = r.car && r.ct ? SL.fmtHM(r.ct) : "";
-  const code = codeOf(r);
-  const codeCell = code ? '<span class="ccode">' + esc(code) + "</span>" : '<span class="cmiss">未编代码</span>';
-  // 名字恢复显示（2026-09-24 用户要求）：单号后面跟计划员，放不下缩字号、不换行
-  const plCell = r.planner ? '<span class="pl"><span class="sep">·</span>' + esc(r.planner) + "</span>" : "";
-  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" + plCell + "</span>";
-  return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
-    '<td>' + stale + '<span class="cust">' + esc(r.customer) + '</span></td>' +
-    '<td>' + codeCell + '</td>' +
-    '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
-    '<td>' + noCell + '</td>' +
-    '<td>' + flw + "</td>" +
-    '<td>' + (r.cx ? '<span class="carx">取消</span>'
-      : '<span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span>") + "</td>" +
-    '<td>' + (r.cx ? '<s>已取消</s>' : (r.bz ? '<span class="bzon">已备好</span>' : '<span class="bzoff">未确认</span>')) + "</td>" +
-    '<td><span class="tm">' + (stepWhen ? "工序 " + esc(stepWhen) + byTxt : '<s>还没动</s>') + "</span></td>" +
-    '<td><span class="tm">' + (r.cx ? '<s>已取消</s>'
-      : (carWhen ? "车到 " + esc(carWhen) : '<s>还没签到</s>')) + "</span></td>" +
-  "</tr>";
-}
-
-function render(){
-  rows = SL.boardRows(RECORDS, PROG);
-  const s = SL.boardStats(rows);
-  // 指纹里带上代码：物料库后到（比如刚在另一台机器补了代码）也要触发重绘
-  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.cx, r.u, r.by, r.t, r.ct, r.bz, codeOf(r)].join(":")).join("|") + "#" + rows.length;
-  $("kpis").innerHTML = kpiHtml(s);
-
-  const empty = rows.length === 0;
-  $("empty").style.display = empty ? "flex" : "none";
-  $("tbl").style.display = empty ? "none" : "";
-  if (empty){
-    try {
-      const lastRec = RECORDS.length ? SL.recShipDate(RECORDS[RECORDS.length - 1]) : "";
-      $("emptySub").textContent = (RECORDS.length
-        ? "云端有 " + RECORDS.length + " 张已发布的单，但都不是今天的。"
-        : "云端还没有已发布的发货单，请先在管理端点「发布」。");
-    } catch(e){}
-    lastFp = "";
-    stopScroll();
-    return;
-  }
-  if (rendered && fp === lastFp) return;      // 内容没变就不重绘（避免整屏闪烁）
-  lastFp = fp;
-  rendered = true;
-  fitRows(rows.length);
-  $("tbody").innerHTML = rows.map(rowHtml).join("");
-  fitCustNames();                             // 行出来了才知道客户名列多宽，再定名字字号
-  fitNoFont();                                // 单号必须完整：按实测宽度逐档降字号
-  fitUpdFont();                               // 时间两列：单行放得下（不换行、不截断）
-  setupScroll();
-}
-
-/* ---------- 超出一屏 → 自动慢速循环滚动 ----------
-   门口没人动鼠标：内容塞得下就静止，塞不下就慢慢往下滚，
-   滚到底停几秒，再快速回到顶部停几秒，周而复始。
-   有人滚轮/触屏干预时暂停 10 秒，别跟人抢屏幕。 */
-const boxEl = document.querySelector(".box");
-const SCROLL_SPEED = 26;        // 往下滚：26px/秒（慢，远远能看清）
-const SCROLL_BACK  = 170;       // 回顶：快一些，别浪费时间
-const WAIT_TOP_MS = 2200, WAIT_BOTTOM_MS = 3800, MANUAL_PAUSE_MS = 10000;
-let sc = { on: false, raf: 0, last: 0, phase: "top", until: 0, manual: 0 };
-
-function scrollStep(ts){
-  if (!sc.on) return;
-  const max = boxEl.scrollHeight - boxEl.clientHeight;
-  if (max <= 4){ stopScroll(); return; }
-  if (ts < sc.manual){ sc.last = ts; sc.raf = requestAnimationFrame(scrollStep); return; }
-  if (sc.phase === "top"){
-    if (ts >= sc.until){ sc.phase = "down"; sc.last = ts; }
-  } else if (sc.phase === "down"){
-    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
-    boxEl.scrollTop = Math.min(max, boxEl.scrollTop + SCROLL_SPEED * dt);
-    if (boxEl.scrollTop >= max - 1){ sc.phase = "bottom"; sc.until = ts + WAIT_BOTTOM_MS; }
-  } else if (sc.phase === "bottom"){
-    if (ts >= sc.until){ sc.phase = "back"; sc.last = ts; }
-  } else {                                        // back：快速回到顶部
-    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
-    boxEl.scrollTop = Math.max(0, boxEl.scrollTop - SCROLL_BACK * dt);
-    if (boxEl.scrollTop <= 0){ sc.phase = "top"; sc.until = ts + WAIT_TOP_MS; }
-  }
-  sc.raf = requestAnimationFrame(scrollStep);
-}
-function stopScroll(){
-  sc.on = false;
-  if (sc.raf) cancelAnimationFrame(sc.raf);
-  sc.raf = 0;
-  boxEl.scrollTop = 0;
-}
-function setupScroll(){
-  const max = boxEl.scrollHeight - boxEl.clientHeight;
-  if (max <= 4){ stopScroll(); return; }
-  if (sc.on) return;                             // 已经在滚就不用重启（避免每次拉取都从头来）
-  sc.on = true; sc.phase = "top"; sc.until = performance.now() + WAIT_TOP_MS; sc.last = 0;
-  sc.raf = requestAnimationFrame(scrollStep);
-}
-
-/* ---------- 时钟 / 全屏 / 隐藏光标 ---------- */
-function tickClock(){
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  $("clock").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
-  const wd = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
-  /* 顶部要挤成一行：日期只留「09月19日 周六」，年份那截挪进 title（鼠标放上去看全） */
-  $("cdate").textContent = p(d.getMonth() + 1) + "月" + p(d.getDate()) + "日 周" + wd;
-  $("cdate").title = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日 星期" + wd;
-}
-
-let idleTimer = 0;
-function pokeCursor(){
-  document.body.classList.remove("hidecur");
-  clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => {
-    if (document.body.classList.contains("fs")) document.body.classList.add("hidecur");
-  }, 8000);
-}
-
-function toggleFs(){
-  const el = document.documentElement;
-  if (!document.fullscreenElement){
-    const p = el.requestFullscreen ? el.requestFullscreen()
-      : (el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null);
-    if (p && p.catch) p.catch(() => alert("浏览器不允许自动全屏：请按 F11 手动全屏。"));
-    else if (!p) alert("这个浏览器不支持自动全屏：请按 F11 手动全屏。");
-  } else {
-    document.exitFullscreen && document.exitFullscreen();
-  }
-}
-function onFsChange(){
-  const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
-  document.body.classList.toggle("fs", on);
-  $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
-  stopScroll(); fitRows(rows.length); fitCustNames(); fitNoFont(); fitUpdFont(); setupScroll();   // 全屏切换字号变了，名字/单号/时间列字号和滚动都要重新量
-  pokeCursor();
-}
-
-/* ---------- 一键截图（html2canvas 把当前屏存成 PNG 下载） ---------- */
-function tsStr(){
-  const d = new Date(), p = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "_" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
-}
-// 暂停滚动但**不**把滚动条弹回顶部
-function pauseScrollNoReset(){ sc.on = false; if (sc.raf) cancelAnimationFrame(sc.raf); sc.raf = 0; }
-function resumeScroll(){ if (boxEl.scrollHeight - boxEl.clientHeight > 4) setupScroll(); }
-async function captureScreen(btn){
-  const node = document.querySelector(".wrap");
-  if (!node) return;
-  if (typeof html2canvas !== "function"){ alert("图片导出库未加载，请刷新页面再试"); return; }
-  const old = btn ? btn.textContent : "";
-  if (btn) btn.textContent = "⏳ 生成中…";
-  pauseScrollNoReset();
-  // ★ 截「滚动外的所有行」：临时把滚动容器撑到全高（overflow 放开），
-  //   html2canvas 就能把整个表格从头到尾画进一张图，而不是只画当前这一屏。
-  const wrapCss = node.style.cssText, boxCss = boxEl.style.cssText, st = boxEl.scrollTop;
-  node.style.height = "auto";
-  boxEl.style.height = "auto";
-  boxEl.style.maxHeight = "none";
-  boxEl.style.overflow = "visible";
-  boxEl.scrollTop = 0;
-  await new Promise(r => setTimeout(r, 140));   // 等一帧，让撑开后的布局稳定
-  try {
-    // ★ 底色必须给实色深底：body 背景是渐变（backgroundColor 算出来是透明），
-    //   不给实色 html2canvas 就垫白底，整张图发白发虚「看不清」（2026-09-18 用户报）。
-    const canvas = await html2canvas(node, { backgroundColor: "#0a0e15", scale: 2, useCORS: true, logging: false });
-    canvas.toBlob(blob => {
-      const a = document.createElement("a");
-      a.download = "物流进度内部_" + tsStr() + ".png";
-      a.href = URL.createObjectURL(blob);
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 600);
-    }, "image/png");
-  } catch (e) { console.error(e); }
-  node.style.cssText = wrapCss;   // 还原滚动容器，滚动接着走
-  boxEl.style.cssText = boxCss;
-  boxEl.scrollTop = st;
-  resumeScroll();
-  if (btn) btn.textContent = old;
-}
-
-/* ---------- 启动 ---------- */
-function boot(){
-  if (window.CloudSync){
-    CloudSync.init();
-    try { if (CloudSync.guard) CloudSync.guard(SL.KEY_PROG, SL.guardFn); } catch(e){}
-  }
-  loadLocal();
-  $("fsBtn").onclick = toggleFs;
-  $("shotBtn").onclick = () => captureScreen($("shotBtn"));
-  document.addEventListener("fullscreenchange", onFsChange);
-  document.addEventListener("webkitfullscreenchange", onFsChange);
-  document.addEventListener("mousemove", pokeCursor);
-  document.addEventListener("touchstart", pokeCursor);
-  window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
-  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCustNames(); fitNoFont(); fitUpdFont(); setupScroll(); });
-  // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
-  boxEl.addEventListener("wheel", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
-  boxEl.addEventListener("touchstart", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
-  window.addEventListener("online", () => pull());
-  tickClock(); setInterval(tickClock, 1000);
-  pokeCursor();
-  pull();
-  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
-  // 长时间挂着的大屏：每天凌晨 4 点自动重载一次，清掉累积的内存/定时器
-  setInterval(() => {
-    const d = new Date();
-    if (d.getHours() === 4 && d.getMinutes() < 1) location.reload();
-  }, 60000);
-}
-boot();
-</script>
-<script src="auth.js?v=20260924a"></script>
-<script>if(window.Auth)Auth.guard();</script>
-  <script src="staff-admin.js?v=20260924a"></script>
-<script src="brand.js?v=3"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>物流进度大屏（内部看板）</title>
+<script src="supabase.min.js?v=lib"></script>
+<script src="cloud-config.js?v=20260920a"></script>
+<script src="cloud-sync.js?v=20260922d"></script>
+<script src="scan-lib.js?v=20260924g"></script>
+<script src="html2canvas.min.js?v=lib"></script>
+<style>
+  /* ==========================================================================
+     物流进度大屏 · 内部看板（只读，给内部/办公室看）
+     --------------------------------------------------------------------------
+     ★ 这一屏**带送达方名称和物流** —— 只给内部看，请勿摆在物流门口。
+       现场涉及保密（2026-09-16 用户提出）：物流门口请用「物流门口大屏.html」，
+       那一屏送达方只显示「送达方代码」、不显示物流。
+       两屏的「取哪些行 / 什么算完成 / 怎么排序 / 配色 / 字号 / 自动滚动」
+       完全一致（同一份 scan-lib.js 实现），只是这一屏信息更全。
+     --------------------------------------------------------------------------
+     · 只展示「今天的计划」（2026-09-16 起从今天开始算，不再带昨天）
+     · 完成工序最多的排最顶（2026-09-16 下午改）：有动静的单往上走，
+       四道工序各用一种颜色分类 —— 待确认红 · 货好青 · 装货中琥珀 · 已完成绿
+     · 深色高对比 + 字号随行数自动缩放；超出一屏时自动慢速循环滚动
+       （字号缩到下限就不再硬塞，滚着看）
+     ========================================================================== */
+  :root{
+    --bg:#0a0e15;
+    --panel:rgba(255,255,255,.032);
+    --line:rgba(148,163,184,.16);
+    --txt:#f2f6fc; --muted:#a9b8cf; --dim:#6d7d99;
+    --cyan:#38c8d8; --green:#3ddc97; --amber:#ffb454; --red:#ff5d5d; --blue:#5b8def;
+    --rows:14;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
+    color:var(--txt); font-variant-numeric:tabular-nums; overflow:hidden;
+    background:
+      radial-gradient(1100px 560px at 12% -10%, rgba(56,140,216,.10), transparent 60%),
+      linear-gradient(180deg,#0a0e15 0%,#0d131d 46%,#0a0e15 100%);
+    background-attachment:fixed;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(148,180,220,.03) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(148,180,220,.03) 1px, transparent 1px);
+    background-size:44px 44px;
+    mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);
+    -webkit-mask-image:radial-gradient(circle at 50% 16%, #000 0%, transparent 82%);}
+
+  .wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:14px 20px 14px;}
+
+  /* ============ 顶部 HUD ============ */
+  .hud{
+    /* ★ 一行到底（2026-09-19）：原来 flex-wrap:wrap，笔记本一缩放就掉成 3 行，
+       白占掉两行表格高度。现在 nowrap + 各段尺寸都用 clamp(小, vw, 大)，
+       窄屏自动缩、宽屏跟原来一样大。 */
+    flex:0 0 auto;position:relative;display:flex;align-items:center;flex-wrap:nowrap;
+    gap:clamp(6px,.72vw,15px);
+    padding:5px clamp(9px,.9vw,18px);margin-bottom:8px;border-radius:14px;overflow:hidden;
+    background:linear-gradient(100deg,rgba(56,200,216,.08),rgba(91,141,239,.05) 45%,rgba(255,255,255,.02));
+    border:1px solid rgba(56,200,216,.22);
+    box-shadow:0 12px 40px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
+    backdrop-filter:blur(16px);
+  }
+  .hud::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(56,200,216,.7),transparent);}
+  .hud::after{content:"";position:absolute;top:-60%;left:-10%;width:34%;height:220%;
+    background:linear-gradient(90deg,transparent,rgba(56,200,216,.07),transparent);
+    transform:rotate(18deg);animation:sweep 7s linear infinite;pointer-events:none;}
+  @keyframes sweep{0%{left:-20%}100%{left:120%}}
+  .logo{width:clamp(22px,1.9vw,32px);height:clamp(22px,1.9vw,32px);flex:0 0 auto;
+    border-radius:clamp(6px,.55vw,9px);display:flex;align-items:center;justify-content:center;
+    font-size:clamp(11px,.95vw,16px);background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
+    box-shadow:0 0 18px rgba(56,200,216,.35);}
+  /* 标题块压成一行：原来标题下面还有一行灰色小字说明 —— 那些话页脚已经全说了，
+     挤在头上只会多占一行（窄屏就更明显）。整句说明挪到 title，鼠标放上去还能看全。 */
+  .tt{flex:0 1 auto;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap;}
+  .tt .t{font-size:clamp(12.5px,1vw,17px);font-weight:800;letter-spacing:.6px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
+  .tt .tag{font-size:clamp(8.5px,.6vw,10.5px);font-weight:800;letter-spacing:.5px;color:#9fe8ff;
+    padding:1px 5px;border-radius:5px;background:rgba(56,200,216,.14);border:1px solid rgba(56,200,216,.34);}
+
+  /* 醒目提醒：这一屏带送达方名称，只能内部看，别摆到物流门口 */
+  .warnbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
+    font-size:11.5px;font-weight:800;letter-spacing:.6px;white-space:nowrap;
+    background:rgba(255,180,84,.14);color:#ffd9a0;border:1px solid rgba(255,180,84,.42);}
+
+  .kpis{display:flex;gap:clamp(4px,.45vw,9px);flex-wrap:nowrap;margin-left:2px;min-width:0;}
+  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:9px;flex:0 0 auto;
+    padding:2px clamp(6px,.6vw,12px);min-width:0;position:relative;overflow:hidden;}
+  .kpi i{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:.85;}
+  .kpi b{display:block;font-size:clamp(14px,1.3vw,22px);font-weight:800;line-height:1.12;white-space:nowrap;}
+  .kpi span{display:block;font-size:clamp(8.5px,.6vw,11px);color:var(--muted);letter-spacing:.4px;white-space:nowrap;}
+  .kpi.red i{background:var(--red);} .kpi.red b{color:var(--red);}
+  .kpi.amber i{background:var(--amber);} .kpi.amber b{color:var(--amber);}
+  .kpi.green i{background:var(--green);} .kpi.green b{color:var(--green);}
+
+  .spacer{flex:1 1 auto;min-width:0;}
+  .ctrl{display:flex;flex:0 0 auto;align-items:center;gap:6px;}
+  .ctrl button{background:rgba(34,211,238,.13);border:1px solid rgba(34,211,238,.42);color:var(--txt);
+    padding:3px clamp(6px,.7vw,12px);border-radius:8px;font-size:clamp(9.5px,.72vw,12.5px);font-weight:700;
+    cursor:pointer;font-family:inherit;letter-spacing:.4px;white-space:nowrap;}
+  .ctrl button:hover{background:rgba(34,211,238,.24);}
+  /* 时间 / 日期 / 同步状态**摊在同一行**（原来竖着三行，等于白占两行高） */
+  .clock{display:flex;flex:0 0 auto;align-items:baseline;gap:clamp(6px,.6vw,11px);white-space:nowrap;}
+  .clock b{font-size:clamp(15px,1.42vw,23px);font-weight:800;letter-spacing:1px;line-height:1;}
+  .clock span{font-size:clamp(9px,.62vw,11px);color:var(--dim);letter-spacing:.6px;}
+  .sync{letter-spacing:.4px;}
+  .sync.ok{color:var(--green);} .sync.warn{color:var(--amber);} .sync.err{color:var(--red);}
+
+  /* ============ 主体表格 ============ */
+  .box{flex:1 1 auto;min-height:0;position:relative;border-radius:16px;overflow:auto;
+    border:1px solid var(--line);background:var(--panel);box-shadow:0 12px 40px rgba(0,0,0,.38);}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  thead th{
+    position:sticky;top:0;z-index:2;
+    font-size:12.5px;color:var(--muted);font-weight:700;text-align:left;
+    padding:9px 12px;letter-spacing:1px;background:rgba(9,14,26,.96);
+    border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  tbody td{padding:var(--rowpad,8px) 12px;border-bottom:1px solid rgba(120,180,255,.09);
+    font-size:var(--rowfs,17px);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* 每道工序一种颜色（左细条 + 极淡同色底），一眼分清走到哪一步：
+     货待确认=红 · 货好=青 · 装货中=琥珀 · 已完成=绿（红只是标记，正文保持清晰） */
+  tr.st0{background:linear-gradient(90deg,rgba(255,93,93,.075),rgba(255,93,93,.02) 55%,transparent);}
+  tr.st0 td:first-child{box-shadow:inset 4px 0 0 var(--red);}
+  tr.st1{background:linear-gradient(90deg,rgba(56,200,216,.07),rgba(56,200,216,.02) 55%,transparent);}
+  tr.st1 td:first-child{box-shadow:inset 4px 0 0 var(--cyan);}
+  tr.st2{background:linear-gradient(90deg,rgba(255,180,84,.07),rgba(255,180,84,.02) 55%,transparent);}
+  tr.st2 td:first-child{box-shadow:inset 4px 0 0 var(--amber);}
+  /* st3 = 工序已经走完、但车还没到（所以不算 done）：淡一档的绿 ——
+     之前只有 st0/st1/st2/done 四档，st3 这一档漏了色条，整行看着像"没着色"。 */
+  tr.st3{background:linear-gradient(90deg,rgba(61,220,151,.045),rgba(61,220,151,.015) 55%,transparent);}
+  tr.st3 td:first-child{box-shadow:inset 4px 0 0 rgba(61,220,151,.5);}
+  tr.done{background:linear-gradient(90deg,rgba(61,220,151,.07),transparent 62%);}
+  tr.done td:first-child{box-shadow:inset 4px 0 0 var(--green);}
+  tr.done .cust{color:#c9d6e8;}
+
+  /* 客户名可能很长（老客户名本来就带括号，现在还多了「（第二车）」后缀），
+     而这一列只占 17% 宽 —— 超了会被 td 的 overflow:hidden 直接切掉。
+     inline-block + max-width 让「缩到下限仍放不下」时退化成「…」，至少看得出被截断。 */
+  .cust{font-weight:800;letter-spacing:.3px;color:var(--txt);
+    display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:baseline;}
+  /* 单号独占一列：整格 nowrap + 省略号，窄的时候宁可切单号尾巴、也绝不动客户名那一列 */
+  /* 单号独占一列。★ 2026-09-23：单号是查单的唯一凭据，**必须完整显示** ——
+     真机实测：行数少时 --rowfs 自动放大到 26px，15 位等宽单号在这一格里差 11px 放不下，
+     td 的 overflow:hidden 就把最后 1~2 位吃掉了。改成 flex：
+     单号自己优先占位、字号由 fitNoFont 按实测宽度逐档降；名字放不下先缩字号（2026-09-24 恢复显示）。
+     优先级：单号完整 > 名字显示（可缩小、绝不换行）。 */
+  .no{display:flex;align-items:baseline;font-size:.85em;font-weight:600;color:var(--muted);
+    letter-spacing:.2px;min-width:0;line-height:1.3;white-space:nowrap;overflow:hidden;}
+  /* ★ 容器上故意**不用 gap**：flex 的 gap 不参与收缩 —— 计划员缩到 0 了，那 5px 间隙还占着，
+     窄屏（175% 缩放，1097px 视口）实测就卡在这 3px 上。改由 .pl 自带 margin-left。 */
+  /* ★ 单号 flex:0 0 auto = 不收缩，先把空间占够（优先级最高）；fitNoFont 靠量 .no 有没有溢出
+     来判断"字号是不是太大"（inline 元素的 clientWidth 恒为 0，量不出来 —— 第一版就栽在这）。 */
+  .no .sn{flex:0 0 auto;white-space:nowrap;
+    font-family:ui-monospace,Consolas,"Courier New",monospace;color:var(--txt);font-weight:700;letter-spacing:.3px;}
+  /* 真遇到"降到下限仍放不下"的超长单号：折行。宁可占两行，也绝不让省略号吃掉一位 */
+  body.nowrap .no .sn{white-space:normal;overflow-wrap:anywhere;line-height:1.15;}
+  /* 计划员姓名（2026-09-24 用户要求恢复显示）：跟在单号后面，一眼对上人。
+     ★ 绝不换行：放不下先缩名字字号（fitNoFont ①），再缩单号（②）。
+     ellipsis 只是极端兜底 —— 名字宁可被省略号截尾，也绝不折行顶高行。 */
+  .no .pl{flex:0 1 auto;min-width:0;margin-left:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .no .sep{opacity:.45;margin:0 3px;}
+  /* 代码列里查不到时的占位：只报「未编代码」，**绝不回落客户名**（和门口保密屏同口径） */
+  .cmiss{color:var(--dim);font-weight:600;font-size:.82em;letter-spacing:.5px;}
+  /* 送达方代码徽章：放在「单号 · 计划员」那行的**最前面**，竖着一列对齐，一眼能扫。
+     ★ 为什么不跟在客户名后面：客户/送达方那一格是 nowrap + 省略号（见 #tbl td），
+       长客户名本来就在临界点上，再塞个徽章会把名字切得更早（比如"安徽海立精密铸造有限公司上海分公司"）。
+       挪到第二行，名字一个像素都不占它的。 */
+  .ccode{display:inline-block;flex:0 0 auto;margin-right:7px;padding:0 5px;border-radius:5px;
+    font-family:ui-monospace,Consolas,"Courier New",monospace;font-weight:800;font-size:1.16em;
+    letter-spacing:.6px;color:#7ef0c2;background:rgba(61,220,151,.13);
+    /* ★ 描边必须用内阴影，不能用 border —— border 上下各 1px 会把这一行的行盒顶高，
+       整行跟着涨 3px（真渲染实测 82 vs 基线 79），36 行就多出 100 多像素、白送一次滚动。 */
+    box-shadow:inset 0 0 0 1px rgba(61,220,151,.32);
+    vertical-align:1px;white-space:nowrap;}
+  .ton{font-weight:800;font-size:1.12em;}
+  .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
+  .logi{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.82em;font-weight:700;
+    background:rgba(91,141,239,.18);color:#c4d9ff;border:1px solid rgba(91,141,239,.32);}
+  .logi.self{background:rgba(148,163,184,.14);color:#d3dce8;border-color:rgba(148,163,184,.28);}
+
+  /* ============ 工序 · 流体进度条（2026-09-17）============
+     把原来的「四个圆点 + 工序名徽章」换成一条**会流动的液体进度条**：
+     · 左侧液体按工序进度涨（0% / 33% / 67% / 100%）；
+     · 液面一直在轻轻起伏，液体内部有流光在走，看着像液体在流；
+     · 液面右缘有一点"奔向下一道工序"的脉动光（颜色 = 下一道工序的颜色）；
+     · 右侧是进度百分比（数字比液体准，够大，远处一眼读）。
+     四道工序四种液体：待确认红 · 货好青 · 装货中琥珀 · 已完成绿（与整行底色同一套色）。
+     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(5)，2026-09-23 物流列隐藏后工序回到第 5 格）：
+       进度条自带高度，让它"吃自己的"内边距，整行高度仍由别的列说了算，
+       不许它把行顶高（行一高，整屏就要滚，门口能看到的单子就少了）。 */
+  .flw{position:relative;display:flex;align-items:center;justify-content:space-between;gap:.45em;
+    height:1.62em;padding:0 .5em 0 .66em;border-radius:999px;overflow:hidden;
+    background:rgba(6,10,18,.9);font-size:.9em;line-height:1;white-space:nowrap;
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.26), inset 0 1px 0 rgba(255,255,255,.06), 0 2px 10px rgba(0,0,0,.42);
+    /* 液面波浪的图案（内联 SVG，不依赖任何外部文件）：宽 13 / 高 26，
+       左半实心、右边鼓出两个波峰；竖向重复时上下无缝，所以能一直往下滚。 */
+    --wvm:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='60'><path d='M0 0H6C17 4 17 9 6 13L6 20C11 24 11 28 6 31L6 38C19 44 19 50 6 52L6 60H0Z' fill='%23fff'/></svg>");
+    --wvm2:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='48'><path d='M0 0H7C22 6 22 12 7 17L7 26C16 30 16 34 7 38L7 48H0Z' fill='%23fff'/></svg>");}
+  /* 液体本体：宽度 = 进度。左端跟着胶囊的圆角走，右缘靠 ::after 那个自转的椭圆化出波纹 */
+  .flq{position:absolute;left:0;top:0;bottom:0;width:var(--w,0%);
+    background:linear-gradient(90deg,var(--f1),var(--f2));
+    box-shadow:0 0 16px -2px var(--fglow);filter:saturate(1.2);}
+  .flq::before{content:"";position:absolute;inset:0;opacity:.4;
+    background:repeating-linear-gradient(96deg,rgba(255,255,255,.20) 0 2px,transparent 2px 10px);
+    animation:flflow 2.4s linear infinite;}
+  @keyframes flflow{to{transform:translateX(10px)}}
+  .flq::after{content:"";position:absolute;inset:0;opacity:.16;
+    background:repeating-linear-gradient(74deg,rgba(255,255,255,.16) 0 3px,transparent 3px 14px);
+    animation:flflow2 5.2s linear infinite;}
+  @keyframes flflow2{to{transform:translateX(-14px)}}
+  /* 液面：液体右缘的**波浪边** —— 上面那张 SVG 波浪贴在这里，
+     往左压 6px（正好让图案里的"实心段"在 --w 处结束），于是液体的右缘形状**就是**
+     那条波浪线；再让它慢慢往下走一个周期 = 液面在起伏。
+     ★ 别用"自转椭圆"那套（第一版试过）：椭圆会鼓到液体右边变成一个球，看着像浮了颗蛋。
+     ★ 也别把波做小：周期 26px / 波幅 3px 那版（第二版）在 38px 高的胶囊里只有 1.5 个波，
+       看着是"扇贝花边"。现在的 20px 周期 / 7.5px 波幅才有液面的样子。
+     液面正中的那盏灯 = 「下一道工序」（颜色 = 下一道工序色）：四步
+     货待确认 → 货好(青) → 装货中(琥珀) → 已完成(绿)。 */
+  .flnx{position:absolute;top:0;bottom:0;left:var(--w,0%);width:18px;margin-left:-6px;
+    background-color:var(--f1);
+    -webkit-mask-image:var(--wvm);mask-image:var(--wvm);
+    -webkit-mask-size:18px 60px;mask-size:18px 60px;
+    -webkit-mask-repeat:repeat-y;mask-repeat:repeat-y;
+    -webkit-mask-position:0 0;mask-position:0 0;
+    animation:flwave 5.2s linear infinite;}
+  @keyframes flwave{to{-webkit-mask-position:0 60px;mask-position:0 60px;}}
+  /* 第二层波浪：周期/相位/速度都跟主波不同，两层叠加 → 不规则的水面（自然感） */
+  .flnx2{position:absolute;top:0;bottom:0;left:var(--w,0%);width:24px;margin-left:-13px;
+    background-color:var(--f1);opacity:.55;
+    -webkit-mask-image:var(--wvm2);mask-image:var(--wvm2);
+    -webkit-mask-size:24px 48px;mask-size:24px 48px;
+    -webkit-mask-repeat:repeat-y;mask-repeat:repeat-y;
+    -webkit-mask-position:0 0;mask-position:0 0;
+    animation:flwave2 3.9s linear infinite;}
+  @keyframes flwave2{to{-webkit-mask-position:0 48px;mask-position:0 48px;}}
+  /* 这盏灯挪到**波浪外侧**（液体右边、深色区里）：第一版它压在波浪正中，
+     9px 的光晕会把波浪整个染成"下一步"的颜色（橙色液体上浮出一条黄绿边）。 */
+  .flnx::after{content:"";position:absolute;right:-4px;top:0;bottom:0;width:2px;
+    background:linear-gradient(180deg,transparent,var(--nc),transparent);
+    box-shadow:0 0 7px 0 var(--nc);opacity:.92;animation:flpulse 1.6s ease-in-out infinite;}
+  .flnx.c1{--nc:var(--cyan);} .flnx.c2{--nc:var(--amber);} .flnx.c3{--nc:var(--green);}
+  @keyframes flpulse{0%,100%{opacity:.25;} 50%{opacity:1;}}
+  /* 液体颜色：左亮右暗（像光从左打进液体里），与整行底色同一套色系 */
+  .flw.s0{--f1:#ff5d5d;--f2:#6d1120;--fglow:rgba(255,93,93,.55);}
+  .flw.s1{--f1:#38c8d8;--f2:#0f4f6d;--fglow:rgba(56,200,216,.5);}
+  .flw.s2{--f1:#ffb454;--f2:#7d4306;--fglow:rgba(255,180,84,.5);}
+  .flw.s3{--f1:#3ddc97;--f2:#0d6448;--fglow:rgba(61,220,151,.5);}
+  /* 仪表盘 HUD 同款「从左到右的高亮光标」（2026-09-24）：扫过还没走完的三种状态
+     （货待确认 0 / 货好 1 / 装货中 2）；已完成 3 不扫（满进度不用再催）。
+     光带压在液体上、工序名/百分比文字之下（文字 z-index:1），.flw 的 overflow:hidden 负责裁边。 */
+  .flw.s0::after,.flw.s1::after,.flw.s2::after{content:"";position:absolute;top:-20%;bottom:-20%;
+    left:-45%;width:55%;pointer-events:none;
+    background:
+      linear-gradient(100deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%),
+      linear-gradient(100deg,transparent 0%,rgba(255,255,255,.12) 38%,rgba(255,255,255,.12) 62%,transparent 100%);
+    transform:translateX(0) skewX(-16deg);will-change:transform,opacity;
+    animation:flsweep 4.6s cubic-bezier(.6,.05,.4,.95) infinite;}
+  @keyframes flsweep{0%{transform:translateX(0) skewX(-16deg);opacity:0}
+    10%{opacity:1}86%{opacity:1}
+    100%{transform:translateX(300%) skewX(-16deg);opacity:0}}
+  /* 压在液体上面的字：工序名在左、百分比在右，都带投影，泡在液体里也读得清 */
+  .flt{position:relative;z-index:1;font-weight:800;letter-spacing:.6px;color:#eef4ff;
+    text-shadow:0 1px 4px rgba(0,0,0,.8);}
+  .flp{position:relative;z-index:1;font-size:1.3em;font-weight:800;letter-spacing:.4px;color:#fff;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+    text-shadow:0 1px 5px rgba(0,0,0,.85);}
+  /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径）
+     ★ 2026-09-21 状态列删掉后曾是第 6 格；2026-09-23 物流列隐藏后又回到第 5 格 */
+  tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
+  @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after{animation:none;}}
+  /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
+     旧的 .pill 状态徽章跟着状态列一起移除（不留死样式） */
+
+  .car{font-weight:800;}
+  .car.on{color:var(--green);} .car.off{color:var(--amber);font-weight:700;}
+  tr.done .car.off{color:#94a3b8;font-weight:600;}
+  .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
+  .tm{font-size:.74em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
+  .bzon{color:var(--green);font-weight:800;}
+  /* 品一质保书（2026-09-24 上色，跟车辆列同一套）：已备好=绿、未确认=琥珀；
+     已完成的行里「未确认」转灰（跟 tr.done .car.off 同一口径，别再催已走完的单） */
+  .bzoff{color:var(--amber);font-weight:700;}
+  tr.done .bzoff{color:#94a3b8;font-weight:600;}
+  /* 时间两列（工序更新 8 / 车辆更新 9，2026-09-24 换位后）绝不换行也绝不被切：
+     全局 td 本就是 nowrap+省略号；字号由 fitUpdFont 逐格量宽自动降（下限 55%），
+     放不下先缩字、到底才轮到省略号兜底（2026-09-24 用户要求：不换行、不看不见）。 */
+  .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
+    background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
+
+  .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    color:var(--dim);font-size:17px;letter-spacing:1px;background:rgba(4,7,15,.55);}
+  .empty b{font-size:44px;color:rgba(120,180,255,.30);}
+  .empty em{font-style:normal;font-size:12.5px;color:var(--dim);letter-spacing:.6px;}
+
+  .ft{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:5px 14px;padding:6px 4px 0;
+    font-size:clamp(10px,.8vw,11.5px);color:var(--dim);letter-spacing:.5px;}
+  .ft .k{display:inline-flex;align-items:center;gap:5px;}
+  .ft .k i{width:9px;height:9px;border-radius:50%;display:block;}
+
+  /* 全屏时字号再放大一档（门口距离更远） */
+  body.fs .wrap{padding:16px 26px 16px;}
+  body.fs .tt .t{font-size:clamp(15px,1.25vw,23px);}
+  body.fs .kpi b{font-size:clamp(16px,1.5vw,27px);}
+  body.fs tbody td{font-size:calc(var(--rowfs,17px) * 1.22);}
+  body.fs .clock b{font-size:clamp(17px,1.65vw,29px);}
+  /* 窄屏兜底（有些笔记本 175% 缩放，CSS 宽度只有 ~1100px）：
+     顶部永远一行 —— 先收字距、再丢日期，绝不换行、绝不把 KPI 挤到第二行 */
+  @media (max-width:1180px){
+    .hud{gap:6px;}
+    .kpi span{letter-spacing:0;}
+  }
+  @media (max-width:1024px){
+    .clock #cdate{display:none;}
+    .kpi span{font-size:9px;}
+  }
+  body.hidecur,body.hidecur *{cursor:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hud">
+    <div class="logo">◈</div>
+    <div class="tt">
+      <div class="t" title="今日发货计划 · 进度高的排最前 · 超屏自动滚动 · 含送达方名称（仅限内部）">物流进度<span class="tag">内部</span></div>
+    </div>
+    <div class="warnbadge" title="本屏含送达方名称与物流，只给内部看，请勿摆到物流门口（物流门口请用「物流门口大屏.html」保密版）">⚠ 含送达方名称 · 勿摆门口</div>
+    <div class="kpis" id="kpis"></div>
+    <div class="spacer"></div>
+    <div class="ctrl">
+      <button id="shotBtn">📷 截图</button>
+      <button id="fsBtn">⛶ 全屏显示</button>
+    </div>
+    <div class="clock">
+      <b id="clock">--:--:--</b>
+      <span id="cdate">----</span>
+      <span class="sync" id="sync">连接中…</span>
+    </div>
+  </div>
+
+  <div class="box">
+    <table id="tbl">
+      <!-- 列序（2026-09-24 改：车辆列与工序更新列换位）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
+           「工序」「车辆」两个状态列相邻靠前，后面跟「品一质保书」；
+           「工序更新」「车辆更新」两个时间列相邻放在最右（前者只报四道工序的进度时间，后者只报司机签到）。 -->
+      <colgroup>
+        <col style="width:16%"><col style="width:8%"><col style="width:7%">
+        <col style="width:14%"><col style="width:16%"><col style="width:8%"><col style="width:8%"><col style="width:12%"><col style="width:11%">
+      </colgroup>
+      <thead><tr>
+        <th>客户</th><th>送达方代码</th><th>吨位</th>
+        <th>单号</th><th>工序</th><th>车辆</th><th>品一质保书</th><th>工序更新</th><th>车辆更新</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">
+      <b>✓</b><span>今天没有待发的计划</span>
+      <em id="emptySub">今天没有发货计划</em>
+    </div>
+  </div>
+
+  <div class="ft">
+    <span class="k"><i style="background:#ff5d5d"></i>货待确认</span>
+    <span class="k"><i style="background:#38c8d8"></i>货好</span>
+    <span class="k"><i style="background:#ffb454"></i>装货中</span>
+    <span class="k"><i style="background:#3ddc97"></i>已完成（工序走完 + 车已到）</span>
+    <span class="k" style="margin-left:auto">进度高的排最前 · 物流门口请用「门口大屏」保密版 · 每 10 秒自动刷新 · 超出一屏自动慢速滚动</span>
+  </div>
+
+</div>
+
+<script>
+/* ==========================================================================
+   物流进度大屏 · 内部看板（只读）
+   ★ 含送达方名称与物流 —— 仅限内部；物流门口请用「物流门口大屏.html」保密版。
+   设计要点：
+   1. 「取哪些行、什么算没走完、怎么排序」全部来自 scan-lib.js 的 boardRows ——
+      和手机端、管理端用的是同一份实现。三处数字不可能对不上。
+   2. 本页**永远不写**任何数据。只读，避免门岗手滑把进度点了。
+   3. 字号按行数自动缩放 + 全屏再加一档，保证整屏不滚动、站在门口能看清。
+   ========================================================================== */
+const SL = window.ScanLib;
+const $ = (id) => document.getElementById(id);
+const esc = SL.esc, raw = SL.raw;
+const POLL_MS = 60000;
+const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
+
+const KEY_DB = SL.KEY_DB;
+const KEY_PLANS_STAMP = "shipping_plans_stamp_v1", KEY_DB_STAMP = "shipping_db_stamp_v1";            // 物料库（含送达方代码）—— 用于把客户名换成代码
+
+let RECORDS = [];
+let PROG = {};
+let DB = [];                         // 物料库
+let IDX = { byPair: {}, byCust: {}, byModel: {} };  // 代码索引（客户+型号 / 客户名 / 型号），由 scan-lib 构建
+let LGIDX = {};                                     // 物流索引（客户 → 物流），由 scan-lib 构建
+let rows = [];
+let lastFp = "";
+let rendered = false;
+let okCount = 0, badCount = 0;
+
+/* ---------- 从本机兜底读（断网时大屏不能变白板） ---------- */
+function loadLocal(){
+  try { const v = JSON.parse(localStorage.getItem(SL.KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
+  try { const v = JSON.parse(localStorage.getItem(SL.KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
+  loadLocalDb();
+}
+/* 物料库单独兜底：★ 别把它混进上面那个整体兜底 ——
+   否则"物料库为空"会把刚拉到的最新计划又用本机旧缓存盖回去。 */
+function loadLocalDb(){
+  if (DB.length){ buildDbIndex(); return; }
+  try { const v = JSON.parse(localStorage.getItem(KEY_DB) || "null"); if (Array.isArray(v)) DB = v; } catch(e){}
+  buildDbIndex();
+}
+function setSync(txt, cls){ const e = $("sync"); e.textContent = txt; e.className = "sync " + (cls || ""); }
+
+/* ---------- 送达方代码 / 物流：解析口径只有 scan-lib 一份（门口屏/司机页共用） ----------
+   代码：客户+型号 → 客户名 → 记录自带 → 型号（库里的解析结果优先，能自动纠正老单里的
+         错码）。查不到返回 ""，调用方显示占位、**绝不回落客户名**。
+   物流：记录里有值就用记录里的（尊重发布当时那份快照）；记录里没有（老单发布时还没带
+         物流，字段是 "/"）就按客户从物料库**实时补**，不用等重发。 */
+function buildDbIndex(){ IDX = SL.codeIndex(DB); LGIDX = SL.logisticsIndex(DB); }
+function codeOf(r){ return SL.codeOf(r, IDX); }
+function logisticsOf(r){
+  const lg = String((r && r.logistics) || "").trim();
+  if (lg && lg !== "/") return lg;                 // 记录里有值 → 尊重当时那份
+  // 记录里没有 → 实时补。★ 用整行版：客户名对不上时，靠「型号唯一指向的客户」
+  // 认人（和旁边那列代码用的是同一个判断），否则会出现「有代码、没物流」的半截行。
+  return (SL.logisticsOfRow ? SL.logisticsOfRow(r, LGIDX) : SL.logisticsOf(r && r.customer, LGIDX));
+}
+
+/* ---------- 拉取（超时保护：卡住的请求不能让整屏停摆） ---------- */
+function withTimeout(p, ms){
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+}
+
+async function pull(){
+  const cs = !!(window.CloudSync && CloudSync.ready());
+  let okA = !cs, okP = !cs;
+  if (cs){
+    /* 性能（2026-09-24）：先并行查「更新时间戳」（几十字节），没变就不下载全文。
+       计划(~268KB)和物料库(大)都极少变；剩下的请求三路同时发，弱网同步时间约降为 1/3。 */
+    let skipA = false, newAStamp = null, skipDb = false, newDbStamp = null;
+    if (CloudSync.pullStamp && RECORDS.length){
+      try {
+        const st = await withTimeout(CloudSync.pullStamp(SL.KEY_PLANS), 8000);
+        if (st){ if (localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; } else newAStamp = st; }
+      } catch(e){}
+    }
+    if (CloudSync.pullStamp && DB.length){
+      try {
+        const st = await withTimeout(CloudSync.pullStamp(KEY_DB), 8000);
+        if (st){ if (localStorage.getItem(KEY_DB_STAMP) === st) skipDb = true; else newDbStamp = st; }
+      } catch(e){}
+    }
+    const rs = await Promise.allSettled([
+      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(SL.KEY_PLANS), FETCH_MS),
+      withTimeout(CloudSync.pullResult(SL.KEY_PROG), FETCH_MS),
+      skipDb ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_DB), FETCH_MS)
+    ]);
+    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
+    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
+    const rd = rs[2].status === "fulfilled" ? rs[2].value : null;
+    if (!skipA){
+      okA = !!(ra && ra.ok);
+      if (okA && Array.isArray(ra.value)){
+        RECORDS = ra.value;
+        try { localStorage.setItem(SL.KEY_PLANS, JSON.stringify(RECORDS));
+              if (newAStamp) localStorage.setItem(KEY_PLANS_STAMP, newAStamp); } catch(e){}
+      }
+    }
+    okP = !!(rp && rp.ok);
+    if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
+    if (!skipDb && rd && rd.ok && Array.isArray(rd.value)){
+      DB = rd.value;
+      try { localStorage.setItem(KEY_DB, JSON.stringify(DB));
+            if (newDbStamp) localStorage.setItem(KEY_DB_STAMP, newDbStamp); } catch(e){}
+      buildDbIndex();
+    }
+  }
+
+  if (!RECORDS.length) loadLocal();
+  if (!DB.length) loadLocalDb();        // 物料库单独兜底（不动刚拉到的计划）
+  // 墓碑：管理端删掉的单不再上屏
+  try {
+    const del = JSON.parse(localStorage.getItem(SL.KEY_DEL) || "null");
+    if (Array.isArray(del) && del.length){
+      const st = new Set(del.map(String));
+      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
+    }
+  } catch(e){}
+  try { localStorage.setItem(SL.KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+
+  const degraded = !okA || !okP;
+  degraded ? badCount++ : (badCount = 0);
+  okCount++;
+  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  /* 文案缩短：顶部只有一行，长句会顶出去（全文留在 title 里） */
+  const sw = $("sync");
+  if (!cs){ setSync("本机缓存 " + t, "warn"); sw.title = "云端未配置，正在显示本机缓存的数据"; }
+  else if (degraded){ setSync("网络波动 " + t, "warn"); sw.title = "网络有波动，正在显示上一次拉到的数据"; }
+  else { setSync("已同步 ✓ " + t, "ok"); sw.title = "已同步云端，时间 " + t; }
+
+  render();
+}
+
+/* ---------- 渲染 ---------- */
+function fmtTime(ts){
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  const today = SL.todayYmd();
+  const day = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  return (day === today ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+// 字号按行数自动缩放：行少就放大（门口看得清），行多就收紧。
+// 下限提到 15px：再小门口就看不清了，塞不下交给自动慢速滚动（不再硬缩到看不清）。
+function fitRows(n){
+  const vh = window.innerHeight;
+  const avail = Math.max(200, vh - (document.body.classList.contains("fs") ? 192 : 172));
+  const per = avail / Math.max(1, n);
+  const fs = Math.max(15, Math.min(26, Math.floor(per * 0.52)));
+  document.documentElement.style.setProperty("--rowfs", fs + "px");
+  document.documentElement.style.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.42)) + "px");
+}
+
+// 客户名按内容逐档缩字号，保证在客户列里看得全：
+//   · 名字长（老客户名带括号 / 「（第二车）」后缀）在 17% 宽的列里会被 overflow:hidden 切掉；
+//   · 这里先复位到基准字号量一次，放不下才逐档降（最低 48% —— 够 12 字长名挤进窄列）；
+//   · 缩到下限仍放不下，就交给 .cust 的省略号收尾（看得出被截断，不会莫名少字）。
+function fitCustNames(){
+  const tb = $("tbody"); if (!tb) return;
+  const list = tb.querySelectorAll("td:nth-child(1) .cust");   // ★ 2026-09-21 状态列删掉后，客户是第 1 格
+  // ★ 性能（2026-09-20）：原来每行「复位字号 → 量宽度」交错做，每行都强制一次同步重排
+  //   （N 行 = N 次布局）。改成读写分离：先整批复位（只触发一次布局），再整批测量。
+  for (let i = 0; i < list.length; i++){ if (list[i].style.fontSize) list[i].style.fontSize = ""; }
+  for (let i = 0; i < list.length; i++){
+    const el = list[i];
+    // ★ 必须拿 .cust 自己的 scrollWidth 比：它带 max-width:100% + overflow:hidden，
+    //   客户格（td）因此永远是「不溢出」的 —— 用 td.scrollWidth 判会得出「放得下」而漏缩
+    //   （第一版就栽在这：明明名字被切成「太仓舍弗…」，判定却说没问题）。
+    if (el.scrollWidth <= el.clientWidth + 1) continue;         // 本来就放得下
+    for (let k = 94; k >= 48; k -= 6){                          // 下限 48%（12 字的长名在窄屏也放得下）
+      el.style.fontSize = k + "%";
+      if (el.scrollWidth <= el.clientWidth + 1) break;
+    }
+  }
+}
+
+/* 单号自适应字号（2026-09-23；2026-09-24 起名字恢复显示，口径改为「缩字号、绝不撤名字」）
+   为什么需要：大屏字号按行数自适应（--rowfs 15~26px），行少字号就大 ——
+   单号是 15 位等宽字符，字号一大就把这一格撑破，td 的 overflow:hidden 会把最后 1~2 位吃掉
+   （真机实测 26px 时缺 11px）。单号缺一位就查不到单，比显示小字糟得多。
+   优先级（2026-09-24 用户要求）：单号必须完整 > 名字必须显示（不换行、可以缩小）。
+   做法：先整批复位（只触发一次布局），再整批量（读写分离，别交错触发重排）。
+   ① 先缩名字（96%→56%）；② 名字到底了还放不下 → 缩单号（96%→56%）；
+   ③ 都到下限仍放不下（超长单号）→ 折行，一位都不丢（极端兜底）。 */
+const NO_R_MIN = 0.56;
+const PL_R_MIN = 0.56;
+function fitNoFont(){
+  const tb = document.getElementById("tbody"); if (!tb) return;
+  document.body.classList.remove("nowrap");
+  const list = Array.prototype.slice.call(tb.querySelectorAll(".no"));
+  if (!list.length) return;
+  const sns = list.map(no => no.querySelector(".sn"));
+  const pls = list.map(no => no.querySelector(".pl"));
+  for (let i = 0; i < list.length; i++){                 // 整批复位（只触发一次布局）
+    if (sns[i]) sns[i].style.fontSize = "";
+    if (pls[i]) pls[i].style.fontSize = "";
+  }
+  const over = no => no.scrollWidth > no.clientWidth + 1;
+  let fold = false;
+  for (let i = 0; i < list.length; i++){
+    const no = list[i], sn = sns[i], pl = pls[i];
+    if (!sn) continue;
+    if (!over(no)) continue;                             // 本来就放得下
+    // ① 先缩名字（用户明确：名字可以缩小）—— 单号保持原字号
+    if (pl){
+      let pk;
+      for (pk = 0.96; pk >= PL_R_MIN - 1e-6; pk -= 0.04){
+        pl.style.fontSize = Math.round(pk * 100) + "%";
+        if (!over(no)) break;
+      }
+      if (!over(no)) continue;
+    }
+    // ② 名字到底了还放不下 → 逐档降单号字号（名字停在 56% 不再动）
+    let k = NO_R_MIN;
+    for (k = 0.96; k >= NO_R_MIN - 1e-6; k -= 0.04){
+      sn.style.fontSize = Math.round(k * 100) + "%";
+      if (!over(no)) break;
+    }
+    // ③ 都到下限仍放不下（超长单号）→ 折行，一位都不丢
+    if (k < NO_R_MIN - 1e-6){ fold = true; sn.style.fontSize = Math.round(NO_R_MIN * 100) + "%"; }
+  }
+  if (fold) document.body.classList.add("nowrap");
+}
+
+/* ★ 时间两列（工序更新/车辆更新）自动缩字号（2026-09-24）：逐格量 scrollWidth，
+   放不下就降字号（下限 55%），保证单行放得下 —— 不换行、也绝不让省略号吃掉。 */
+const TM_R_MIN = 0.55;
+function fitUpdFont(){
+  const tb = document.getElementById("tbody"); if (!tb) return;
+  const tds = tb.querySelectorAll("td:nth-child(8),td:nth-child(9)");
+  const tms = Array.prototype.map.call(tds, td => td.querySelector(".tm"));
+  tms.forEach(el => { if (el) el.style.fontSize = ""; });   // 整批复位（只触发一次布局）
+  tms.forEach(el => {
+    if (!el) return;
+    const td = el.parentElement;
+    if (td.scrollWidth <= td.clientWidth + 1) return;       // 本来就放得下
+    for (let k = 0.96; k >= TM_R_MIN - 1e-6; k -= 0.04){
+      el.style.fontSize = Math.round(k * 100) + "%";
+      if (td.scrollWidth <= td.clientWidth + 1) break;
+    }
+  });
+}
+
+function kpiHtml(s){
+  return [
+    { cls: "",      v: s.total, l: "在屏计划（趟）" },
+    { cls: "red",   v: s.left,  l: "未完成" },
+    { cls: "amber", v: s.tonLeft.toFixed(1), l: "未完成吨位" },
+    { cls: "green", v: s.car + "/" + s.total, l: "车已到" },
+    { cls: "",      v: s.pct + "%", l: "整体进度" },
+    { cls: "",      v: s.ton.toFixed(1), l: "在屏吨位" }
+  ].map(k => '<div class="kpi ' + k.cls + '"><i></i><b>' + esc(String(k.v)) + "</b><span>" + esc(k.l) + "</span></div>").join("");
+}
+
+function rowHtml(r){
+  const s = Math.min(3, r.s || 0);
+  /* 流体进度条（2026-09-17）：液体宽度 = 工序进度（0 / 33 / 67 / 100）。
+     0 档给一小片"刚起步"的液滴（6%），但右边的数字仍按真实进度印 0% ——
+     数字永远准，液体只负责好看（别把这一小片读成"已经有进度了"）。 */
+  const pct = Math.round(s / 3 * 100);
+  const flw = '<span class="flw s' + s + '" style="--w:' + (pct || 6) + '%">' +
+      '<i class="flq"></i>' +
+      (s < 3 ? '<i class="flnx c' + (s + 1) + '"></i><i class="flnx2"></i>' : '') +
+      '<span class="flt">' + esc(SL.STEP_NAME[s]) + '</span>' +
+      '<span class="flp">' + pct + '%</span>' +
+    '</span>';
+  const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
+  const byTxt = r.by ? "·" + esc(r.by) : "";   // 紧凑（2026-09-24）：时间列字少一点，单行更容易放得下
+  /* 两列更新分开报（2026-09-21；2026-09-24 换位后两列相邻放在最右）：
+     · 工序更新 = 只报四道工序的进度时间（谁点的一并带出）；
+     · 车辆更新 = 只报司机签到（车已到）的时间 —— 司机扫码签到了才冒出来。 */
+  const stepWhen = r.t ? SL.fmtHM(r.t) : "";
+  const carWhen = r.car && r.ct ? SL.fmtHM(r.ct) : "";
+  const code = codeOf(r);
+  const codeCell = code ? '<span class="ccode">' + esc(code) + "</span>" : '<span class="cmiss">未编代码</span>';
+  // 名字恢复显示（2026-09-24 用户要求）：单号后面跟计划员，放不下缩字号、不换行
+  const plCell = r.planner ? '<span class="pl"><span class="sep">·</span>' + esc(r.planner) + "</span>" : "";
+  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" + plCell + "</span>";
+  return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
+    '<td>' + stale + '<span class="cust">' + esc(r.customer) + '</span></td>' +
+    '<td>' + codeCell + '</td>' +
+    '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
+    '<td>' + noCell + '</td>' +
+    '<td>' + flw + "</td>" +
+    '<td>' + (r.cx ? '<span class="carx">取消</span>'
+      : '<span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span>") + "</td>" +
+    '<td>' + (r.cx ? '<s>已取消</s>' : (r.bz ? '<span class="bzon">已备好</span>' : '<span class="bzoff">未确认</span>')) + "</td>" +
+    '<td><span class="tm">' + (stepWhen ? "工序 " + esc(stepWhen) + byTxt : '<s>还没动</s>') + "</span></td>" +
+    '<td><span class="tm">' + (r.cx ? '<s>已取消</s>'
+      : (carWhen ? "车到 " + esc(carWhen) : '<s>还没签到</s>')) + "</span></td>" +
+  "</tr>";
+}
+
+function render(){
+  rows = SL.boardRows(RECORDS, PROG);
+  const s = SL.boardStats(rows);
+  // 指纹里带上代码：物料库后到（比如刚在另一台机器补了代码）也要触发重绘
+  const fp = rows.map(r => [r.ck, r.rk, r.s, r.car, r.cx, r.u, r.by, r.t, r.ct, r.bz, codeOf(r)].join(":")).join("|") + "#" + rows.length;
+  $("kpis").innerHTML = kpiHtml(s);
+
+  const empty = rows.length === 0;
+  $("empty").style.display = empty ? "flex" : "none";
+  $("tbl").style.display = empty ? "none" : "";
+  if (empty){
+    try {
+      const lastRec = RECORDS.length ? SL.recShipDate(RECORDS[RECORDS.length - 1]) : "";
+      $("emptySub").textContent = (RECORDS.length
+        ? "云端有 " + RECORDS.length + " 张已发布的单，但都不是今天的。"
+        : "云端还没有已发布的发货单，请先在管理端点「发布」。");
+    } catch(e){}
+    lastFp = "";
+    stopScroll();
+    return;
+  }
+  if (rendered && fp === lastFp) return;      // 内容没变就不重绘（避免整屏闪烁）
+  lastFp = fp;
+  rendered = true;
+  fitRows(rows.length);
+  $("tbody").innerHTML = rows.map(rowHtml).join("");
+  fitCustNames();                             // 行出来了才知道客户名列多宽，再定名字字号
+  fitNoFont();                                // 单号必须完整：按实测宽度逐档降字号
+  fitUpdFont();                               // 时间两列：单行放得下（不换行、不截断）
+  setupScroll();
+}
+
+/* ---------- 超出一屏 → 自动慢速循环滚动 ----------
+   门口没人动鼠标：内容塞得下就静止，塞不下就慢慢往下滚，
+   滚到底停几秒，再快速回到顶部停几秒，周而复始。
+   有人滚轮/触屏干预时暂停 10 秒，别跟人抢屏幕。 */
+const boxEl = document.querySelector(".box");
+const SCROLL_SPEED = 26;        // 往下滚：26px/秒（慢，远远能看清）
+const SCROLL_BACK  = 170;       // 回顶：快一些，别浪费时间
+const WAIT_TOP_MS = 2200, WAIT_BOTTOM_MS = 3800, MANUAL_PAUSE_MS = 10000;
+let sc = { on: false, raf: 0, last: 0, phase: "top", until: 0, manual: 0 };
+
+function scrollStep(ts){
+  if (!sc.on) return;
+  const max = boxEl.scrollHeight - boxEl.clientHeight;
+  if (max <= 4){ stopScroll(); return; }
+  if (ts < sc.manual){ sc.last = ts; sc.raf = requestAnimationFrame(scrollStep); return; }
+  if (sc.phase === "top"){
+    if (ts >= sc.until){ sc.phase = "down"; sc.last = ts; }
+  } else if (sc.phase === "down"){
+    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
+    boxEl.scrollTop = Math.min(max, boxEl.scrollTop + SCROLL_SPEED * dt);
+    if (boxEl.scrollTop >= max - 1){ sc.phase = "bottom"; sc.until = ts + WAIT_BOTTOM_MS; }
+  } else if (sc.phase === "bottom"){
+    if (ts >= sc.until){ sc.phase = "back"; sc.last = ts; }
+  } else {                                        // back：快速回到顶部
+    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
+    boxEl.scrollTop = Math.max(0, boxEl.scrollTop - SCROLL_BACK * dt);
+    if (boxEl.scrollTop <= 0){ sc.phase = "top"; sc.until = ts + WAIT_TOP_MS; }
+  }
+  sc.raf = requestAnimationFrame(scrollStep);
+}
+function stopScroll(){
+  sc.on = false;
+  if (sc.raf) cancelAnimationFrame(sc.raf);
+  sc.raf = 0;
+  boxEl.scrollTop = 0;
+}
+function setupScroll(){
+  const max = boxEl.scrollHeight - boxEl.clientHeight;
+  if (max <= 4){ stopScroll(); return; }
+  if (sc.on) return;                             // 已经在滚就不用重启（避免每次拉取都从头来）
+  sc.on = true; sc.phase = "top"; sc.until = performance.now() + WAIT_TOP_MS; sc.last = 0;
+  sc.raf = requestAnimationFrame(scrollStep);
+}
+
+/* ---------- 时钟 / 全屏 / 隐藏光标 ---------- */
+function tickClock(){
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  $("clock").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  const wd = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
+  /* 顶部要挤成一行：日期只留「09月19日 周六」，年份那截挪进 title（鼠标放上去看全） */
+  $("cdate").textContent = p(d.getMonth() + 1) + "月" + p(d.getDate()) + "日 周" + wd;
+  $("cdate").title = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日 星期" + wd;
+}
+
+let idleTimer = 0;
+function pokeCursor(){
+  document.body.classList.remove("hidecur");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (document.body.classList.contains("fs")) document.body.classList.add("hidecur");
+  }, 8000);
+}
+
+function toggleFs(){
+  const el = document.documentElement;
+  if (!document.fullscreenElement){
+    const p = el.requestFullscreen ? el.requestFullscreen()
+      : (el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null);
+    if (p && p.catch) p.catch(() => alert("浏览器不允许自动全屏：请按 F11 手动全屏。"));
+    else if (!p) alert("这个浏览器不支持自动全屏：请按 F11 手动全屏。");
+  } else {
+    document.exitFullscreen && document.exitFullscreen();
+  }
+}
+function onFsChange(){
+  const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  document.body.classList.toggle("fs", on);
+  $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
+  stopScroll(); fitRows(rows.length); fitCustNames(); fitNoFont(); fitUpdFont(); setupScroll();   // 全屏切换字号变了，名字/单号/时间列字号和滚动都要重新量
+  pokeCursor();
+}
+
+/* ---------- 一键截图（html2canvas 把当前屏存成 PNG 下载） ---------- */
+function tsStr(){
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "_" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+// 暂停滚动但**不**把滚动条弹回顶部
+function pauseScrollNoReset(){ sc.on = false; if (sc.raf) cancelAnimationFrame(sc.raf); sc.raf = 0; }
+function resumeScroll(){ if (boxEl.scrollHeight - boxEl.clientHeight > 4) setupScroll(); }
+async function captureScreen(btn){
+  const node = document.querySelector(".wrap");
+  if (!node) return;
+  if (typeof html2canvas !== "function"){ alert("图片导出库未加载，请刷新页面再试"); return; }
+  const old = btn ? btn.textContent : "";
+  if (btn) btn.textContent = "⏳ 生成中…";
+  pauseScrollNoReset();
+  // ★ 截「滚动外的所有行」：临时把滚动容器撑到全高（overflow 放开），
+  //   html2canvas 就能把整个表格从头到尾画进一张图，而不是只画当前这一屏。
+  const wrapCss = node.style.cssText, boxCss = boxEl.style.cssText, st = boxEl.scrollTop;
+  node.style.height = "auto";
+  boxEl.style.height = "auto";
+  boxEl.style.maxHeight = "none";
+  boxEl.style.overflow = "visible";
+  boxEl.scrollTop = 0;
+  await new Promise(r => setTimeout(r, 140));   // 等一帧，让撑开后的布局稳定
+  try {
+    // ★ 底色必须给实色深底：body 背景是渐变（backgroundColor 算出来是透明），
+    //   不给实色 html2canvas 就垫白底，整张图发白发虚「看不清」（2026-09-18 用户报）。
+    const canvas = await html2canvas(node, { backgroundColor: "#0a0e15", scale: 2, useCORS: true, logging: false });
+    canvas.toBlob(blob => {
+      const a = document.createElement("a");
+      a.download = "物流进度内部_" + tsStr() + ".png";
+      a.href = URL.createObjectURL(blob);
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 600);
+    }, "image/png");
+  } catch (e) { console.error(e); }
+  node.style.cssText = wrapCss;   // 还原滚动容器，滚动接着走
+  boxEl.style.cssText = boxCss;
+  boxEl.scrollTop = st;
+  resumeScroll();
+  if (btn) btn.textContent = old;
+}
+
+/* ---------- 启动 ---------- */
+function boot(){
+  if (window.CloudSync){
+    CloudSync.init();
+    try { if (CloudSync.guard) CloudSync.guard(SL.KEY_PROG, SL.guardFn); } catch(e){}
+  }
+  loadLocal();
+  $("fsBtn").onclick = toggleFs;
+  $("shotBtn").onclick = () => captureScreen($("shotBtn"));
+  document.addEventListener("fullscreenchange", onFsChange);
+  document.addEventListener("webkitfullscreenchange", onFsChange);
+  document.addEventListener("mousemove", pokeCursor);
+  document.addEventListener("touchstart", pokeCursor);
+  window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
+  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCustNames(); fitNoFont(); fitUpdFont(); setupScroll(); });
+  // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
+  boxEl.addEventListener("wheel", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
+  boxEl.addEventListener("touchstart", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
+  window.addEventListener("online", () => pull());
+  tickClock(); setInterval(tickClock, 1000);
+  pokeCursor();
+  pull();
+  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+  // 长时间挂着的大屏：每天凌晨 4 点自动重载一次，清掉累积的内存/定时器
+  setInterval(() => {
+    const d = new Date();
+    if (d.getHours() === 4 && d.getMinutes() < 1) location.reload();
+  }, 60000);
+}
+boot();
+</script>
+<script src="auth.js?v=20260924a"></script>
+<script>if(window.Auth)Auth.guard();</script>
+  <script src="staff-admin.js?v=20260924a"></script>
+<script src="brand.js?v=3"></script>
+</body>
+</html>
