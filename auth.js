@@ -24,13 +24,24 @@ window.LOGIN_REQUIRED = true;
 (function () {
   const CFG = window.CLOUD_CONFIG || {};
   const LS_KEY = "auth_session_v1";
+  const CK_AUTH = "auth_sess_bk_v1";
+  /* iOS 容错：Safari 隐私模式 / 微信 WKWebView 里 localStorage 可能抛异常，
+     一旦抛异常会让 Supabase 客户端初始化崩溃，整站登录失败。给 Supabase 一个
+     不抛异常的 storage 适配器；本会话再加 cookie 兜底（见 saveSession）。 */
+  var _mem = {};
+  var _lsOK = (function () { try { var k = "__sb_probe__"; window.localStorage.setItem(k, "1"); window.localStorage.removeItem(k); return true; } catch (e) { return false; } })();
+  var authStorage = {
+    getItem: function (k) { try { if (_lsOK) return window.localStorage.getItem(k); } catch (e) {} return _mem[k] != null ? _mem[k] : null; },
+    setItem: function (k, v) { try { if (_lsOK) { window.localStorage.setItem(k, v); return; } } catch (e) {} _mem[k] = v; },
+    removeItem: function (k) { try { if (_lsOK) { window.localStorage.removeItem(k); return; } } catch (e) {} delete _mem[k]; }
+  };
   let _sb = null;
 
   function sb() {
     if (_sb) return _sb;
     if (!window.supabase || !CFG.url || !CFG.key) return null;
     const url = (CFG.url || "").trim().replace(/\/rest\/v1\/?$/i, "").replace(/\/+$/, "");
-    try { _sb = window.supabase.createClient(url, CFG.key); } catch (e) { _sb = null; }
+    try { _sb = window.supabase.createClient(url, CFG.key, { auth: { storage: authStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false } }); } catch (e) { _sb = null; }
     return _sb;
   }
 
@@ -66,17 +77,28 @@ window.LOGIN_REQUIRED = true;
   function saveSession(u) {
     const s = { uid: u.id, email: u.email, name: nameOf(u), exp: (u.exp || 0) * 1000, at: Date.now() };
     try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
+    try {
+      var max = Math.max(60, Math.round((s.exp - Date.now()) / 1000));
+      document.cookie = CK_AUTH + "=" + encodeURIComponent(JSON.stringify(s)) + ";max-age=" + max + ";path=/;SameSite=Lax";
+    } catch (e) {}
     return s;
   }
+  function authCookieRead() {
+    try { var m = document.cookie.match(new RegExp("(?:^|;\\s*)" + CK_AUTH + "=([^;]*)")); return m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) { return null; }
+  }
+  function authCookieClear() { try { document.cookie = CK_AUTH + "=;max-age=0;path=/;SameSite=Lax"; } catch (e) {} }
 
   function getSession() {
-    try {
-      const r = localStorage.getItem(LS_KEY);
-      if (!r) return null;
-      const s = JSON.parse(r);
-      if (s.exp && s.exp < Date.now()) { logout(); return null; }
-      return s;
-    } catch (e) { return null; }
+    var s = null;
+    try { const r = localStorage.getItem(LS_KEY); if (r) s = JSON.parse(r); } catch (e) {}
+    if (s && s.exp && s.exp < Date.now()) s = null;            /* 过期作废 */
+    if (!s) {                                                  /* localStorage 拿不到 -> 试 cookie */
+      s = authCookieRead();
+      if (s && s.exp && s.exp < Date.now()) s = null;
+      if (s) { try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {} }
+    }
+    if (!s) { try { localStorage.removeItem(LS_KEY); } catch (e) {} authCookieClear(); return null; }
+    return s;
   }
 
   function currentName() { const s = getSession(); return s ? s.name : ""; }
@@ -146,6 +168,7 @@ window.LOGIN_REQUIRED = true;
     const c = sb();
     if (c) { try { await c.auth.signOut(); } catch (e) {} }
     try { localStorage.removeItem(LS_KEY); } catch (e) {}
+    authCookieClear();
   }
 
   // 让 Supabase 的英文报错变成人话
