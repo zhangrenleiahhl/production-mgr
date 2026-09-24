@@ -8,7 +8,7 @@
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260924e"></script>
+<script src="scan-lib.js?v=20260924f"></script>
 <script src="staff-config.js?v=20260924c"></script>
 <style>
   /* ==========================================================================
@@ -638,7 +638,7 @@ function step(rk, ck){
   const cust = String(ck).split("|")[0];
   /* ★ 司机没签到（车未到）/ 品一质保书没好 → 对应的工序推不了（2026-09-22 / 09-23 用户要求）。
      用「知道了」的提示框说清楚怎么回事、怎么解 —— 不要静默无反应。 */
-  const blocked = SL.stepBlock(cur, s + 1);
+  const blocked = SL.stepBlock(cur, s + 1, cust);
   if (blocked){
     /* 「怎么解」跟着被拦的原因走：缺车说车、缺质保书说质保书（别把车的话术套到质保书上） */
     const how = /质保书/.test(blocked)
@@ -680,6 +680,7 @@ function setBz(rk, ck, v){
   const lk = SL.opBlock(who(), "bz");           // ★ 分工硬拦
   if (lk){ lockTip(lk); return; }
   const cur = ((PROG[rk] || {})[ck] || {});
+  if (!v && !(cur.bz || 0) && SL.bzExempt && SL.bzExempt(String(ck).split("|")[0])){ tip("这个客户不用质保书，系统默认「已备好」"); return; }
   if ((cur.bz || 0) === (v ? 1 : 0)){ tip(v ? "已经是「质保书好了」" : "本来就是「质保书未好」"); return; }
   const cust = String(ck).split("|")[0];
   SL.uiConfirm("确认【" + cust + "】的品一质保书已经" + (v ? "备好了？" : "没好？（撤掉「已备好」）"), () => {
