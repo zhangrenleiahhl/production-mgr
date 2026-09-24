@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
-<title>发货进度 · 内部操作</title>
+<title>发货进度</title>
 <script src="supabase.min.js?v=lib"></script>
 <script src="cloud-config.js?v=20260920a"></script>
 <script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260924d"></script>
+<script src="scan-lib.js?v=20260924e"></script>
 <script src="staff-config.js?v=20260924c"></script>
 <style>
   /* ==========================================================================
@@ -36,8 +36,6 @@
   .hd .r1 .dot{width:6px;height:20px;background:#38bdf8;border-radius:2px;flex-shrink:0;
     box-shadow:0 0 10px rgba(56,189,248,.85);}
   .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;}
-  .hd h1 em{font-style:normal;font-size:11px;font-weight:600;color:#94a3b8;margin-left:5px;}
-  @media (max-width:380px){.hd h1 em{display:none;}}
   .hd .who{margin-left:auto;display:none;align-items:center;gap:6px;font-size:12px;color:#cbd5e1;min-width:0;}
   .hd .who.on{display:flex;}
   .hd .who b{color:#fff;font-weight:800;}
@@ -189,7 +187,7 @@
 <div class="hd">
   <div class="r1">
     <span class="dot"></span>
-    <h1>发货进度 <em>内部操作</em></h1>
+    <h1>发货进度</h1>
     <div class="who" id="who"><span class="nm">操作人 <b id="whoName">—</b></span><button type="button" id="logout">退出</button></div>
   </div>
   <div class="r2" id="sumTxt">正在读取…</div>
@@ -277,8 +275,9 @@
     var exp = Date.now() + (Number(cfg.days) > 0 ? Number(cfg.days) : 30) * 86400000;
     var ver = String(cfg.ver || ""), salt = String(cfg.salt || "");
     var tok = SLb.sha256Hex(salt + ":" + name + ":" + exp + ":" + ver + ":sess");
-    try { localStorage.setItem("staff_session_v1", JSON.stringify({ id: name, name: name, exp: exp, v: ver, tok: tok })); }
-    catch (e) { return false; }
+    var ses = { id: name, name: name, exp: exp, v: ver, tok: tok };
+    if (SLb.staffPersist) { SLb.staffPersist(ses); return true; }
+    try { localStorage.setItem("staff_session_v1", JSON.stringify(ses)); } catch (e) { return false; }
     return true;
   }
   /* 开机：已经有账号会话 → 直接认领，免再输一次密码 */
@@ -315,6 +314,16 @@ const NEXTOP = ["", "hh", "load", "done"];
 let RECORDS = [], PROG = {}, ROWS = [], TAB = "left", ONLY = "", rendered = false, lastFp = "";
 let ME = "";   /* 当前操作人（分工权限按他算；每次 render 刷新） */
 
+/* 操作人姓名显示全：放不下就缩字号（12px→9px），绝不截断成「操…」 */
+function fitWho(){
+  const nm = document.querySelector(".hd .who .nm");
+  if (!nm) return;
+  nm.style.fontSize = "";
+  for (let fs = 12; fs >= 9; fs -= 0.5){
+    nm.style.fontSize = fs + "px";
+    if (nm.scrollWidth <= nm.clientWidth + 1) break;
+  }
+}
 /* ---------- 登录（手机号 + 密码 → Supabase 账号，和发货计划页同一套） ---------- */
 function session(){ return SL.staffSession(); }
 function applyLoginState(){
@@ -324,6 +333,7 @@ function applyLoginState(){
   $("who").className = "who" + (s ? " on" : "");
   if (s){
     $("whoName").textContent = s.name || s.id;
+    fitWho();
     /* ★ 我这次登录能点哪几步，写在右上角 —— 免得工人以为「按钮坏了」
        （口径来自名册的 ops，唯一实现在 scan-lib.myOps） */
     const my = SL.myOps ? SL.myOps() : [];
