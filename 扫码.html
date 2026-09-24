@@ -1,778 +1,778 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="format-detection" content="telephone=no">
-<title>发货进度</title>
-<script src="supabase.min.js?v=lib"></script>
-<script src="cloud-config.js?v=20260920a"></script>
-<script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260924f"></script>
-<script src="staff-config.js?v=20260924c"></script>
-<style>
-  /* ==========================================================================
-     内部工序操作页（手机端）—— 四道工序只有内部人员能点
-     · 一个码通吃：扫开就是「今天」的所有客户行，不用每张单一个码
-     · 先登录才出现任何可点按钮
-       ★ 2026-09-23 起**统一用手机号 + 密码登录**（和发货计划 / 订单管理同一套账号）；
-         登录后按手机号在 staff-config.js 名册里查出中文姓名 = 工序记录里的「谁点的」。
-     · 司机请扫「司机签到码」，那一页只有车已到和撤回
-     ========================================================================== */
-  :root{
-    --blue:#2563eb; --blue-d:#1d4ed8;
-    --bg:#eef1f6; --card:#fff; --line:#dbe1ea;
-    --txt:#111827; --muted:#5b6676; --muted2:#93a0b4;
-    --green:#059669; --amber:#d97706;
-  }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;}
-  body{font-family:"PingFang SC","Microsoft YaHei","微软雅黑",system-ui,sans-serif;background:var(--bg);
-    color:var(--txt);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
-    padding-bottom:calc(26px + env(safe-area-inset-bottom));}
-  .hd{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
-    color:#fff;padding:7px 12px 6px;box-shadow:0 3px 14px rgba(15,23,42,.28);}
-  .hd .r1{display:flex;align-items:center;gap:7px;white-space:nowrap;}
-  .hd .r1 .dot{width:6px;height:20px;background:#38bdf8;border-radius:2px;flex-shrink:0;
-    box-shadow:0 0 10px rgba(56,189,248,.85);}
-  .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;}
-  .hd .who{margin-left:auto;display:none;align-items:center;gap:6px;font-size:12px;color:#cbd5e1;min-width:0;}
-  .hd .who.on{display:flex;}
-  .hd .who b{color:#fff;font-weight:800;}
-  .hd .who .nm{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .hd .ops{margin-top:2px;font-size:11.5px;color:#94a3b8;font-weight:600;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .hd .ops:empty{display:none;}
-  .hd .who button{background:rgba(255,255,255,.10);border:1px solid rgba(148,163,184,.4);color:#cbd5e1;
-    padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;}
-  .hd .r2{display:inline;margin-top:0;font-size:12px;color:#cbd5e1;}
-  .hd .r2 b{color:#fff;font-weight:700;}
-  .sync{display:inline;font-size:11.5px;letter-spacing:.4px;margin-left:10px;}
-  .sync.ok{color:#7dd3fc;} .sync.warn{color:#fbbf24;} .sync.err{color:#f87171;}
-
-  .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
-
-  /* ============ 登录 ============ */
-  #login{display:none;}
-  #login.on{display:block;}
-  .lg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 16px;
-    box-shadow:0 1px 4px rgba(15,23,42,.07);}
-  .lg h2{font-size:17px;margin:0 0 3px;font-weight:800;}
-  .lg p{margin:0 0 14px;font-size:12.5px;color:var(--muted);line-height:1.7;}
-  .lg label{display:block;font-size:13px;font-weight:700;color:#334155;margin:11px 0 5px;}
-  .lg input{width:100%;padding:11px 12px;font-size:16px;border:1px solid var(--line);border-radius:9px;
-    font-family:inherit;background:#fbfcfe;}
-  .lg input:focus{outline:none;border-color:var(--blue);background:#fff;}
-  .lg button{margin-top:16px;width:100%;padding:13px;font-size:16.5px;font-weight:800;border:none;border-radius:10px;
-    background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-family:inherit;
-    box-shadow:0 3px 12px rgba(37,99,235,.28);}
-  .lg .msg{margin-top:11px;font-size:13px;font-weight:700;color:#b91c1c;min-height:19px;}
-  .note{margin-top:14px;background:#f1f5f9;border:1px solid var(--line);border-radius:10px;padding:11px 12px;
-    font-size:12.5px;color:var(--muted);line-height:1.75;}
-  .note b{color:#334155;}
-
-  /* ============ 列表 ============ */
-  #app{display:none;}
-  #app.on{display:block;}
-  .tabs{display:flex;gap:7px;margin-bottom:10px;}
-  .tabs button{flex:1;padding:9px 6px;border-radius:9px;border:1px solid var(--line);background:#fff;
-    color:var(--muted);font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;}
-  .tabs button.on{background:#0f172a;border-color:#0f172a;color:#fff;}
-
-  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;
-    overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06);}
-  .row.done{border-color:#a7f3d0;background:linear-gradient(180deg,#f7fffb,#fff);}
-  .row.late{border-color:#fecaca;background:linear-gradient(180deg,#fffafa,#fff);}
-  .rh{padding:11px 12px 9px;display:flex;gap:10px;align-items:flex-start;}
-  .rh .nm{flex:1;min-width:0;}
-  .rh .name{font-size:16.5px;font-weight:800;letter-spacing:.2px;word-break:break-all;line-height:1.35;}
-  .rh .meta{margin-top:3px;display:flex;flex-wrap:wrap;gap:3px 10px;font-size:12px;color:var(--muted);}
-  .rh .meta b{color:#334155;font-weight:700;}
-  .rh .meta .logi{display:inline-block;padding:0 7px;border-radius:999px;background:#eef2ff;
-    color:#3730a3;font-weight:700;font-size:11.5px;line-height:1.7;}
-  .rh .meta .logi.self{background:#f1f5f9;color:#475569;}
-  .rh .lateTag{display:inline-block;padding:0 6px;border-radius:4px;font-size:10.5px;font-weight:800;
-    background:#fee2e2;color:#b91c1c;margin-right:5px;vertical-align:1px;}
-  .rh .badge{flex-shrink:0;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:800;color:#fff;
-    background:var(--muted2);white-space:nowrap;margin-top:2px;}
-  .rh .badge.s0{background:#94a3b8;} .rh .badge.s1{background:#0ea5e9;}
-  .rh .badge.s2{background:#f59e0b;} .rh .badge.s3{background:#10b981;}
-
-  .steps{padding:2px 12px 0;}
-  .track{display:flex;align-items:center;}
-  .track .n{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
-    justify-content:center;background:#e6ebf3;color:#94a3b8;font-size:12px;font-weight:800;border:2px solid #e6ebf3;}
-  .track .n.on{background:var(--green);border-color:var(--green);color:#fff;}
-  .track .n.cur{background:#fff;border-color:#f59e0b;color:#d97706;box-shadow:0 0 0 3px rgba(245,158,11,.18);}
-  .track .ln{flex:1;height:3px;background:#e6ebf3;margin:0 1px;}
-  .track .ln.on{background:var(--green);}
-  .lbls{display:flex;margin-top:4px;}
-  .lbls span{flex:1;text-align:center;font-size:10.5px;color:var(--muted2);font-weight:700;line-height:1.35;}
-  .lbls span.on{color:#047857;} .lbls span.cur{color:#b45309;}
-
-  .acts{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px;}
-  .go{width:100%;min-height:54px;border:none;border-radius:11px;cursor:pointer;
-    background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:17px;font-weight:800;
-    letter-spacing:.6px;box-shadow:0 3px 12px rgba(37,99,235,.30);display:flex;align-items:center;
-    justify-content:center;gap:7px;font-family:inherit;}
-  .go:active{transform:translateY(2px);}
-  .go.s2{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 3px 12px rgba(217,119,6,.30);}
-  .go.s3{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 3px 12px rgba(5,150,105,.30);}
-  .go.fin{background:#e8f6ef;color:#047857;box-shadow:none;border:2px solid #a7f3d0;font-size:16px;}
-  /* 司机没签到 → 「装货中 / 已完成」暂时推不了（2026-09-22）：按钮压暗 + 上方写明原因 */
-  .go.lock{background:linear-gradient(135deg,#cbd5e1,#94a3b8);box-shadow:none;}
-  /* ★ 不是你负责的那一步：压暗 + 🔒，点一下会说清楚为什么（绝不静默无反应） */
-  .lkbar{width:100%;text-align:left;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:10px;
-     color:#94a3b8;font-size:13px;font-weight:700;padding:9px 11px;cursor:pointer;font-family:inherit;}
-  .lkbar:active{background:#e2e8f0;}
-  .undo.lkb{background:#f1f5f9;color:#cbd5e1;border-color:#e2e8f0;}
-  .needcar{display:flex;gap:7px;align-items:flex-start;font-size:13px;line-height:1.4;color:#b45309;
-    background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:7px 10px;}
-  .row2{display:flex;gap:8px;align-items:stretch;}
-  .car{flex:1;display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#f8fafc;}
-  .car button{flex:1;min-height:46px;border:none;background:transparent;cursor:pointer;font-size:14.5px;
-    font-weight:800;color:var(--muted);letter-spacing:.3px;display:flex;align-items:center;
-    justify-content:center;gap:5px;font-family:inherit;}
-  .car button.act{background:#fef3c7;color:#b45309;}
-  .car button.act2{background:#d1fae5;color:#047857;}
-  .car button:not(:first-child){border-left:1.5px solid var(--line);}
-  .undo{flex-shrink:0;width:52px;border:1.5px solid var(--line);border-radius:10px;background:#f8fafc;
-    color:var(--muted);font-size:18px;font-weight:800;cursor:pointer;font-family:inherit;}
-  .ts{font-size:11.5px;color:var(--muted2);margin-top:-1px;text-align:right;}
-  .ts b{color:#475569;font-weight:700;}
-
-  .flag{background:#fff;border:1px dashed #94a3b8;border-radius:12px;padding:20px 16px;text-align:center;
-    color:var(--muted);font-weight:600;font-size:14px;line-height:1.8;}
-
-  #tip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
-    transform:translateX(-50%) translateY(24px);background:rgba(17,24,39,.94);color:#fff;padding:11px 18px;
-    border-radius:999px;font-size:14px;font-weight:700;max-width:88vw;text-align:center;opacity:0;
-    pointer-events:none;transition:.22s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.28);}
-  #tip.show{opacity:1;transform:translateX(-50%) translateY(0);}
-  #tip.warn{background:#b45309;} #tip.err{background:#b91c1c;}
-
-  /* ============ 模糊搜索 ============ */
-  .searchbar{padding:0 0 4px;}
-  .sbtn{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:11px;background:#fff;
-    color:var(--muted);font-size:14.5px;font-weight:700;text-align:left;font-family:inherit;cursor:pointer;
-    box-shadow:0 1px 3px rgba(15,23,42,.06);display:flex;align-items:center;gap:7px;}
-  .sbtn:active{background:#f1f5f9;}
-  .modal{position:fixed;inset:0;z-index:120;background:rgba(15,23,42,.55);
-    display:none;flex-direction:column;backdrop-filter:blur(2px);}
-  .modal.show{display:flex;}
-  .mhd{display:flex;gap:8px;padding:12px 12px 8px;background:#0f172a;align-items:center;}
-  .mhd input{flex:1;min-width:0;padding:11px 13px;border:none;border-radius:10px;font-size:16px;
-    font-family:inherit;background:#1e293b;color:#fff;outline:none;}
-  .mhd input::placeholder{color:#94a3b8;}
-  .mclose{flex-shrink:0;padding:0 14px;height:44px;border:1px solid rgba(148,163,184,.4);border-radius:10px;
-    background:rgba(255,255,255,.08);color:#cbd5e1;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;}
-  .mres{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--bg);padding:10px 12px 40px;}
-  .sit{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;
-    padding:11px 13px;margin-bottom:9px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(15,23,42,.06);}
-  .sit:active{background:#f1f5f9;}
-  .sit .sn{font-size:16px;font-weight:800;color:#0f172a;line-height:1.35;word-break:break-all;}
-  .sit .sm{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 10px;font-size:12px;color:var(--muted);}
-  .sit .sm b{color:#334155;font-weight:700;}
-  .sit .sb{flex-shrink:0;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:800;color:#fff;margin-left:8px;}
-  .sit .sb.s0{background:#94a3b8;} .sit .sb.s1{background:#0ea5e9;} .sit .sb.s2{background:#f59e0b;} .sit .sb.s3{background:#10b981;}
-  .mempty{text-align:center;color:var(--muted);font-weight:600;font-size:14px;padding:40px 10px;line-height:1.8;}
-  .row.flash{animation:rowflash 1.6s ease-out;}
-  @keyframes rowflash{0%{box-shadow:0 0 0 0 rgba(37,99,235,.0);background:#fff;}
-    18%{box-shadow:0 0 0 4px rgba(37,99,235,.55);background:#eff6ff;}
-    100%{box-shadow:0 1px 3px rgba(15,23,42,.06);background:#fff;}}
-</style>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b1220">
-<link rel="apple-touch-icon" href="icon-192.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="发货计划">
-</head>
-<body>
-
-<div class="hd">
-  <div class="r1">
-    <span class="dot"></span>
-    <h1>发货进度</h1>
-    <div class="who" id="who"><span class="nm">操作人 <b id="whoName">—</b></span><button type="button" id="logout">退出</button></div>
-  </div>
-  <div class="r2" id="sumTxt">正在读取…</div>
-  <div class="sync" id="sync">正在连接云端…</div>
-  <div class="ops" id="whoOps"></div>
-</div>
-
-<div class="wrap">
-  <!-- 没登录：只给登录框，一个可点按钮都不出现 -->
-  <div id="login">
-    <div class="lg">
-      <h2>内部人员登录</h2>
-      <p>四道工序（待确认 / 货好 / 装货中 / 已完成）只有内部人员能点，<br>而且<b>每个人只能点分配给他的那几步</b>。<br>用管理员给你的<b>手机号 + 密码</b>登录，这台手机会记住，之后不用每次输。</p>
-      <label>手机号</label>
-      <input id="uid" type="tel" inputmode="numeric" autocomplete="username" placeholder="例如 13800138000">
-      <label>密码</label>
-      <input id="pwd" type="password" autocomplete="current-password" placeholder="请输入密码">
-      <button type="button" id="doLogin">登录</button>
-      <div class="msg" id="lgMsg"></div>
-      <div class="note">和「发货计划」「订单管理」是 <b>同一套账号</b>：手机号 + 密码。<br>登不进来 → 找管理员确认这个手机号有没有开通账号。</div>
-    </div>
-    <div class="note">
-      <b>司机请扫「司机签到码」。</b>司机那一页只能勾「车已到」和撤回，不需要登录，也点不到工序 —— 这是故意的。
-    </div>
-  </div>
-
-  <!-- 登录后 -->
-  <div id="app">
-    <div class="searchbar" id="searchWrap">
-      <button type="button" id="searchOpen" class="sbtn">🔍 搜索客户 / 单号 / 物流…</button>
-    </div>
-    <div class="tabs" id="tabs"></div>
-    <div id="list"></div>
-  </div>
-</div>
-
-<!-- 模糊搜索弹出层（登录后才用得到，没登录时整页只有登录框） -->
-<div id="searchModal" class="modal">
-  <div class="mhd">
-    <input id="searchInput" type="search" autocomplete="off" placeholder="输入客户名 / 单号 / 物流 / 型号…">
-    <button type="button" id="searchClose" class="mclose">取消</button>
-  </div>
-  <div id="searchResults" class="mres"></div>
-</div>
-
-<div id="tip"></div>
-
-<script src="auth.js?v=20260924a"></script>
-<!-- ★ 2026-09-23：这一页**不挂全站门禁**（Auth.guard）——
-     它自己就是登录页（手机号 + 密码），登进来才有按钮；再挂 guard 会变成
-     「先跳 login.html → 回扫码页 → 已登录直接进」的绕圈，没有任何额外作用。 -->
-<script>
-  /* ==========================================================================
-     账号 ↔ 工序身份（2026-09-23 定稿）
-     · 登录 = Supabase 账号（手机号 + 密码），和发货计划 / 订单管理同一套。
-     · 姓名**不来自 Supabase**（账号里只存了邮箱，没有中文名）：
-       拿手机号到 staff-config.js 名册里查 → 查到谁就是谁。
-     · 名册里查不到 = 不是工序操作人 → 不放行（提示找管理员加人）。
-     · 页面内部仍然只用 staff_session_v1 这一张会话（工序记录靠它写「谁点的」），
-       账号会话换成它，只是「开机自动补一张」，换手机/清缓存才需要再输一次密码。
-     ========================================================================== */
-  function phoneOfAuth(s){
-    var em = (s && s.email) || "";
-    return em.indexOf("@") >= 0 ? em.split("@")[0] : em;
-  }
-  /* 手机号 → 姓名（名册唯一口径）；手机号对不上再退回「账号里的姓名」比对 */
-  function staffNameFor(authSess){
-    var phone = String(phoneOfAuth(authSess) || "").trim();
-    var nm = String((authSess && authSess.name) || "").trim();
-    var list = (window.STAFF && window.STAFF.users) || [];
-    for (var i = 0; i < list.length; i++){
-      if (phone && String(list[i].phone || "").trim() === phone) return String(list[i].name || list[i].id || "");
-    }
-    for (var j = 0; j < list.length; j++){
-      var u = list[j];
-      if (nm && (String(u.name || "") === nm || String(u.id || "") === nm)) return String(u.name || u.id || "");
-    }
-    return "";
-  }
-  /* 把账号会话换成一张本机「内部工序」会话（合法签名字，staffSession 才认） */
-  function claimStaffSession(name){
-    var SLb = window.ScanLib;
-    if (!name || !SLb) return false;
-    var cfg = window.STAFF || {};
-    var exp = Date.now() + (Number(cfg.days) > 0 ? Number(cfg.days) : 30) * 86400000;
-    var ver = String(cfg.ver || ""), salt = String(cfg.salt || "");
-    var tok = SLb.sha256Hex(salt + ":" + name + ":" + exp + ":" + ver + ":sess");
-    var ses = { id: name, name: name, exp: exp, v: ver, tok: tok };
-    if (SLb.staffPersist) { SLb.staffPersist(ses); return true; }
-    try { localStorage.setItem("staff_session_v1", JSON.stringify(ses)); } catch (e) { return false; }
-    return true;
-  }
-  /* 开机：已经有账号会话 → 直接认领，免再输一次密码 */
-  (function () {
-    try {
-      if (window.Auth && Auth.getSession && Auth.getSession()) {
-        var nm = staffNameFor(Auth.getSession());
-        if (nm) claimStaffSession(nm);
-      }
-    } catch (e) {}
-  })();
-</script>
-
-<script>
-/* ==========================================================================
-   发货进度 · 内部工序操作页
-   1. 一个码通吃：进来就是「今天」的所有客户行（和门口大屏同一份口径，
-      都来自 scan-lib.boardRows），不再每张单/每个人单独出码。
-   2. 没登录 → 整页只有登录框，连按钮都不渲染（不是"藏起来"，是没有）。
-   3. 每次动作都会带上操作人（账号对应的姓名），大屏和这里都能看到"谁点的"。
-   4. 进度写入都走 scan-lib.applyStep / applyCar / applyUndo，这三个函数会同时 +rv，
-      否则云端那条护栏会把「撤回」抬回去。
-   ========================================================================== */
-const SL = window.ScanLib;
-const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
-const KEY_PLANS_STAMP = "shipping_plans_stamp_v1";  /* 云端计划数据的 updated_at 戳（弱网免拉全文） */
-const $ = (id) => document.getElementById(id);
-const esc = SL.esc;
-const POLL_MS = 60000;
-const LITTLE = ["待确认", "货好", "装货中", "已完成"];
-/* 工序号 → 动作码（跟 scan-lib 的五个权限码对齐）：点「下一步」要哪一步的权限 */
-const NEXTOP = ["", "hh", "load", "done"];
-
-let RECORDS = [], PROG = {}, ROWS = [], TAB = "left", ONLY = "", rendered = false, lastFp = "";
-let ME = "";   /* 当前操作人（分工权限按他算；每次 render 刷新） */
-
-/* 操作人姓名显示全：放不下就缩字号（12px→9px），绝不截断成「操…」 */
-function fitWho(){
-  const nm = document.querySelector(".hd .who .nm");
-  if (!nm) return;
-  nm.style.fontSize = "";
-  for (let fs = 12; fs >= 9; fs -= 0.5){
-    nm.style.fontSize = fs + "px";
-    if (nm.scrollWidth <= nm.clientWidth + 1) break;
-  }
-}
-/* ---------- 登录（手机号 + 密码 → Supabase 账号，和发货计划页同一套） ---------- */
-function session(){ return SL.staffSession(); }
-function applyLoginState(){
-  const s = session();
-  $("login").className = s ? "" : "on";
-  $("app").className = s ? "on" : "";
-  $("who").className = "who" + (s ? " on" : "");
-  if (s){
-    $("whoName").textContent = s.name || s.id;
-    fitWho();
-    /* ★ 我这次登录能点哪几步，写在右上角 —— 免得工人以为「按钮坏了」
-       （口径来自名册的 ops，唯一实现在 scan-lib.myOps） */
-    const my = SL.myOps ? SL.myOps() : [];
-    $("whoOps").textContent = my.length ? "工序：" + my.map(SL.opName).join("·") : "未分配工序";
-  }
-  lastFp = "";
-}
-/* 登录：先过云端账号（手机号 + 密码），再拿手机号去名册里换姓名。
-   两道都过才算登录成功 —— 光有账号、不在工序名单里，照样点不到工序。 */
-async function doLogin(){
-  const acc = $("uid").value.trim(), pwd = $("pwd").value;
-  const btn = $("doLogin");
-  if (!acc || !pwd){ $("lgMsg").textContent = "请输入手机号和密码"; return; }
-  if (!window.Auth || !Auth.login){ $("lgMsg").textContent = "登录组件没加载上，请刷新页面再试"; return; }
-  btn.disabled = true; btn.textContent = "登录中…"; $("lgMsg").textContent = "";
-  let r;
-  try { r = await Auth.login(acc, pwd); }
-  catch (e) { r = { ok: false, msg: "连不上云端，检查一下网络再试" }; }
-  btn.disabled = false; btn.textContent = "登录";
-  if (!r.ok){ $("lgMsg").textContent = r.msg || "登录失败"; return; }
-  const name = staffNameFor(Auth.getSession());
-  if (!name){
-    const phone = phoneOfAuth({ email: acc });
-    try { await Auth.logout(); } catch (e) {}
-    $("lgMsg").textContent = "账号 " + phone + " 不在工序名单里，找管理员把你加进去";
-    return;
-  }
-  claimStaffSession(name);
-  $("pwd").value = "";
-  $("lgMsg").textContent = "";
-  applyLoginState();
-  tip("欢迎，" + name);
-  render();
-}
-$("doLogin").onclick = doLogin;
-$("pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
-$("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").focus(); });
-$("logout").onclick = () => {
-  SL.uiConfirm("退出登录？下次要重新输手机号和密码。", async () => {
-    try { if (window.Auth && Auth.logout) await Auth.logout(); } catch (e) {}
-    SL.staffLogout(); applyLoginState(); render(); tip("已退出登录");
-  }, { title: "确认退出登录" });
-};
-
-/* ---------- 本机缓存 / 提示 ---------- */
-function loadLocal(){
-  try { const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
-  try { const v = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
-}
-const setPending = (on) => { try { on ? localStorage.setItem(KEY_PENDING, "1") : localStorage.removeItem(KEY_PENDING); } catch(e){} };
-const isPending = () => { try { return localStorage.getItem(KEY_PENDING) === "1"; } catch(e){ return false; } };
-function setSync(t, c){ const e = $("sync"); e.textContent = t; e.className = "sync " + (c || ""); }
-let tipTimer = 0;
-function tip(m, c){
-  const el = $("tip"); el.textContent = m; el.className = "show" + (c ? " " + c : "");
-  clearTimeout(tipTimer); tipTimer = setTimeout(() => { el.className = ""; }, 2400);
-}
-
-/* ---------- 保存 ---------- */
-let pushing = false;
-async function saveProg(msg){
-  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
-  setPending(true);
-  if (!(window.CloudSync && CloudSync.ready())){
-    setSync("未连上云端 · 已存本机，稍后自动补传", "warn");
-    tip(msg + "（已存本机）", "warn");
-    return false;
-  }
-  if (pushing) { tip(msg + "（正在上传…）"); return true; }
-  pushing = true;
-  let ok = false;
-  try { ok = await CloudSync.push(KEY_PROG, PROG); } catch(e){ ok = false; }
-  pushing = false;
-  setPending(!ok);
-  if (ok){ setSync("已同步 ✓ " + new Date().toLocaleTimeString("zh-CN", { hour12: false }), "ok"); tip(msg); }
-  else { setSync("同步失败 · 已存本机，稍后自动补传", "warn"); tip(msg + "（已存本机）", "warn"); }
-  return ok;
-}
-
-/* ---------- 拉取 ---------- */
-function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
-async function pull(){
-  const cs = !!(window.CloudSync && CloudSync.ready());
-  let okA = !cs, okP = !cs, whyA = "", whyP = "";
-  if (cs){
-    /* 计划数据大(~268KB)：先查 updated_at 戳(几十字节)，没变就免下载直接用本机缓存 */
-    let skipA = false, newStamp = null;
-    if (CloudSync.pullStamp && RECORDS.length){
-      try {
-        const st = await withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000);
-        if (st && localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; }
-        else if (st) newStamp = st;
-      } catch(e){}
-    }
-    /* 并行拉取：两个键同时请求 */
-    const rs = await Promise.allSettled([
-      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_PLANS), 30000),
-      withTimeout(CloudSync.pullResult(KEY_PROG), 15000)
-    ]);
-    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
-    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
-    if (!skipA){
-      okA = !!(ra && ra.ok);
-      if (okA && Array.isArray(ra.value)){
-        RECORDS = ra.value;
-        /* ★ 拉到就存手机：下次秒开，弱网/断网也有数据可显 */
-        try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
-              if (newStamp) localStorage.setItem(KEY_PLANS_STAMP, newStamp); } catch(e){}
-      }
-    }
-    okP = !!(rp && rp.ok); if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
-    whyA = skipA ? "" : (ra ? (ra.ok ? "" : (ra.reason || "错误")) : "超时");
-    whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
-  }
-  if (!RECORDS.length) loadLocal();
-  try {
-    const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
-    if (Array.isArray(del) && del.length){
-      const st = new Set(del.map(String));
-      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
-    }
-  } catch(e){}
-  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
-  /* 预约货好到点 → 落成真实数据（rv+1、留痕「预约货好」）。
-     ★ 这步在现场手机上也很重要：到点后这一行显示的是「货好」，
-       工人点「下一步」应该是往前走到「装货中」；不落库的话数据里还是 0，
-       点一下只会从 0 变成 1（还是「货好」），看着像"点了没反应"。 */
-  let autoN = 0;
-  try { autoN = session() ? (SL.applyReadyAuto(PROG, who()) || 0) : 0; } catch(e){ autoN = 0; }
-  if (autoN){ try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){} }
-  const bad = !okA || !okP;
-  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
-  if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
-  else if (bad){
-    const why = [whyA ? "计划:" + whyA : "", whyP ? "进度:" + whyP : ""].filter(Boolean).join("；");
-    setSync("云端没拉到(" + why + ") · 显示已有数据 · " + t, "warn");
-  }
-  else setSync("已同步 ✓ " + t, "ok");
-  render();
-  const needPush = (cs && !bad && ((isPending()) || autoN)) && !pushing;
-  if (needPush){
-    try { const ok = await CloudSync.push(KEY_PROG, PROG); setPending(!ok); } catch(e){}
-  }
-}
-
-/* ---------- 渲染 ---------- */
-function getOnly(){
-  try { const u = new URL(location.href); return u.searchParams.get("d") || ""; } catch(e){ return ""; }
-}
-
-function render(){
-  applyLoginState();
-  if (!session()){
-    // 没登录：把上一轮（或"刚退出登录"时留下的）内容彻底抹掉。
-    // 只把内容区隐藏是不够的 —— 退出后 DOM 里还挂着客户名和一堆看着能点的按钮，
-    // 手机递给司机那一下就全看见了。这里连 innerHTML 都不留。
-    $("tabs").innerHTML = "";
-    $("list").innerHTML = "";
-    $("sumTxt").textContent = "请先登录后再操作";
-    lastFp = ""; rendered = false;
-    return;
-  }                      // 没登录：什么都不渲染（连按钮都不存在）
-  ONLY = getOnly();
-  ME = who();                       // ★ 当前操作人：下面每一行的按钮都按他的分工来
-  ROWS = SL.boardRows(RECORDS, PROG, ONLY ? { onlyRec: ONLY } : {});
-  const leftN = ROWS.filter(r => !r.done).length;
-  $("sumTxt").innerHTML = "在屏 <b>" + ROWS.length + "</b> 趟 ｜ 没走完 <b>" + leftN + "</b> 趟" +
-    (ONLY ? " ｜ 只显示这一张单" : "");
-
-  const tabs = [["left", "没走完 " + leftN], ["today", "今天的 " + ROWS.filter(r => r.isToday).length],
-                ["all", "全部 " + ROWS.length], ["done", "已完成 " + ROWS.filter(r => r.done).length]];
-  $("tabs").innerHTML = tabs.map(t => '<button type="button" data-t="' + t[0] + '" class="' +
-    (TAB === t[0] ? "on" : "") + '">' + esc(t[1]) + "</button>").join("");
-
-  const fp = TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.bz, r.u, r.by].join(":")).join("|");
-  if (rendered && fp === lastFp) return;       // 内容没变就不重绘（别打断现场操作）
-  lastFp = fp; rendered = true;
-
-  let show = ROWS;
-  if (TAB === "left") show = ROWS.filter(r => !r.done);
-  else if (TAB === "done") show = ROWS.filter(r => r.done);
-  else if (TAB === "today") show = ROWS.filter(r => r.isToday);
-
-  if (!ROWS.length){
-    $("list").innerHTML = '<div class="flag">今天没有要发的计划。<br>过一会儿再刷新看看。</div>';
-    return;
-  }
-  if (!show.length){
-    $("list").innerHTML = '<div class="flag">这个分类下暂时没有单。<br>点上面别的分类看看。</div>';
-    return;
-  }
-  $("list").innerHTML = show.map(rowHtml).join("");
-  bind();
-}
-
-function rowHtml(r){
-  const s = Math.min(3, r.s || 0), car = r.car || 0;
-  const self = /自提/.test(r.logistics || "");
-  let track = "", lbls = "";
-  for (let i = 0; i < 4; i++){
-    const on = i <= s, cur = (i === s + 1 && s < 3);
-    track += '<span class="n ' + (on ? "on" : (cur ? "cur" : "")) + '">' + (on ? "✓" : (i + 1)) + "</span>";
-    if (i < 3) track += '<span class="ln ' + (i < s ? "on" : "") + '"></span>';
-    lbls += '<span class="' + (on ? "on" : (cur ? "cur" : "")) + '">' + LITTLE[i] + "</span>";
-  }
-  /* 司机没签到就点「装货中 / 已完成」→ 按钮压暗 + 上方写明原因，点了也会弹提示拦下 */
-  const needCar = s < 3 ? SL.stepBlock({ car: car, cx: r.cx, bz: r.bz }, s + 1) : "";
-  /* 被拦时给「怎么解」的建议：缺车说车、缺质保书说质保书（文案只在这一处生成） */
-  const needHint = /质保书/.test(needCar) ? "先在本行点「✓ 质保书好了」。"
-                                          : "让司机扫「司机签到码」签到，或在本行点「✓ 车已到」。";
-  /* ★ 分工（2026-09-24）：这一步有没有分配给我？没分配 → 按钮压暗成「不是你负责的」，
-     点了会说明原因（文案口径全在 SL.opBlock，页面不自己编）。 */
-  const lkGo = s < 3 ? SL.opBlock(ME, NEXTOP[s + 1]) : "";
-  const lkCar  = SL.opBlock(ME, "car");
-  const lkBz   = SL.opBlock(ME, "bz");
-  const lkUndo = SL.opBlock(ME, SL.undoOpOf({ s: (r.rs == null ? s : r.rs), car: r.car, ct: r.ct, t: r.t }));
-  const goHtml = s < 3
-    ? (lkGo
-        ? '<button type="button" class="go lock" data-lock="' + esc(lkGo) + '">🔒 ' +
-          esc(SL.STEP_NAME[s + 1]) + ' —— 不是你负责的</button>'
-        : '<button type="button" class="go' + (s === 1 ? " s2" : (s === 2 ? " s3" : "")) + (needCar ? " lock" : "") +
-          '" data-go="1"' + (needCar ? ' title="' + esc(needCar) + '"' : "") +
-          '>点一下完成「' + esc(SL.STEP_NAME[s + 1]) + '」</button>')
-    : '<button type="button" class="go fin" data-go="0">已完成 ✓（再点无变化）</button>';
-  const tsTxt = (r.t ? "工序 <b>" + esc(SL.STEP_NAME[s]) + "</b> " + esc(SL.fmtHM(r.t)) + (r.by ? " · " + esc(r.by) : "") : "") +
-                (r.ct ? "　车已到 <b>" + esc(SL.fmtHM(r.ct)) + "</b>" : "") +
-                (r.bz && r.bzt ? "　质保书 <b>" + esc(SL.fmtHM(r.bzt)) + "</b>" + (r.bzb ? " · " + esc(r.bzb) : "") : "");
-  return '<div class="row ' + (r.done ? "done" : "") + (r.stale && !r.done ? " late" : "") +
-    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '">' +
-    '<div class="rh"><div class="nm">' +
-      '<div class="name">' + (r.stale ? '<span class="lateTag">昨</span>' : "") + esc(r.customer) + "</div>" +
-      '<div class="meta">' +
-        '<span class="logi' + (self ? " self" : "") + '">' + esc(r.logistics || "未填物流") + "</span>" +
-        "<span>单号 <b>" + esc(r.no || "—") + "</b></span>" +
-        "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span>" +
-        "<span>共 <b>" + (r.qty || 0) + "</b> 件</span>" +
-      "</div>" +
-    "</div>" +
-    '<span class="badge s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>" +
-    '<div class="steps"><div class="track">' + track + '</div><div class="lbls">' + lbls + "</div></div>" +
-    '<div class="acts">' + ((needCar && !lkGo) ? '<div class="needcar"><b>🚫</b><span>' + esc(needCar) +
-        '。<br>' + needHint + '</span></div>' : "") + goHtml +
-      (lkBz
-        ? '<div class="row2"><button type="button" class="lkbar" data-lock="' + esc(lkBz) +
-          '">🔒 质保书 —— 不是你负责的</button></div>'
-        : '<div class="row2"><div class="car">' +
-            '<button type="button" class="' + (r.bz ? "" : "act") + '" data-bz="0">📄 质保书未好</button>' +
-            '<button type="button" class="' + (r.bz ? "act2" : "") + '" data-bz="1">✓ 质保书好了</button>' +
-          '</div></div>') +
-      '<div class="row2">' + (lkCar
-        ? '<button type="button" class="lkbar" data-lock="' + esc(lkCar) + '">🔒 车到 —— 不是你负责的</button>'
-        : '<div class="car">' +
-            '<button type="button" class="' + (car ? "" : "act") + '" data-car="0">🚚 车未到</button>' +
-            '<button type="button" class="' + (car ? "act2" : "") + '" data-car="1">✓ 车已到</button>' +
-          '</div>') +
-        '<button type="button" class="undo' + (lkUndo ? " lkb" : "") + '" data-undo="1"' +
-          (lkUndo ? ' data-lock="' + esc(lkUndo) + '"' : ' title="撤回最近那一次"') + '>↩</button></div>' +
-      (tsTxt ? '<div class="ts">' + tsTxt + "</div>" : "") +
-    "</div></div>";
-}
-
-function bind(){
-  $("tabs").querySelectorAll("button").forEach(b => {
-    b.onclick = () => { TAB = b.dataset.t; lastFp = ""; render(); };
-  });
-  $("list").querySelectorAll(".row").forEach(row => {
-    const rk = row.dataset.r, ck = row.dataset.k;
-    const go = row.querySelector("[data-go]");
-    if (go) go.onclick = () => step(rk, ck);
-    row.querySelectorAll("[data-car]").forEach(b => { b.onclick = () => setCar(rk, ck, b.dataset.car === "1"); });
-    row.querySelectorAll("[data-bz]").forEach(b => { b.onclick = () => setBz(rk, ck, b.dataset.bz === "1"); });
-    const un = row.querySelector("[data-undo]");
-    if (un) un.onclick = () => undo(rk, ck);
-    /* ★ 最后再挂一遍「没分配给你」的那些按钮：点了只说明原因，绝不动数据
-       （放在最后 = 覆盖上面的动作绑定，锁住的按钮天然点不动） */
-    row.querySelectorAll("[data-lock]").forEach(b => { b.onclick = () => lockTip(b.dataset.lock); });
-  });
-}
-
-/* ---------- 三个动作（都走 scan-lib，都会 +rv） ---------- */
-function refresh(){ lastFp = ""; render(); }
-function who(){ return SL.staffName(); }
-/* ★ 这一步没分配给他：点了不能静默无反应 —— 说清楚是哪一步、他能点哪几步。
-   文案由 SL.opBlock 统一给（页面不自己编）。 */
-function lockTip(msg){ SL.uiAlert(msg, { title: "🔒 这一步不是你负责的", okText: "知道了" }); }
-
-function step(rk, ck){
-  if (!session()){ tip("请先登录", "err"); return; }
-  const cur = (PROG[rk] || {})[ck] || {};
-  const s = cur.s || 0;
-  if (s >= 3){ tip("已经是最后一步「已完成」了"); return; }
-  /* ★ 分工：没分配给他这一步，按钮本来就是压暗的，这里再硬拦一道（防手滑/防绕） */
-  const lk = SL.opBlock(who(), NEXTOP[s + 1]);
-  if (lk){ lockTip(lk); return; }
-  const cust = String(ck).split("|")[0];
-  /* ★ 司机没签到（车未到）/ 品一质保书没好 → 对应的工序推不了（2026-09-22 / 09-23 用户要求）。
-     用「知道了」的提示框说清楚怎么回事、怎么解 —— 不要静默无反应。 */
-  const blocked = SL.stepBlock(cur, s + 1, cust);
-  if (blocked){
-    /* 「怎么解」跟着被拦的原因走：缺车说车、缺质保书说质保书（别把车的话术套到质保书上） */
-    const how = /质保书/.test(blocked)
-      ? "怎么解：\n" +
-        "① 先确认品一质保书已经备好（在本行点「✓ 质保书好了」）；\n" +
-        "② 备好之后再点这一步；\n" +
-        "③ 如果这一步是点错的，点「↩」撤回一格。"
-      : "怎么解：\n" +
-        "① 让司机扫「司机签到码」签到（车已到）；\n" +
-        "② 或在本行点「✓ 车已到」手动标记；\n" +
-        "③ 如果这一步是点错的，点「↩」撤回一格。";
-    SL.uiAlert("【" + cust + "】" + blocked + "。\n\n" + how,
-      { title: "🚫 不能推进工序", okText: "知道了" });
-    return;
-  }
-  SL.uiConfirm("确认把【" + cust + "】的工序推进到「" + SL.STEP_NAME[s + 1] + "」？\n（点错了可随时按「↩」撤回）", () => {
-    const r = SL.applyStep(PROG, rk, ck, +1, who());
-    if (!r.changed){ tip("已经是「" + SL.STEP_NAME[s + 1] + "」了"); return; }
-    saveProg("已更新：" + SL.STEP_NAME[r.to]);
-    refresh();
-  }, { title: "确认推进工序" });
-}
-function setCar(rk, ck, v){
-  if (!session()){ tip("请先登录", "err"); return; }
-  const lk = SL.opBlock(who(), "car");          // ★ 分工硬拦
-  if (lk){ lockTip(lk); return; }
-  const cur = ((PROG[rk] || {})[ck] || {});
-  if ((cur.car || 0) === (v ? 1 : 0)){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
-  const cust = String(ck).split("|")[0];
-  SL.uiConfirm("确认把【" + cust + "】标记为「" + (v ? "车已到" : "车未到") + "」？", () => {
-    const r = SL.applyCar(PROG, rk, ck, v, who());   // ★ 补传操作人：权限与留痕都靠它
-    if (!r.changed){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
-    saveProg(v ? "已标记：车已到" : "已标记：车未到");
-    refresh();
-  }, { title: "确认车辆状态" });
-}
-function setBz(rk, ck, v){
-  if (!session()){ tip("请先登录", "err"); return; }
-  const lk = SL.opBlock(who(), "bz");           // ★ 分工硬拦
-  if (lk){ lockTip(lk); return; }
-  const cur = ((PROG[rk] || {})[ck] || {});
-  if (!v && !(cur.bz || 0) && SL.bzExempt && SL.bzExempt(String(ck).split("|")[0])){ tip("这个客户不用质保书，系统默认「已备好」"); return; }
-  if ((cur.bz || 0) === (v ? 1 : 0)){ tip(v ? "已经是「质保书好了」" : "本来就是「质保书未好」"); return; }
-  const cust = String(ck).split("|")[0];
-  SL.uiConfirm("确认【" + cust + "】的品一质保书已经" + (v ? "备好了？" : "没好？（撤掉「已备好」）"), () => {
-    const r = SL.applyBz(PROG, rk, ck, v, who());
-    if (!r.changed){ tip(r.blocked || (v ? "已经是「质保书好了」" : "本来就是「质保书未好」")); return; }
-    saveProg(v ? "已确认：品一质保书好了" : "已撤回：品一质保书未好");
-    refresh();
-  }, { title: "确认品一质保书" });
-}
-function undo(rk, ck){
-  if (!session()){ tip("请先登录", "err"); return; }
-  const cur = (PROG[rk] || {})[ck] || {};
-  if (!(cur.s || 0) && !(cur.car || 0)){ tip("这一步还没动过，没有可撤回的"); return; }
-  const lk = SL.opBlock(who(), SL.undoOpOf(cur));   // ★ 撤回也要看他有没有那一步的权限
-  if (lk){ lockTip(lk); return; }
-  const cust = String(ck).split("|")[0];
-  SL.uiConfirm("撤回【" + cust + "】的「最近那一次」？\n（工序退一格；如果最后动的是车辆，就撤车已到）", () => {
-    const r = SL.applyUndo(PROG, rk, ck, who());
-    if (!r.changed){ tip("没有可撤回的"); return; }
-    saveProg("已撤回：" + r.what);
-    refresh();
-  }, { title: "确认撤回" });
-}
-
-/* ---------- 模糊搜索（登录后定位客户） ---------- */
-function openSearch(){
-  if (!session()) return;              // 没登录用不了（结构上也进不去）
-  $("searchModal").className = "modal show";
-  const i = $("searchInput"); i.value = ""; renderSearch("");
-  setTimeout(() => { try { i.focus(); } catch(e){} }, 30);
-}
-function closeSearch(){ $("searchModal").className = "modal"; $("searchResults").innerHTML = ""; }
-// 模糊匹配：客户名 / 单号 / 物流 / 型号 任一含关键词即中；客户名再做「子序列」容错（漏字/顺序错也能中）
-function fuzzyHit(r, q){
-  q = (q || "").trim().toLowerCase();
-  if (!q) return true;
-  const hay = [r.customer, r.no, r.logistics, (r.models || []).join(" ")].join(" ").toLowerCase();
-  if (hay.indexOf(q) >= 0) return true;
-  const nm = (r.customer || "").toLowerCase().replace(/\s+/g, "");
-  let i = 0;
-  for (const ch of nm){ if (ch === q[i]) i++; if (i === q.length) return true; }
-  return false;
-}
-function renderSearch(q){
-  const box = $("searchResults");
-  const hits = ROWS.filter(r => fuzzyHit(r, q));
-  if (!hits.length){ box.innerHTML = '<div class="mempty">没找到匹配的客户<br>换个关键词试试</div>'; return; }
-  box.innerHTML = hits.map(r => {
-    const s = Math.min(3, r.s || 0);
-    return '<button type="button" class="sit" data-r="' + esc(r.rk) + '" data-k="' + esc(r.ck) + '">'
-      + '<div class="sn">' + esc(r.customer) + '<span class="sb s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>"
-      + '<div class="sm"><span>单号 <b>' + esc(r.no || "—") + "</b></span>"
-      + "<span>物流 <b>" + esc(r.logistics || "未填物流") + "</b></span>"
-      + "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span></div></button>";
-  }).join("");
-  box.querySelectorAll(".sit").forEach(b => { b.onclick = () => jumpTo(b.dataset.r, b.dataset.k); });
-}
-// 点结果 → 切到「全部」分类保证该行在屏 → 滚到它并高亮一下
-function jumpTo(rk, ck){
-  TAB = "all"; lastFp = ""; render();
-  setTimeout(() => {
-    const row = $("list").querySelector('.row[data-r="' + rk + '"][data-k="' + ck + '"]');
-    if (row){ try { row.scrollIntoView({ block: "center" }); } catch(e){} row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1600); }
-    closeSearch();
-  }, 40);
-}
-$("searchOpen").onclick = openSearch;
-$("searchClose").onclick = closeSearch;
-$("searchInput").addEventListener("input", (e) => renderSearch(e.target.value));
-$("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter"){ const f = $("searchResults").querySelector(".sit"); if (f) f.onclick(); } });
-$("searchModal").addEventListener("click", (e) => { if (e.target === $("searchModal")) closeSearch(); });
-
-/* ---------- 启动 ---------- */
-function boot(){
-  if (window.CloudSync){
-    CloudSync.init();
-    try { if (CloudSync.guard) CloudSync.guard(KEY_PROG, SL.guardFn); } catch(e){}
-  }
-  loadLocal();
-  applyLoginState();
-  $("pwd").value = "";
-  if (session() && RECORDS.length){
-    render();  /* 先画本机缓存，秒开不白屏；云端拉到后 pull() 内部会再 render 覆盖 */
-    if (window.CloudSync && CloudSync.ready()) setSync("正在刷新云端…", "warn");
-  }
-  pull();
-  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
-  window.addEventListener("online", () => pull());
-}
-boot();
-</script>
-<script src="brand.js?v=3"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>发货进度</title>
+<script src="supabase.min.js?v=lib"></script>
+<script src="cloud-config.js?v=20260920a"></script>
+<script src="cloud-sync.js?v=20260922d"></script>
+<script src="scan-lib.js?v=20260924g"></script>
+<script src="staff-config.js?v=20260924c"></script>
+<style>
+  /* ==========================================================================
+     内部工序操作页（手机端）—— 四道工序只有内部人员能点
+     · 一个码通吃：扫开就是「今天」的所有客户行，不用每张单一个码
+     · 先登录才出现任何可点按钮
+       ★ 2026-09-23 起**统一用手机号 + 密码登录**（和发货计划 / 订单管理同一套账号）；
+         登录后按手机号在 staff-config.js 名册里查出中文姓名 = 工序记录里的「谁点的」。
+     · 司机请扫「司机签到码」，那一页只有车已到和撤回
+     ========================================================================== */
+  :root{
+    --blue:#2563eb; --blue-d:#1d4ed8;
+    --bg:#eef1f6; --card:#fff; --line:#dbe1ea;
+    --txt:#111827; --muted:#5b6676; --muted2:#93a0b4;
+    --green:#059669; --amber:#d97706;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{font-family:"PingFang SC","Microsoft YaHei","微软雅黑",system-ui,sans-serif;background:var(--bg);
+    color:var(--txt);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+    padding-bottom:calc(26px + env(safe-area-inset-bottom));}
+  .hd{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+    color:#fff;padding:7px 12px 6px;box-shadow:0 3px 14px rgba(15,23,42,.28);}
+  .hd .r1{display:flex;align-items:center;gap:7px;white-space:nowrap;}
+  .hd .r1 .dot{width:6px;height:20px;background:#38bdf8;border-radius:2px;flex-shrink:0;
+    box-shadow:0 0 10px rgba(56,189,248,.85);}
+  .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;}
+  .hd .who{margin-left:auto;display:none;align-items:center;gap:6px;font-size:12px;color:#cbd5e1;min-width:0;}
+  .hd .who.on{display:flex;}
+  .hd .who b{color:#fff;font-weight:800;}
+  .hd .who .nm{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hd .ops{margin-top:2px;font-size:11.5px;color:#94a3b8;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hd .ops:empty{display:none;}
+  .hd .who button{background:rgba(255,255,255,.10);border:1px solid rgba(148,163,184,.4);color:#cbd5e1;
+    padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;}
+  .hd .r2{display:inline;margin-top:0;font-size:12px;color:#cbd5e1;}
+  .hd .r2 b{color:#fff;font-weight:700;}
+  .sync{display:inline;font-size:11.5px;letter-spacing:.4px;margin-left:10px;}
+  .sync.ok{color:#7dd3fc;} .sync.warn{color:#fbbf24;} .sync.err{color:#f87171;}
+
+  .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
+
+  /* ============ 登录 ============ */
+  #login{display:none;}
+  #login.on{display:block;}
+  .lg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 16px;
+    box-shadow:0 1px 4px rgba(15,23,42,.07);}
+  .lg h2{font-size:17px;margin:0 0 3px;font-weight:800;}
+  .lg p{margin:0 0 14px;font-size:12.5px;color:var(--muted);line-height:1.7;}
+  .lg label{display:block;font-size:13px;font-weight:700;color:#334155;margin:11px 0 5px;}
+  .lg input{width:100%;padding:11px 12px;font-size:16px;border:1px solid var(--line);border-radius:9px;
+    font-family:inherit;background:#fbfcfe;}
+  .lg input:focus{outline:none;border-color:var(--blue);background:#fff;}
+  .lg button{margin-top:16px;width:100%;padding:13px;font-size:16.5px;font-weight:800;border:none;border-radius:10px;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-family:inherit;
+    box-shadow:0 3px 12px rgba(37,99,235,.28);}
+  .lg .msg{margin-top:11px;font-size:13px;font-weight:700;color:#b91c1c;min-height:19px;}
+  .note{margin-top:14px;background:#f1f5f9;border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+    font-size:12.5px;color:var(--muted);line-height:1.75;}
+  .note b{color:#334155;}
+
+  /* ============ 列表 ============ */
+  #app{display:none;}
+  #app.on{display:block;}
+  .tabs{display:flex;gap:7px;margin-bottom:10px;}
+  .tabs button{flex:1;padding:9px 6px;border-radius:9px;border:1px solid var(--line);background:#fff;
+    color:var(--muted);font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;}
+  .tabs button.on{background:#0f172a;border-color:#0f172a;color:#fff;}
+
+  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;
+    overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .row.done{border-color:#a7f3d0;background:linear-gradient(180deg,#f7fffb,#fff);}
+  .row.late{border-color:#fecaca;background:linear-gradient(180deg,#fffafa,#fff);}
+  .rh{padding:11px 12px 9px;display:flex;gap:10px;align-items:flex-start;}
+  .rh .nm{flex:1;min-width:0;}
+  .rh .name{font-size:16.5px;font-weight:800;letter-spacing:.2px;word-break:break-all;line-height:1.35;}
+  .rh .meta{margin-top:3px;display:flex;flex-wrap:wrap;gap:3px 10px;font-size:12px;color:var(--muted);}
+  .rh .meta b{color:#334155;font-weight:700;}
+  .rh .meta .logi{display:inline-block;padding:0 7px;border-radius:999px;background:#eef2ff;
+    color:#3730a3;font-weight:700;font-size:11.5px;line-height:1.7;}
+  .rh .meta .logi.self{background:#f1f5f9;color:#475569;}
+  .rh .lateTag{display:inline-block;padding:0 6px;border-radius:4px;font-size:10.5px;font-weight:800;
+    background:#fee2e2;color:#b91c1c;margin-right:5px;vertical-align:1px;}
+  .rh .badge{flex-shrink:0;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:800;color:#fff;
+    background:var(--muted2);white-space:nowrap;margin-top:2px;}
+  .rh .badge.s0{background:#94a3b8;} .rh .badge.s1{background:#0ea5e9;}
+  .rh .badge.s2{background:#f59e0b;} .rh .badge.s3{background:#10b981;}
+
+  .steps{padding:2px 12px 0;}
+  .track{display:flex;align-items:center;}
+  .track .n{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
+    justify-content:center;background:#e6ebf3;color:#94a3b8;font-size:12px;font-weight:800;border:2px solid #e6ebf3;}
+  .track .n.on{background:var(--green);border-color:var(--green);color:#fff;}
+  .track .n.cur{background:#fff;border-color:#f59e0b;color:#d97706;box-shadow:0 0 0 3px rgba(245,158,11,.18);}
+  .track .ln{flex:1;height:3px;background:#e6ebf3;margin:0 1px;}
+  .track .ln.on{background:var(--green);}
+  .lbls{display:flex;margin-top:4px;}
+  .lbls span{flex:1;text-align:center;font-size:10.5px;color:var(--muted2);font-weight:700;line-height:1.35;}
+  .lbls span.on{color:#047857;} .lbls span.cur{color:#b45309;}
+
+  .acts{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px;}
+  .go{width:100%;min-height:54px;border:none;border-radius:11px;cursor:pointer;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:17px;font-weight:800;
+    letter-spacing:.6px;box-shadow:0 3px 12px rgba(37,99,235,.30);display:flex;align-items:center;
+    justify-content:center;gap:7px;font-family:inherit;}
+  .go:active{transform:translateY(2px);}
+  .go.s2{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 3px 12px rgba(217,119,6,.30);}
+  .go.s3{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 3px 12px rgba(5,150,105,.30);}
+  .go.fin{background:#e8f6ef;color:#047857;box-shadow:none;border:2px solid #a7f3d0;font-size:16px;}
+  /* 司机没签到 → 「装货中 / 已完成」暂时推不了（2026-09-22）：按钮压暗 + 上方写明原因 */
+  .go.lock{background:linear-gradient(135deg,#cbd5e1,#94a3b8);box-shadow:none;}
+  /* ★ 不是你负责的那一步：压暗 + 🔒，点一下会说清楚为什么（绝不静默无反应） */
+  .lkbar{width:100%;text-align:left;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:10px;
+     color:#94a3b8;font-size:13px;font-weight:700;padding:9px 11px;cursor:pointer;font-family:inherit;}
+  .lkbar:active{background:#e2e8f0;}
+  .undo.lkb{background:#f1f5f9;color:#cbd5e1;border-color:#e2e8f0;}
+  .needcar{display:flex;gap:7px;align-items:flex-start;font-size:13px;line-height:1.4;color:#b45309;
+    background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:7px 10px;}
+  .row2{display:flex;gap:8px;align-items:stretch;}
+  .car{flex:1;display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#f8fafc;}
+  .car button{flex:1;min-height:46px;border:none;background:transparent;cursor:pointer;font-size:14.5px;
+    font-weight:800;color:var(--muted);letter-spacing:.3px;display:flex;align-items:center;
+    justify-content:center;gap:5px;font-family:inherit;}
+  .car button.act{background:#fef3c7;color:#b45309;}
+  .car button.act2{background:#d1fae5;color:#047857;}
+  .car button:not(:first-child){border-left:1.5px solid var(--line);}
+  .undo{flex-shrink:0;width:52px;border:1.5px solid var(--line);border-radius:10px;background:#f8fafc;
+    color:var(--muted);font-size:18px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .ts{font-size:11.5px;color:var(--muted2);margin-top:-1px;text-align:right;}
+  .ts b{color:#475569;font-weight:700;}
+
+  .flag{background:#fff;border:1px dashed #94a3b8;border-radius:12px;padding:20px 16px;text-align:center;
+    color:var(--muted);font-weight:600;font-size:14px;line-height:1.8;}
+
+  #tip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
+    transform:translateX(-50%) translateY(24px);background:rgba(17,24,39,.94);color:#fff;padding:11px 18px;
+    border-radius:999px;font-size:14px;font-weight:700;max-width:88vw;text-align:center;opacity:0;
+    pointer-events:none;transition:.22s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.28);}
+  #tip.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #tip.warn{background:#b45309;} #tip.err{background:#b91c1c;}
+
+  /* ============ 模糊搜索 ============ */
+  .searchbar{padding:0 0 4px;}
+  .sbtn{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:11px;background:#fff;
+    color:var(--muted);font-size:14.5px;font-weight:700;text-align:left;font-family:inherit;cursor:pointer;
+    box-shadow:0 1px 3px rgba(15,23,42,.06);display:flex;align-items:center;gap:7px;}
+  .sbtn:active{background:#f1f5f9;}
+  .modal{position:fixed;inset:0;z-index:120;background:rgba(15,23,42,.55);
+    display:none;flex-direction:column;backdrop-filter:blur(2px);}
+  .modal.show{display:flex;}
+  .mhd{display:flex;gap:8px;padding:12px 12px 8px;background:#0f172a;align-items:center;}
+  .mhd input{flex:1;min-width:0;padding:11px 13px;border:none;border-radius:10px;font-size:16px;
+    font-family:inherit;background:#1e293b;color:#fff;outline:none;}
+  .mhd input::placeholder{color:#94a3b8;}
+  .mclose{flex-shrink:0;padding:0 14px;height:44px;border:1px solid rgba(148,163,184,.4);border-radius:10px;
+    background:rgba(255,255,255,.08);color:#cbd5e1;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;}
+  .mres{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--bg);padding:10px 12px 40px;}
+  .sit{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:11px 13px;margin-bottom:9px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .sit:active{background:#f1f5f9;}
+  .sit .sn{font-size:16px;font-weight:800;color:#0f172a;line-height:1.35;word-break:break-all;}
+  .sit .sm{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 10px;font-size:12px;color:var(--muted);}
+  .sit .sm b{color:#334155;font-weight:700;}
+  .sit .sb{flex-shrink:0;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:800;color:#fff;margin-left:8px;}
+  .sit .sb.s0{background:#94a3b8;} .sit .sb.s1{background:#0ea5e9;} .sit .sb.s2{background:#f59e0b;} .sit .sb.s3{background:#10b981;}
+  .mempty{text-align:center;color:var(--muted);font-weight:600;font-size:14px;padding:40px 10px;line-height:1.8;}
+  .row.flash{animation:rowflash 1.6s ease-out;}
+  @keyframes rowflash{0%{box-shadow:0 0 0 0 rgba(37,99,235,.0);background:#fff;}
+    18%{box-shadow:0 0 0 4px rgba(37,99,235,.55);background:#eff6ff;}
+    100%{box-shadow:0 1px 3px rgba(15,23,42,.06);background:#fff;}}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b1220">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="发货计划">
+</head>
+<body>
+
+<div class="hd">
+  <div class="r1">
+    <span class="dot"></span>
+    <h1>发货进度</h1>
+    <div class="who" id="who"><span class="nm">操作人 <b id="whoName">—</b></span><button type="button" id="logout">退出</button></div>
+  </div>
+  <div class="r2" id="sumTxt">正在读取…</div>
+  <div class="sync" id="sync">正在连接云端…</div>
+  <div class="ops" id="whoOps"></div>
+</div>
+
+<div class="wrap">
+  <!-- 没登录：只给登录框，一个可点按钮都不出现 -->
+  <div id="login">
+    <div class="lg">
+      <h2>内部人员登录</h2>
+      <p>四道工序（待确认 / 货好 / 装货中 / 已完成）只有内部人员能点，<br>而且<b>每个人只能点分配给他的那几步</b>。<br>用管理员给你的<b>手机号 + 密码</b>登录，这台手机会记住，之后不用每次输。</p>
+      <label>手机号</label>
+      <input id="uid" type="tel" inputmode="numeric" autocomplete="username" placeholder="例如 13800138000">
+      <label>密码</label>
+      <input id="pwd" type="password" autocomplete="current-password" placeholder="请输入密码">
+      <button type="button" id="doLogin">登录</button>
+      <div class="msg" id="lgMsg"></div>
+      <div class="note">和「发货计划」「订单管理」是 <b>同一套账号</b>：手机号 + 密码。<br>登不进来 → 找管理员确认这个手机号有没有开通账号。</div>
+    </div>
+    <div class="note">
+      <b>司机请扫「司机签到码」。</b>司机那一页只能勾「车已到」和撤回，不需要登录，也点不到工序 —— 这是故意的。
+    </div>
+  </div>
+
+  <!-- 登录后 -->
+  <div id="app">
+    <div class="searchbar" id="searchWrap">
+      <button type="button" id="searchOpen" class="sbtn">🔍 搜索客户 / 单号 / 物流…</button>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<!-- 模糊搜索弹出层（登录后才用得到，没登录时整页只有登录框） -->
+<div id="searchModal" class="modal">
+  <div class="mhd">
+    <input id="searchInput" type="search" autocomplete="off" placeholder="输入客户名 / 单号 / 物流 / 型号…">
+    <button type="button" id="searchClose" class="mclose">取消</button>
+  </div>
+  <div id="searchResults" class="mres"></div>
+</div>
+
+<div id="tip"></div>
+
+<script src="auth.js?v=20260924a"></script>
+<!-- ★ 2026-09-23：这一页**不挂全站门禁**（Auth.guard）——
+     它自己就是登录页（手机号 + 密码），登进来才有按钮；再挂 guard 会变成
+     「先跳 login.html → 回扫码页 → 已登录直接进」的绕圈，没有任何额外作用。 -->
+<script>
+  /* ==========================================================================
+     账号 ↔ 工序身份（2026-09-23 定稿）
+     · 登录 = Supabase 账号（手机号 + 密码），和发货计划 / 订单管理同一套。
+     · 姓名**不来自 Supabase**（账号里只存了邮箱，没有中文名）：
+       拿手机号到 staff-config.js 名册里查 → 查到谁就是谁。
+     · 名册里查不到 = 不是工序操作人 → 不放行（提示找管理员加人）。
+     · 页面内部仍然只用 staff_session_v1 这一张会话（工序记录靠它写「谁点的」），
+       账号会话换成它，只是「开机自动补一张」，换手机/清缓存才需要再输一次密码。
+     ========================================================================== */
+  function phoneOfAuth(s){
+    var em = (s && s.email) || "";
+    return em.indexOf("@") >= 0 ? em.split("@")[0] : em;
+  }
+  /* 手机号 → 姓名（名册唯一口径）；手机号对不上再退回「账号里的姓名」比对 */
+  function staffNameFor(authSess){
+    var phone = String(phoneOfAuth(authSess) || "").trim();
+    var nm = String((authSess && authSess.name) || "").trim();
+    var list = (window.STAFF && window.STAFF.users) || [];
+    for (var i = 0; i < list.length; i++){
+      if (phone && String(list[i].phone || "").trim() === phone) return String(list[i].name || list[i].id || "");
+    }
+    for (var j = 0; j < list.length; j++){
+      var u = list[j];
+      if (nm && (String(u.name || "") === nm || String(u.id || "") === nm)) return String(u.name || u.id || "");
+    }
+    return "";
+  }
+  /* 把账号会话换成一张本机「内部工序」会话（合法签名字，staffSession 才认） */
+  function claimStaffSession(name){
+    var SLb = window.ScanLib;
+    if (!name || !SLb) return false;
+    var cfg = window.STAFF || {};
+    var exp = Date.now() + (Number(cfg.days) > 0 ? Number(cfg.days) : 30) * 86400000;
+    var ver = String(cfg.ver || ""), salt = String(cfg.salt || "");
+    var tok = SLb.sha256Hex(salt + ":" + name + ":" + exp + ":" + ver + ":sess");
+    var ses = { id: name, name: name, exp: exp, v: ver, tok: tok };
+    if (SLb.staffPersist) { SLb.staffPersist(ses); return true; }
+    try { localStorage.setItem("staff_session_v1", JSON.stringify(ses)); } catch (e) { return false; }
+    return true;
+  }
+  /* 开机：已经有账号会话 → 直接认领，免再输一次密码 */
+  (function () {
+    try {
+      if (window.Auth && Auth.getSession && Auth.getSession()) {
+        var nm = staffNameFor(Auth.getSession());
+        if (nm) claimStaffSession(nm);
+      }
+    } catch (e) {}
+  })();
+</script>
+
+<script>
+/* ==========================================================================
+   发货进度 · 内部工序操作页
+   1. 一个码通吃：进来就是「今天」的所有客户行（和门口大屏同一份口径，
+      都来自 scan-lib.boardRows），不再每张单/每个人单独出码。
+   2. 没登录 → 整页只有登录框，连按钮都不渲染（不是"藏起来"，是没有）。
+   3. 每次动作都会带上操作人（账号对应的姓名），大屏和这里都能看到"谁点的"。
+   4. 进度写入都走 scan-lib.applyStep / applyCar / applyUndo，这三个函数会同时 +rv，
+      否则云端那条护栏会把「撤回」抬回去。
+   ========================================================================== */
+const SL = window.ScanLib;
+const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
+const KEY_PLANS_STAMP = "shipping_plans_stamp_v1";  /* 云端计划数据的 updated_at 戳（弱网免拉全文） */
+const $ = (id) => document.getElementById(id);
+const esc = SL.esc;
+const POLL_MS = 60000;
+const LITTLE = ["待确认", "货好", "装货中", "已完成"];
+/* 工序号 → 动作码（跟 scan-lib 的五个权限码对齐）：点「下一步」要哪一步的权限 */
+const NEXTOP = ["", "hh", "load", "done"];
+
+let RECORDS = [], PROG = {}, ROWS = [], TAB = "left", ONLY = "", rendered = false, lastFp = "";
+let ME = "";   /* 当前操作人（分工权限按他算；每次 render 刷新） */
+
+/* 操作人姓名显示全：放不下就缩字号（12px→9px），绝不截断成「操…」 */
+function fitWho(){
+  const nm = document.querySelector(".hd .who .nm");
+  if (!nm) return;
+  nm.style.fontSize = "";
+  for (let fs = 12; fs >= 9; fs -= 0.5){
+    nm.style.fontSize = fs + "px";
+    if (nm.scrollWidth <= nm.clientWidth + 1) break;
+  }
+}
+/* ---------- 登录（手机号 + 密码 → Supabase 账号，和发货计划页同一套） ---------- */
+function session(){ return SL.staffSession(); }
+function applyLoginState(){
+  const s = session();
+  $("login").className = s ? "" : "on";
+  $("app").className = s ? "on" : "";
+  $("who").className = "who" + (s ? " on" : "");
+  if (s){
+    $("whoName").textContent = s.name || s.id;
+    fitWho();
+    /* ★ 我这次登录能点哪几步，写在右上角 —— 免得工人以为「按钮坏了」
+       （口径来自名册的 ops，唯一实现在 scan-lib.myOps） */
+    const my = SL.myOps ? SL.myOps() : [];
+    $("whoOps").textContent = my.length ? "工序：" + my.map(SL.opName).join("·") : "未分配工序";
+  }
+  lastFp = "";
+}
+/* 登录：先过云端账号（手机号 + 密码），再拿手机号去名册里换姓名。
+   两道都过才算登录成功 —— 光有账号、不在工序名单里，照样点不到工序。 */
+async function doLogin(){
+  const acc = $("uid").value.trim(), pwd = $("pwd").value;
+  const btn = $("doLogin");
+  if (!acc || !pwd){ $("lgMsg").textContent = "请输入手机号和密码"; return; }
+  if (!window.Auth || !Auth.login){ $("lgMsg").textContent = "登录组件没加载上，请刷新页面再试"; return; }
+  btn.disabled = true; btn.textContent = "登录中…"; $("lgMsg").textContent = "";
+  let r;
+  try { r = await Auth.login(acc, pwd); }
+  catch (e) { r = { ok: false, msg: "连不上云端，检查一下网络再试" }; }
+  btn.disabled = false; btn.textContent = "登录";
+  if (!r.ok){ $("lgMsg").textContent = r.msg || "登录失败"; return; }
+  const name = staffNameFor(Auth.getSession());
+  if (!name){
+    const phone = phoneOfAuth({ email: acc });
+    try { await Auth.logout(); } catch (e) {}
+    $("lgMsg").textContent = "账号 " + phone + " 不在工序名单里，找管理员把你加进去";
+    return;
+  }
+  claimStaffSession(name);
+  $("pwd").value = "";
+  $("lgMsg").textContent = "";
+  applyLoginState();
+  tip("欢迎，" + name);
+  render();
+}
+$("doLogin").onclick = doLogin;
+$("pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+$("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").focus(); });
+$("logout").onclick = () => {
+  SL.uiConfirm("退出登录？下次要重新输手机号和密码。", async () => {
+    try { if (window.Auth && Auth.logout) await Auth.logout(); } catch (e) {}
+    SL.staffLogout(); applyLoginState(); render(); tip("已退出登录");
+  }, { title: "确认退出登录" });
+};
+
+/* ---------- 本机缓存 / 提示 ---------- */
+function loadLocal(){
+  try { const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
+  try { const v = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
+}
+const setPending = (on) => { try { on ? localStorage.setItem(KEY_PENDING, "1") : localStorage.removeItem(KEY_PENDING); } catch(e){} };
+const isPending = () => { try { return localStorage.getItem(KEY_PENDING) === "1"; } catch(e){ return false; } };
+function setSync(t, c){ const e = $("sync"); e.textContent = t; e.className = "sync " + (c || ""); }
+let tipTimer = 0;
+function tip(m, c){
+  const el = $("tip"); el.textContent = m; el.className = "show" + (c ? " " + c : "");
+  clearTimeout(tipTimer); tipTimer = setTimeout(() => { el.className = ""; }, 2400);
+}
+
+/* ---------- 保存 ---------- */
+let pushing = false;
+async function saveProg(msg){
+  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+  setPending(true);
+  if (!(window.CloudSync && CloudSync.ready())){
+    setSync("未连上云端 · 已存本机，稍后自动补传", "warn");
+    tip(msg + "（已存本机）", "warn");
+    return false;
+  }
+  if (pushing) { tip(msg + "（正在上传…）"); return true; }
+  pushing = true;
+  let ok = false;
+  try { ok = await CloudSync.push(KEY_PROG, PROG); } catch(e){ ok = false; }
+  pushing = false;
+  setPending(!ok);
+  if (ok){ setSync("已同步 ✓ " + new Date().toLocaleTimeString("zh-CN", { hour12: false }), "ok"); tip(msg); }
+  else { setSync("同步失败 · 已存本机，稍后自动补传", "warn"); tip(msg + "（已存本机）", "warn"); }
+  return ok;
+}
+
+/* ---------- 拉取 ---------- */
+function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
+async function pull(){
+  const cs = !!(window.CloudSync && CloudSync.ready());
+  let okA = !cs, okP = !cs, whyA = "", whyP = "";
+  if (cs){
+    /* 计划数据大(~268KB)：先查 updated_at 戳(几十字节)，没变就免下载直接用本机缓存 */
+    let skipA = false, newStamp = null;
+    if (CloudSync.pullStamp && RECORDS.length){
+      try {
+        const st = await withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000);
+        if (st && localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; }
+        else if (st) newStamp = st;
+      } catch(e){}
+    }
+    /* 并行拉取：两个键同时请求 */
+    const rs = await Promise.allSettled([
+      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_PLANS), 30000),
+      withTimeout(CloudSync.pullResult(KEY_PROG), 15000)
+    ]);
+    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
+    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
+    if (!skipA){
+      okA = !!(ra && ra.ok);
+      if (okA && Array.isArray(ra.value)){
+        RECORDS = ra.value;
+        /* ★ 拉到就存手机：下次秒开，弱网/断网也有数据可显 */
+        try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
+              if (newStamp) localStorage.setItem(KEY_PLANS_STAMP, newStamp); } catch(e){}
+      }
+    }
+    okP = !!(rp && rp.ok); if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
+    whyA = skipA ? "" : (ra ? (ra.ok ? "" : (ra.reason || "错误")) : "超时");
+    whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
+  }
+  if (!RECORDS.length) loadLocal();
+  try {
+    const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
+    if (Array.isArray(del) && del.length){
+      const st = new Set(del.map(String));
+      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
+    }
+  } catch(e){}
+  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+  /* 预约货好到点 → 落成真实数据（rv+1、留痕「预约货好」）。
+     ★ 这步在现场手机上也很重要：到点后这一行显示的是「货好」，
+       工人点「下一步」应该是往前走到「装货中」；不落库的话数据里还是 0，
+       点一下只会从 0 变成 1（还是「货好」），看着像"点了没反应"。 */
+  let autoN = 0;
+  try { autoN = session() ? (SL.applyReadyAuto(PROG, who()) || 0) : 0; } catch(e){ autoN = 0; }
+  if (autoN){ try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){} }
+  const bad = !okA || !okP;
+  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
+  else if (bad){
+    const why = [whyA ? "计划:" + whyA : "", whyP ? "进度:" + whyP : ""].filter(Boolean).join("；");
+    setSync("云端没拉到(" + why + ") · 显示已有数据 · " + t, "warn");
+  }
+  else setSync("已同步 ✓ " + t, "ok");
+  render();
+  const needPush = (cs && !bad && ((isPending()) || autoN)) && !pushing;
+  if (needPush){
+    try { const ok = await CloudSync.push(KEY_PROG, PROG); setPending(!ok); } catch(e){}
+  }
+}
+
+/* ---------- 渲染 ---------- */
+function getOnly(){
+  try { const u = new URL(location.href); return u.searchParams.get("d") || ""; } catch(e){ return ""; }
+}
+
+function render(){
+  applyLoginState();
+  if (!session()){
+    // 没登录：把上一轮（或"刚退出登录"时留下的）内容彻底抹掉。
+    // 只把内容区隐藏是不够的 —— 退出后 DOM 里还挂着客户名和一堆看着能点的按钮，
+    // 手机递给司机那一下就全看见了。这里连 innerHTML 都不留。
+    $("tabs").innerHTML = "";
+    $("list").innerHTML = "";
+    $("sumTxt").textContent = "请先登录后再操作";
+    lastFp = ""; rendered = false;
+    return;
+  }                      // 没登录：什么都不渲染（连按钮都不存在）
+  ONLY = getOnly();
+  ME = who();                       // ★ 当前操作人：下面每一行的按钮都按他的分工来
+  ROWS = SL.boardRows(RECORDS, PROG, ONLY ? { onlyRec: ONLY } : {});
+  const leftN = ROWS.filter(r => !r.done).length;
+  $("sumTxt").innerHTML = "在屏 <b>" + ROWS.length + "</b> 趟 ｜ 没走完 <b>" + leftN + "</b> 趟" +
+    (ONLY ? " ｜ 只显示这一张单" : "");
+
+  const tabs = [["left", "没走完 " + leftN], ["today", "今天的 " + ROWS.filter(r => r.isToday).length],
+                ["all", "全部 " + ROWS.length], ["done", "已完成 " + ROWS.filter(r => r.done).length]];
+  $("tabs").innerHTML = tabs.map(t => '<button type="button" data-t="' + t[0] + '" class="' +
+    (TAB === t[0] ? "on" : "") + '">' + esc(t[1]) + "</button>").join("");
+
+  const fp = TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.bz, r.u, r.by].join(":")).join("|");
+  if (rendered && fp === lastFp) return;       // 内容没变就不重绘（别打断现场操作）
+  lastFp = fp; rendered = true;
+
+  let show = ROWS;
+  if (TAB === "left") show = ROWS.filter(r => !r.done);
+  else if (TAB === "done") show = ROWS.filter(r => r.done);
+  else if (TAB === "today") show = ROWS.filter(r => r.isToday);
+
+  if (!ROWS.length){
+    $("list").innerHTML = '<div class="flag">今天没有要发的计划。<br>过一会儿再刷新看看。</div>';
+    return;
+  }
+  if (!show.length){
+    $("list").innerHTML = '<div class="flag">这个分类下暂时没有单。<br>点上面别的分类看看。</div>';
+    return;
+  }
+  $("list").innerHTML = show.map(rowHtml).join("");
+  bind();
+}
+
+function rowHtml(r){
+  const s = Math.min(3, r.s || 0), car = r.car || 0;
+  const self = /自提/.test(r.logistics || "");
+  let track = "", lbls = "";
+  for (let i = 0; i < 4; i++){
+    const on = i <= s, cur = (i === s + 1 && s < 3);
+    track += '<span class="n ' + (on ? "on" : (cur ? "cur" : "")) + '">' + (on ? "✓" : (i + 1)) + "</span>";
+    if (i < 3) track += '<span class="ln ' + (i < s ? "on" : "") + '"></span>';
+    lbls += '<span class="' + (on ? "on" : (cur ? "cur" : "")) + '">' + LITTLE[i] + "</span>";
+  }
+  /* 司机没签到就点「装货中 / 已完成」→ 按钮压暗 + 上方写明原因，点了也会弹提示拦下 */
+  const needCar = s < 3 ? SL.stepBlock({ car: car, cx: r.cx, bz: r.bz }, s + 1) : "";
+  /* 被拦时给「怎么解」的建议：缺车说车、缺质保书说质保书（文案只在这一处生成） */
+  const needHint = /质保书/.test(needCar) ? "先在本行点「✓ 质保书好了」。"
+                                          : "让司机扫「司机签到码」签到，或在本行点「✓ 车已到」。";
+  /* ★ 分工（2026-09-24）：这一步有没有分配给我？没分配 → 按钮压暗成「不是你负责的」，
+     点了会说明原因（文案口径全在 SL.opBlock，页面不自己编）。 */
+  const lkGo = s < 3 ? SL.opBlock(ME, NEXTOP[s + 1]) : "";
+  const lkCar  = SL.opBlock(ME, "car");
+  const lkBz   = SL.opBlock(ME, "bz");
+  const lkUndo = SL.opBlock(ME, SL.undoOpOf({ s: (r.rs == null ? s : r.rs), car: r.car, ct: r.ct, t: r.t }));
+  const goHtml = s < 3
+    ? (lkGo
+        ? '<button type="button" class="go lock" data-lock="' + esc(lkGo) + '">🔒 ' +
+          esc(SL.STEP_NAME[s + 1]) + ' —— 不是你负责的</button>'
+        : '<button type="button" class="go' + (s === 1 ? " s2" : (s === 2 ? " s3" : "")) + (needCar ? " lock" : "") +
+          '" data-go="1"' + (needCar ? ' title="' + esc(needCar) + '"' : "") +
+          '>点一下完成「' + esc(SL.STEP_NAME[s + 1]) + '」</button>')
+    : '<button type="button" class="go fin" data-go="0">已完成 ✓（再点无变化）</button>';
+  const tsTxt = (r.t ? "工序 <b>" + esc(SL.STEP_NAME[s]) + "</b> " + esc(SL.fmtHM(r.t)) + (r.by ? " · " + esc(r.by) : "") : "") +
+                (r.ct ? "　车已到 <b>" + esc(SL.fmtHM(r.ct)) + "</b>" : "") +
+                (r.bz && r.bzt ? "　质保书 <b>" + esc(SL.fmtHM(r.bzt)) + "</b>" + (r.bzb ? " · " + esc(r.bzb) : "") : "");
+  return '<div class="row ' + (r.done ? "done" : "") + (r.stale && !r.done ? " late" : "") +
+    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '">' +
+    '<div class="rh"><div class="nm">' +
+      '<div class="name">' + (r.stale ? '<span class="lateTag">昨</span>' : "") + esc(r.customer) + "</div>" +
+      '<div class="meta">' +
+        '<span class="logi' + (self ? " self" : "") + '">' + esc(r.logistics || "未填物流") + "</span>" +
+        "<span>单号 <b>" + esc(r.no || "—") + "</b></span>" +
+        "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span>" +
+        "<span>共 <b>" + (r.qty || 0) + "</b> 件</span>" +
+      "</div>" +
+    "</div>" +
+    '<span class="badge s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>" +
+    '<div class="steps"><div class="track">' + track + '</div><div class="lbls">' + lbls + "</div></div>" +
+    '<div class="acts">' + ((needCar && !lkGo) ? '<div class="needcar"><b>🚫</b><span>' + esc(needCar) +
+        '。<br>' + needHint + '</span></div>' : "") + goHtml +
+      (lkBz
+        ? '<div class="row2"><button type="button" class="lkbar" data-lock="' + esc(lkBz) +
+          '">🔒 质保书 —— 不是你负责的</button></div>'
+        : '<div class="row2"><div class="car">' +
+            '<button type="button" class="' + (r.bz ? "" : "act") + '" data-bz="0">📄 质保书未好</button>' +
+            '<button type="button" class="' + (r.bz ? "act2" : "") + '" data-bz="1">✓ 质保书好了</button>' +
+          '</div></div>') +
+      '<div class="row2">' + (lkCar
+        ? '<button type="button" class="lkbar" data-lock="' + esc(lkCar) + '">🔒 车到 —— 不是你负责的</button>'
+        : '<div class="car">' +
+            '<button type="button" class="' + (car ? "" : "act") + '" data-car="0">🚚 车未到</button>' +
+            '<button type="button" class="' + (car ? "act2" : "") + '" data-car="1">✓ 车已到</button>' +
+          '</div>') +
+        '<button type="button" class="undo' + (lkUndo ? " lkb" : "") + '" data-undo="1"' +
+          (lkUndo ? ' data-lock="' + esc(lkUndo) + '"' : ' title="撤回最近那一次"') + '>↩</button></div>' +
+      (tsTxt ? '<div class="ts">' + tsTxt + "</div>" : "") +
+    "</div></div>";
+}
+
+function bind(){
+  $("tabs").querySelectorAll("button").forEach(b => {
+    b.onclick = () => { TAB = b.dataset.t; lastFp = ""; render(); };
+  });
+  $("list").querySelectorAll(".row").forEach(row => {
+    const rk = row.dataset.r, ck = row.dataset.k;
+    const go = row.querySelector("[data-go]");
+    if (go) go.onclick = () => step(rk, ck);
+    row.querySelectorAll("[data-car]").forEach(b => { b.onclick = () => setCar(rk, ck, b.dataset.car === "1"); });
+    row.querySelectorAll("[data-bz]").forEach(b => { b.onclick = () => setBz(rk, ck, b.dataset.bz === "1"); });
+    const un = row.querySelector("[data-undo]");
+    if (un) un.onclick = () => undo(rk, ck);
+    /* ★ 最后再挂一遍「没分配给你」的那些按钮：点了只说明原因，绝不动数据
+       （放在最后 = 覆盖上面的动作绑定，锁住的按钮天然点不动） */
+    row.querySelectorAll("[data-lock]").forEach(b => { b.onclick = () => lockTip(b.dataset.lock); });
+  });
+}
+
+/* ---------- 三个动作（都走 scan-lib，都会 +rv） ---------- */
+function refresh(){ lastFp = ""; render(); }
+function who(){ return SL.staffName(); }
+/* ★ 这一步没分配给他：点了不能静默无反应 —— 说清楚是哪一步、他能点哪几步。
+   文案由 SL.opBlock 统一给（页面不自己编）。 */
+function lockTip(msg){ SL.uiAlert(msg, { title: "🔒 这一步不是你负责的", okText: "知道了" }); }
+
+function step(rk, ck){
+  if (!session()){ tip("请先登录", "err"); return; }
+  const cur = (PROG[rk] || {})[ck] || {};
+  const s = cur.s || 0;
+  if (s >= 3){ tip("已经是最后一步「已完成」了"); return; }
+  /* ★ 分工：没分配给他这一步，按钮本来就是压暗的，这里再硬拦一道（防手滑/防绕） */
+  const lk = SL.opBlock(who(), NEXTOP[s + 1]);
+  if (lk){ lockTip(lk); return; }
+  const cust = String(ck).split("|")[0];
+  /* ★ 司机没签到（车未到）/ 品一质保书没好 → 对应的工序推不了（2026-09-22 / 09-23 用户要求）。
+     用「知道了」的提示框说清楚怎么回事、怎么解 —— 不要静默无反应。 */
+  const blocked = SL.stepBlock(cur, s + 1, cust);
+  if (blocked){
+    /* 「怎么解」跟着被拦的原因走：缺车说车、缺质保书说质保书（别把车的话术套到质保书上） */
+    const how = /质保书/.test(blocked)
+      ? "怎么解：\n" +
+        "① 先确认品一质保书已经备好（在本行点「✓ 质保书好了」）；\n" +
+        "② 备好之后再点这一步；\n" +
+        "③ 如果这一步是点错的，点「↩」撤回一格。"
+      : "怎么解：\n" +
+        "① 让司机扫「司机签到码」签到（车已到）；\n" +
+        "② 或在本行点「✓ 车已到」手动标记；\n" +
+        "③ 如果这一步是点错的，点「↩」撤回一格。";
+    SL.uiAlert("【" + cust + "】" + blocked + "。\n\n" + how,
+      { title: "🚫 不能推进工序", okText: "知道了" });
+    return;
+  }
+  SL.uiConfirm("确认把【" + cust + "】的工序推进到「" + SL.STEP_NAME[s + 1] + "」？\n（点错了可随时按「↩」撤回）", () => {
+    const r = SL.applyStep(PROG, rk, ck, +1, who());
+    if (!r.changed){ tip("已经是「" + SL.STEP_NAME[s + 1] + "」了"); return; }
+    saveProg("已更新：" + SL.STEP_NAME[r.to]);
+    refresh();
+  }, { title: "确认推进工序" });
+}
+function setCar(rk, ck, v){
+  if (!session()){ tip("请先登录", "err"); return; }
+  const lk = SL.opBlock(who(), "car");          // ★ 分工硬拦
+  if (lk){ lockTip(lk); return; }
+  const cur = ((PROG[rk] || {})[ck] || {});
+  if ((cur.car || 0) === (v ? 1 : 0)){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
+  const cust = String(ck).split("|")[0];
+  SL.uiConfirm("确认把【" + cust + "】标记为「" + (v ? "车已到" : "车未到") + "」？", () => {
+    const r = SL.applyCar(PROG, rk, ck, v, who());   // ★ 补传操作人：权限与留痕都靠它
+    if (!r.changed){ tip(v ? "已经是「车已到」" : "本来就是「车未到」"); return; }
+    saveProg(v ? "已标记：车已到" : "已标记：车未到");
+    refresh();
+  }, { title: "确认车辆状态" });
+}
+function setBz(rk, ck, v){
+  if (!session()){ tip("请先登录", "err"); return; }
+  const lk = SL.opBlock(who(), "bz");           // ★ 分工硬拦
+  if (lk){ lockTip(lk); return; }
+  const cur = ((PROG[rk] || {})[ck] || {});
+  if (!v && !(cur.bz || 0) && SL.bzExempt && SL.bzExempt(String(ck).split("|")[0])){ tip("这个客户不用质保书，系统默认「已备好」"); return; }
+  if ((cur.bz || 0) === (v ? 1 : 0)){ tip(v ? "已经是「质保书好了」" : "本来就是「质保书未好」"); return; }
+  const cust = String(ck).split("|")[0];
+  SL.uiConfirm("确认【" + cust + "】的品一质保书已经" + (v ? "备好了？" : "没好？（撤掉「已备好」）"), () => {
+    const r = SL.applyBz(PROG, rk, ck, v, who());
+    if (!r.changed){ tip(r.blocked || (v ? "已经是「质保书好了」" : "本来就是「质保书未好」")); return; }
+    saveProg(v ? "已确认：品一质保书好了" : "已撤回：品一质保书未好");
+    refresh();
+  }, { title: "确认品一质保书" });
+}
+function undo(rk, ck){
+  if (!session()){ tip("请先登录", "err"); return; }
+  const cur = (PROG[rk] || {})[ck] || {};
+  if (!(cur.s || 0) && !(cur.car || 0)){ tip("这一步还没动过，没有可撤回的"); return; }
+  const lk = SL.opBlock(who(), SL.undoOpOf(cur));   // ★ 撤回也要看他有没有那一步的权限
+  if (lk){ lockTip(lk); return; }
+  const cust = String(ck).split("|")[0];
+  SL.uiConfirm("撤回【" + cust + "】的「最近那一次」？\n（工序退一格；如果最后动的是车辆，就撤车已到）", () => {
+    const r = SL.applyUndo(PROG, rk, ck, who());
+    if (!r.changed){ tip("没有可撤回的"); return; }
+    saveProg("已撤回：" + r.what);
+    refresh();
+  }, { title: "确认撤回" });
+}
+
+/* ---------- 模糊搜索（登录后定位客户） ---------- */
+function openSearch(){
+  if (!session()) return;              // 没登录用不了（结构上也进不去）
+  $("searchModal").className = "modal show";
+  const i = $("searchInput"); i.value = ""; renderSearch("");
+  setTimeout(() => { try { i.focus(); } catch(e){} }, 30);
+}
+function closeSearch(){ $("searchModal").className = "modal"; $("searchResults").innerHTML = ""; }
+// 模糊匹配：客户名 / 单号 / 物流 / 型号 任一含关键词即中；客户名再做「子序列」容错（漏字/顺序错也能中）
+function fuzzyHit(r, q){
+  q = (q || "").trim().toLowerCase();
+  if (!q) return true;
+  const hay = [r.customer, r.no, r.logistics, (r.models || []).join(" ")].join(" ").toLowerCase();
+  if (hay.indexOf(q) >= 0) return true;
+  const nm = (r.customer || "").toLowerCase().replace(/\s+/g, "");
+  let i = 0;
+  for (const ch of nm){ if (ch === q[i]) i++; if (i === q.length) return true; }
+  return false;
+}
+function renderSearch(q){
+  const box = $("searchResults");
+  const hits = ROWS.filter(r => fuzzyHit(r, q));
+  if (!hits.length){ box.innerHTML = '<div class="mempty">没找到匹配的客户<br>换个关键词试试</div>'; return; }
+  box.innerHTML = hits.map(r => {
+    const s = Math.min(3, r.s || 0);
+    return '<button type="button" class="sit" data-r="' + esc(r.rk) + '" data-k="' + esc(r.ck) + '">'
+      + '<div class="sn">' + esc(r.customer) + '<span class="sb s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>"
+      + '<div class="sm"><span>单号 <b>' + esc(r.no || "—") + "</b></span>"
+      + "<span>物流 <b>" + esc(r.logistics || "未填物流") + "</b></span>"
+      + "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span></div></button>";
+  }).join("");
+  box.querySelectorAll(".sit").forEach(b => { b.onclick = () => jumpTo(b.dataset.r, b.dataset.k); });
+}
+// 点结果 → 切到「全部」分类保证该行在屏 → 滚到它并高亮一下
+function jumpTo(rk, ck){
+  TAB = "all"; lastFp = ""; render();
+  setTimeout(() => {
+    const row = $("list").querySelector('.row[data-r="' + rk + '"][data-k="' + ck + '"]');
+    if (row){ try { row.scrollIntoView({ block: "center" }); } catch(e){} row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1600); }
+    closeSearch();
+  }, 40);
+}
+$("searchOpen").onclick = openSearch;
+$("searchClose").onclick = closeSearch;
+$("searchInput").addEventListener("input", (e) => renderSearch(e.target.value));
+$("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter"){ const f = $("searchResults").querySelector(".sit"); if (f) f.onclick(); } });
+$("searchModal").addEventListener("click", (e) => { if (e.target === $("searchModal")) closeSearch(); });
+
+/* ---------- 启动 ---------- */
+function boot(){
+  if (window.CloudSync){
+    CloudSync.init();
+    try { if (CloudSync.guard) CloudSync.guard(KEY_PROG, SL.guardFn); } catch(e){}
+  }
+  loadLocal();
+  applyLoginState();
+  $("pwd").value = "";
+  if (session() && RECORDS.length){
+    render();  /* 先画本机缓存，秒开不白屏；云端拉到后 pull() 内部会再 render 覆盖 */
+    if (window.CloudSync && CloudSync.ready()) setSync("正在刷新云端…", "warn");
+  }
+  pull();
+  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+  window.addEventListener("online", () => pull());
+}
+boot();
+</script>
+<script src="brand.js?v=3"></script>
+</body>
+</html>
