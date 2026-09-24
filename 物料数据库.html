@@ -1,616 +1,1232 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>物料主数据库</title>
-<script src="supabase.min.js?v=lib"></script>
-<script src="cloud-config.js?v=20260920a"></script>
-<script src="cloud-sync.js?v=20260922d"></script>
-<script src="scan-lib.js?v=20260924g"></script>
-<style>
-  :root{
-    --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
-    --muted:#7a8699; --brand:#2563eb; --brand-d:#1e4fb0;
-    --red:#d92d20; --soft:#eef4ff;
-  }
-  *{box-sizing:border-box;}
-  body{margin:0;font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--txt);font-size:14px;}
-  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px;}
-  h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
-  h1 .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:14px;}
-  .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
-  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
-  .nav-link:hover{background:var(--soft);color:var(--brand);}
-  .nav-link.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 4px 12px rgba(37,99,235,.28);}
-  /* ===== 云端同步状态 + 手机自适应 ===== */
-  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;}
-  .cloud-pill.ok{background:#e7f8ee;color:#15803d;border-color:#bbe7c9;}
-  .cloud-pill.err{background:#fdecea;color:#d92d20;border-color:#f3c7c2;}
-  .cloud-pill.sync{background:#eef4ff;color:#2563eb;border-color:#c5d8ff;}
-  .cloud-pill.warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
-  .cloud-pill.off{background:#f1f5f9;color:#94a3b8;}
-  @media (max-width:820px){
-    .wrap{padding:12px 8px 56px;}
-    h1{font-size:18px;}
-    .nav{gap:6px;}
-    .card{padding:12px;}
-    .doc{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-    .tbl{min-width:790px;}
-    .toolbar{gap:8px;}
-    .toolbar .btn{font-size:13px;padding:8px 12px;}
-  }
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px;}
-  .card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .card h2 .tag{font-size:11px;background:var(--soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600;}
-  .hint{font-size:12px;color:var(--muted);}
-  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-weight:600;transition:.15s;}
-  .btn-primary{background:var(--brand);color:#fff;} .btn-primary:hover{background:var(--brand-d);}
-  .btn-ghost{background:var(--soft);color:var(--brand);} .btn-ghost:hover{background:#dfeaff;}
-  .btn-line{background:#fff;color:var(--txt);border:1px solid var(--line);} .btn-line:hover{background:#f3f6fb;}
-  .btn-danger{background:#fff;color:var(--red);border:1px solid #f3c7c2;} .btn-danger:hover{background:#fdecea;}
-  .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;}
-  .doc{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;}
-  .doc-scroll{max-height:480px;overflow:auto;}
-  .tbl{width:100%;border-collapse:collapse;font-size:13px;}
-  .tbl thead th{background:#f3f6fb;color:#44506a;font-weight:600;padding:10px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;}
-  .tbl td{padding:6px 6px;border-bottom:1px solid #eef1f6;text-align:center;vertical-align:middle;}
-  .tbl td input{border:1px solid transparent;background:transparent;width:100%;padding:6px 6px;text-align:center;border-radius:6px;font-size:13px;outline:none;}
-  .tbl td input:focus{border-color:var(--brand);background:#fafcff;}
-  .tbl tr:hover td{background:#fafcff;}
-  .col-act{width:46px;}
-  .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:16px;line-height:1;}
-  .lock-ico{color:#b8860b;font-size:13px;}
-  .tbl td input[readonly]{cursor:not-allowed;}
-  .mask{position:fixed;inset:0;background:rgba(31,41,55,.45);display:none;align-items:center;justify-content:center;z-index:98;padding:16px;}
-  .mask.show{display:flex;}
-  .pwd-box{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:330px;box-shadow:0 18px 50px rgba(15,23,42,.28);}
-  .pwd-box h3{margin:0 0 2px;font-size:16px;}
-  .pwd-sub{color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:14px;}
-  .pwd-box input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:10px;outline:none;background:#fafbfc;color:#1f2733;}
-  .pwd-box input:focus{border-color:var(--brand);background:#fff;}
-  .pwd-err{color:var(--red);font-size:12px;min-height:16px;margin:0 0 6px;}
-  .pwd-actions{display:flex;justify-content:flex-end;gap:8px;}
-  .empty{color:var(--muted);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
-  /* 搜索框 */
-  .db-search{display:flex;align-items:center;gap:8px;margin:10px 0 8px;}
-  .db-search input{flex:1;max-width:340px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;outline:none;background:#fafbfc;color:#1f2733;}
-  .db-search input:focus{border-color:var(--brand);background:#fff;}
-  .db-search .hint{color:var(--muted);font-size:12px;}
-  /* 分页控件 */
-  .db-pager{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
-  .db-pager .pg-info{color:var(--muted);font-size:12px;margin-right:6px;}
-  .db-pager button{border:1px solid var(--line);background:#fff;color:var(--txt);border-radius:8px;padding:6px 11px;font-size:13px;cursor:pointer;}
-  .db-pager button:hover:not(:disabled){border-color:var(--brand);color:var(--brand);background:var(--soft);}
-  .db-pager button:disabled{opacity:.45;cursor:not-allowed;}
-  .db-pager button.cur{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700;}
-  .db-pager select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--txt);cursor:pointer;}
-  .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
-  .toast.show{opacity:1;}
-</style>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b1220">
-<link rel="apple-touch-icon" href="icon-192.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="发货计划">
-</head>
-<body>
-<div class="wrap">
-  <h1><span class="dot"></span>物料主数据库</h1>
-  <div class="sub">维护物料主数据，供发货计划页「输入型号自动带出」，与发货计划系统共享同一浏览器存储。</div>
-
-  <nav class="nav">
-    <a href="发货计划系统.html" class="nav-link" target="_blank">📋 发货计划</a>
-    <a href="物料数据库.html" class="nav-link active">📦 物料数据库</a>
-  </nav>
-
-  <div class="card">
-    <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
-      <span class="tag" id="lockTag" style="background:#fff4e5;color:#b45309;">🔒 修改需密码</span>
-      <span class="tag" id="codeWarn" style="display:none;background:#fff7e0;color:#b45309;border:1px solid #f6d48a;cursor:pointer;" title="点一下看是哪些送达方">⚠ 未编代码</span>
-      <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 送达方代码 / 物流 / 备注；按型号或编码匹配）</span></h2>
-    <div class="toolbar">
-      <input type="file" id="dbFile" accept=".csv,.xlsx,.xls" hidden>
-      <button class="btn btn-primary" id="importDb">导入表格</button>
-      <button class="btn btn-ghost" id="addDbRow">＋ 新增物料</button>
-      <button class="btn btn-line" id="exportDb">导出数据库</button>
-      <button class="btn btn-line" id="auditDb" title="扫一遍物料库：有没有填错的送达方代码">🔍 代码体检</button>
-      <button class="btn btn-line" id="tplDb">下载模板</button>
-      <button class="btn btn-line" id="sampleDb">载入示例</button>
-      <button class="btn btn-danger" id="clearDb">清空</button>
-      <button class="btn btn-ghost" id="lockDbBtn" style="margin-left:auto;">🔓 解锁修改</button>
-      <button class="btn btn-line" id="pwdDbBtn">🔑 修改密码</button>
-    </div>
-    <div class="db-search">
-      <input type="text" id="dbSearch" placeholder="🔍 搜索型号 / 物料编码 / 客户 / 送达方代码 / 物流 / 备注">
-      <span class="hint" id="dbSearchInfo"></span>
-      <button class="btn btn-line" id="dbSearchClear" style="display:none;">清空搜索</button>
-    </div>
-    <div class="doc doc-scroll">
-      <table class="tbl" id="dbTbl">
-        <thead><tr>
-          <th>物料编码</th><th>型号</th><th>单重(kg)</th><th>一箱多少件</th><th>客户</th><th>送达方代码</th><th>物流</th><th>备注</th><th class="col-act">操作</th>
-        </tr></thead>
-        <tbody id="dbBody"></tbody>
-      </table>
-      <div class="empty" id="dbEmpty">数据库为空。可点「导入表格」或「载入示例」开始。</div>
-    </div>
-    <div class="db-pager" id="dbPager"></div>
-  </div>
-</div>
-
-<div class="mask" id="pwdMask">
-  <div class="pwd-box">
-    <h3 id="pwdTitle">输入修改密码</h3>
-    <div class="pwd-sub" id="pwdSub"></div>
-    <div id="pwdFields"></div>
-    <div class="pwd-err" id="pwdErr"></div>
-    <div class="pwd-actions">
-      <button class="btn btn-line" id="pwdCancel">取消</button>
-      <button class="btn btn-primary" id="pwdOk">确定</button>
-    </div>
-  </div>
-</div>
-<div class="toast" id="toast"></div>
-
-<script>
-const LS_DB = "shipping_db_v1";
-const LS_PWD = "shipping_db_pwd_v1";
-const $ = id => document.getElementById(id);
-const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
-
-let DB = loadDB();
-let dbUnlocked = false;
-const freshRows = new Set();
-function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }catch(e){ return []; } }
-function saveDB(){ try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); }catch(e){ toast("数据库保存失败：存储空间不足"); } if(window.CloudSync) CloudSync.autoPush(LS_DB); }
-
-// ===== 分页 / 搜索 / 防抖（3000+ 条时不卡的关键）=====
-let dbPage=1, dbPageSize=100, dbKeyword="", saveTimer=null, searchTimer=null;
-
-// 防抖保存：避免每敲一个字就「全量序列化 + 写 localStorage + 推云端」
-function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>{ saveDB(); }, 600); }
-
-// 返回「筛选后的原始 DB 索引」数组；编辑时按原索引写回，保证分页/搜索下数据不错位
-function getViewIdx(){
-  const kw=dbKeyword.trim().toLowerCase();
-  const idx=[];
-  if(!kw){ for(let i=0;i<DB.length;i++) idx.push(i); return idx; }
-  for(let i=0;i<DB.length;i++){
-    const r=DB[i];
-    const hay=((r.code||"")+" "+(r.model||"")+" "+(r.customer||"")+" "+(r.custcode||"")+" "+(r.logistics||"")+" "+(r.remark||"")).toLowerCase();
-    if(hay.indexOf(kw)!==-1) idx.push(i);
-  }
-  return idx;
-}
-const totalPages = n => Math.max(1, Math.ceil(n/dbPageSize));
-
-// 送达方代码覆盖情况 —— 物流门口那块保密大屏的「燃料」。
-// 门口大屏不能出现送达方名称，只能用代码代替；库里没编代码的送达方，
-// 大屏上只能显示「未编代码」占位（保密要求：绝不回落显示名称）。
-// 返回：还没编代码的送达方名单（按库里的客户名去重）
-function missingCodeCustomers(){
-  const seen=new Map();          // 送达方 → 该名称下任意一条有代码就算编过
-  DB.forEach(r=>{
-    const cu=String(r.customer==null?"":r.customer).trim(); if(!cu) return;
-    const has=!!String(r.custcode==null?"":r.custcode).trim();
-    seen.set(cu, (seen.get(cu)||false) || has);
-  });
-  const out=[]; seen.forEach((has,cu)=>{ if(!has) out.push(cu); });
-  return out;
-}
-function updateCodeWarn(){
-  const el=$("codeWarn"); if(!el) return;
-  const miss=missingCodeCustomers();
-  if(!miss.length){ el.style.display="none"; return; }
-  el.style.display="";
-  el.textContent="⚠ "+miss.length+" 个送达方未编代码";
-}
-function renderDB(){
-  const tb=$("dbBody"); tb.innerHTML="";
-  const viewIdx=getViewIdx();
-  const total=viewIdx.length;
-  const pages=totalPages(total);
-  if(dbPage>pages) dbPage=pages;
-  if(dbPage<1) dbPage=1;
-
-  const emptyEl=$("dbEmpty");
-  if(!DB.length){ emptyEl.style.display="block"; emptyEl.textContent="数据库为空。可点「导入表格」或「载入示例」开始。"; }
-  else if(!total){ emptyEl.style.display="block"; emptyEl.textContent="没有匹配「"+dbKeyword+"」的物料，换个关键词试试。"; }
-  else emptyEl.style.display="none";
-
-  $("dbCount").textContent = DB.length+" 条"+(dbKeyword?"（筛选出 "+total+" 条）":"");
-  // 送达方代码覆盖情况：物流门口那块保密大屏靠它把客户名换成代码，
-  // 库里没编代码的送达方，大屏只能显示「未编代码」占位（保密要求不能回落显示名称）。
-  // 所以这里把「还差几个」摆在明面上，点一下就能看到是哪些。
-  updateCodeWarn();
-  updateAuditBadge();          // 送达方代码体检角标（发现问题时亮起数量）
-  const info=$("dbSearchInfo");
-  if(info) info.textContent = dbKeyword ? ("匹配 "+total+" 条") : (DB.length>dbPageSize ? ("共 "+DB.length+" 条，每页显示 "+dbPageSize+" 条") : "");
-  const clr=$("dbSearchClear"); if(clr) clr.style.display = dbKeyword?"":"none";
-
-  const start=(dbPage-1)*dbPageSize;
-  const pageIdx=viewIdx.slice(start, start+dbPageSize);
-  const frag=document.createDocumentFragment();
-  pageIdx.forEach(oi=>{
-    const r=DB[oi];
-    const tr=document.createElement("tr");
-    tr.dataset.i=oi;
-    const fresh=freshRows.has(r);
-    const locked=!dbUnlocked && !fresh;
-    const ro=locked?"readonly":"";
-    tr.innerHTML=`
-      <td><input data-k="code" ${ro} value="${esc(r.code)}" placeholder="物料编码"></td>
-      <td><input data-k="model" ${ro} value="${esc(r.model)}" placeholder="型号"></td>
-      <td><input data-k="unit" ${ro} type="number" min="0" step="0.0001" value="${esc(r.unit)}" placeholder="kg"></td>
-      <td><input data-k="perbox" ${ro} type="number" min="1" value="${esc(r.perbox)}" placeholder="件/箱"></td>
-      <td><input data-k="customer" ${ro} value="${esc(r.customer)}" placeholder="客户"></td>
-      <td><input data-k="custcode" ${ro} value="${esc(r.custcode)}" placeholder="送达方代码"></td>
-      <td><input data-k="logistics" ${ro} value="${esc(r.logistics)}" placeholder="物流"></td>
-      <td><input data-k="remark" ${ro} value="${esc(r.remark)}" placeholder="备注"></td>
-      <td class="col-act">${locked?'<span class="lock-ico" title="已有物料：修改/删除需先解锁">🔒</span>':'<button class="del-x" title="删除">✕</button>'}</td>`;
-    frag.appendChild(tr);
-  });
-  tb.appendChild(frag);            // 一次性插入，避免逐行 append 反复重排
-  renderPager(total, pages);
-  syncLockUI();
-}
-
-function renderPager(total, pages){
-  const box=$("dbPager"); if(!box) return;
-  if(!DB.length){ box.innerHTML=""; return; }
-  const btn=(label,pg,dis,cur)=>`<button ${dis?"disabled":""} ${cur?'class="cur"':""} data-pg="${pg}">${label}</button>`;
-  let h=`<span class="pg-info">共 ${total} 条 · 第 ${dbPage}/${pages} 页</span>`;
-  h+=btn("首页",1,dbPage===1,false);
-  h+=btn("上一页",dbPage-1,dbPage===1,false);
-  let s=Math.max(1,dbPage-2), e=Math.min(pages,s+4); s=Math.max(1,e-4);
-  for(let p=s;p<=e;p++) h+=btn(String(p),p,false,p===dbPage);
-  h+=btn("下一页",dbPage+1,dbPage===pages,false);
-  h+=btn("末页",pages,dbPage===pages,false);
-  h+=`<select id="dbPageSize">`;
-  [50,100,200,500].forEach(n=>{ h+=`<option value="${n}" ${n===dbPageSize?"selected":""}>每页 ${n} 条</option>`; });
-  h+=`</select>`;
-  box.innerHTML=h;
-  box.querySelectorAll("[data-pg]").forEach(b=>{ b.onclick=()=>{ dbPage=+b.dataset.pg; renderDB(); }; });
-  const sel=$("dbPageSize");
-  if(sel) sel.onchange=()=>{ dbPageSize=+sel.value; dbPage=1; renderDB(); };
-}
-
-// 事件委托：整个表格只绑 3 个监听器，替代「每格一个」（3000 条时从 21000 个降到 3 个）
-(function bindDbDelegates(){
-  const tb=$("dbBody"); if(!tb||tb._delegated) return; tb._delegated=true;
-  tb.addEventListener("input", e=>{
-    const inp=e.target; if(!inp||inp.tagName!=="INPUT") return;
-    const tr=inp.closest("tr"); if(!tr) return;
-    const oi=+tr.dataset.i, k=inp.dataset.k;
-    if(!k||!DB[oi]) return;
-    DB[oi][k]=inp.value.trim();
-    scheduleSave();                                   // 防抖，不再每敲一下就写盘+推云端
-  });
-  tb.addEventListener("click", e=>{
-    const b=e.target.closest(".del-x"); if(!b) return;
-    const tr=b.closest("tr"); if(!tr) return;
-    const oi=+tr.dataset.i, r=DB[oi];
-    if(r){ DB.splice(oi,1); freshRows.delete(r); saveDB(); renderDB(); }
-  });
-  tb.addEventListener("focusin", e=>{
-    const inp=e.target; if(!inp||inp.tagName!=="INPUT") return;
-    if(inp.hasAttribute("readonly")){ inp.blur(); toast("修改已有物料需先点「🔓 解锁修改」输入密码"); }
-  });
-})();
-
-function addDbRow(){
-  const rec={code:"",model:"",unit:"",perbox:"",customer:"",custcode:"",logistics:"",remark:""};
-  freshRows.add(rec);
-  DB.unshift(rec);
-  dbKeyword=""; const s=$("dbSearch"); if(s) s.value="";   // 清空搜索并回第 1 页，保证能看到新增的空行
-  dbPage=1;
-  saveDB(); renderDB();
-  const first=$("dbBody").querySelector('input[data-k="model"]'); if(first) first.focus();
-}
-function syncLockUI(){
-  const b=$("lockDbBtn"), t=$("lockTag");
-  if(b){ b.textContent=dbUnlocked?"🔒 重新锁定":"🔓 解锁修改"; b.className=dbUnlocked?"btn btn-line":"btn btn-ghost"; }
-  if(t){ t.textContent=dbUnlocked?"🔓 编辑中":"🔒 修改需密码"; t.style.background=dbUnlocked?"#e7f8ee":"#fff4e5"; t.style.color=dbUnlocked?"#15803d":"#b45309"; }
-}
-function storedPwd(){ return localStorage.getItem(LS_PWD)||""; }
-function hashPwd(s){ let h=5381; s=String(s==null?"":s); for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))>>>0; } return "d"+h.toString(36); }
-function setStoredPwd(p){ localStorage.setItem(LS_PWD, hashPwd(p)); }
-function verifyPwd(p){ const s=storedPwd(); return !!s && hashPwd(p)===s; }
-function closeModal(){ const m=$("pwdMask"); if(m) m.classList.remove("show"); }
-function openModal(title,sub,fields,onOk){
-  $("pwdTitle").textContent=title; $("pwdSub").textContent=sub||"";
-  $("pwdFields").innerHTML=fields; $("pwdErr").textContent="";
-  $("pwdOk").onclick=()=>{ const err=onOk(); if(err){ $("pwdErr").textContent=err; } else closeModal(); };
-  $("pwdCancel").onclick=closeModal;
-  $("pwdMask").classList.add("show");
-  const first=$("pwdFields").querySelector("input"); if(first){ first.focus(); }
-}
-function openUnlock(){
-  if(dbUnlocked) return true;
-  openModal("解锁修改","输入密码后，本次打开期间可修改、删除已有物料；新增物料无需密码。",
-    '<input type="password" id="pwdIn" placeholder="请输入修改密码" autocomplete="off">',
-    ()=>{
-      const v=$("pwdIn").value;
-      if(!v) return "请输入密码";
-      if(!verifyPwd(v)) return "密码错误，请重试";
-      dbUnlocked=true; syncLockUI(); renderDB(); toast("已解锁，可修改已有物料");
-      return "";
-    });
-  return false;
-}
-function openChangePwd(){
-  const has=!!storedPwd();
-  const fields=(has?'<input type="password" id="oldPwd" placeholder="当前密码" autocomplete="off">':'')
-    +'<input type="password" id="np1" placeholder="新密码" autocomplete="off">'
-    +'<input type="password" id="np2" placeholder="再次输入新密码" autocomplete="off">';
-  openModal("修改密码","建议 6 位以上；修改后解锁需使用新密码。", fields, ()=>{
-    if(has && !verifyPwd($("oldPwd").value)) return "当前密码错误";
-    const a=$("np1").value, b=$("np2").value;
-    if(!a) return "请输入新密码";
-    if(a!==b) return "两次输入的新密码不一致";
-    setStoredPwd(a); toast("修改密码成功"); return "";
-  });
-}
-function ensurePwdSeed(){
-  if(!storedPwd()){ setStoredPwd("123456"); toast("已启用：修改物料需密码，初始密码 123456"); }
-}
-function pick(obj, names){ for(const n of names){ if(obj[n]!==undefined && obj[n]!=="") return String(obj[n]).trim(); } return ""; }
-function findDbIdx(x){
-  return DB.findIndex(d =>
-    (
-      (x.model && d.model && d.model===x.model && (!x.code || !d.code || d.code===x.code)) ||
-      (x.code && d.code && d.code===x.code && (!x.model || !d.model || d.model===x.model))
-    ) && (!x.customer || !d.customer || d.customer===x.customer));
-}
-function mergeDbRows(rows){
-  const prep=[];
-  rows.forEach(raw=>{
-    const code=pick(raw,["物料编码","物料代码","编码","code","sku","SKU","物料号"]);
-    const model=pick(raw,["型号","规格","model","spec","MODEL"]);
-    if(!code && !model) return;
-    prep.push({
-      code,model,
-      unit:pick(raw,["单重","单重(kg)","重量","unit","Unit","kg/件","净重"]),
-      perbox:pick(raw,["一箱多少件","每箱件数","装箱数","每箱数量","perbox","PerBox","箱规"]),
-      customer:pick(raw,["客户","customer","Customer","购货方","送达方","送达方名称","收货方"]),
-      custcode:pick(raw,["送达方代码","客户代码","送达方编码","客户编码","送达方编号","客户编号","custcode","CustCode","customerCode","shipToCode","收货方代码","往来单位代码","客户代号","送达方代号"]),
-      logistics:pick(raw,["物流","logistics","Logistics","物流公司","承运商","货运"]),
-      remark:pick(raw,["备注","remark","Remark","说明","描述"])
-    });
-  });
-  if(!prep.length){ toast("未解析到有效数据"); return; }
-  // 用索引匹配，避免「导入 M 条 × 全表 N 条」的 O(M×N) 全表扫描（3000 条时会卡好几十秒）
-  const ix=dbIndexMap();
-  if(!dbUnlocked){
-    const touches=prep.some(x=>findDbIdxFast(x, ix)>=0);
-    if(touches){ toast("本次内容会改动已有物料，请先「🔓 解锁修改」再导入"); return; }
-  }
-  let added=0, updated=0;
-  prep.forEach(x=>{
-    const idx=findDbIdxFast(x, ix);
-    if(idx>=0){
-      const t=DB[idx];
-      t.code=x.code||t.code; t.model=x.model||t.model;
-      if(x.unit) t.unit=x.unit; if(x.perbox) t.perbox=x.perbox;
-      if(x.customer) t.customer=x.customer; if(x.custcode) t.custcode=x.custcode; if(x.logistics) t.logistics=x.logistics; if(x.remark) t.remark=x.remark;
-      updated++;
-    }else{
-      DB.push({code:x.code,model:x.model,unit:x.unit,perbox:x.perbox,customer:x.customer,custcode:x.custcode,logistics:x.logistics,remark:x.remark});
-      const ni=DB.length-1;                                   // 新记录也要进索引，避免同类物料重复插入
-      const m=x.model?String(x.model).trim():"";
-      const c=x.code?String(x.code).trim():"";
-      if(m){ if(!ix.byModel.has(m)) ix.byModel.set(m,[]); ix.byModel.get(m).push(ni); }
-      if(c){ if(!ix.byCode.has(c)) ix.byCode.set(c,[]); ix.byCode.get(c).push(ni); }
-      added++;
-    }
-  });
-  dbPage=1;                                                   // 导入后回到第 1 页
-  saveDB(); renderDB(); toast(`导入完成：新增 ${added} 条，更新 ${updated} 条`);
-}
-// 按型号 / 编码建倒排索引：型号→行号数组、编码→行号数组
-function dbIndexMap(){
-  const byModel=new Map(), byCode=new Map();
-  for(let i=0;i<DB.length;i++){
-    const d=DB[i]||{};
-    const m=d.model?String(d.model).trim():"";
-    const c=d.code?String(d.code).trim():"";
-    if(m){ if(!byModel.has(m)) byModel.set(m,[]); byModel.get(m).push(i); }
-    if(c){ if(!byCode.has(c)) byCode.set(c,[]); byCode.get(c).push(i); }
-  }
-  return {byModel,byCode};
-}
-// 只在索引命中的候选行里做精确校验，命中不了就当新物料
-function findDbIdxFast(x, ix){
-  const m=x.model?String(x.model).trim():"";
-  const c=x.code?String(x.code).trim():"";
-  const cand=[];
-  if(m && ix.byModel.has(m)) cand.push(...ix.byModel.get(m));
-  if(c && ix.byCode.has(c)) cand.push(...ix.byCode.get(c));
-  if(!cand.length) return -1;
-  for(const i of new Set(cand)){
-    const d=DB[i]; if(!d) continue;
-    const byModel = x.model && d.model && d.model===x.model && (!x.code || !d.code || d.code===x.code);
-    const byCode  = x.code && d.code && d.code===x.code && (!x.model || !d.model || d.model===x.model);
-    if((byModel || byCode) && (!x.customer || !d.customer || d.customer===x.customer)) return i;
-  }
-  return -1;
-}
-function parseCSV(text){
-  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
-  const rows=[]; let row=[], cur="", q=false;
-  for(let i=0;i<text.length;i++){
-    const c=text[i];
-    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=c; }
-    else{ if(c==='"') q=true; else if(c===","){ row.push(cur); cur=""; }
-      else if(c==="\n"){ row.push(cur); rows.push(row); row=[]; cur=""; }
-      else if(c==="\r"){} else cur+=c; }
-  }
-  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
-  if(!rows.length) return [];
-  const head=rows[0].map(h=>h.trim());
-  return rows.slice(1).map(r=>{ const o={}; head.forEach((h,j)=>o[h]=r[j]!==undefined?r[j]:""); return o; });
-}
-
-function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+src+'"]')){res();return;} const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("加载失败")); document.head.appendChild(s); }); }
-$("importDb").onclick=()=>$("dbFile").click();
-$("dbFile").onchange=e=>{
-  const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=async ev=>{
-    try{
-      let rows;
-      if(/\.csv$/i.test(file.name)) rows=parseCSV(ev.target.result);
-      else{ if(!window.XLSX){ await loadScript("xlsx.full.min.js"); } const wb=XLSX.read(ev.target.result,{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]]; rows=XLSX.utils.sheet_to_json(ws,{defval:""}); }
-      if(!rows.length){ toast("未解析到数据"); return; }
-      mergeDbRows(rows);
-    }catch(err){ toast("导入失败："+err.message); }
-    finally{ e.target.value=""; }
-  };
-  if(/\.csv$/i.test(file.name)) reader.readAsText(file); else reader.readAsArrayBuffer(file);
-};
-$("exportDb").onclick=()=>{
-  if(!DB.length){ toast("数据库为空"); return; }
-  const head=["物料编码","型号","单重(kg)","一箱多少件","客户","送达方代码","物流","备注"];
-  const lines=[head.join(",")];
-  DB.forEach(r=>lines.push([r.code,r.model,r.unit,r.perbox,r.customer,r.custcode,r.logistics,r.remark].map(csvCell).join(",")));
-  const blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="物料主数据库.csv"; a.click();
-};
-$("tplDb").onclick=async ()=>{
-  if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
-  const aoa=[["物料编码","型号","单重(kg)","一箱多少件","客户","送达方代码","物流","备注"]];
-  const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:14},{wch:16},{wch:10},{wch:12},{wch:14},{wch:14},{wch:12},{wch:18}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "物料库模板");
-  XLSX.writeFile(wb, "物料库导入模板.xlsx");
-  toast("模板已下载：物料库导入模板.xlsx");
-};
-{ const cw=$("codeWarn"); if(cw) cw.onclick=()=>{
-    const miss=missingCodeCustomers();
-    if(!miss.length){ toast("所有送达方都编了代码 ✓"); return; }
-    alert("以下 "+miss.length+" 个送达方还没编「送达方代码」：\n\n"+
-      miss.slice(0,40).join("、")+(miss.length>40?"\n…等共 "+miss.length+" 个":"")+
-      "\n\n为什么要编：物流门口那块大屏涉及保密，不能显示送达方名称，只能用代码代替；"+
-      "没编代码的，大屏上只会显示「未编代码」占位。\n\n"+
-      "怎么补：点「🔓 解锁修改」，在对应那一行的「送达方代码」格里填上；"+
-      "或者在表格里补好这一列后整表导入。");
-  }; }
-
-/* ==========================================================================
-   送达方代码「体检」（2026-09-23 现场事故后加）
-   --------------------------------------------------------------------------
-   现场症状：屏幕上「上海佳喆 → 100064」（100064 是**上海萨克斯**的码）、
-             「上海西工 → 100178」（100178 是**巴西舍弗勒**的码）。
-   查下来匹配逻辑没坏，是这一列**人工填的时候串了行**（复制上一行忘了改）。
-   这种错不会报错、只是安静地显示错的代码 —— 所以必须有一处能主动扫出来。
-   口径在 scan-lib.auditCodes（和 codeIndex 同一份实现），这里只负责把结果说人话。
-   ========================================================================== */
-function updateAuditBadge(){
-  const b=$("auditDb"); if(!b) return;
-  const SL=window.ScanLib;
-  const r=(SL&&SL.auditCodes)?SL.auditCodes(DB):null;
-  if(!r || !r.count){
-    b.textContent="🔍 代码体检";
-    b.style.background=""; b.style.borderColor=""; b.style.color="";
-    b.title="扫一遍物料库：有没有填错的送达方代码";
-    return;
-  }
-  b.textContent="🔍 代码体检 ("+r.count+")";
-  b.style.background="#fff7e0"; b.style.borderColor="#f6d48a"; b.style.color="#b45309";
-  b.title="发现 "+r.count+" 处可疑的送达方代码，点开看明细";
-}
-{ const b=$("auditDb"); if(b) b.onclick=()=>{
-  const SL=window.ScanLib;
-  if(!SL || !SL.auditCodes){ alert("scan-lib.js 没加载上，体检用不了（刷新一次试试）。"); return; }
-  const r=SL.auditCodes(DB);
-  if(!r.count){
-    const n=new Set(DB.map(x=>String(x.customer==null?"":x.customer).trim()).filter(Boolean)).size;
-    alert("物料库代码体检：没发现问题 ✓\n\n"+DB.length+" 条记录、"+n+" 个送达方，\n没有「同一个客户两个代码」或「同一个代码被两个客户占用」。");
-    return;
-  }
-  const L=[];
-  L.push("物料库代码体检：发现 "+r.count+" 处可疑");
-  if(r.multiCust.length){
-    L.push("");
-    L.push("【一】同一个代码被两个客户占用（一个代码只该属于一个客户，多半是复制上一行忘了改）");
-    r.multiCust.slice(0,12).forEach(x=>L.push("  · "+x.code+" ← "+x.customers.join(" / ")));
-    if(r.multiCust.length>12) L.push("  …等共 "+r.multiCust.length+" 组");
-  }
-  if(r.multiCode.length){
-    L.push("");
-    L.push("【二】同一个客户名下有多个代码（少数派就是嫌疑行）");
-    r.multiCode.slice(0,12).forEach(x=>{
-      const sure = x.goodN >= x.total*(2/3);
-      L.push("  · "+x.customer+"："+(sure
-        ? "多数是 "+x.good+"（"+x.goodN+"/"+x.total+" 条）"
-        : "两种都差不多（"+x.good+" "+x.goodN+" 条 vs "+x.suspects.map(s=>s.code+" "+s.n+" 条").join("、")+"）"));
-      x.suspects.forEach(s=>L.push("      └ 可疑 "+s.code+"（"+s.n+" 条），型号："+
-        s.models.slice(0,3).join("、")+(s.models.length>3?" 等":"")));
-      if(!sure) L.push("      ⚠ 两边票数接近，别自动改，请人工确认哪个才对");
-    });
-    if(r.multiCode.length>12) L.push("  …等共 "+r.multiCode.length+" 个客户");
-  }
-  L.push("");
-  L.push("怎么修：点「🔓 解锁修改」，把可疑那一行的「送达方代码」改成正确的值；");
-  L.push("或者在这一列改好后整表重新导入。改完再点一次体检确认 ✓");
-  L.push("");
-  L.push("（代码填错不会报错，大屏只是安静地显示错的代码 —— 建议每次导入后体检一次。）");
-  alert(L.join("\n"));
-}; }
-$("sampleDb").onclick=()=>mergeDbRows([
-  {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",custcode:"C10001",remark:"标准件"},
-  {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",custcode:"C10002",remark:"加急"},
-  {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",custcode:"C10003",remark:""},
-  {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",custcode:"C10004",remark:"易碎"}
-]);
-$("clearDb").onclick=()=>{ if(!DB.length) return; if(!dbUnlocked){ openUnlock(); return; } if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; freshRows.clear(); dbPage=1; dbKeyword=""; const _s=$("dbSearch"); if(_s) _s.value=""; saveDB(); renderDB(); };
-$("addDbRow").onclick=addDbRow;
-// 搜索：防抖 250ms，输入停顿后才重新筛选（避免每敲一个字就重渲染整页）
-$("dbSearch").addEventListener("input", e=>{
-  const v=e.target.value;
-  clearTimeout(searchTimer);
-  searchTimer=setTimeout(()=>{ dbKeyword=v; dbPage=1; renderDB(); }, 250);
-});
-$("dbSearchClear").onclick=()=>{ $("dbSearch").value=""; dbKeyword=""; dbPage=1; renderDB(); };
-$("lockDbBtn").onclick=()=>{ if(dbUnlocked){ dbUnlocked=false; syncLockUI(); renderDB(); toast("已锁定：修改已有物料需重新输入密码"); } else openUnlock(); };
-$("pwdDbBtn").onclick=openChangePwd;
-$("pwdCancel").onclick=closeModal;
-$("pwdMask").addEventListener("click",e=>{ if(e.target===$("pwdMask")) closeModal(); });
-document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
-
-function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
-function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t);   t._t=setTimeout(()=>t.classList.remove("show"),2200); }
-
-ensurePwdSeed();
-renderDB();
-
-// ===================== 云端同步 =====================
-if(window.CloudSync){
-  CloudSync.init();
-  const CLOUD_KEYS=[LS_DB];
-  const nav=document.querySelector('.nav');
-  const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
-  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
-  if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
-    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }, true); }   // 手动点同步 = 明确以云端为准
-  if(CloudSync.ready()){
-    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }).then((r)=>{
-      // ★ 只在"这次拉取真的没失败"时才把本机数据回写云端：否则会把本机旧物料库冲掉云端。
-      //   手动点「☁ 拉取最新」是明确操作，不受此限制。
-      if(r && r.failed && r.failed.length) return;
-      CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
-    });
-  } else { CloudSync.setStatus('未配置云端','off'); }
-}
-</script>
-<script src="auth.js?v=20260924a"></script>
-<script>if(window.Auth)Auth.guard();</script>
-  <script src="staff-admin.js?v=20260924a"></script>
-<script src="brand.js?v=3"></script>
-</body>
-</html>
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>物料主数据库</title>
+
+<script src="supabase.min.js?v=lib"></script>
+
+<script src="cloud-config.js?v=20260920a"></script>
+
+<script src="cloud-sync.js?v=20260922d"></script>
+
+<script src="scan-lib.js?v=20260924g"></script>
+
+<style>
+
+  :root{
+
+    --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
+
+    --muted:#7a8699; --brand:#2563eb; --brand-d:#1e4fb0;
+
+    --red:#d92d20; --soft:#eef4ff;
+
+  }
+
+  *{box-sizing:border-box;}
+
+  body{margin:0;font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--txt);font-size:14px;}
+
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px;}
+
+  h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+
+  h1 .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
+
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px;}
+
+  .nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+
+  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
+
+  .nav-link:hover{background:var(--soft);color:var(--brand);}
+
+  .nav-link.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 4px 12px rgba(37,99,235,.28);}
+
+  /* ===== 云端同步状态 + 手机自适应 ===== */
+
+  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;}
+
+  .cloud-pill.ok{background:#e7f8ee;color:#15803d;border-color:#bbe7c9;}
+
+  .cloud-pill.err{background:#fdecea;color:#d92d20;border-color:#f3c7c2;}
+
+  .cloud-pill.sync{background:#eef4ff;color:#2563eb;border-color:#c5d8ff;}
+
+  .cloud-pill.warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
+
+  .cloud-pill.off{background:#f1f5f9;color:#94a3b8;}
+
+  @media (max-width:820px){
+
+    .wrap{padding:12px 8px 56px;}
+
+    h1{font-size:18px;}
+
+    .nav{gap:6px;}
+
+    .card{padding:12px;}
+
+    .doc{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+    .tbl{min-width:790px;}
+
+    .toolbar{gap:8px;}
+
+    .toolbar .btn{font-size:13px;padding:8px 12px;}
+
+  }
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px;}
+
+  .card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+
+  .card h2 .tag{font-size:11px;background:var(--soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600;}
+
+  .hint{font-size:12px;color:var(--muted);}
+
+  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-weight:600;transition:.15s;}
+
+  .btn-primary{background:var(--brand);color:#fff;} .btn-primary:hover{background:var(--brand-d);}
+
+  .btn-ghost{background:var(--soft);color:var(--brand);} .btn-ghost:hover{background:#dfeaff;}
+
+  .btn-line{background:#fff;color:var(--txt);border:1px solid var(--line);} .btn-line:hover{background:#f3f6fb;}
+
+  .btn-danger{background:#fff;color:var(--red);border:1px solid #f3c7c2;} .btn-danger:hover{background:#fdecea;}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;}
+
+  .doc{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;}
+
+  .doc-scroll{max-height:480px;overflow:auto;}
+
+  .tbl{width:100%;border-collapse:collapse;font-size:13px;}
+
+  .tbl thead th{background:#f3f6fb;color:#44506a;font-weight:600;padding:10px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;}
+
+  .tbl td{padding:6px 6px;border-bottom:1px solid #eef1f6;text-align:center;vertical-align:middle;}
+
+  .tbl td input{border:1px solid transparent;background:transparent;width:100%;padding:6px 6px;text-align:center;border-radius:6px;font-size:13px;outline:none;}
+
+  .tbl td input:focus{border-color:var(--brand);background:#fafcff;}
+
+  .tbl tr:hover td{background:#fafcff;}
+
+  .col-act{width:46px;}
+
+  .del-x{border:none;background:#fff;color:var(--red);cursor:pointer;font-size:16px;line-height:1;}
+
+  .lock-ico{color:#b8860b;font-size:13px;}
+
+  .tbl td input[readonly]{cursor:not-allowed;}
+
+  .mask{position:fixed;inset:0;background:rgba(31,41,55,.45);display:none;align-items:center;justify-content:center;z-index:98;padding:16px;}
+
+  .mask.show{display:flex;}
+
+  .pwd-box{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:330px;box-shadow:0 18px 50px rgba(15,23,42,.28);}
+
+  .pwd-box h3{margin:0 0 2px;font-size:16px;}
+
+  .pwd-sub{color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:14px;}
+
+  .pwd-box input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:10px;outline:none;background:#fafbfc;color:#1f2733;}
+
+  .pwd-box input:focus{border-color:var(--brand);background:#fff;}
+
+  .pwd-err{color:var(--red);font-size:12px;min-height:16px;margin:0 0 6px;}
+
+  .pwd-actions{display:flex;justify-content:flex-end;gap:8px;}
+
+  .empty{color:var(--muted);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
+
+  /* 搜索框 */
+
+  .db-search{display:flex;align-items:center;gap:8px;margin:10px 0 8px;}
+
+  .db-search input{flex:1;max-width:340px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;outline:none;background:#fafbfc;color:#1f2733;}
+
+  .db-search input:focus{border-color:var(--brand);background:#fff;}
+
+  .db-search .hint{color:var(--muted);font-size:12px;}
+
+  /* 分页控件 */
+
+  .db-pager{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+
+  .db-pager .pg-info{color:var(--muted);font-size:12px;margin-right:6px;}
+
+  .db-pager button{border:1px solid var(--line);background:#fff;color:var(--txt);border-radius:8px;padding:6px 11px;font-size:13px;cursor:pointer;}
+
+  .db-pager button:hover:not(:disabled){border-color:var(--brand);color:var(--brand);background:var(--soft);}
+
+  .db-pager button:disabled{opacity:.45;cursor:not-allowed;}
+
+  .db-pager button.cur{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700;}
+
+  .db-pager select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--txt);cursor:pointer;}
+
+  .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
+
+  .toast.show{opacity:1;}
+
+</style>
+
+<link rel="manifest" href="manifest.json">
+
+<meta name="theme-color" content="#0b1220">
+
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<meta name="mobile-web-app-capable" content="yes">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<meta name="apple-mobile-web-app-title" content="发货计划">
+
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <h1><span class="dot"></span>物料主数据库</h1>
+
+  <div class="sub">维护物料主数据，供发货计划页「输入型号自动带出」，与发货计划系统共享同一浏览器存储。</div>
+
+
+
+  <nav class="nav">
+
+    <a href="发货计划系统.html" class="nav-link" target="_blank">📋 发货计划</a>
+
+    <a href="物料数据库.html" class="nav-link active">📦 物料数据库</a>
+
+  </nav>
+
+
+
+  <div class="card">
+
+    <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
+
+      <span class="tag" id="lockTag" style="background:#fff4e5;color:#b45309;">🔒 修改需密码</span>
+
+      <span class="tag" id="codeWarn" style="display:none;background:#fff7e0;color:#b45309;border:1px solid #f6d48a;cursor:pointer;" title="点一下看是哪些送达方">⚠ 未编代码</span>
+
+      <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 送达方代码 / 物流 / 备注；按型号或编码匹配）</span></h2>
+
+    <div class="toolbar">
+
+      <input type="file" id="dbFile" accept=".csv,.xlsx,.xls" hidden>
+
+      <button class="btn btn-primary" id="importDb">导入表格</button>
+
+      <button class="btn btn-ghost" id="addDbRow">＋ 新增物料</button>
+
+      <button class="btn btn-line" id="exportDb">导出数据库</button>
+
+      <button class="btn btn-line" id="auditDb" title="扫一遍物料库：有没有填错的送达方代码">🔍 代码体检</button>
+
+      <button class="btn btn-line" id="tplDb">下载模板</button>
+
+      <button class="btn btn-line" id="sampleDb">载入示例</button>
+
+      <button class="btn btn-danger" id="clearDb">清空</button>
+
+      <button class="btn btn-ghost" id="lockDbBtn" style="margin-left:auto;">🔓 解锁修改</button>
+
+      <button class="btn btn-line" id="pwdDbBtn">🔑 修改密码</button>
+
+    </div>
+
+    <div class="db-search">
+
+      <input type="text" id="dbSearch" placeholder="🔍 搜索型号 / 物料编码 / 客户 / 送达方代码 / 物流 / 备注">
+
+      <span class="hint" id="dbSearchInfo"></span>
+
+      <button class="btn btn-line" id="dbSearchClear" style="display:none;">清空搜索</button>
+
+    </div>
+
+    <div class="doc doc-scroll">
+
+      <table class="tbl" id="dbTbl">
+
+        <thead><tr>
+
+          <th>物料编码</th><th>型号</th><th>单重(kg)</th><th>一箱多少件</th><th>客户</th><th>送达方代码</th><th>物流</th><th>备注</th><th class="col-act">操作</th>
+
+        </tr></thead>
+
+        <tbody id="dbBody"></tbody>
+
+      </table>
+
+      <div class="empty" id="dbEmpty">数据库为空。可点「导入表格」或「载入示例」开始。</div>
+
+    </div>
+
+    <div class="db-pager" id="dbPager"></div>
+
+  </div>
+
+</div>
+
+
+
+<div class="mask" id="pwdMask">
+
+  <div class="pwd-box">
+
+    <h3 id="pwdTitle">输入修改密码</h3>
+
+    <div class="pwd-sub" id="pwdSub"></div>
+
+    <div id="pwdFields"></div>
+
+    <div class="pwd-err" id="pwdErr"></div>
+
+    <div class="pwd-actions">
+
+      <button class="btn btn-line" id="pwdCancel">取消</button>
+
+      <button class="btn btn-primary" id="pwdOk">确定</button>
+
+    </div>
+
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+
+
+<script>
+
+const LS_DB = "shipping_db_v1";
+
+const LS_PWD = "shipping_db_pwd_v1";
+
+const $ = id => document.getElementById(id);
+
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+
+
+
+let DB = loadDB();
+
+let dbUnlocked = false;
+
+const freshRows = new Set();
+
+function loadDB(){ try{ return JSON.parse(localStorage.getItem(LS_DB)) || []; }catch(e){ return []; } }
+
+function saveDB(){ try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); }catch(e){ toast("数据库保存失败：存储空间不足"); } if(window.CloudSync) CloudSync.autoPush(LS_DB); }
+
+
+
+// ===== 分页 / 搜索 / 防抖（3000+ 条时不卡的关键）=====
+
+let dbPage=1, dbPageSize=100, dbKeyword="", saveTimer=null, searchTimer=null;
+
+
+
+// 防抖保存：避免每敲一个字就「全量序列化 + 写 localStorage + 推云端」
+
+function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>{ saveDB(); }, 600); }
+
+
+
+// 返回「筛选后的原始 DB 索引」数组；编辑时按原索引写回，保证分页/搜索下数据不错位
+
+function getViewIdx(){
+
+  const kw=dbKeyword.trim().toLowerCase();
+
+  const idx=[];
+
+  if(!kw){ for(let i=0;i<DB.length;i++) idx.push(i); return idx; }
+
+  for(let i=0;i<DB.length;i++){
+
+    const r=DB[i];
+
+    const hay=((r.code||"")+" "+(r.model||"")+" "+(r.customer||"")+" "+(r.custcode||"")+" "+(r.logistics||"")+" "+(r.remark||"")).toLowerCase();
+
+    if(hay.indexOf(kw)!==-1) idx.push(i);
+
+  }
+
+  return idx;
+
+}
+
+const totalPages = n => Math.max(1, Math.ceil(n/dbPageSize));
+
+
+
+// 送达方代码覆盖情况 —— 物流门口那块保密大屏的「燃料」。
+
+// 门口大屏不能出现送达方名称，只能用代码代替；库里没编代码的送达方，
+
+// 大屏上只能显示「未编代码」占位（保密要求：绝不回落显示名称）。
+
+// 返回：还没编代码的送达方名单（按库里的客户名去重）
+
+function missingCodeCustomers(){
+
+  const seen=new Map();          // 送达方 → 该名称下任意一条有代码就算编过
+
+  DB.forEach(r=>{
+
+    const cu=String(r.customer==null?"":r.customer).trim(); if(!cu) return;
+
+    const has=!!String(r.custcode==null?"":r.custcode).trim();
+
+    seen.set(cu, (seen.get(cu)||false) || has);
+
+  });
+
+  const out=[]; seen.forEach((has,cu)=>{ if(!has) out.push(cu); });
+
+  return out;
+
+}
+
+function updateCodeWarn(){
+
+  const el=$("codeWarn"); if(!el) return;
+
+  const miss=missingCodeCustomers();
+
+  if(!miss.length){ el.style.display="none"; return; }
+
+  el.style.display="";
+
+  el.textContent="⚠ "+miss.length+" 个送达方未编代码";
+
+}
+
+function renderDB(){
+
+  const tb=$("dbBody"); tb.innerHTML="";
+
+  const viewIdx=getViewIdx();
+
+  const total=viewIdx.length;
+
+  const pages=totalPages(total);
+
+  if(dbPage>pages) dbPage=pages;
+
+  if(dbPage<1) dbPage=1;
+
+
+
+  const emptyEl=$("dbEmpty");
+
+  if(!DB.length){ emptyEl.style.display="block"; emptyEl.textContent="数据库为空。可点「导入表格」或「载入示例」开始。"; }
+
+  else if(!total){ emptyEl.style.display="block"; emptyEl.textContent="没有匹配「"+dbKeyword+"」的物料，换个关键词试试。"; }
+
+  else emptyEl.style.display="none";
+
+
+
+  $("dbCount").textContent = DB.length+" 条"+(dbKeyword?"（筛选出 "+total+" 条）":"");
+
+  // 送达方代码覆盖情况：物流门口那块保密大屏靠它把客户名换成代码，
+
+  // 库里没编代码的送达方，大屏只能显示「未编代码」占位（保密要求不能回落显示名称）。
+
+  // 所以这里把「还差几个」摆在明面上，点一下就能看到是哪些。
+
+  updateCodeWarn();
+
+  updateAuditBadge();          // 送达方代码体检角标（发现问题时亮起数量）
+
+  const info=$("dbSearchInfo");
+
+  if(info) info.textContent = dbKeyword ? ("匹配 "+total+" 条") : (DB.length>dbPageSize ? ("共 "+DB.length+" 条，每页显示 "+dbPageSize+" 条") : "");
+
+  const clr=$("dbSearchClear"); if(clr) clr.style.display = dbKeyword?"":"none";
+
+
+
+  const start=(dbPage-1)*dbPageSize;
+
+  const pageIdx=viewIdx.slice(start, start+dbPageSize);
+
+  const frag=document.createDocumentFragment();
+
+  pageIdx.forEach(oi=>{
+
+    const r=DB[oi];
+
+    const tr=document.createElement("tr");
+
+    tr.dataset.i=oi;
+
+    const fresh=freshRows.has(r);
+
+    const locked=!dbUnlocked && !fresh;
+
+    const ro=locked?"readonly":"";
+
+    tr.innerHTML=`
+
+      <td><input data-k="code" ${ro} value="${esc(r.code)}" placeholder="物料编码"></td>
+
+      <td><input data-k="model" ${ro} value="${esc(r.model)}" placeholder="型号"></td>
+
+      <td><input data-k="unit" ${ro} type="number" min="0" step="0.0001" value="${esc(r.unit)}" placeholder="kg"></td>
+
+      <td><input data-k="perbox" ${ro} type="number" min="1" value="${esc(r.perbox)}" placeholder="件/箱"></td>
+
+      <td><input data-k="customer" ${ro} value="${esc(r.customer)}" placeholder="客户"></td>
+
+      <td><input data-k="custcode" ${ro} value="${esc(r.custcode)}" placeholder="送达方代码"></td>
+
+      <td><input data-k="logistics" ${ro} value="${esc(r.logistics)}" placeholder="物流"></td>
+
+      <td><input data-k="remark" ${ro} value="${esc(r.remark)}" placeholder="备注"></td>
+
+      <td class="col-act">${locked?'<span class="lock-ico" title="已有物料：修改/删除需先解锁">🔒</span>':'<button class="del-x" title="删除">✕</button>'}</td>`;
+
+    frag.appendChild(tr);
+
+  });
+
+  tb.appendChild(frag);            // 一次性插入，避免逐行 append 反复重排
+
+  renderPager(total, pages);
+
+  syncLockUI();
+
+}
+
+
+
+function renderPager(total, pages){
+
+  const box=$("dbPager"); if(!box) return;
+
+  if(!DB.length){ box.innerHTML=""; return; }
+
+  const btn=(label,pg,dis,cur)=>`<button ${dis?"disabled":""} ${cur?'class="cur"':""} data-pg="${pg}">${label}</button>`;
+
+  let h=`<span class="pg-info">共 ${total} 条 · 第 ${dbPage}/${pages} 页</span>`;
+
+  h+=btn("首页",1,dbPage===1,false);
+
+  h+=btn("上一页",dbPage-1,dbPage===1,false);
+
+  let s=Math.max(1,dbPage-2), e=Math.min(pages,s+4); s=Math.max(1,e-4);
+
+  for(let p=s;p<=e;p++) h+=btn(String(p),p,false,p===dbPage);
+
+  h+=btn("下一页",dbPage+1,dbPage===pages,false);
+
+  h+=btn("末页",pages,dbPage===pages,false);
+
+  h+=`<select id="dbPageSize">`;
+
+  [50,100,200,500].forEach(n=>{ h+=`<option value="${n}" ${n===dbPageSize?"selected":""}>每页 ${n} 条</option>`; });
+
+  h+=`</select>`;
+
+  box.innerHTML=h;
+
+  box.querySelectorAll("[data-pg]").forEach(b=>{ b.onclick=()=>{ dbPage=+b.dataset.pg; renderDB(); }; });
+
+  const sel=$("dbPageSize");
+
+  if(sel) sel.onchange=()=>{ dbPageSize=+sel.value; dbPage=1; renderDB(); };
+
+}
+
+
+
+// 事件委托：整个表格只绑 3 个监听器，替代「每格一个」（3000 条时从 21000 个降到 3 个）
+
+(function bindDbDelegates(){
+
+  const tb=$("dbBody"); if(!tb||tb._delegated) return; tb._delegated=true;
+
+  tb.addEventListener("input", e=>{
+
+    const inp=e.target; if(!inp||inp.tagName!=="INPUT") return;
+
+    const tr=inp.closest("tr"); if(!tr) return;
+
+    const oi=+tr.dataset.i, k=inp.dataset.k;
+
+    if(!k||!DB[oi]) return;
+
+    DB[oi][k]=inp.value.trim();
+
+    scheduleSave();                                   // 防抖，不再每敲一下就写盘+推云端
+
+  });
+
+  tb.addEventListener("click", e=>{
+
+    const b=e.target.closest(".del-x"); if(!b) return;
+
+    const tr=b.closest("tr"); if(!tr) return;
+
+    const oi=+tr.dataset.i, r=DB[oi];
+
+    if(r){ DB.splice(oi,1); freshRows.delete(r); saveDB(); renderDB(); }
+
+  });
+
+  tb.addEventListener("focusin", e=>{
+
+    const inp=e.target; if(!inp||inp.tagName!=="INPUT") return;
+
+    if(inp.hasAttribute("readonly")){ inp.blur(); toast("修改已有物料需先点「🔓 解锁修改」输入密码"); }
+
+  });
+
+})();
+
+
+
+function addDbRow(){
+
+  const rec={code:"",model:"",unit:"",perbox:"",customer:"",custcode:"",logistics:"",remark:""};
+
+  freshRows.add(rec);
+
+  DB.unshift(rec);
+
+  dbKeyword=""; const s=$("dbSearch"); if(s) s.value="";   // 清空搜索并回第 1 页，保证能看到新增的空行
+
+  dbPage=1;
+
+  saveDB(); renderDB();
+
+  const first=$("dbBody").querySelector('input[data-k="model"]'); if(first) first.focus();
+
+}
+
+function syncLockUI(){
+
+  const b=$("lockDbBtn"), t=$("lockTag");
+
+  if(b){ b.textContent=dbUnlocked?"🔒 重新锁定":"🔓 解锁修改"; b.className=dbUnlocked?"btn btn-line":"btn btn-ghost"; }
+
+  if(t){ t.textContent=dbUnlocked?"🔓 编辑中":"🔒 修改需密码"; t.style.background=dbUnlocked?"#e7f8ee":"#fff4e5"; t.style.color=dbUnlocked?"#15803d":"#b45309"; }
+
+}
+
+function storedPwd(){ return localStorage.getItem(LS_PWD)||""; }
+
+function hashPwd(s){ let h=5381; s=String(s==null?"":s); for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))>>>0; } return "d"+h.toString(36); }
+
+function setStoredPwd(p){ localStorage.setItem(LS_PWD, hashPwd(p)); }
+
+function verifyPwd(p){ const s=storedPwd(); return !!s && hashPwd(p)===s; }
+
+function closeModal(){ const m=$("pwdMask"); if(m) m.classList.remove("show"); }
+
+function openModal(title,sub,fields,onOk){
+
+  $("pwdTitle").textContent=title; $("pwdSub").textContent=sub||"";
+
+  $("pwdFields").innerHTML=fields; $("pwdErr").textContent="";
+
+  $("pwdOk").onclick=()=>{ const err=onOk(); if(err){ $("pwdErr").textContent=err; } else closeModal(); };
+
+  $("pwdCancel").onclick=closeModal;
+
+  $("pwdMask").classList.add("show");
+
+  const first=$("pwdFields").querySelector("input"); if(first){ first.focus(); }
+
+}
+
+function openUnlock(){
+
+  if(dbUnlocked) return true;
+
+  openModal("解锁修改","输入密码后，本次打开期间可修改、删除已有物料；新增物料无需密码。",
+
+    '<input type="password" id="pwdIn" placeholder="请输入修改密码" autocomplete="off">',
+
+    ()=>{
+
+      const v=$("pwdIn").value;
+
+      if(!v) return "请输入密码";
+
+      if(!verifyPwd(v)) return "密码错误，请重试";
+
+      dbUnlocked=true; syncLockUI(); renderDB(); toast("已解锁，可修改已有物料");
+
+      return "";
+
+    });
+
+  return false;
+
+}
+
+function openChangePwd(){
+
+  const has=!!storedPwd();
+
+  const fields=(has?'<input type="password" id="oldPwd" placeholder="当前密码" autocomplete="off">':'')
+
+    +'<input type="password" id="np1" placeholder="新密码" autocomplete="off">'
+
+    +'<input type="password" id="np2" placeholder="再次输入新密码" autocomplete="off">';
+
+  openModal("修改密码","建议 6 位以上；修改后解锁需使用新密码。", fields, ()=>{
+
+    if(has && !verifyPwd($("oldPwd").value)) return "当前密码错误";
+
+    const a=$("np1").value, b=$("np2").value;
+
+    if(!a) return "请输入新密码";
+
+    if(a!==b) return "两次输入的新密码不一致";
+
+    setStoredPwd(a); toast("修改密码成功"); return "";
+
+  });
+
+}
+
+function ensurePwdSeed(){
+
+  if(!storedPwd()){ setStoredPwd("123456"); toast("已启用：修改物料需密码，初始密码 123456"); }
+
+}
+
+function pick(obj, names){ for(const n of names){ if(obj[n]!==undefined && obj[n]!=="") return String(obj[n]).trim(); } return ""; }
+
+function findDbIdx(x){
+
+  return DB.findIndex(d =>
+
+    (
+
+      (x.model && d.model && d.model===x.model && (!x.code || !d.code || d.code===x.code)) ||
+
+      (x.code && d.code && d.code===x.code && (!x.model || !d.model || d.model===x.model))
+
+    ) && (!x.customer || !d.customer || d.customer===x.customer));
+
+}
+
+function mergeDbRows(rows){
+
+  const prep=[];
+
+  rows.forEach(raw=>{
+
+    const code=pick(raw,["物料编码","物料代码","编码","code","sku","SKU","物料号"]);
+
+    const model=pick(raw,["型号","规格","model","spec","MODEL"]);
+
+    if(!code && !model) return;
+
+    prep.push({
+
+      code,model,
+
+      unit:pick(raw,["单重","单重(kg)","重量","unit","Unit","kg/件","净重"]),
+
+      perbox:pick(raw,["一箱多少件","每箱件数","装箱数","每箱数量","perbox","PerBox","箱规"]),
+
+      customer:pick(raw,["客户","customer","Customer","购货方","送达方","送达方名称","收货方"]),
+
+      custcode:pick(raw,["送达方代码","客户代码","送达方编码","客户编码","送达方编号","客户编号","custcode","CustCode","customerCode","shipToCode","收货方代码","往来单位代码","客户代号","送达方代号"]),
+
+      logistics:pick(raw,["物流","logistics","Logistics","物流公司","承运商","货运"]),
+
+      remark:pick(raw,["备注","remark","Remark","说明","描述"])
+
+    });
+
+  });
+
+  if(!prep.length){ toast("未解析到有效数据"); return; }
+
+  // 用索引匹配，避免「导入 M 条 × 全表 N 条」的 O(M×N) 全表扫描（3000 条时会卡好几十秒）
+
+  const ix=dbIndexMap();
+
+  if(!dbUnlocked){
+
+    const touches=prep.some(x=>findDbIdxFast(x, ix)>=0);
+
+    if(touches){ toast("本次内容会改动已有物料，请先「🔓 解锁修改」再导入"); return; }
+
+  }
+
+  let added=0, updated=0;
+
+  prep.forEach(x=>{
+
+    const idx=findDbIdxFast(x, ix);
+
+    if(idx>=0){
+
+      const t=DB[idx];
+
+      t.code=x.code||t.code; t.model=x.model||t.model;
+
+      if(x.unit) t.unit=x.unit; if(x.perbox) t.perbox=x.perbox;
+
+      if(x.customer) t.customer=x.customer; if(x.custcode) t.custcode=x.custcode; if(x.logistics) t.logistics=x.logistics; if(x.remark) t.remark=x.remark;
+
+      updated++;
+
+    }else{
+
+      DB.push({code:x.code,model:x.model,unit:x.unit,perbox:x.perbox,customer:x.customer,custcode:x.custcode,logistics:x.logistics,remark:x.remark});
+
+      const ni=DB.length-1;                                   // 新记录也要进索引，避免同类物料重复插入
+
+      const m=x.model?String(x.model).trim():"";
+
+      const c=x.code?String(x.code).trim():"";
+
+      if(m){ if(!ix.byModel.has(m)) ix.byModel.set(m,[]); ix.byModel.get(m).push(ni); }
+
+      if(c){ if(!ix.byCode.has(c)) ix.byCode.set(c,[]); ix.byCode.get(c).push(ni); }
+
+      added++;
+
+    }
+
+  });
+
+  dbPage=1;                                                   // 导入后回到第 1 页
+
+  saveDB(); renderDB(); toast(`导入完成：新增 ${added} 条，更新 ${updated} 条`);
+
+}
+
+// 按型号 / 编码建倒排索引：型号→行号数组、编码→行号数组
+
+function dbIndexMap(){
+
+  const byModel=new Map(), byCode=new Map();
+
+  for(let i=0;i<DB.length;i++){
+
+    const d=DB[i]||{};
+
+    const m=d.model?String(d.model).trim():"";
+
+    const c=d.code?String(d.code).trim():"";
+
+    if(m){ if(!byModel.has(m)) byModel.set(m,[]); byModel.get(m).push(i); }
+
+    if(c){ if(!byCode.has(c)) byCode.set(c,[]); byCode.get(c).push(i); }
+
+  }
+
+  return {byModel,byCode};
+
+}
+
+// 只在索引命中的候选行里做精确校验，命中不了就当新物料
+
+function findDbIdxFast(x, ix){
+
+  const m=x.model?String(x.model).trim():"";
+
+  const c=x.code?String(x.code).trim():"";
+
+  const cand=[];
+
+  if(m && ix.byModel.has(m)) cand.push(...ix.byModel.get(m));
+
+  if(c && ix.byCode.has(c)) cand.push(...ix.byCode.get(c));
+
+  if(!cand.length) return -1;
+
+  for(const i of new Set(cand)){
+
+    const d=DB[i]; if(!d) continue;
+
+    const byModel = x.model && d.model && d.model===x.model && (!x.code || !d.code || d.code===x.code);
+
+    const byCode  = x.code && d.code && d.code===x.code && (!x.model || !d.model || d.model===x.model);
+
+    if((byModel || byCode) && (!x.customer || !d.customer || d.customer===x.customer)) return i;
+
+  }
+
+  return -1;
+
+}
+
+function parseCSV(text){
+
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+
+  const rows=[]; let row=[], cur="", q=false;
+
+  for(let i=0;i<text.length;i++){
+
+    const c=text[i];
+
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=c; }
+
+    else{ if(c==='"') q=true; else if(c===","){ row.push(cur); cur=""; }
+
+      else if(c==="\n"){ row.push(cur); rows.push(row); row=[]; cur=""; }
+
+      else if(c==="\r"){} else cur+=c; }
+
+  }
+
+  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
+
+  if(!rows.length) return [];
+
+  const head=rows[0].map(h=>h.trim());
+
+  return rows.slice(1).map(r=>{ const o={}; head.forEach((h,j)=>o[h]=r[j]!==undefined?r[j]:""); return o; });
+
+}
+
+
+
+function loadScript(src){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+src+'"]')){res();return;} const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("加载失败")); document.head.appendChild(s); }); }
+
+$("importDb").onclick=()=>$("dbFile").click();
+
+$("dbFile").onchange=e=>{
+
+  const file=e.target.files[0]; if(!file) return;
+
+  const reader=new FileReader();
+
+  reader.onload=async ev=>{
+
+    try{
+
+      let rows;
+
+      if(/\.csv$/i.test(file.name)) rows=parseCSV(ev.target.result);
+
+      else{ if(!window.XLSX){ await loadScript("xlsx.full.min.js"); } const wb=XLSX.read(ev.target.result,{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]]; rows=XLSX.utils.sheet_to_json(ws,{defval:""}); }
+
+      if(!rows.length){ toast("未解析到数据"); return; }
+
+      mergeDbRows(rows);
+
+    }catch(err){ toast("导入失败："+err.message); }
+
+    finally{ e.target.value=""; }
+
+  };
+
+  if(/\.csv$/i.test(file.name)) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+
+};
+
+$("exportDb").onclick=()=>{
+
+  if(!DB.length){ toast("数据库为空"); return; }
+
+  const head=["物料编码","型号","单重(kg)","一箱多少件","客户","送达方代码","物流","备注"];
+
+  const lines=[head.join(",")];
+
+  DB.forEach(r=>lines.push([r.code,r.model,r.unit,r.perbox,r.customer,r.custcode,r.logistics,r.remark].map(csvCell).join(",")));
+
+  const blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
+
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="物料主数据库.csv"; a.click();
+
+};
+
+$("tplDb").onclick=async ()=>{
+
+  if(!window.XLSX){ await loadScript("xlsx.full.min.js"); }
+
+  const aoa=[["物料编码","型号","单重(kg)","一箱多少件","客户","送达方代码","物流","备注"]];
+
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+
+  ws["!cols"]=[{wch:14},{wch:16},{wch:10},{wch:12},{wch:14},{wch:14},{wch:12},{wch:18}];
+
+  const wb=XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb, ws, "物料库模板");
+
+  XLSX.writeFile(wb, "物料库导入模板.xlsx");
+
+  toast("模板已下载：物料库导入模板.xlsx");
+
+};
+
+{ const cw=$("codeWarn"); if(cw) cw.onclick=()=>{
+
+    const miss=missingCodeCustomers();
+
+    if(!miss.length){ toast("所有送达方都编了代码 ✓"); return; }
+
+    alert("以下 "+miss.length+" 个送达方还没编「送达方代码」：\n\n"+
+
+      miss.slice(0,40).join("、")+(miss.length>40?"\n…等共 "+miss.length+" 个":"")+
+
+      "\n\n为什么要编：物流门口那块大屏涉及保密，不能显示送达方名称，只能用代码代替；"+
+
+      "没编代码的，大屏上只会显示「未编代码」占位。\n\n"+
+
+      "怎么补：点「🔓 解锁修改」，在对应那一行的「送达方代码」格里填上；"+
+
+      "或者在表格里补好这一列后整表导入。");
+
+  }; }
+
+
+
+/* ==========================================================================
+
+   送达方代码「体检」（2026-09-23 现场事故后加）
+
+   --------------------------------------------------------------------------
+
+   现场症状：屏幕上「上海佳喆 → 100064」（100064 是**上海萨克斯**的码）、
+
+             「上海西工 → 100178」（100178 是**巴西舍弗勒**的码）。
+
+   查下来匹配逻辑没坏，是这一列**人工填的时候串了行**（复制上一行忘了改）。
+
+   这种错不会报错、只是安静地显示错的代码 —— 所以必须有一处能主动扫出来。
+
+   口径在 scan-lib.auditCodes（和 codeIndex 同一份实现），这里只负责把结果说人话。
+
+   ========================================================================== */
+
+function updateAuditBadge(){
+
+  const b=$("auditDb"); if(!b) return;
+
+  const SL=window.ScanLib;
+
+  const r=(SL&&SL.auditCodes)?SL.auditCodes(DB):null;
+
+  if(!r || !r.count){
+
+    b.textContent="🔍 代码体检";
+
+    b.style.background=""; b.style.borderColor=""; b.style.color="";
+
+    b.title="扫一遍物料库：有没有填错的送达方代码";
+
+    return;
+
+  }
+
+  b.textContent="🔍 代码体检 ("+r.count+")";
+
+  b.style.background="#fff7e0"; b.style.borderColor="#f6d48a"; b.style.color="#b45309";
+
+  b.title="发现 "+r.count+" 处可疑的送达方代码，点开看明细";
+
+}
+
+{ const b=$("auditDb"); if(b) b.onclick=()=>{
+
+  const SL=window.ScanLib;
+
+  if(!SL || !SL.auditCodes){ alert("scan-lib.js 没加载上，体检用不了（刷新一次试试）。"); return; }
+
+  const r=SL.auditCodes(DB);
+
+  if(!r.count){
+
+    const n=new Set(DB.map(x=>String(x.customer==null?"":x.customer).trim()).filter(Boolean)).size;
+
+    alert("物料库代码体检：没发现问题 ✓\n\n"+DB.length+" 条记录、"+n+" 个送达方，\n没有「同一个客户两个代码」或「同一个代码被两个客户占用」。");
+
+    return;
+
+  }
+
+  const L=[];
+
+  L.push("物料库代码体检：发现 "+r.count+" 处可疑");
+
+  if(r.multiCust.length){
+
+    L.push("");
+
+    L.push("【一】同一个代码被两个客户占用（一个代码只该属于一个客户，多半是复制上一行忘了改）");
+
+    r.multiCust.slice(0,12).forEach(x=>L.push("  · "+x.code+" ← "+x.customers.join(" / ")));
+
+    if(r.multiCust.length>12) L.push("  …等共 "+r.multiCust.length+" 组");
+
+  }
+
+  if(r.multiCode.length){
+
+    L.push("");
+
+    L.push("【二】同一个客户名下有多个代码（少数派就是嫌疑行）");
+
+    r.multiCode.slice(0,12).forEach(x=>{
+
+      const sure = x.goodN >= x.total*(2/3);
+
+      L.push("  · "+x.customer+"："+(sure
+
+        ? "多数是 "+x.good+"（"+x.goodN+"/"+x.total+" 条）"
+
+        : "两种都差不多（"+x.good+" "+x.goodN+" 条 vs "+x.suspects.map(s=>s.code+" "+s.n+" 条").join("、")+"）"));
+
+      x.suspects.forEach(s=>L.push("      └ 可疑 "+s.code+"（"+s.n+" 条），型号："+
+
+        s.models.slice(0,3).join("、")+(s.models.length>3?" 等":"")));
+
+      if(!sure) L.push("      ⚠ 两边票数接近，别自动改，请人工确认哪个才对");
+
+    });
+
+    if(r.multiCode.length>12) L.push("  …等共 "+r.multiCode.length+" 个客户");
+
+  }
+
+  L.push("");
+
+  L.push("怎么修：点「🔓 解锁修改」，把可疑那一行的「送达方代码」改成正确的值；");
+
+  L.push("或者在这一列改好后整表重新导入。改完再点一次体检确认 ✓");
+
+  L.push("");
+
+  L.push("（代码填错不会报错，大屏只是安静地显示错的代码 —— 建议每次导入后体检一次。）");
+
+  alert(L.join("\n"));
+
+}; }
+
+$("sampleDb").onclick=()=>mergeDbRows([
+
+  {code:"M1001",model:"AX-200",unit:"12.5",perbox:"20",customer:"华东机电",custcode:"C10001",remark:"标准件"},
+
+  {code:"M1002",model:"BX-350",unit:"8.2",perbox:"30",customer:"华南汽配",custcode:"C10002",remark:"加急"},
+
+  {code:"M1003",model:"CX-500",unit:"25.0",perbox:"10",customer:"北方重工",custcode:"C10003",remark:""},
+
+  {code:"M1004",model:"DX-120",unit:"3.4",perbox:"50",customer:"西部材料",custcode:"C10004",remark:"易碎"}
+
+]);
+
+$("clearDb").onclick=()=>{ if(!DB.length) return; if(!dbUnlocked){ openUnlock(); return; } if(!confirm("确认清空整个物料数据库？此操作不可恢复。")) return; DB=[]; freshRows.clear(); dbPage=1; dbKeyword=""; const _s=$("dbSearch"); if(_s) _s.value=""; saveDB(); renderDB(); };
+
+$("addDbRow").onclick=addDbRow;
+
+// 搜索：防抖 250ms，输入停顿后才重新筛选（避免每敲一个字就重渲染整页）
+
+$("dbSearch").addEventListener("input", e=>{
+
+  const v=e.target.value;
+
+  clearTimeout(searchTimer);
+
+  searchTimer=setTimeout(()=>{ dbKeyword=v; dbPage=1; renderDB(); }, 250);
+
+});
+
+$("dbSearchClear").onclick=()=>{ $("dbSearch").value=""; dbKeyword=""; dbPage=1; renderDB(); };
+
+$("lockDbBtn").onclick=()=>{ if(dbUnlocked){ dbUnlocked=false; syncLockUI(); renderDB(); toast("已锁定：修改已有物料需重新输入密码"); } else openUnlock(); };
+
+$("pwdDbBtn").onclick=openChangePwd;
+
+$("pwdCancel").onclick=closeModal;
+
+$("pwdMask").addEventListener("click",e=>{ if(e.target===$("pwdMask")) closeModal(); });
+
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
+
+
+
+function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t);   t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+
+
+
+ensurePwdSeed();
+
+renderDB();
+
+
+
+// ===================== 云端同步 =====================
+
+if(window.CloudSync){
+
+  CloudSync.init();
+
+  const CLOUD_KEYS=[LS_DB];
+
+  const nav=document.querySelector('.nav');
+
+  const pill=document.createElement('span'); pill.id='cloudPill'; pill.className='cloud-pill';
+
+  const btn=document.createElement('button'); btn.id='cloudSyncBtn'; btn.className='btn btn-ghost'; btn.textContent='☁ 拉取最新';
+
+  if(nav){ nav.appendChild(pill); nav.appendChild(btn); CloudSync.bindStatus(pill);
+
+    btn.onclick=()=>CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }, true); }   // 手动点同步 = 明确以云端为准
+
+  if(CloudSync.ready()){
+
+    CloudSync.pullAll(CLOUD_KEYS, ()=>{ DB=loadDB(); renderDB(); }).then((r)=>{
+
+      // ★ 只在"这次拉取真的没失败"时才把本机数据回写云端：否则会把本机旧物料库冲掉云端。
+
+      //   手动点「☁ 拉取最新」是明确操作，不受此限制。
+
+      if(r && r.failed && r.failed.length) return;
+
+      CLOUD_KEYS.forEach(k=>{ let v=localStorage.getItem(k); if(v!=null){ try{v=JSON.parse(v);}catch(e){} CloudSync.push(k,v); } });
+
+    });
+
+  } else { CloudSync.setStatus('未配置云端','off'); }
+
+}
+
+</script>
+
+<script src="auth.js?v=20260924b"></script>
+
+<script>if(window.Auth)Auth.guard();</script>
+
+  <script src="staff-admin.js?v=20260924a"></script>
+
+<script src="brand.js?v=3"></script>
+
+</body>
+
+</html>
+
