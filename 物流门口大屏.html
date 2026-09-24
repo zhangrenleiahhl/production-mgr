@@ -169,18 +169,17 @@
      后面跟的计划员姓名真名显示（★ 2026-09-23 老板要求恢复姓名，打码已删）——
      一眼分清哪段是单号、哪段是人名 */
   /* ★ 2026-09-23：单号必须完整（同内部屏）。改成 inline-flex，单号自己优先占位、
-     字号由 fitNoFont 按实测降档；后面的计划员让位（可省略）。 */
+     字号由 fitNoFont 按实测降档；后面的名字放不下先缩字号（2026-09-24 恢复显示）。 */
   /* 容器不用 gap（gap 不参与收缩，计划员缩到 0 后间隙还占着）—— 间距交给 .pl */
   .no{display:inline-flex;align-items:baseline;max-width:100%;color:var(--muted);
     font-size:.8em;font-weight:600;letter-spacing:.3px;white-space:nowrap;overflow:hidden;
     vertical-align:baseline;}
-  /* 单号不收缩、优先占够空间；计划员整段让位（放不下就缩到 0） */
+  /* 单号不收缩、优先占够空间；名字绝不换行（放不下先缩字号，2026-09-24） */
   .no .sn{flex:0 0 auto;white-space:nowrap;font-weight:700;color:#c9d6e8;
     font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:.2px;}
   body.nowrap .no .sn{white-space:normal;overflow-wrap:anywhere;line-height:1.15;}
-  .no .pl{flex:0 1 auto;min-width:0;margin-left:4px;overflow:hidden;text-overflow:ellipsis;}
-  .no.nopl .pl{display:none;}
-  .no .sep{color:var(--dim);}
+  .no .pl{flex:0 1 auto;min-width:0;margin-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .no .sep{color:var(--dim);margin:0 3px;}
   .ton{font-weight:800;font-size:1.12em;}
   .ton s{text-decoration:none;font-size:.62em;color:var(--dim);font-weight:600;margin-left:2px;}
 
@@ -564,44 +563,49 @@ function fitCodeFont(){
     r = up;
   }
 }
-/* 单号自适应字号（2026-09-23）
+/* 单号自适应字号（2026-09-23；2026-09-24 起名字恢复显示，口径改为「缩字号、绝不撤名字」）
    为什么需要：大屏字号按行数自适应（--rowfs 15~26px），行少字号就大 ——
    单号是 15 位等宽字符，字号一大就把这一格撑破，td 的 overflow:hidden 会把最后 1~2 位吃掉
    （真机实测 26px 时缺 11px）。单号缺一位就查不到单，比显示小字糟得多。
-   做法同 fitCustNames：先整批复位（只触发一次布局），再整批量（读写分离，别交错触发重排）。
-   下限 62%：15 位单号 × 0.62 在 175% 缩放的 1097px 视口里也放得下。
-   降到下限仍放不下（超长单号）→ 加 body.nowrap 折行，绝不丢字。 */
+   优先级（2026-09-24 用户要求）：单号必须完整 > 名字必须显示（不换行、可以缩小）。
+   做法：先整批复位（只触发一次布局），再整批量（读写分离，别交错触发重排）。
+   ① 先缩名字（96%→56%）；② 名字到底了还放不下 → 缩单号（96%→56%）；
+   ③ 都到下限仍放不下（超长单号）→ 折行，一位都不丢（极端兜底）。 */
 const NO_R_MIN = 0.56;
+const PL_R_MIN = 0.56;
 function fitNoFont(){
   const tb = document.getElementById("tbody"); if (!tb) return;
   document.body.classList.remove("nowrap");
   const list = Array.prototype.slice.call(tb.querySelectorAll(".no"));
   if (!list.length) return;
   const sns = list.map(no => no.querySelector(".sn"));
+  const pls = list.map(no => no.querySelector(".pl"));
   for (let i = 0; i < list.length; i++){                 // 整批复位（只触发一次布局）
     if (sns[i]) sns[i].style.fontSize = "";
-    list[i].classList.remove("nopl");
+    if (pls[i]) pls[i].style.fontSize = "";
   }
   const over = no => no.scrollWidth > no.clientWidth + 1;
   let fold = false;
   for (let i = 0; i < list.length; i++){
-    const no = list[i], sn = sns[i];
+    const no = list[i], sn = sns[i], pl = pls[i];
     if (!sn) continue;
-    // ⓪ 计划员放不下一个完整人名（3 字 ≈ 76px）就整段撤掉 ——
-    //    挤成「· …」只有半个字，比不显示还难看。单号这一格宁可只留单号。
-    const pl = no.querySelector(".pl");
-    if (pl && pl.clientWidth > 0 && pl.clientWidth < 76) no.classList.add("nopl");
     if (!over(no)) continue;                             // 本来就放得下
-    // ① 先撤计划员（它本来就是"让位的那一段"）—— 撤完放得下就一档字号都不用降
-    no.classList.add("nopl");
-    if (!over(no)) continue;
-    // ② 还放不下 → 逐档降单号字号
+    // ① 先缩名字（用户明确：名字可以缩小）—— 单号保持原字号
+    if (pl){
+      let pk;
+      for (pk = 0.96; pk >= PL_R_MIN - 1e-6; pk -= 0.04){
+        pl.style.fontSize = Math.round(pk * 100) + "%";
+        if (!over(no)) break;
+      }
+      if (!over(no)) continue;
+    }
+    // ② 名字到底了还放不下 → 逐档降单号字号（名字停在 56% 不再动）
     let k = NO_R_MIN;
     for (k = 0.96; k >= NO_R_MIN - 1e-6; k -= 0.04){
       sn.style.fontSize = Math.round(k * 100) + "%";
       if (!over(no)) break;
     }
-    // ③ 降到下限仍放不下（超长单号）→ 折行，一位都不丢
+    // ③ 都到下限仍放不下（超长单号）→ 折行，一位都不丢
     if (k < NO_R_MIN - 1e-6){ fold = true; sn.style.fontSize = Math.round(NO_R_MIN * 100) + "%"; }
   }
   if (fold) document.body.classList.add("nowrap");
@@ -646,8 +650,9 @@ function rowHtml(r){
   const codeCell = code
     ? '<span class="cust">' + esc(code) + "</span>"
     : '<span class="cust miss">未编代码</span>';
-  // 单号独立成一列（2026-09-17）；计划员隐藏（2026-09-23 用户要求，姓名在「工序更新」列看）
-  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span></span>";
+  // 单号独立成一列（2026-09-17）；名字恢复显示（2026-09-24 用户要求，放不下缩字号、不换行）
+  const plCell = r.planner ? '<span class="pl"><span class="sep">·</span>' + esc(r.planner) + "</span>" : "";
+  const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" + plCell + "</span>";
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
     '<td>' + stale + codeCell + "</td>" +
     '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
