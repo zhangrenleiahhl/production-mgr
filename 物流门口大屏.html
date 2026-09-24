@@ -172,7 +172,7 @@
      字号由 fitNoFont 按实测降档；后面的名字放不下先缩字号（2026-09-24 恢复显示）。 */
   /* 容器不用 gap（gap 不参与收缩，计划员缩到 0 后间隙还占着）—— 间距交给 .pl */
   .no{display:inline-flex;align-items:baseline;max-width:100%;color:var(--muted);
-    font-size:.8em;font-weight:600;letter-spacing:.3px;white-space:nowrap;overflow:hidden;
+    font-size:.72em;font-weight:600;letter-spacing:.3px;white-space:nowrap;overflow:hidden;
     vertical-align:baseline;}
   /* 单号不收缩、优先占够空间；名字绝不换行（放不下先缩字号，2026-09-24） */
   .no .sn{flex:0 0 auto;white-space:nowrap;font-weight:700;color:#c9d6e8;
@@ -267,10 +267,10 @@
   .car.on{color:var(--green);} .car.off{color:var(--amber);font-weight:700;}
   tr.done .car.off{color:#94a3b8;font-weight:600;}
   .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
-  .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
+  .tm{font-size:.74em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
   .bzon{color:var(--green);font-weight:800;} .bzoff{color:var(--dim);}  /* 品一质保书（2026-09-23） */
-  /* 工序更新列：允许折行，超长也显示全（绝不省略号截断）；2026-09-24 换位后 nth-child(7) 是工序更新 */
-  tbody td:nth-child(7){white-space:normal;word-break:break-word;}
+  /* 时间两列（工序更新 7 / 车辆更新 8，2026-09-24 换位后）绝不换行也绝不被切：
+     全局 td 本就是 nowrap+省略号；字号由 fitUpdFont 逐格量宽自动降（下限 55%）。 */
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
     background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
 
@@ -332,8 +332,8 @@
            「工序」「车辆」两个状态列相邻靠前，后面跟「品一质保书」；
            「工序更新」「车辆更新」两个时间列相邻放在最右（前者只报四道工序的进度时间，后者只报司机签到）。 -->
       <colgroup>
-        <col style="width:12%"><col style="width:9%"><col style="width:14%">
-        <col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:12%"><col style="width:12%">
+        <col style="width:12%"><col style="width:10%"><col style="width:11%">
+        <col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:13%"><col style="width:13%">
       </colgroup>
       <thead><tr>
         <th>送达方代码</th><th>吨位</th><th>单号</th>
@@ -611,6 +611,25 @@ function fitNoFont(){
   if (fold) document.body.classList.add("nowrap");
 }
 
+/* ★ 时间两列（工序更新/车辆更新）自动缩字号（2026-09-24）：逐格量 scrollWidth，
+   放不下就降字号（下限 55%），保证单行放得下 —— 不换行、也绝不让省略号吃掉。 */
+const TM_R_MIN = 0.55;
+function fitUpdFont(){
+  const tb = document.getElementById("tbody"); if (!tb) return;
+  const tds = tb.querySelectorAll("td:nth-child(7),td:nth-child(8)");
+  const tms = Array.prototype.map.call(tds, td => td.querySelector(".tm"));
+  tms.forEach(el => { if (el) el.style.fontSize = ""; });   // 整批复位（只触发一次布局）
+  tms.forEach(el => {
+    if (!el) return;
+    const td = el.parentElement;
+    if (td.scrollWidth <= td.clientWidth + 1) return;       // 本来就放得下
+    for (let k = 0.96; k >= TM_R_MIN - 1e-6; k -= 0.04){
+      el.style.fontSize = Math.round(k * 100) + "%";
+      if (td.scrollWidth <= td.clientWidth + 1) break;
+    }
+  });
+}
+
 function kpiHtml(s){
   return [
     { cls: "",      v: s.total, l: "在屏计划（趟）" },
@@ -642,7 +661,7 @@ function rowHtml(r){
   /* 两列更新分开报（2026-09-21；2026-09-24 换位后两列相邻放在最右）：
      · 工序更新 = 只报四道工序的进度时间（谁点的一并带出真名，2026-09-23 恢复姓名）；
      · 车辆更新 = 只报司机签到（车已到）的时间 —— 司机扫码签到了才冒出来。 */
-  const byTxt = r.by ? " · " + esc(r.by) : "";
+  const byTxt = r.by ? "·" + esc(r.by) : "";   // 紧凑（2026-09-24）：时间列字少一点，单行更容易放得下
   const stepWhen = r.t ? SL.fmtHM(r.t) : "";
   const carWhen = r.car && r.ct ? SL.fmtHM(r.ct) : "";
   const code = codeOf(r);
@@ -707,6 +726,7 @@ function render(){
   $("tbody").innerHTML = rows.map(rowHtml).join("");
   fitCodeFont();                       // 行出来了才知道这一列多宽，再定代码字号
   fitNoFont();                         // 单号必须完整：按实测宽度逐档降字号
+  fitUpdFont();                        // 时间两列：单行放得下（不换行、不截断）
   updateMissNote();
   setupScroll();
 }
@@ -790,7 +810,7 @@ function onFsChange(){
   const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
   document.body.classList.toggle("fs", on);
   $("fsBtn").textContent = on ? "⛶ 退出全屏" : "⛶ 全屏显示";
-  stopScroll(); fitRows(rows.length); fitCodeFont(); fitNoFont(); setupScroll();   // 全屏切换字号变了，滚动要重新量
+  stopScroll(); fitRows(rows.length); fitCodeFont(); fitNoFont(); fitUpdFont(); setupScroll();   // 全屏切换字号变了，滚动要重新量
   pokeCursor();
 }
 
@@ -807,7 +827,7 @@ function boot(){
   document.addEventListener("mousemove", pokeCursor);
   document.addEventListener("touchstart", pokeCursor);
   window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
-  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCodeFont(); fitNoFont(); setupScroll(); });
+  window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCodeFont(); fitNoFont(); fitUpdFont(); setupScroll(); });
   // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
   boxEl.addEventListener("wheel", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
   boxEl.addEventListener("touchstart", () => { sc.manual = performance.now() + MANUAL_PAUSE_MS; }, { passive: true });
