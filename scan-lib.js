@@ -379,6 +379,12 @@ window.ScanLib = (function () {
     var c = cellAt(prog, rk, ck);
     var nv = v ? 1 : 0;
     if ((c.bz || 0) === nv) return { changed: false, cell: c, bz: nv };
+    /* ★ 2026-09-24 收紧：已完成(s=3)的单子不许撤质保书 —— 否则会出现「已完成 100% ＋ 质保书未确认」
+       的自相矛盾状态（云端取证：有单子就是标好→点完成→又撤质保书弄破的）。
+       真要撤：先把工序退回「装货中」（applyUndo 不受影响，不锁死）。 */
+    if (!nv && (c.s || 0) >= 3)
+      return { changed: false, cell: c, bz: c.bz || 0,
+               blocked: "这趟已点「已完成」，质保书不能撤回；要改请先把工序退回「装货中」" };
     /* ★ 工序分工：品一质保书是单独一位同事负责的（仲崇雨） */
     var lost = opBlock(who, "bz");
     if (lost) return { changed: false, cell: c, bz: c.bz || 0, blocked: lost };
