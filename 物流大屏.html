@@ -273,8 +273,8 @@
   .tm{font-size:.84em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
   .bzon{color:var(--green);font-weight:800;} .bzoff{color:var(--dim);}  /* 品一质保书（2026-09-23） */
   /* 工序更新列：允许折行，超长也显示全（绝不省略号截断）
-     ★ 2026-09-23 物流列隐藏后：工序(5) · 工序更新(6) · 品一质保书(7) · 车辆(8) · 车辆更新(9) */
-  tbody td:nth-child(6){white-space:normal;word-break:break-word;}
+     ★ 2026-09-24 车辆列与工序更新列换位后：工序(5) · 车辆(6) · 品一质保书(7) · 工序更新(8) · 车辆更新(9) */
+  tbody td:nth-child(8){white-space:normal;word-break:break-word;}
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
     background:rgba(255,180,84,.22);color:#ffd9a0;border:1px solid rgba(255,180,84,.4);margin-right:6px;}
 
@@ -331,16 +331,16 @@
 
   <div class="box">
     <table id="tbl">
-      <!-- 列序（2026-09-21 改）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
-           「最后更新」拆成两列 —— 「工序更新」紧跟工序（只报四道工序的进度时间），
-           「车辆更新」跟在车辆后面（只报司机签到/车已到的时间）。 -->
+      <!-- 列序（2026-09-24 改：车辆列与工序更新列换位）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
+           「工序」「车辆」两个状态列相邻靠前，后面跟「品一质保书」；
+           「工序更新」「车辆更新」两个时间列相邻放在最右（前者只报四道工序的进度时间，后者只报司机签到）。 -->
       <colgroup>
         <col style="width:17%"><col style="width:8%"><col style="width:7%">
-        <col style="width:16%"><col style="width:16%"><col style="width:10%"><col style="width:10%"><col style="width:8%"><col style="width:8%">
+        <col style="width:16%"><col style="width:16%"><col style="width:8%"><col style="width:10%"><col style="width:10%"><col style="width:8%">
       </colgroup>
       <thead><tr>
         <th>客户</th><th>送达方代码</th><th>吨位</th>
-        <th>单号</th><th>工序</th><th>工序更新</th><th>品一质保书</th><th>车辆</th><th>车辆更新</th>
+        <th>单号</th><th>工序</th><th>车辆</th><th>品一质保书</th><th>工序更新</th><th>车辆更新</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -577,7 +577,7 @@ function rowHtml(r){
     '</span>';
   const stale = r.isYesterday ? '<span class="stale">昨</span>' : "";
   const byTxt = r.by ? " · " + esc(r.by) : "";
-  /* 两列更新分开报（2026-09-21）：
+  /* 两列更新分开报（2026-09-21；2026-09-24 换位后两列相邻放在最右）：
      · 工序更新 = 只报四道工序的进度时间（谁点的一并带出）；
      · 车辆更新 = 只报司机签到（车已到）的时间 —— 司机扫码签到了才冒出来。 */
   const stepWhen = r.t ? SL.fmtHM(r.t) : "";
@@ -592,10 +592,10 @@ function rowHtml(r){
     '<td><span class="ton">' + (r.ton ? r.ton.toFixed(1) : "/") + '<s>吨</s></span></td>' +
     '<td>' + noCell + '</td>' +
     '<td>' + flw + "</td>" +
-    '<td><span class="tm">' + (stepWhen ? "工序 " + esc(stepWhen) + byTxt : '<s>还没动</s>') + "</span></td>" +
-    '<td>' + (r.cx ? '<s>已取消</s>' : (r.bz ? '<span class="bzon">✓ 已备好' + (r.bzt ? " " + esc(SL.fmtHM(r.bzt)) : "") + (r.bzb ? " · " + esc(r.bzb) : "") + "</span>" : '<span class="bzoff">未确认</span>')) + "</td>" +
     '<td>' + (r.cx ? '<span class="carx">取消</span>'
       : '<span class="car ' + (r.car ? "on" : "off") + '">' + (r.car ? "✓ 已到" : "未到") + "</span>") + "</td>" +
+    '<td>' + (r.cx ? '<s>已取消</s>' : (r.bz ? '<span class="bzon">✓ 已备好' + (r.bzt ? " " + esc(SL.fmtHM(r.bzt)) : "") + (r.bzb ? " · " + esc(r.bzb) : "") + "</span>" : '<span class="bzoff">未确认</span>')) + "</td>" +
+    '<td><span class="tm">' + (stepWhen ? "工序 " + esc(stepWhen) + byTxt : '<s>还没动</s>') + "</span></td>" +
     '<td><span class="tm">' + (r.cx ? '<s>已取消</s>'
       : (carWhen ? "车到 " + esc(carWhen) : '<s>还没签到</s>')) + "</span></td>" +
   "</tr>";
