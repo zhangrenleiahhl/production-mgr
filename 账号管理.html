@@ -22,6 +22,9 @@
   .acts button{height:28px;padding:0 10px;border:1px solid #d8dee9;background:#fff;border-radius:6px;font-size:12px;cursor:pointer}
   .acts button.show{border-color:#bfdbfe;color:#1f6feb}
   .tag{display:inline-block;padding:1px 7px;border-radius:5px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700}
+  .op{display:inline-block;padding:1px 7px;border-radius:5px;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;margin:1px 4px 1px 0}
+  .noop{color:#dc2626;font-weight:700;font-size:12px}
+  .ops-cell{max-width:280px}
   .deny{padding:48px 20px;text-align:center;color:#94a3b8}
   .deny b{color:#dc2626}
   .tip{margin-top:14px;color:#94a3b8;font-size:12px;line-height:1.6}
@@ -31,7 +34,7 @@
 </head>
 <body>
   <h1>👥 内部人员账号管理</h1>
-  <p class="sub">只有管理员（老板）登录后才看得到此页。员工忘密码时，在这里查手机号 + 密码告诉他。</p>
+  <p class="sub">只有管理员（老板）登录后才看得到此页。员工忘密码时，在这里查手机号 + 密码告诉他；「可点工序」那一列是每个人的工序分工。</p>
   <div class="bar">
     <button class="primary" id="toggleAll">全部显示 / 隐藏</button>
     <button id="goBack">返回上一页</button>
@@ -39,18 +42,22 @@
   </div>
   <div class="wrap">
     <table>
-      <thead><tr><th>姓名</th><th>手机号（登录账号）</th><th>密码</th><th>操作</th></tr></thead>
+      <thead><tr><th>姓名</th><th>手机号（登录账号）</th><th>可点工序</th><th>密码</th><th>操作</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
     <div id="deny" class="deny" style="display:none">⛔ <b>无权限</b><br>只有管理员才能查看账号密码。<br>请用管理员手机号登录后访问。</div>
   </div>
+  <p class="tip">🔧 改工序分工：让管理员改 <b>staff-config.js</b> 里那一行的 <code>ops</code> 数组 ——
+    <code>hh</code>=货好、<code>car</code>=车到、<code>load</code>=装货中、<code>done</code>=已完成、<code>bz</code>=质保书；
+    老板（管理员号）永远全部能点，不受这个数组限制。改完不用动 ver，员工刷新页面即可生效。</p>
   <p class="tip">⚠ 提示：本系统是公开网页，这份清单写在代码里，懂技术的人「查看网页源代码」仍可能翻到——属界面层保护，非加密。老板自用、防员工误看足够。员工改密码后，让管理员把对应密码改掉（staff-secrets.js）。</p>
   <div id="copied">已复制</div>
 
   <script src="supabase.min.js"></script>
   <script src="cloud-config.js"></script>
   <script src="auth.js?v=20260923a"></script>
-  <script src="staff-config.js?v=20260923e"></script>
+  <script src="scan-lib.js?v=20260924b"></script>
+  <script src="staff-config.js?v=20260924b"></script>
   <script src="staff-secrets.js"></script>
   <script>
   (function () {
@@ -75,6 +82,7 @@
       tr.innerHTML =
         '<td>' + esc(it.name) + (it.name === '张仁磊' ? ' <span class="tag">管理员</span>' : '') + '</td>' +
         '<td>' + esc(it.phone) + '</td>' +
+        '<td class="ops-cell">' + opsText(it.phone) + '</td>' +
         '<td class="pwd" data-i="' + i + '">' + mask + '</td>' +
         '<td><div class="acts">' +
           '<button class="show" data-act="show" data-i="' + i + '">显示</button>' +
@@ -84,6 +92,15 @@
     });
 
     function realPwd(i) { return (list[i] && list[i].pwd) || ''; }
+    /* ★ 谁负责哪几步：口径与扫码页完全同一份（scan-lib.opList / opName）。
+       名册里没这个人 / 没写 ops → 一步都点不了，这里直接标红提醒。 */
+    function opsText(phone) {
+      var SLb = window.ScanLib;
+      if (!SLb || !SLb.opList) return '<span class="noop">scan-lib 没加载</span>';
+      var ops = SLb.opList(phone);
+      if (!ops.length) return '<span class="noop">未分配（一步都点不了）</span>';
+      return ops.map(function (c) { return '<span class="op">' + esc(SLb.opName(c)) + '</span>'; }).join('');
+    }
     function esc(x) { return String(x).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
     tbody.addEventListener('click', function (e) {
