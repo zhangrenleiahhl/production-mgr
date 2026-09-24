@@ -250,6 +250,14 @@
   .flw.s1{--f1:#38c8d8;--f2:#0f4f6d;--fglow:rgba(56,200,216,.5);}
   .flw.s2{--f1:#ffb454;--f2:#7d4306;--fglow:rgba(255,180,84,.5);}
   .flw.s3{--f1:#3ddc97;--f2:#0d6448;--fglow:rgba(61,220,151,.5);}
+  /* 仪表盘 HUD 同款「从左到右的高亮光标」（2026-09-24）：扫过还没走完的三种状态
+     （货待确认 0 / 货好 1 / 装货中 2）；已完成 3 不扫（满进度不用再催）。
+     光带压在液体上、工序名/百分比文字之下（文字 z-index:1），.flw 的 overflow:hidden 负责裁边。 */
+  .flw.s0::after,.flw.s1::after,.flw.s2::after{content:"";position:absolute;top:-20%;bottom:-20%;
+    left:-30%;width:26%;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);
+    transform:skewX(-16deg);animation:flsweep 3.4s linear infinite;}
+  @keyframes flsweep{0%{left:-30%}100%{left:125%}}
   /* 压在液体上面的字：工序名在左、百分比在右，都带投影，泡在液体里也读得清 */
   .flt{position:relative;z-index:1;font-weight:800;letter-spacing:.6px;color:#eef4ff;
     text-shadow:0 1px 4px rgba(0,0,0,.8);}
@@ -259,7 +267,7 @@
   /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径）
      ★ 2026-09-21 状态列删掉后，工序从第 5 格变成第 4 格 */
   tbody td:nth-child(4){padding-top:0;padding-bottom:0;}
-  @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after{animation:none;}}
+  @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after{animation:none;}}
   /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
      旧的 .pill 状态徽章跟着状态列一起移除（不留死样式） */
 
@@ -268,7 +276,11 @@
   tr.done .car.off{color:#94a3b8;font-weight:600;}
   .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
   .tm{font-size:.74em;color:var(--muted);} .tm s{text-decoration:none;color:var(--dim);}
-  .bzon{color:var(--green);font-weight:800;} .bzoff{color:var(--dim);}  /* 品一质保书（2026-09-23） */
+  .bzon{color:var(--green);font-weight:800;}
+  /* 品一质保书（2026-09-24 上色，跟车辆列同一套）：已备好=绿、未确认=琥珀；
+     已完成的行里「未确认」转灰（跟 tr.done .car.off 同一口径，别再催已走完的单） */
+  .bzoff{color:var(--amber);font-weight:700;}
+  tr.done .bzoff{color:#94a3b8;font-weight:600;}
   /* 时间两列（工序更新 7 / 车辆更新 8，2026-09-24 换位后）绝不换行也绝不被切：
      全局 td 本就是 nowrap+省略号；字号由 fitUpdFont 逐格量宽自动降（下限 55%）。 */
   .stale{display:inline-block;padding:0 7px;border-radius:5px;font-size:.76em;font-weight:800;
