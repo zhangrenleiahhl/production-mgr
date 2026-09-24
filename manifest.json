@@ -1,16 +1,15 @@
 {
-  "name": "海立铸运通 · 发货管理",
-  "short_name": "海立铸运通",
-  "description": "铸造厂发货进度管理：发货计划、工序报工、司机签到、进度看板",
-  "start_url": ".",
-  "scope": ".",
+  "name": "发货计划系统",
+  "short_name": "发货计划",
+  "description": "生产发货进度 · 扫码操作 · 物流大屏",
+  "start_url": "./发货计划系统.html",
+  "scope": "./",
   "display": "standalone",
-  "orientation": "any",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
-  ],
-  "lang": "zh-CN"
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }
