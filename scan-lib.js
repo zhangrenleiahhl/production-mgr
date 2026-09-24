@@ -301,6 +301,9 @@ window.ScanLib = (function () {
     if (to === from) return { changed: false, cell: c, to: to, from: from };
     var blocked = stepBlock(c, to);
     if (blocked) return { changed: false, cell: c, to: from, from: from, blocked: blocked };
+    /* ★ 工序分工（2026-09-24）：这一步有没有分配给他（who 为空 = 计划员/系统，不拦） */
+    var lost = opBlock(who, opOfStep((delta || 0) < 0 ? from : to));
+    if (lost) return { changed: false, cell: c, to: from, from: from, blocked: lost };
     c.s = to;
     c.t = to === 0 ? 0 : now;
     if (to > 0 && raw(who)) c.by = raw(who);
@@ -309,10 +312,13 @@ window.ScanLib = (function () {
     return { changed: true, cell: c, to: to, from: from };
   }
   // 标记车辆：未到 / 已到
-  function applyCar(prog, rk, ck, v){
+  function applyCar(prog, rk, ck, v, who){
     var c = cellAt(prog, rk, ck), now = Date.now();
     var nv = v ? 1 : 0;
     if ((c.car || 0) === nv) return { changed: false, cell: c, car: nv };
+    /* ★ 工序分工：车到也按人分配（who 传空不拦 —— 司机扫码页是外部司机在点，不在名册里） */
+    var lost = opBlock(who, "car");
+    if (lost) return { changed: false, cell: c, car: c.car || 0, blocked: lost };
     c.car = nv;
     c.ct = nv ? (c.ct || now) : 0;
     c.u = now;
@@ -326,6 +332,9 @@ window.ScanLib = (function () {
     var s = c.s || 0, car = c.car || 0;
     if (!s && !car) return { changed: false, cell: c, what: "" };
     var doCar = !!car && (!s || (c.ct || 0) > (c.t || 0));
+    /* ★ 工序分工：撤回也要看权限 —— 撤的是「车到」要 car，撤的是工序要那一步的码 */
+    var lost = opBlock(who, doCar ? "car" : opOfStep(s));
+    if (lost) return { changed: false, cell: c, what: "", blocked: lost };
     var what;
     if (doCar){ c.car = 0; c.ct = 0; what = "车已到"; }
     else {
@@ -370,6 +379,9 @@ window.ScanLib = (function () {
     var c = cellAt(prog, rk, ck);
     var nv = v ? 1 : 0;
     if ((c.bz || 0) === nv) return { changed: false, cell: c, bz: nv };
+    /* ★ 工序分工：品一质保书是单独一位同事负责的（仲崇雨） */
+    var lost = opBlock(who, "bz");
+    if (lost) return { changed: false, cell: c, bz: c.bz || 0, blocked: lost };
     c.bz = nv;
     c.bzv = (c.bzv || 0) + 1;
     if (nv){ c.bzt = Date.now(); c.bzb = raw(who); }
@@ -378,6 +390,9 @@ window.ScanLib = (function () {
   }
   function applyReady(prog, rk, ck, v, who){
     var c = cellAt(prog, rk, ck), now = Date.now(), s = rawS(c);
+    /* ★ 工序分工：货好也按人分配（who 传空不拦 —— 发货计划系统的计划员也要能标货好） */
+    var lost = opBlock(who, "hh");
+    if (lost) return { changed: false, cell: c, s: s, blocked: lost };
     if (v){
       if (s >= 1) return { changed: false, cell: c, s: s, why: "已经是货好" };
       c.s = 1; c.t = now;
@@ -1099,6 +1114,84 @@ window.ScanLib = (function () {
   function staffLogout(){ try { localStorage.removeItem(KEY_STAFF); } catch (e){} }
   function staffName(){ var s = staffSession(); return s ? String(s.name || s.id) : ""; }
 
+  /* ==========================================================================
+     工序分工（2026-09-24）：谁能点哪几步
+     --------------------------------------------------------------------------
+     名册里每个人可以带一个 ops 数组（见 staff-config.js），没写 = 一步都不能点。
+     现场分工：8 个人只做「货好」、8 个人做「货好 → 车到 → 装货中 → 已完成」、
+     1 个人专管品一质保书；老板（adminPhone）永远全部能点，不看 ops。
+
+     五个动作码（＝扫码页上的五个按钮）：
+       hh   货好        工序 0 → 1（「预约到点自动货好」是系统做的，不看这个）
+       car  车到        车辆「已到 / 未到」
+       load 装货中      工序 1 → 2
+       done 已完成      工序 2 → 3（还要品一质保书已好）
+       bz   质保书      「已好 / 未好」
+
+     ★ 口径只留这一份：扫码页拿 opBlock() 做「按钮压暗 + 点击说清楚原因」，
+       applyReady / applyCar / applyStep / applyBz / applyUndo 再拿它硬拦一道
+       （双保险：将来谁再写一个新入口忘了判断，也越不了权）。
+     ★ 只认「名册里的人」：who 传空 = 计划员（发货计划系统）/ 司机（司机扫码页）/
+       系统自动落库 —— 这些入口不是工序操作人，一律不拦，
+       否则会把计划员和司机一起挡在外面。
+     ========================================================================== */
+  var OP_NAME = { hh: "货好", car: "车到", load: "装货中", done: "已完成", bz: "质保书" };
+  var OP_ALL  = ["hh", "car", "load", "done", "bz"];
+  function opName(code){ return OP_NAME[raw(code)] || String(code == null ? "" : code); }
+  /* 工序号 → 动作码（0 货待确认 / 1 货好 / 2 装货中 / 3 已完成） */
+  function opOfStep(s){
+    s = parseInt(s, 10) || 0;
+    return s >= 3 ? "done" : (s === 2 ? "load" : (s === 1 ? "hh" : ""));
+  }
+  /* 名册记录：支持传 姓名 / 手机号 / 名册记录本身；传空 = 当前会话的人 */
+  function staffRecOf(x){
+    if (x && typeof x === "object") return x;
+    var tt = raw(x), u = null;
+    if (!tt){ var s = staffSession(); tt = s ? raw(s.id || s.name) : ""; }
+    if (!tt) return null;
+    u = staffFind(tt);
+    if (!u){
+      staffUsers().forEach(function (v){
+        if (!u && v && (raw(v.phone) === tt || raw(v.id) === tt)) u = v;
+      });
+    }
+    return u;
+  }
+  function staffPhoneOf(x){ var u = staffRecOf(x); return u ? raw(u.phone) : ""; }
+  /* 这个人允许的工序码（顺序固定 = OP_ALL 的顺序）；空数组 = 一步都不能点 */
+  function opList(x){
+    var u = staffRecOf(x);
+    if (!u) return [];
+    var admin = raw(staffConf().adminPhone);
+    if (admin && raw(u.phone) === admin) return OP_ALL.slice();   // 老板全都能点
+    var ops = u.ops;
+    if (!Array.isArray(ops)) return [];
+    return OP_ALL.filter(function (c){ return ops.indexOf(c) >= 0; });
+  }
+  function myOps(){ return opList(""); }
+  function canOp(x, code){ return opList(x).indexOf(raw(code)) >= 0; }
+  /* "" = 允许；非空字符串 = 拦下来的原因（页面直接拿去弹提示） */
+  function opBlock(x, code){
+    code = raw(code);
+    if (!OP_NAME[code]) return "";
+    if (!raw(x)) return "";            // 没传操作人（计划员 / 司机 / 系统）→ 不拦
+    var u = staffRecOf(x);
+    if (!u) return "";                 // 不在名册里（这种本来也进不来）
+    if (canOp(u, code)) return "";
+    var my = opList(u).map(opName);
+    return "「" + opName(code) + "」不是你负责的" +
+      (my.length ? "（你能点的：" + my.join("、") + "）" : "（你还没分配任何工序）") +
+      "。要改分工请找管理员";
+  }
+  /* 撤回会撤掉哪一步（拿它决定「↩」有没有权限）：谁最后动的先撤谁 */
+  function undoOpOf(c){
+    c = c || {};
+    var s = Math.min(3, c.s || 0), car = c.car || 0;
+    if (!s && !car) return "";
+    var doCar = !!car && (!s || (c.ct || 0) > (c.t || 0));
+    return doCar ? "car" : opOfStep(s);
+  }
+
   /* ---- 二维码（按需加载，不发码就完全不下这个文件）---- */
   var __qrPromise = null;
   function ensureQRCode(){
@@ -1533,6 +1626,8 @@ window.ScanLib = (function () {
     sha256Hex: sha256Hex,
     KEY_STAFF: KEY_STAFF, staffUsers: staffUsers, staffLogin: staffLogin, staffSession: staffSession,
     staffLogout: staffLogout, staffName: staffName, staffVer: staffVer, staffFind: staffFind, staffHash: staffHash,
+    OP_NAME: OP_NAME, OP_ALL: OP_ALL, opName: opName, opOfStep: opOfStep, opList: opList, myOps: myOps,
+    canOp: canOp, opBlock: opBlock, undoOpOf: undoOpOf, staffPhoneOf: staffPhoneOf, staffRecOf: staffRecOf,
     progPill: function (s, car) {
       s = Math.min(3, s || 0);
       var cls = s >= 3 ? "p-done" : (s >= 2 ? "p-mid" : (s === 1 ? "p-ok" : "p-wait"));
