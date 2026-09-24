@@ -87,6 +87,25 @@ window.LOGIN_REQUIRED = true;
     return s ? (s.name || s.email.split("@")[0]) : "";
   }
 
+  /* 网络抖动重试：手机弱网下 fetch 偶发失败（苹果报 Load failed / Chrome 报 Failed to fetch），
+     只有「网络类错误」才值得重试；账号密码错重试也是白搭，直接返回。 */
+  var NET_RE = /load failed|failed to fetch|networkerror|network error|fetch failed|timed?\s?out|connection|aborted/i;
+  function isNetErr(e) {
+    if (!e) return false;
+    if (e.name === "TypeError" && !e.status) return true;   /* WebKit/Chrome fetch 原生失败 */
+    return NET_RE.test((e.message || "") + " " + (e.name || ""));
+  }
+  async function signInRetry(c, email, password) {
+    let last = { data: null, error: null };
+    for (let a = 0; a < 3; a++) {
+      try { last = await c.auth.signInWithPassword({ email: email, password: password }); }
+      catch (e) { last = { data: null, error: e }; }
+      if (!last.error || !isNetErr(last.error)) return last;
+      if (a < 2) await new Promise(function (r) { setTimeout(r, 800 * (a + 1)); });
+    }
+    return last;
+  }
+
   async function login(identifier, password) {
     const c = sb();
     if (!c) return { ok: false, msg: "云端未配置（CLOUD_CONFIG 缺失，先配置云端同步）" };
@@ -96,7 +115,7 @@ window.LOGIN_REQUIRED = true;
     const doms = raw.indexOf("@") >= 0 ? [""] : domOrder();
     let msg = "账号或密码错误";
     for (let i = 0; i < doms.length; i++) {
-      const { data, error } = await c.auth.signInWithPassword({ email: toEmail(raw, doms[i]), password: password });
+      const { data, error } = await signInRetry(c, toEmail(raw, doms[i]), password);
       if (!error && data && data.user) {
         try { if (doms[i]) localStorage.setItem(DOM_LS, doms[i]); } catch (e) {}
         saveSession(data.user);
@@ -132,6 +151,7 @@ window.LOGIN_REQUIRED = true;
   // 让 Supabase 的英文报错变成人话
   function humanErr(e) {
     const m = (e && e.message) || "";
+    if (isNetErr(e)) return "网络连不上，请检查手机网络（换个信号好的地方，或切换 Wi-Fi / 5G）再点登录";
     if (/Invalid login|invalid credentials/i.test(m)) return "账号或密码错误";
     if (/Email not confirmed|not confirmed/i.test(m)) return "账号还没激活，联系管理员开通";
     if (/User already registered/i.test(m)) return "该账号已存在";
