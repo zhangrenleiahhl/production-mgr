@@ -1,141 +1,141 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>生成内部口令</title>
-<script src="scan-lib.js?v=20260924g"></script>
-<script src="staff-config.js?v=20260924c"></script>
-<style>
-  :root{--blue:#2563eb;--line:#dbe1ea;--txt:#111827;--muted:#5b6676;--bg:#eef1f6;}
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--txt);
-    font-size:15px;line-height:1.6;padding:18px 14px 40px;-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:680px;margin:0 auto;}
-  h1{font-size:19px;margin:0 0 4px;font-weight:800;}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:16px;}
-  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;
-    box-shadow:0 1px 3px rgba(15,23,42,.06);}
-  .card h2{font-size:15px;margin:0 0 10px;font-weight:800;}
-  label{display:block;font-size:13px;font-weight:700;color:#334155;margin:10px 0 5px;}
-  input{width:100%;padding:10px 12px;font-size:15px;border:1px solid var(--line);border-radius:8px;
-    font-family:inherit;background:#fbfcfe;}
-  input:focus{outline:none;border-color:var(--blue);background:#fff;}
-  .row{display:flex;gap:10px;}.row>div{flex:1;}
-  button{margin-top:16px;width:100%;padding:12px;font-size:16px;font-weight:800;border:none;border-radius:9px;
-    background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-family:inherit;}
-  button:active{transform:translateY(1px);}
-  button.sec{background:#fff;color:var(--muted);border:1px solid var(--line);}
-  #out{display:none;margin-top:14px;}
-  #out.show{display:block;}
-  .line{background:#0f172a;color:#a5f3fc;padding:12px 13px;border-radius:8px;font-family:Consolas,Menlo,monospace;
-    font-size:12.5px;word-break:break-all;line-height:1.65;white-space:pre-wrap;}
-  .tip{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.7;}
-  .tip b{color:#b45309;}
-  .warn{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:11px 13px;font-size:12.5px;
-    color:#92400e;line-height:1.75;margin-top:12px;}
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{border-bottom:1px solid #eef2f7;padding:7px 6px;text-align:left;}
-  th{color:var(--muted);font-weight:700;font-size:12.5px;}
-  td.mono{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:#64748b;word-break:break-all;}
-  ol{margin:0;padding-left:20px;}ol li{margin-bottom:6px;}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <h1>生成内部口令</h1>
-  <div class="sub">给内部人员开账号用。填完点生成，把结果那一行贴进 <b>staff-config.js</b> 就行。</div>
-
-  <div class="card">
-    <h2>① 填信息</h2>
-    <div class="row">
-      <div><label>姓名（就是账号）</label><input id="uid" placeholder="例如 张仁磊" autocomplete="off"></div>
-      <div><label>姓名</label><input id="uname" placeholder="例如 李四" autocomplete="off"></div>
-    </div>
-    <label>口令（自己想一个，别太短）</label>
-    <input id="pwd" type="password" placeholder="至少 6 位" autocomplete="new-password">
-    <label>再输一遍</label>
-    <input id="pwd2" type="password" placeholder="确认口令" autocomplete="new-password">
-    <button id="gen">生成</button>
-    <div id="out">
-      <div class="tip">把下面这一行整行复制：</div>
-      <div class="line" id="line"></div>
-      <button class="sec" id="copy">📋 复制这一行</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>② 怎么用</h2>
-    <ol>
-      <li>复制上面生成的那一行（形如 <code>{ id: "lisi", name: "李四", h: "…" }</code>）。</li>
-      <li>用记事本打开 <b>staff-config.js</b>，找到 <code>users: [ … ]</code>。</li>
-      <li>把这一行粘到 <code>users: [</code> 后面（每行之间用英文逗号 <b>,</b> 隔开，最后一行后面不要逗号）。</li>
-      <li>保存后，把这个文件重新发到线上（这一步跟其他文件一样处理）。</li>
-    </ol>
-    <div class="warn">
-      ⚠️ 这是「挡住司机、挡住误点」级别的门槛，不是金融级的。本项目是纯静态页面，
-      没有服务器端校验，拿到源码的人理论上可以离线破解口令。所以：别用连号、重复数字这种弱口令，
-      也别和你在别处的密码设成一样的。
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>③ 现在的账号</h2>
-    <div id="now"></div>
-    <div class="tip">忘记口令没法反推，只能重新生成一条替换掉旧的那行。</div>
-    <div class="tip">★ <b>改过名单或口令后</b>，把 staff-config.js 里的 <code>ver</code> 换成一个新值（例如 <code>v2026-09-19</code>），
-      所有手机上"记住了 30 天"的旧登录会当场作废 —— 这 15 个人必须重新输姓名和口令才能进（这就是登录重置）。</div>
-  </div>
-</div>
-
-<script>
-const SL = window.ScanLib;
-const $ = (id) => document.getElementById(id);
-
-function lineOf(uid, name, pwd){
-  const h = SL.sha256Hex((window.STAFF && window.STAFF.salt || "") + ":" + pwd);
-  return '{ id: "' + uid + '", name: "' + name + '", h: "' + h + '" }';
-}
-
-$("gen").onclick = function (){
-  const uid = $("uid").value.trim(), name = $("uname").value.trim();
-  const pwd = $("pwd").value, pwd2 = $("pwd2").value;
-  if (!uid) return alert("姓名不能为空");
-  if (!name) return alert("姓名不能为空");
-  if (!pwd) return alert("口令不能为空");
-  if (pwd.length < 6) return alert("口令太短了，至少 6 位");
-  if (pwd !== pwd2) return alert("两遍口令不一样");
-  if (SL.staffUsers().some(u => String(u.id) === uid)) {
-    if (!confirm("账号 " + uid + " 已经存在了。继续会把新的一条也列出来，你需要自己删掉旧的那条。")) return;
-  }
-  $("line").textContent = lineOf(uid, name, pwd) + ",";
-  $("out").className = "show";
-};
-$("copy").onclick = function (){
-  const t = $("line").textContent;
-  try {
-    navigator.clipboard.writeText(t).then(() => {
-      const b = $("copy"); b.textContent = "✅ 已复制";
-      setTimeout(() => { b.textContent = "📋 复制这一行"; }, 1600);
-    }, () => alert("复制失败，请手动选中复制。"));
-  } catch (e){ alert("复制失败，请手动选中复制。"); }
-};
-
-(function listNow(){
-  const salt = (window.STAFF && window.STAFF.salt) || "";
-  const days = (window.STAFF && window.STAFF.days) || 30;
-  const ver  = (window.STAFF && window.STAFF.ver) || "";
-  const us = SL.staffUsers();
-  $("now").innerHTML = '<table><tr><th>账号</th><th>姓名</th><th>口令哈希</th></tr>' +
-    (us.length ? us.map(u => '<tr><td>' + SL.esc(u.id) + '</td><td>' + SL.esc(u.name || "") +
-      '</td><td class="mono">' + SL.esc(u.h || "") + '</td></tr>').join("")
-      : '<tr><td colspan="3">还没有账号，上面生成一条吧</td></tr>') +
-    '</table><div class="tip">共 <b>' + us.length + '</b> 个账号　加盐串 <code>' + SL.esc(salt) +
-    '</code>　名册版本 <code>' + SL.esc(ver || "（缺 ver！）") + '</code>　登录后本机记住 <b>' + days + '</b> 天</div>' +
-    (ver ? '' : '<div class="tip">⚠ staff-config.js 里没有 <code>ver</code>：没有它就没法一键把所有人的登录重置掉，请补上。</div>');
-})();
-</script>
-<script src="brand.js?v=3"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>生成内部口令</title>
+<script src="scan-lib.js?v=20260924h"></script>
+<script src="staff-config.js?v=20260924c"></script>
+<style>
+  :root{--blue:#2563eb;--line:#dbe1ea;--txt:#111827;--muted:#5b6676;--bg:#eef1f6;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--txt);
+    font-size:15px;line-height:1.6;padding:18px 14px 40px;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:680px;margin:0 auto;}
+  h1{font-size:19px;margin:0 0 4px;font-weight:800;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;
+    box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .card h2{font-size:15px;margin:0 0 10px;font-weight:800;}
+  label{display:block;font-size:13px;font-weight:700;color:#334155;margin:10px 0 5px;}
+  input{width:100%;padding:10px 12px;font-size:15px;border:1px solid var(--line);border-radius:8px;
+    font-family:inherit;background:#fbfcfe;}
+  input:focus{outline:none;border-color:var(--blue);background:#fff;}
+  .row{display:flex;gap:10px;}.row>div{flex:1;}
+  button{margin-top:16px;width:100%;padding:12px;font-size:16px;font-weight:800;border:none;border-radius:9px;
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-family:inherit;}
+  button:active{transform:translateY(1px);}
+  button.sec{background:#fff;color:var(--muted);border:1px solid var(--line);}
+  #out{display:none;margin-top:14px;}
+  #out.show{display:block;}
+  .line{background:#0f172a;color:#a5f3fc;padding:12px 13px;border-radius:8px;font-family:Consolas,Menlo,monospace;
+    font-size:12.5px;word-break:break-all;line-height:1.65;white-space:pre-wrap;}
+  .tip{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.7;}
+  .tip b{color:#b45309;}
+  .warn{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:11px 13px;font-size:12.5px;
+    color:#92400e;line-height:1.75;margin-top:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{border-bottom:1px solid #eef2f7;padding:7px 6px;text-align:left;}
+  th{color:var(--muted);font-weight:700;font-size:12.5px;}
+  td.mono{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:#64748b;word-break:break-all;}
+  ol{margin:0;padding-left:20px;}ol li{margin-bottom:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>生成内部口令</h1>
+  <div class="sub">给内部人员开账号用。填完点生成，把结果那一行贴进 <b>staff-config.js</b> 就行。</div>
+
+  <div class="card">
+    <h2>① 填信息</h2>
+    <div class="row">
+      <div><label>姓名（就是账号）</label><input id="uid" placeholder="例如 张仁磊" autocomplete="off"></div>
+      <div><label>姓名</label><input id="uname" placeholder="例如 李四" autocomplete="off"></div>
+    </div>
+    <label>口令（自己想一个，别太短）</label>
+    <input id="pwd" type="password" placeholder="至少 6 位" autocomplete="new-password">
+    <label>再输一遍</label>
+    <input id="pwd2" type="password" placeholder="确认口令" autocomplete="new-password">
+    <button id="gen">生成</button>
+    <div id="out">
+      <div class="tip">把下面这一行整行复制：</div>
+      <div class="line" id="line"></div>
+      <button class="sec" id="copy">📋 复制这一行</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>② 怎么用</h2>
+    <ol>
+      <li>复制上面生成的那一行（形如 <code>{ id: "lisi", name: "李四", h: "…" }</code>）。</li>
+      <li>用记事本打开 <b>staff-config.js</b>，找到 <code>users: [ … ]</code>。</li>
+      <li>把这一行粘到 <code>users: [</code> 后面（每行之间用英文逗号 <b>,</b> 隔开，最后一行后面不要逗号）。</li>
+      <li>保存后，把这个文件重新发到线上（这一步跟其他文件一样处理）。</li>
+    </ol>
+    <div class="warn">
+      ⚠️ 这是「挡住司机、挡住误点」级别的门槛，不是金融级的。本项目是纯静态页面，
+      没有服务器端校验，拿到源码的人理论上可以离线破解口令。所以：别用连号、重复数字这种弱口令，
+      也别和你在别处的密码设成一样的。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>③ 现在的账号</h2>
+    <div id="now"></div>
+    <div class="tip">忘记口令没法反推，只能重新生成一条替换掉旧的那行。</div>
+    <div class="tip">★ <b>改过名单或口令后</b>，把 staff-config.js 里的 <code>ver</code> 换成一个新值（例如 <code>v2026-09-19</code>），
+      所有手机上"记住了 30 天"的旧登录会当场作废 —— 这 15 个人必须重新输姓名和口令才能进（这就是登录重置）。</div>
+  </div>
+</div>
+
+<script>
+const SL = window.ScanLib;
+const $ = (id) => document.getElementById(id);
+
+function lineOf(uid, name, pwd){
+  const h = SL.sha256Hex((window.STAFF && window.STAFF.salt || "") + ":" + pwd);
+  return '{ id: "' + uid + '", name: "' + name + '", h: "' + h + '" }';
+}
+
+$("gen").onclick = function (){
+  const uid = $("uid").value.trim(), name = $("uname").value.trim();
+  const pwd = $("pwd").value, pwd2 = $("pwd2").value;
+  if (!uid) return alert("姓名不能为空");
+  if (!name) return alert("姓名不能为空");
+  if (!pwd) return alert("口令不能为空");
+  if (pwd.length < 6) return alert("口令太短了，至少 6 位");
+  if (pwd !== pwd2) return alert("两遍口令不一样");
+  if (SL.staffUsers().some(u => String(u.id) === uid)) {
+    if (!confirm("账号 " + uid + " 已经存在了。继续会把新的一条也列出来，你需要自己删掉旧的那条。")) return;
+  }
+  $("line").textContent = lineOf(uid, name, pwd) + ",";
+  $("out").className = "show";
+};
+$("copy").onclick = function (){
+  const t = $("line").textContent;
+  try {
+    navigator.clipboard.writeText(t).then(() => {
+      const b = $("copy"); b.textContent = "✅ 已复制";
+      setTimeout(() => { b.textContent = "📋 复制这一行"; }, 1600);
+    }, () => alert("复制失败，请手动选中复制。"));
+  } catch (e){ alert("复制失败，请手动选中复制。"); }
+};
+
+(function listNow(){
+  const salt = (window.STAFF && window.STAFF.salt) || "";
+  const days = (window.STAFF && window.STAFF.days) || 30;
+  const ver  = (window.STAFF && window.STAFF.ver) || "";
+  const us = SL.staffUsers();
+  $("now").innerHTML = '<table><tr><th>账号</th><th>姓名</th><th>口令哈希</th></tr>' +
+    (us.length ? us.map(u => '<tr><td>' + SL.esc(u.id) + '</td><td>' + SL.esc(u.name || "") +
+      '</td><td class="mono">' + SL.esc(u.h || "") + '</td></tr>').join("")
+      : '<tr><td colspan="3">还没有账号，上面生成一条吧</td></tr>') +
+    '</table><div class="tip">共 <b>' + us.length + '</b> 个账号　加盐串 <code>' + SL.esc(salt) +
+    '</code>　名册版本 <code>' + SL.esc(ver || "（缺 ver！）") + '</code>　登录后本机记住 <b>' + days + '</b> 天</div>' +
+    (ver ? '' : '<div class="tip">⚠ staff-config.js 里没有 <code>ver</code>：没有它就没法一键把所有人的登录重置掉，请补上。</div>');
+})();
+</script>
+<script src="brand.js?v=3"></script>
+</body>
+</html>
