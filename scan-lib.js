@@ -441,7 +441,7 @@ window.ScanLib = (function () {
     var v = Number(at) > 0 ? Number(at) : 0;
     if ((c.rt || 0) === v) return { changed: false, cell: c, rt: v };
     c.rt = v;
-    c.rtv = (c.rtv || 0) + 1;      // 预约有自己的版本号：本机 rv 落后时也不会被云端高 rv 抹掉
+    c.rtv = Math.max(c.rtv || 0, Date.now()) + 1;      // ★ 预约用「时间版本号」(Math.max(旧,Date.now())+1)：跨端/离线后改的永远压过先改的；旧的小整数 rtv 永远赢不了新预约（修 2026-09-24 点完一会就消失）。mergeRt 仍按数值比大者赢。
     if (v && v <= now && rawS(c) < 1){
       c.s = 1; c.t = v;
       if (raw(who)) c.by = raw(who);
