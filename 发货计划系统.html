@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20260924g"></script>
+<script src="scan-lib.js?v=20260924h"></script>
 
 <script src="auth.js?v=20260924b"></script>
 
@@ -8236,9 +8236,22 @@ function inputToTs(v){
 
   if(!v) return 0;
 
-  const d = new Date(v);              // datetime-local 给的是本地时间串
+  /* datetime-local 给的是本地时间串，但 iOS Safari 偶发会把无时区串当 UTC 解析，
+     导致未来预约被误判成「已过去」→ 立即落成货好 → 预约看起来「消失」。
+     这里手动按分量构造（new Date(y,mo,d,h,m) 一定是本地时区），彻底绕开时区坑。 */
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{1,2})/.exec(v);
 
-  return isNaN(d.getTime()) ? 0 : d.getTime();
+  if(!m){
+
+    var d = new Date(v);
+
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+
+  }
+
+  var dt = new Date(+m[1], (+m[2]) - 1, +m[3], +m[4], +m[5], 0, 0);
+
+  return isNaN(dt.getTime()) ? 0 : dt.getTime();
 
 }
 
