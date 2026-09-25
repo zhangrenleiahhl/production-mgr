@@ -1,403 +1,404 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="format-detection" content="telephone=no">
-<title>司机到车登记</title>
-<script src="supabase.min.js"></script>
-<script src="cloud-config.js"></script>
-<script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20260924g"></script>
-<style>
-  /* ==========================================================================
-     司机到车登记（手机端，一个码通吃，不用登录）
-     新流程（2026-09-18）：司机**自己输入 6 位送达方代码**，系统自动匹配到对应车辆
-     并签到「车已到」——不再罗列所有行让司机找。
-     边界（必须守住）：司机**只能**勾「车已到」和撤回自己那一勾，
-     绝对不能碰「待确认 / 货好 / 装货中 / 已完成」四道工序 —— 那四道要内部人员登录才点。
-     所以本页根本不渲染任何工序按钮，连相关代码路径都没有。
-     ========================================================================== */
-  :root{
-    --bg:#eef1f6; --card:#fff; --line:#dbe1ea; --txt:#111827; --muted:#5b6676; --muted2:#93a0b4;
-    --green:#059669; --green-l:#ecfdf5; --amber:#d97706; --amber-l:#fffbeb;
-  }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;}
-  body{font-family:"PingFang SC","Microsoft YaHei","微软雅黑",system-ui,sans-serif;background:var(--bg);
-    color:var(--txt);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
-    padding-bottom:calc(26px + env(safe-area-inset-bottom));}
-  .hd{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
-    color:#fff;padding:7px 12px 6px;box-shadow:0 3px 14px rgba(15,23,42,.28);}
-  .hd .r1{display:flex;align-items:center;gap:7px;white-space:nowrap;}
-  .hd .r1 .dot{width:6px;height:20px;background:#34d399;border-radius:2px;flex-shrink:0;
-    box-shadow:0 0 10px rgba(52,211,153,.85);}
-  .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;}
-  .hd h1 em{font-style:normal;font-size:11px;font-weight:600;color:#94a3b8;margin-left:5px;}
-  .hd .r2{display:inline;margin-top:0;font-size:12px;color:#cbd5e1;}
-  .hd .r2 b{color:#fff;font-weight:700;}
-  .sync{display:inline;font-size:11.5px;letter-spacing:.4px;margin-left:10px;}
-  .sync.ok{color:#7dd3fc;} .sync.warn{color:#fbbf24;} .sync.err{color:#f87171;}
-
-  .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
-
-  /* 顶部一句话交代"怎么签到"（司机第一次扫进来就靠这句） */
-  .hint{background:#eef4ff;border:1px solid #cfdffd;color:#1e3a8a;border-radius:10px;
-    padding:9px 12px;font-size:13px;line-height:1.55;margin:0 0 10px;}
-  .hint b{font-weight:800;}
-
-  /* ★ 新核心：司机自己输入 6 位送达方代码 */
-  .codebox{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 14px;
-    margin:0 0 12px;box-shadow:0 2px 8px rgba(15,23,42,.06);}
-  .codebox .lab{display:block;font-size:15px;font-weight:800;color:#0f172a;margin-bottom:10px;letter-spacing:.3px;}
-  .cinput{display:flex;gap:10px;}
-  .cinput input{flex:1;min-width:0;height:56px;border:2px solid var(--line);border-radius:12px;padding:0 14px;
-    font-size:28px;font-weight:800;letter-spacing:8px;text-align:center;
-    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
-    color:#0f172a;background:#f8fafc;outline:none;transition:.15s;-webkit-appearance:none;}
-  .cinput input:focus{border-color:#0f172a;background:#fff;}
-  .cinput input.bad{border-color:#b91c1c;background:#fef2f2;}
-  .cinput button{flex:0 0 auto;width:96px;border:none;border-radius:12px;background:#0f172a;color:#fff;
-    font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s;}
-  .cinput button:active{background:#1e293b;}
-  .cinput button:disabled{background:#cbd5e1;cursor:not-allowed;}
-  .err{color:#b91c1c;font-size:13px;font-weight:700;min-height:18px;margin-top:8px;}
-
-  /* 匹配结果卡片（复用老样式，只是改成"搜索后才出现"） */
-  .grp{margin-bottom:12px;}
-  .grp>h2{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 7px;font-weight:800;color:#334155;padding:0 2px;}
-  .grp>h2 .tagx{margin-left:auto;font-size:12px;font-weight:700;color:var(--muted);}
-
-  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;
-    overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06);}
-  .row.done{border-color:#a7f3d0;background:linear-gradient(180deg,#f7fffb,#fff);}
-  .rh{padding:10px 12px 8px;display:flex;gap:10px;align-items:flex-start;}
-  .rh .nm{flex:1;min-width:0;}
-  .rh .name{font-size:18px;font-weight:800;line-height:1.35;word-break:break-all;
-    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:1px;}
-  .rh .name.miss{font-family:inherit;color:#b45309;font-size:14px;letter-spacing:0;}
-  .rh .meta{margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);}
-  .rh .meta b{color:#334155;font-weight:700;}
-  .big{
-    width:100%;min-height:52px;border:none;border-top:1px solid var(--line);background:#f8fafc;
-    font-size:16.5px;font-weight:800;color:#475569;cursor:pointer;font-family:inherit;
-    display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:.5px;
-  }
-  button.big:active{background:#eef2f7;}
-  div.big.on{cursor:default;}
-  .big.on{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-top-color:#10b981;
-    box-shadow:0 3px 12px rgba(5,150,105,.28);}
-  .r2b{display:flex;border-top:1px solid var(--line);}
-  .r2b button{flex:1;min-height:44px;border:none;background:#fff;font-size:13.5px;font-weight:700;
-    color:#b45309;cursor:pointer;font-family:inherit;}
-  .r2b button:active{background:#fef3c7;}
-
-  .flag{background:#fff;border:1px dashed #94a3b8;border-radius:12px;padding:20px 16px;text-align:center;
-    color:var(--muted);font-weight:600;font-size:14px;line-height:1.8;}
-  .flag.warn{border-color:#f59e0b;color:#b45309;}
-
-  #tip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
-    transform:translateX(-50%) translateY(24px);background:rgba(17,24,39,.94);color:#fff;
-    padding:11px 18px;border-radius:999px;font-size:14px;font-weight:700;max-width:88vw;text-align:center;
-    opacity:0;pointer-events:none;transition:.22s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.28);}
-  #tip.show{opacity:1;transform:translateX(-50%) translateY(0);}
-  #tip.warn{background:#b45309;} #tip.err{background:#b91c1c;}
-</style>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b1220">
-<link rel="apple-touch-icon" href="icon-192.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="发货计划">
-</head>
-<body>
-
-<div class="hd">
-  <div class="r1">
-    <span class="dot"></span>
-    <h1>司机到车登记 <em>输代码即签到</em></h1>
-  </div>
-  <div class="r2" id="sumTxt">正在读取…</div>
-  <div class="sync" id="sync">正在连接云端…</div>
-</div>
-
-<div class="wrap">
-  <div class="codebox">
-    <label class="lab" for="codeInput">请输入提货送达方代码</label>
-    <div class="cinput">
-      <input id="codeInput" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="6 位数字">
-      <button id="goBtn" type="button" disabled>确认</button>
-    </div>
-    <div class="err" id="err"></div>
-    <div class="hint">在送货单或工作群里找到你的 <b>6 位送达方代码</b>，输进来系统会自动签到「车已到」。</div>
-  </div>
-  <div id="result"></div>
-</div>
-
-<div id="tip"></div>
-
-<script>
-const SL = window.ScanLib;
-const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
-const KEY_PLANS_STAMP = "shipping_plans_stamp_v1", KEY_DB_STAMP = "shipping_db_stamp_v1";
-const $ = (id) => document.getElementById(id);
-const esc = SL.esc;
-const POLL_MS = 10000;
-
-let RECORDS = [], PROG = {}, ROWS = [], SEARCH = "", lastFp = "";
-let DB = [], IDX = { byPair: {}, byCust: {}, byModel: {} };   // 物料库 + 送达方代码索引（保密用）
-
-/* ---------- 本机缓存（断网也能勾，恢复后自动补传） ---------- */
-function loadLocal(){
-  try { const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
-  try { const v = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
-  loadLocalDb();
-}
-function loadLocalDb(){
-  if (DB.length){ IDX = SL.codeIndex(DB); return; }
-  try { const v = JSON.parse(localStorage.getItem(SL.KEY_DB) || "null"); if (Array.isArray(v)) DB = v; } catch(e){}
-  IDX = SL.codeIndex(DB);
-}
-const setPending = (on) => { try { on ? localStorage.setItem(KEY_PENDING, "1") : localStorage.removeItem(KEY_PENDING); } catch(e){} };
-const isPending = () => { try { return localStorage.getItem(KEY_PENDING) === "1"; } catch(e){ return false; } };
-function setSync(t, c){ const e = $("sync"); e.textContent = t; e.className = "sync " + (c || ""); }
-
-let tipTimer = 0;
-function tip(m, c){
-  const el = $("tip"); el.textContent = m; el.className = "show" + (c ? " " + c : "");
-  clearTimeout(tipTimer); tipTimer = setTimeout(() => { el.className = ""; }, 2400);
-}
-
-/* ---------- 保存：本机 → 云端，带「只增不减」护栏 ---------- */
-let pushing = false;
-async function saveProg(msg){
-  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
-  setPending(true);
-  if (!(window.CloudSync && CloudSync.ready())){
-    setSync("未连上云端 · 已存本机，稍后自动补传", "warn");
-    tip(msg + "（已存本机）", "warn");
-    return false;
-  }
-  if (pushing) { tip(msg + "（正在上传…）"); return true; }
-  pushing = true;
-  let ok = false;
-  try { ok = await CloudSync.push(KEY_PROG, PROG); } catch(e){ ok = false; }
-  pushing = false;
-  setPending(!ok);
-  if (ok){ setSync("已同步 ✓ " + new Date().toLocaleTimeString("zh-CN", { hour12: false }), "ok"); tip(msg); }
-  else { setSync("同步失败 · 已存本机，稍后自动补传", "warn"); tip(msg + "（已存本机）", "warn"); }
-  return ok;
-}
-
-/* ---------- 拉取 ---------- */
-function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
-
-async function pull(){
-  const cs = !!(window.CloudSync && CloudSync.ready());
-  let okA = !cs, okP = !cs;
-  if (cs){
-    /* 性能（2026-09-24）：先并行查「更新时间戳」（几十字节），没变就不下载全文；
-       剩下的请求三路同时发，弱网下同步时间约降为 1/3。 */
-    let skipA = false, newAStamp = null, skipDb = false, newDbStamp = null;
-    if (CloudSync.pullStamp && RECORDS.length){
-      try {
-        const st = await withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000);
-        if (st){ if (localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; } else newAStamp = st; }
-      } catch(e){}
-    }
-    if (CloudSync.pullStamp && DB.length){
-      try {
-        const st = await withTimeout(CloudSync.pullStamp(SL.KEY_DB), 8000);
-        if (st){ if (localStorage.getItem(KEY_DB_STAMP) === st) skipDb = true; else newDbStamp = st; }
-      } catch(e){}
-    }
-    const rs = await Promise.allSettled([
-      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_PLANS), 15000),
-      withTimeout(CloudSync.pullResult(KEY_PROG), 15000),
-      skipDb ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(SL.KEY_DB), 15000)
-    ]);
-    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
-    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
-    const rd = rs[2].status === "fulfilled" ? rs[2].value : null;
-    if (!skipA){
-      okA = !!(ra && ra.ok);
-      if (okA && Array.isArray(ra.value)){
-        RECORDS = ra.value;
-        try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
-              if (newAStamp) localStorage.setItem(KEY_PLANS_STAMP, newAStamp); } catch(e){}
-      }
-    }
-    okP = !!(rp && rp.ok);
-    if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
-    if (!skipDb && rd && rd.ok && Array.isArray(rd.value)){
-      DB = rd.value;
-      try { localStorage.setItem(SL.KEY_DB, JSON.stringify(DB));
-            if (newDbStamp) localStorage.setItem(KEY_DB_STAMP, newDbStamp); } catch(e){}
-      IDX = SL.codeIndex(DB);
-    }
-  }
-
-  if (!RECORDS.length) loadLocal();
-  if (!DB.length) loadLocalDb();        // 物料库单独兜底（不动刚拉到的计划）
-  try {
-    const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
-    if (Array.isArray(del) && del.length){
-      const st = new Set(del.map(String));
-      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
-    }
-  } catch(e){}
-  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
-  const bad = !okA || !okP;
-  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
-  if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
-  else if (bad) setSync("网络有波动 · 显示上一次数据 · " + t, "warn");
-  else setSync("已同步 ✓ " + t, "ok");
-  render();
-  if (cs && !bad && isPending() && !pushing){
-    try { const ok = await CloudSync.push(KEY_PROG, PROG); setPending(!ok); } catch(e){}
-  }
-}
-
-/* ---------- 渲染 ---------- */
-function render(){
-  ROWS = SL.boardRows(RECORDS, PROG);
-  const left = ROWS.filter(r => !r.car).length;
-  const carIn = ROWS.filter(r => r.car).length;
-  const missN = ROWS.filter(r => !SL.codeOf(r, IDX)).length;
-  $("sumTxt").innerHTML = "待登记 <b>" + left + "</b> 趟 ｜ 已登记 <b>" + carIn + "</b> 趟 ｜ 共 " + ROWS.length + " 趟" +
-    (ROWS.some(r => r.stale) ? "（含昨日遗留 " + ROWS.filter(r => r.stale).length + "）" : "") +
-    (missN ? " ｜ <b style=\"color:#fbbf24\">" + missN + "</b> 趟未编送达方代码" : "");
-
-  // ★ 指纹里带上物料库条数：拉回物料库后（代码从无到有）必须重绘一次
-  const fp = DB.length + "|" + SEARCH + "|" + ROWS.map(r => [r.ck, r.rk, r.car, r.ct].join(":")).join("|");
-  if (lastFp === fp) return;        // 内容没变就不重绘（现场正在看结果时别打断）
-  lastFp = fp;
-  $("result").innerHTML = resultHtml();
-  bindResult();
-}
-
-/* ★ 保密硬约束：这一页**不许出现客户名称**，只显示「送达方代码」。
-   司机靠手上的送货单/工作群里的代码认出哪一行是自己的，所以代码要显眼。
-   查不到代码 → 显示「未编代码」占位并标黄，**绝不回落显示客户名**
-   （三级兜底与占位口径全在 scan-lib.codeOf / codeText，全站只有这一份实现）。 */
-function resultHtml(){
-  if (!SEARCH) return '<div class="flag">输入送达方代码后，这里会显示匹配到的车辆。</div>';
-  const matches = ROWS.filter(r => (SL.codeOf(r, IDX) || "") === SEARCH);
-  if (!matches.length) return '<div class="flag warn">未找到代码 <b>' + esc(SEARCH) + '</b> 对应的车辆，请核对你的送达方代码。</div>';
-  if (matches.length === 1) return singleHtml(matches[0]);
-  // 同一代码对应多趟（极少见）：逐条列出，司机自己点要签到的那趟
-  return '<div class="grp"><h2>匹配到 ' + matches.length + ' 趟<span class="tagx">请逐一点「车已到」</span></h2>' +
-    matches.map(singleHtml).join("") + "</div>";
-}
-
-function singleHtml(r){
-  const car = r.car || 0;
-  const ts = car && r.ct ? SL.fmtHM(r.ct) : "";
-  const code = SL.codeOf(r, IDX) || SL.NO_CODE;
-  // 还没登记 → 一个「确认车已到」；已登记 → 静态状态条 + 一个「撤回」
-  const act = car
-    ? '<div class="big on">✓ 已签到：车已到' + (ts ? "　" + esc(ts) : "") + "</div>" +
-      '<div class="r2b"><button type="button" data-car="1" data-v="0">↩ 撤回</button></div>'
-    : '<button type="button" class="big" data-car="1" data-v="1">🚚 确认：车已到</button>';
-  return '<div class="row ' + (car ? "done" : "") +
-    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '" data-code="' + esc(code) + '">' +
-    '<div class="rh"><div class="nm">' +
-      '<div class="name' + (SL.codeOf(r, IDX) ? "" : " miss") + '">' + esc(code) + "</div>" +
-      '<div class="meta">' +
-        "<span>单号 <b>" + esc(r.no || "—") + "</b></span>" +
-        "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span>" +
-        "<span>共 <b>" + (r.qty || 0) + "</b> 件</span>" +
-        (r.logistics ? "<span>" + esc(r.logistics) + "</span>" : "") +
-      "</div>" +
-    "</div></div>" + act +
-  "</div>";
-}
-
-function bindResult(){
-  $("result").querySelectorAll("[data-car]").forEach(b => {
-    const row = b.closest(".row");
-    b.onclick = () => setCar(row.dataset.r, row.dataset.k, parseInt(b.dataset.v, 10) || 0, row.dataset.code || "");
-  });
-}
-
-/* ---------- 输入：只能填 6 位数字 ---------- */
-function showErr(m){ $("err").textContent = m; }
-function clearErr(){ $("err").textContent = ""; }
-
-const ci = $("codeInput");
-ci.addEventListener("input", () => {
-  let v = ci.value.replace(/\D/g, "").slice(0, 6);
-  if (v !== ci.value) ci.value = v;
-  $("goBtn").disabled = v.length !== 6;
-  ci.classList.remove("bad"); clearErr();
-});
-ci.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doSearch(); } });
-$("goBtn").onclick = doSearch;
-
-function doSearch(){
-  const code = ci.value.trim();
-  if (!/^\d{6}$/.test(code)){
-    ci.classList.add("bad"); showErr("请输入 6 位数字送达方代码"); ci.focus(); return;
-  }
-  ci.classList.remove("bad"); clearErr();
-  SEARCH = code;
-  const matches = ROWS.filter(r => (SL.codeOf(r, IDX) || "") === code);
-  if (!matches.length){ lastFp = ""; render(); tip("未找到该代码对应的车辆"); return; }
-  const pending = matches.filter(r => !r.car);
-  // ★ 自动匹配车到：唯一一趟且还没签到 → 直接签到（司机已经用"输代码+点确认"完成确认动作）
-  if (matches.length === 1 && pending.length === 1){
-    ci.value = "";            // 清空，方便接着签下一单
-    $("goBtn").disabled = true;
-    arrive(matches[0]);
-    return;
-  }
-  lastFp = ""; render();
-}
-
-/* ---------- 唯一的写操作：车已到 / 撤回（都只动 car 这一个字段） ----------
-   必须走 SL.applyCar，不能自己写 car。它会同时给格子 +1 个版本号(rv)。
-   少这个 rv 的后果很隐蔽：司机点「撤回」本地看着退回去了，
-   10 秒后跟云端一合并，云端那个高版本又把「车已到」抬回来，勾自己长回来了。 */
-function arrive(r){
-  const cur = ((PROG[r.rk] || {})[r.ck] || {});
-  if ((cur.car || 0) === 1) return;
-  SL.applyCar(PROG, r.rk, r.ck, 1);
-  lastFp = "";
-  saveProg("已登记：车已到");
-  render();
-}
-
-function setCar(rk, ck, v, code){
-  const nv = v ? 1 : 0;
-  const cur = ((PROG[rk] || {})[ck] || {});
-  // ★ 确认框里也只能出现送达方代码 —— 这一页任何位置都不许出现客户名。
-  const shown = code || SL.NO_CODE;
-  if ((cur.car || 0) === nv){ tip(nv ? "已经是「车已到」了" : "本来是「车未到」"); return; }
-  SL.uiConfirm(nv ? ("确认标记【" + shown + "】车已到？")
-                  : ("撤回【" + shown + "】的「车已到」？"), () => {
-    const r = SL.applyCar(PROG, rk, ck, nv);
-    if (!r.changed){ tip("状态没变"); return; }
-    lastFp = "";
-    saveProg(nv ? "已登记：车已到" : "已撤回：车未到");
-    render();
-  }, { title: nv ? "确认车已到" : "确认撤回" });
-}
-
-/* ---------- 启动 ---------- */
-function boot(){
-  if (window.CloudSync){
-    CloudSync.init();
-    try { if (CloudSync.guard) CloudSync.guard(KEY_PROG, SL.guardFn); } catch(e){}
-  }
-  loadLocal();
-  pull();
-  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
-  window.addEventListener("online", () => pull());
-}
-boot();
-</script>
-<script src="brand.js?v=3"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>司机到车登记</title>
+<script src="supabase.min.js"></script>
+<script src="cloud-config.js"></script>
+<script src="cloud-sync.js"></script>
+<script src="scan-lib.js?v=20260924g"></script>
+<style>
+  /* ==========================================================================
+     司机到车登记（手机端，一个码通吃，不用登录）
+     新流程（2026-09-18）：司机**自己输入 6 位送达方代码**，系统自动匹配到对应车辆
+     并签到「车已到」——不再罗列所有行让司机找。
+     边界（必须守住）：司机**只能**勾「车已到」和撤回自己那一勾，
+     绝对不能碰「待确认 / 货好 / 装货中 / 已完成」四道工序 —— 那四道要内部人员登录才点。
+     所以本页根本不渲染任何工序按钮，连相关代码路径都没有。
+     ========================================================================== */
+  :root{
+    --bg:#eef1f6; --card:#fff; --line:#dbe1ea; --txt:#111827; --muted:#5b6676; --muted2:#93a0b4;
+    --green:#059669; --green-l:#ecfdf5; --amber:#d97706; --amber-l:#fffbeb;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{font-family:"PingFang SC","Microsoft YaHei","微软雅黑",system-ui,sans-serif;background:var(--bg);
+    color:var(--txt);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+    padding-bottom:calc(26px + env(safe-area-inset-bottom));}
+  .hd{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+    color:#fff;padding:7px 12px 6px;box-shadow:0 3px 14px rgba(15,23,42,.28);}
+  .hd .r1{display:flex;align-items:center;gap:7px;white-space:nowrap;}
+  .hd .r1 .dot{width:6px;height:20px;background:#34d399;border-radius:2px;flex-shrink:0;
+    box-shadow:0 0 10px rgba(52,211,153,.85);}
+  .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;}
+  .hd h1 em{font-style:normal;font-size:11px;font-weight:600;color:#94a3b8;margin-left:5px;}
+  .hd .r2{display:inline;margin-top:0;font-size:12px;color:#cbd5e1;}
+  .hd .r2 b{color:#fff;font-weight:700;}
+  .sync{display:inline;font-size:11.5px;letter-spacing:.4px;margin-left:10px;}
+  .sync.ok{color:#7dd3fc;} .sync.warn{color:#fbbf24;} .sync.err{color:#f87171;}
+
+  .wrap{padding:12px 12px 0;max-width:720px;margin:0 auto;}
+
+  /* 顶部一句话交代"怎么签到"（司机第一次扫进来就靠这句） */
+  .hint{background:#eef4ff;border:1px solid #cfdffd;color:#1e3a8a;border-radius:10px;
+    padding:9px 12px;font-size:13px;line-height:1.55;margin:0 0 10px;}
+  .hint b{font-weight:800;}
+
+  /* ★ 新核心：司机自己输入 6 位送达方代码 */
+  .codebox{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 14px;
+    margin:0 0 12px;box-shadow:0 2px 8px rgba(15,23,42,.06);}
+  .codebox .lab{display:block;font-size:15px;font-weight:800;color:#0f172a;margin-bottom:10px;letter-spacing:.3px;}
+  .cinput{display:flex;gap:10px;}
+  .cinput input{flex:1;min-width:0;height:56px;border:2px solid var(--line);border-radius:12px;padding:0 14px;
+    font-size:28px;font-weight:800;letter-spacing:8px;text-align:center;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+    color:#0f172a;background:#f8fafc;outline:none;transition:.15s;-webkit-appearance:none;}
+  .cinput input:focus{border-color:#0f172a;background:#fff;}
+  .cinput input.bad{border-color:#b91c1c;background:#fef2f2;}
+  .cinput button{flex:0 0 auto;width:96px;border:none;border-radius:12px;background:#0f172a;color:#fff;
+    font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s;}
+  .cinput button:active{background:#1e293b;}
+  .cinput button:disabled{background:#cbd5e1;cursor:not-allowed;}
+  .err{color:#b91c1c;font-size:13px;font-weight:700;min-height:18px;margin-top:8px;}
+
+  /* 匹配结果卡片（复用老样式，只是改成"搜索后才出现"） */
+  .grp{margin-bottom:12px;}
+  .grp>h2{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 7px;font-weight:800;color:#334155;padding:0 2px;}
+  .grp>h2 .tagx{margin-left:auto;font-size:12px;font-weight:700;color:var(--muted);}
+
+  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;
+    overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .row.done{border-color:#a7f3d0;background:linear-gradient(180deg,#f7fffb,#fff);}
+  .rh{padding:10px 12px 8px;display:flex;gap:10px;align-items:flex-start;}
+  .rh .nm{flex:1;min-width:0;}
+  .rh .name{font-size:18px;font-weight:800;line-height:1.35;word-break:break-all;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;letter-spacing:1px;}
+  .rh .name.miss{font-family:inherit;color:#b45309;font-size:14px;letter-spacing:0;}
+  .rh .meta{margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--muted);}
+  .rh .meta b{color:#334155;font-weight:700;}
+  .big{
+    width:100%;min-height:52px;border:none;border-top:1px solid var(--line);background:#f8fafc;
+    font-size:16.5px;font-weight:800;color:#475569;cursor:pointer;font-family:inherit;
+    display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:.5px;
+  }
+  button.big:active{background:#eef2f7;}
+  div.big.on{cursor:default;}
+  .big.on{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-top-color:#10b981;
+    box-shadow:0 3px 12px rgba(5,150,105,.28);}
+  .r2b{display:flex;border-top:1px solid var(--line);}
+  .r2b button{flex:1;min-height:44px;border:none;background:#fff;font-size:13.5px;font-weight:700;
+    color:#b45309;cursor:pointer;font-family:inherit;}
+  .r2b button:active{background:#fef3c7;}
+
+  .flag{background:#fff;border:1px dashed #94a3b8;border-radius:12px;padding:20px 16px;text-align:center;
+    color:var(--muted);font-weight:600;font-size:14px;line-height:1.8;}
+  .flag.warn{border-color:#f59e0b;color:#b45309;}
+
+  #tip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
+    transform:translateX(-50%) translateY(24px);background:rgba(17,24,39,.94);color:#fff;
+    padding:11px 18px;border-radius:999px;font-size:14px;font-weight:700;max-width:88vw;text-align:center;
+    opacity:0;pointer-events:none;transition:.22s;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.28);}
+  #tip.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #tip.warn{background:#b45309;} #tip.err{background:#b91c1c;}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b1220">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="发货计划">
+</head>
+<body>
+
+<div class="hd">
+  <div class="r1">
+    <span class="dot"></span>
+    <h1>司机到车登记 <em>输代码即签到</em></h1>
+  </div>
+  <div class="r2" id="sumTxt">正在读取…</div>
+  <div class="sync" id="sync">正在连接云端…</div>
+</div>
+
+<div class="wrap">
+  <div class="codebox">
+    <label class="lab" for="codeInput">请输入提货送达方代码</label>
+    <div class="cinput">
+      <input id="codeInput" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="6 位数字">
+      <button id="goBtn" type="button" disabled>确认</button>
+    </div>
+    <div class="err" id="err"></div>
+    <div class="hint">在送货单或工作群里找到你的 <b>6 位送达方代码</b>，输进来系统会自动签到「车已到」。</div>
+  </div>
+  <div id="result"></div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+const SL = window.ScanLib;
+const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
+const KEY_PLANS_STAMP = "shipping_plans_stamp_v1", KEY_DB_STAMP = "shipping_db_stamp_v1";
+const $ = (id) => document.getElementById(id);
+const esc = SL.esc;
+const POLL_MS = 10000;
+
+let RECORDS = [], PROG = {}, ROWS = [], SEARCH = "", lastFp = "";
+let DB = [], IDX = { byPair: {}, byCust: {}, byModel: {} };   // 物料库 + 送达方代码索引（保密用）
+
+/* ---------- 本机缓存（断网也能勾，恢复后自动补传） ---------- */
+function loadLocal(){
+  try { const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null"); if (Array.isArray(v)) RECORDS = v; } catch(e){}
+  try { const v = JSON.parse(localStorage.getItem(KEY_PROG) || "null"); if (v && typeof v === "object") PROG = v; } catch(e){}
+  loadLocalDb();
+}
+function loadLocalDb(){
+  if (DB.length){ IDX = SL.codeIndex(DB); return; }
+  try { const v = JSON.parse(localStorage.getItem(SL.KEY_DB) || "null"); if (Array.isArray(v)) DB = v; } catch(e){}
+  IDX = SL.codeIndex(DB);
+}
+const setPending = (on) => { try { on ? localStorage.setItem(KEY_PENDING, "1") : localStorage.removeItem(KEY_PENDING); } catch(e){} };
+const isPending = () => { try { return localStorage.getItem(KEY_PENDING) === "1"; } catch(e){ return false; } };
+function setSync(t, c){ const e = $("sync"); e.textContent = t; e.className = "sync " + (c || ""); }
+
+let tipTimer = 0;
+function tip(m, c){
+  const el = $("tip"); el.textContent = m; el.className = "show" + (c ? " " + c : "");
+  clearTimeout(tipTimer); tipTimer = setTimeout(() => { el.className = ""; }, 2400);
+}
+
+/* ---------- 保存：本机 → 云端，带「只增不减」护栏 ---------- */
+let pushing = false;
+async function saveProg(msg){
+  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+  setPending(true);
+  if (!(window.CloudSync && CloudSync.ready())){
+    setSync("未连上云端 · 已存本机，稍后自动补传", "warn");
+    tip(msg + "（已存本机）", "warn");
+    return false;
+  }
+  if (pushing) { tip(msg + "（正在上传…）"); return true; }
+  pushing = true;
+  let ok = false;
+  try { ok = await CloudSync.push(KEY_PROG, PROG); } catch(e){ ok = false; }
+  pushing = false;
+  setPending(!ok);
+  if (ok){ setSync("已同步 ✓ " + new Date().toLocaleTimeString("zh-CN", { hour12: false }), "ok"); tip(msg); }
+  else { setSync("同步失败 · 已存本机，稍后自动补传", "warn"); tip(msg + "（已存本机）", "warn"); }
+  return ok;
+}
+
+/* ---------- 拉取 ---------- */
+function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
+
+async function pull(){
+  const cs = !!(window.CloudSync && CloudSync.ready());
+  let okA = !cs, okP = !cs;
+  if (cs){
+    /* 性能（2026-09-24）：先并行查「更新时间戳」（几十字节），没变就不下载全文；
+       剩下的请求三路同时发，弱网下同步时间约降为 1/3。 */
+    let skipA = false, newAStamp = null, skipDb = false, newDbStamp = null;
+    if (CloudSync.pullStamp && RECORDS.length){
+      try {
+        const st = await withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000);
+        if (st){ if (localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; } else newAStamp = st; }
+      } catch(e){}
+    }
+    if (CloudSync.pullStamp && DB.length){
+      try {
+        const st = await withTimeout(CloudSync.pullStamp(SL.KEY_DB), 8000);
+        if (st){ if (localStorage.getItem(KEY_DB_STAMP) === st) skipDb = true; else newDbStamp = st; }
+      } catch(e){}
+    }
+    const rs = await Promise.allSettled([
+      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_PLANS), 15000),
+      withTimeout(CloudSync.pullResult(KEY_PROG), 15000),
+      skipDb ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(SL.KEY_DB), 15000)
+    ]);
+    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
+    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
+    const rd = rs[2].status === "fulfilled" ? rs[2].value : null;
+    if (!skipA){
+      okA = !!(ra && ra.ok);
+      if (okA && Array.isArray(ra.value)){
+        RECORDS = ra.value;
+        try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
+              if (newAStamp) localStorage.setItem(KEY_PLANS_STAMP, newAStamp); } catch(e){}
+      }
+    }
+    okP = !!(rp && rp.ok);
+    if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
+    if (!skipDb && rd && rd.ok && Array.isArray(rd.value)){
+      DB = rd.value;
+      try { localStorage.setItem(SL.KEY_DB, JSON.stringify(DB));
+            if (newDbStamp) localStorage.setItem(KEY_DB_STAMP, newDbStamp); } catch(e){}
+      IDX = SL.codeIndex(DB);
+    }
+  }
+
+  if (!RECORDS.length) loadLocal();
+  if (!DB.length) loadLocalDb();        // 物料库单独兜底（不动刚拉到的计划）
+  try {
+    const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
+    if (Array.isArray(del) && del.length){
+      const st = new Set(del.map(String));
+      RECORDS = RECORDS.filter(r => !(r && r.id != null && st.has(String(r.id))));
+    }
+  } catch(e){}
+  try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+  const bad = !okA || !okP;
+  const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  if (!cs) setSync("云端未配置 · 显示本机缓存 · " + t, "warn");
+  else if (bad) setSync("网络有波动 · 显示上一次数据 · " + t, "warn");
+  else setSync("已同步 ✓ " + t, "ok");
+  render();
+  if (cs && !bad && isPending() && !pushing){
+    try { const ok = await CloudSync.push(KEY_PROG, PROG); setPending(!ok); } catch(e){}
+  }
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  ROWS = SL.boardRows(RECORDS, PROG);
+  const left = ROWS.filter(r => !r.car).length;
+  const carIn = ROWS.filter(r => r.car).length;
+  const missN = ROWS.filter(r => !SL.codeOf(r, IDX)).length;
+  $("sumTxt").innerHTML = "待登记 <b>" + left + "</b> 趟 ｜ 已登记 <b>" + carIn + "</b> 趟 ｜ 共 " + ROWS.length + " 趟" +
+    (ROWS.some(r => r.stale) ? "（含昨日遗留 " + ROWS.filter(r => r.stale).length + "）" : "") +
+    (missN ? " ｜ <b style=\"color:#fbbf24\">" + missN + "</b> 趟未编送达方代码" : "");
+
+  // ★ 指纹里带上物料库条数：拉回物料库后（代码从无到有）必须重绘一次
+  const fp = DB.length + "|" + SEARCH + "|" + ROWS.map(r => [r.ck, r.rk, r.car, r.ct].join(":")).join("|");
+  if (lastFp === fp) return;        // 内容没变就不重绘（现场正在看结果时别打断）
+  lastFp = fp;
+  $("result").innerHTML = resultHtml();
+  bindResult();
+}
+
+/* ★ 保密硬约束：这一页**不许出现客户名称**，只显示「送达方代码」。
+   司机靠手上的送货单/工作群里的代码认出哪一行是自己的，所以代码要显眼。
+   查不到代码 → 显示「未编代码」占位并标黄，**绝不回落显示客户名**
+   （三级兜底与占位口径全在 scan-lib.codeOf / codeText，全站只有这一份实现）。 */
+function resultHtml(){
+  if (!SEARCH) return '<div class="flag">输入送达方代码后，这里会显示匹配到的车辆。</div>';
+  const matches = ROWS.filter(r => (SL.codeOf(r, IDX) || "") === SEARCH);
+  if (!matches.length) return '<div class="flag warn">未找到代码 <b>' + esc(SEARCH) + '</b> 对应的车辆，请核对你的送达方代码。</div>';
+  if (matches.length === 1) return singleHtml(matches[0]);
+  // 同一代码对应多趟（极少见）：逐条列出，司机自己点要签到的那趟
+  return '<div class="grp"><h2>匹配到 ' + matches.length + ' 趟<span class="tagx">请逐一点「车已到」</span></h2>' +
+    matches.map(singleHtml).join("") + "</div>";
+}
+
+function singleHtml(r){
+  const car = r.car || 0;
+  const ts = car && r.ct ? SL.fmtHM(r.ct) : "";
+  const code = SL.codeOf(r, IDX) || SL.NO_CODE;
+  // 还没登记 → 一个「确认车已到」；已登记 → 静态状态条 + 一个「撤回」
+  const act = car
+    ? '<div class="big on">✓ 已签到：车已到' + (ts ? "　" + esc(ts) : "") + "</div>" +
+      '<div class="r2b"><button type="button" data-car="1" data-v="0">↩ 撤回</button></div>'
+    : '<button type="button" class="big" data-car="1" data-v="1">🚚 确认：车已到</button>';
+  return '<div class="row ' + (car ? "done" : "") +
+    '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '" data-code="' + esc(code) + '">' +
+    '<div class="rh"><div class="nm">' +
+      '<div class="name' + (SL.codeOf(r, IDX) ? "" : " miss") + '">' + esc(code) + "</div>" +
+      '<div class="meta">' +
+        "<span>单号 <b>" + esc(r.no || "—") + "</b></span>" +
+        "<span>吨位 <b>" + (r.ton ? r.ton.toFixed(1) : "/") + "</b></span>" +
+        "<span>共 <b>" + (r.qty || 0) + "</b> 件</span>" +
+        (r.logistics ? "<span>" + esc(r.logistics) + "</span>" : "") +
+      "</div>" +
+    "</div></div>" + act +
+  "</div>";
+}
+
+function bindResult(){
+  $("result").querySelectorAll("[data-car]").forEach(b => {
+    const row = b.closest(".row");
+    b.onclick = () => setCar(row.dataset.r, row.dataset.k, parseInt(b.dataset.v, 10) || 0, row.dataset.code || "");
+  });
+}
+
+/* ---------- 输入：只能填 6 位数字 ---------- */
+function showErr(m){ $("err").textContent = m; }
+function clearErr(){ $("err").textContent = ""; }
+
+const ci = $("codeInput");
+ci.addEventListener("input", () => {
+  let v = ci.value.replace(/\D/g, "").slice(0, 6);
+  if (v !== ci.value) ci.value = v;
+  $("goBtn").disabled = v.length !== 6;
+  ci.classList.remove("bad"); clearErr();
+});
+ci.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doSearch(); } });
+$("goBtn").onclick = doSearch;
+
+function doSearch(){
+  const code = ci.value.trim();
+  if (!/^\d{6}$/.test(code)){
+    ci.classList.add("bad"); showErr("请输入 6 位数字送达方代码"); ci.focus(); return;
+  }
+  ci.classList.remove("bad"); clearErr();
+  SEARCH = code;
+  const matches = ROWS.filter(r => (SL.codeOf(r, IDX) || "") === code);
+  if (!matches.length){ lastFp = ""; render(); tip("未找到该代码对应的车辆"); return; }
+  const pending = matches.filter(r => !r.car);
+  // ★ 自动匹配车到：唯一一趟且还没签到 → 直接签到（司机已经用"输代码+点确认"完成确认动作）
+  if (matches.length === 1 && pending.length === 1){
+    ci.value = "";            // 清空，方便接着签下一单
+    $("goBtn").disabled = true;
+    arrive(matches[0]);
+    return;
+  }
+  lastFp = ""; render();
+}
+
+/* ---------- 唯一的写操作：车已到 / 撤回（都只动 car 这一个字段） ----------
+   必须走 SL.applyCar，不能自己写 car。它会同时给格子 +1 个版本号(rv)。
+   少这个 rv 的后果很隐蔽：司机点「撤回」本地看着退回去了，
+   10 秒后跟云端一合并，云端那个高版本又把「车已到」抬回来，勾自己长回来了。 */
+function arrive(r){
+  const cur = ((PROG[r.rk] || {})[r.ck] || {});
+  if ((cur.car || 0) === 1) return;
+  SL.applyCar(PROG, r.rk, r.ck, 1);
+  lastFp = "";
+  saveProg("已登记：车已到");
+  render();
+}
+
+function setCar(rk, ck, v, code){
+  const nv = v ? 1 : 0;
+  const cur = ((PROG[rk] || {})[ck] || {});
+  // ★ 确认框里也只能出现送达方代码 —— 这一页任何位置都不许出现客户名。
+  const shown = code || SL.NO_CODE;
+  if ((cur.car || 0) === nv){ tip(nv ? "已经是「车已到」了" : "本来是「车未到」"); return; }
+  SL.uiConfirm(nv ? ("确认标记【" + shown + "】车已到？")
+                  : ("撤回【" + shown + "】的「车已到」？"), () => {
+    const r = SL.applyCar(PROG, rk, ck, nv);
+    if (!r.changed){ tip("状态没变"); return; }
+    lastFp = "";
+    saveProg(nv ? "已登记：车已到" : "已撤回：车未到");
+    render();
+  }, { title: nv ? "确认车已到" : "确认撤回" });
+}
+
+/* ---------- 启动 ---------- */
+function boot(){
+  if (window.CloudSync){
+    CloudSync.init();
+    try { if (CloudSync.guard) CloudSync.guard(KEY_PROG, SL.guardFn); } catch(e){}
+  }
+  loadLocal();
+  if (RECORDS.length){ render(); if (window.CloudSync && CloudSync.ready()) setSync("正在刷新云端…", "warn"); }
+  pull();
+  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+  window.addEventListener("online", () => pull());
+}
+boot();
+</script>
+<script src="brand.js?v=3"></script>
+</body>
+</html>
