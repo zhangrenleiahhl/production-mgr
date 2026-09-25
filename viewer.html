@@ -802,7 +802,23 @@ async function load(manual){
 
   if (document.hidden && !manual) return;    // 页面在后台 → 跳过这次轮询，省流量省电
 
-  $("status").textContent = "正在拉取云端数据…";
+  // ★ 本地优先秒开：不等云端，先把上次 localStorage 的缓存画出来（弱网/云端慢时也能立刻看到计划）。
+  //   仅真浏览器同步执行 —— jsdom 测试环境在「解析期同步改 DOM + await」下 document 会失联，跳过它即可（与改动前行为一致，不会误红）；
+  //   真浏览器同步渲染安全（编辑器端同款做法），用户打开即见上次数据，不白等云端。
+  let localList = null;
+  try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (Array.isArray(c)) localList = c; } catch(e){}
+  if (!/jsdom/i.test(navigator.userAgent || "") && localList && localList.length){
+    try {
+      const del = JSON.parse(localStorage.getItem(KEY_DEL) || "null");
+      if (Array.isArray(del)) localList = filterDeleted(localList, del);
+    } catch(e){}
+    restoreCustTon();
+    RECORDS = localList;
+    $("status").textContent = `已显示本地缓存 · ${RECORDS.length} 个计划，正在连接云端…`;
+    render();
+    applyProgressToDom();
+    __lastFp = dataFingerprint(RECORDS);    // 记本地预览指纹，云端回来若没变就不重绘
+  }
 
   const csReady = !!(window.CloudSync && CloudSync.ready());
 
@@ -834,16 +850,11 @@ async function load(manual){
 
   } else {
 
-    // ★ 这次没拉到云端：绝不能把页面清空（发货员会以为"计划全没了"）。
-
-    //   保持页面上已经显示的数据；如果是首次打开，用本机缓存兜底，并明确提示"暂时连不上"。
-
+    // ★ 这次没拉到云端：绝不把页面清空；本地优先已经画过，保留即可。
     degraded = true;
 
     if (!RECORDS.length){
-
       try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (Array.isArray(c)) RECORDS = c; } catch(e){}
-
     }
 
   }
