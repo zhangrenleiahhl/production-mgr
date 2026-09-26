@@ -8257,6 +8257,53 @@ function inputToTs(v){
 
 
 
+/* ===== 预约货好时间：统一落盘入口（2026-09-26 修「点好一刷新就没了」） =====
+   以前只听 change，而 datetime-local 要等输入框失焦才触发 change：
+   ① 选完时间直接按 F5 → change 没来得及触发，预约只显示、从未落盘，一刷新就没；
+   ② 看板自动重建时 keep 把值填回去再 focus()，之后失焦浏览器发现值没变也永远不补触发。
+   现在补听 input：值选完整后 1.2 秒自动落盘（不用等失焦），重建恢复时也主动补存。 */
+
+let pbrtTimer = null;
+
+function findReadyInp(rk, ck){
+  const body = $("pbBody"); if(!body) return null;
+  return Array.prototype.filter.call(body.querySelectorAll("input.pbrt"), function(x){
+    return x.getAttribute("data-rk") === rk && x.getAttribute("data-ck") === ck;
+  })[0] || null;
+}
+
+function commitReadyTime(inp){
+  if(!inp || !SLB) return;
+  const rk = inp.getAttribute("data-rk"), ck = inp.getAttribute("data-ck");
+  const cust = inp.getAttribute("data-cust") || "该客户";
+  const ts = inputToTs(inp.value);
+  if (!ts){
+    const r0 = SLB.applyReadyAt(PROG, rk, ck, 0, "");
+    pushProg();
+    if(!r0 || r0.changed !== false) toast("已清空【" + cust + "】的预约货好时间");
+    return;
+  }
+  const r = SLB.applyReadyAt(PROG, rk, ck, ts, "");
+  if (r && r.changed === false) return;   // 值没变：不重复推、不重复弹（input 防抖路径靠它去重）
+  pushProg();
+  toast("【" + cust + "】预约货好时间 " + SLB.fmtHM(ts) +
+    (ts <= Date.now() ? "（时间已过，直接算货已好）" : "（到点自动变成货已好）"));
+}
+
+/* 值没选完整（打到一半）先不落盘 —— 只认完整的 YYYY-MM-DDTHH:MM，避免把半截时间存进去 */
+
+function scheduleReadyCommit(inp){
+  if(!inp || !SLB) return;
+  const v = String(inp.value || "");
+  if(!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(v)) return;
+  const rk = inp.getAttribute("data-rk"), ck = inp.getAttribute("data-ck");
+  clearTimeout(pbrtTimer);
+  pbrtTimer = setTimeout(function(){
+    const el = findReadyInp(rk, ck) || inp;    // 期间看板重建过 → 找到重建后的那个框再存
+    if(el && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(String(el.value || ""))) commitReadyTime(el);
+  }, 1200);
+}
+
 function readyCellHtml(c, rk, key, cust){
 
   const raw = c.rs || 0;              // 数据里真实的工序值（判断能不能撤销要用它）
@@ -8513,7 +8560,7 @@ function renderBoard(){
 
     })[0];
 
-    if(el){ el.value = keep.val; el.focus(); }
+    if(el){ el.value = keep.val; el.focus(); scheduleReadyCommit(el); }   // ★ 重建恢复也补存：change 被吞时靠这里落盘
 
   }
 
@@ -8759,7 +8806,7 @@ function bootProg(){
 
   });
 
-  // 「预约货好时间」输入框：选完/改完（change）立刻存下来并推云端。
+  // 「预约货好时间」输入框：选完/改完立刻存下来并推云端（change + input 双保险）。
 
   // 留空 = 清掉预约。填的时间已经过了就直接算货已好（不留"半截状态"）。
 
@@ -8769,33 +8816,23 @@ function bootProg(){
 
     if (!inp || !inp.classList || !inp.classList.contains("pbrt")) return;
 
-    if (!SLB) return;
+    clearTimeout(pbrtTimer);
 
-    const rk = inp.getAttribute("data-rk"), ck = inp.getAttribute("data-ck");
+    commitReadyTime(inp);
 
-    const cust = inp.getAttribute("data-cust") || "该客户";
+  });
 
-    const ts = inputToTs(inp.value);
+  // ★ input：不等失焦。datetime-local 的 change 要等失焦才触发 —— 选完直接按 F5、
+  //   或看板自动重建把 change 吞掉，预约就只显示不落盘（一刷新就没了）。
+  //   现在值一选完整，1.2 秒后自动落盘。
 
-    if (!ts){
+  if (pbBody) pbBody.addEventListener("input", function(e){
 
-      SLB.applyReadyAt(PROG, rk, ck, 0, "");
+    const inp = e.target;
 
-      pushProg();
+    if (!inp || !inp.classList || !inp.classList.contains("pbrt")) return;
 
-      toast("已清空【" + cust + "】的预约货好时间");
-
-      return;
-
-    }
-
-    SLB.applyReadyAt(PROG, rk, ck, ts, "");
-
-    pushProg();
-
-    toast("【" + cust + "】预约货好时间 " + SLB.fmtHM(ts) +
-
-      (ts <= Date.now() ? "（时间已过，直接算货已好）" : "（到点自动变成货已好）"));
+    scheduleReadyCommit(inp);
 
   });
 
