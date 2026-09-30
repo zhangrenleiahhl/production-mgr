@@ -3558,7 +3558,8 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
       inp.addEventListener("input", ()=>scheduleRefresh(recalc, saveDraft, styleShipdate));
 
-      inp.addEventListener("change", ()=>{ carTick(tr); sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); });
+      // ★ 包一层行锚定：重排/折叠后把这一行钉回屏幕原位置，画面不跳（2026-09-30）
+      inp.addEventListener("change", ()=>withRowAnchored(tr, inp, ()=>{ carTick(tr); sortRowsByDate(); reindex(); foldByDate(); saveDraft(); styleShipdate(); }));
 
     } else if(inp.dataset.f==="qty"){
 
@@ -4049,6 +4050,28 @@ function bindSubTonReset(btn, cust, date, pt, autoTxt){
 }
 
 
+
+/* ★ 改日期时「屏幕不要跳」（2026-09-30 用户要求）
+   改完发货日期要按日期重排 + 重新折叠，整张表会整体挪位；视口不动 → 视线里正在改的那一行跑掉了、
+   要重新找。更隐蔽的是重排会把带焦点的输入框在 DOM 里搬位置，浏览器为「照顾焦点」会自己滚动一下。
+   这里在重排前后夹一层锚定：先记住这行在屏幕上的位置，重排后按差值把页面滚回去 —— 视觉上纹丝不动。
+   另外两点收尾：① 改成当天及之前的日期会被默认折叠藏起来，顺手把它所在日期展开（跟粘贴日期同一口径），
+   保证人还看得见自己刚改的行；② 焦点用 preventScroll 补回来，不让浏览器为它再滚一次。 */
+function withRowAnchored(tr, focusEl, fn){
+  const r0 = (tr && tr.isConnected) ? tr.getBoundingClientRect().top : null;
+  fn();
+  if(r0 == null || !tr || !tr.isConnected) return;
+  if(tr.classList.contains("date-fold-hidden")){
+    const d = ((rowRefs(tr).shipdate || {}).value || "").trim();
+    if(d && getFoldState()[d] !== 0){ setFoldState(d, 0); foldByDate(); }
+  }
+  if(tr.classList.contains("date-fold-hidden") || tr.classList.contains("filter-hidden")) return;
+  const dy = tr.getBoundingClientRect().top - r0;          // 行被搬了多远，页面就反向滚多远
+  if(Math.abs(dy) > 0.5) window.scrollBy(0, dy);
+  if(focusEl && focusEl.isConnected && document.activeElement !== focusEl){
+    try{ focusEl.focus({ preventScroll:true }); }catch(e){ focusEl.focus(); }
+  }
+}
 
 function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客户吨位合并在 recalc 中重建）
 
