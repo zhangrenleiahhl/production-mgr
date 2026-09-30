@@ -429,9 +429,9 @@
   /* 交叉点（正在编辑的格子）：紫色，压过行/列高亮 —— 和「当前编辑格」紫色描边一致 */
   .tbl tbody tr.row-active > td.col-active{ outline:2px solid var(--purple); outline-offset:-2px; }
   /* ★ 不同发货日期分组：用「间距」区分，不画线、不涂色（按用户要求，避免彩色线条干扰）—— 2026-09-30 续
-     · 每天第一组的第一行顶部加一条黑色间距带（border-top），在相邻天之间留出空白，扫一眼就能分开。
-     · 间距带用统一的黑色，不随日期变化 —— 所以它不是「用颜色区分天数」，纯粹是留白。 */
-  .tbl tbody tr.day-first > td{ border-top:16px solid #000; }
+     · 每天第一组的第一行顶部加一条间距带（border-top），在相邻天之间留出空白，扫一眼就能分开。
+     · 间距带颜色可自选（顶栏「间距色」取色器），存本地下次自动用；默认黑色，不随日期变化 —— 纯粹是留白。 */
+  .tbl tbody tr.day-first > td{ border-top:16px solid var(--day-gap, #000); }
 
   @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
 
@@ -1087,6 +1087,11 @@
 
       <button class="btn btn-line" id="togglePast" title="一键折叠/展开当天之前的计划" data-page-node-id="DEHowDKAicDNVUUxKA7cBD">当天前</button>
 
+    </div>
+
+    <div class="btn-group" title="按天间距带的颜色：点开自己选（存在本机，下次自动用）">
+      <span class="gap-color-label" style="align-self:center;color:var(--muted);font-size:13px;white-space:nowrap;">间距色</span>
+      <input type="color" id="dayGapColor" value="#000000" style="width:32px;height:28px;padding:0;border:1px solid #cbd5e1;border-radius:6px;background:none;cursor:pointer;">
     </div>
 
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
@@ -5024,6 +5029,27 @@ function paintDayBands(){
     tr.classList.toggle("day-first", !prevSame);       // 发货日期一变 -> 新的一天 -> 第一行顶部加间距带
   }
 }
+
+/* ★ 按天间距带颜色：用户自选（2026-09-30 续）—— 存在本机、下次自动用 */
+const DAY_GAP_KEY = "DAY_GAP_COLOR";
+function applyDayGapColor(c){
+  if(!c) return;
+  document.documentElement.style.setProperty("--day-gap", c);
+  try{ localStorage.setItem(DAY_GAP_KEY, c); }catch(e){}
+}
+(function initDayGapColor(){
+  const inp = document.getElementById("dayGapColor");
+  let saved = "";
+  try{ saved = localStorage.getItem(DAY_GAP_KEY) || ""; }catch(e){}
+  if(saved && /^#[0-9a-fA-F]{6}$/.test(saved)){
+    document.documentElement.style.setProperty("--day-gap", saved);
+    if(inp) inp.value = saved;
+  }
+  if(inp){
+    inp.addEventListener("input", function(){ applyDayGapColor(inp.value); });
+    inp.addEventListener("change", function(){ applyDayGapColor(inp.value); });
+  }
+})();
 
 let __hlTr=null, __hlCells=[];
 function clearCross(){
