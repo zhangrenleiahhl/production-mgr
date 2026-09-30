@@ -18,8 +18,8 @@ ok(/\.tbl thead th\.col-active\{/.test(html),
    '列高亮连带表头那列也亮（thead th.col-active）');
 ok(/\.tbl tbody tr\.row-active > td\.col-active\{ outline:2px solid var\(--purple\)/.test(html),
    '交叉点（正在编辑格）用紫色 outline，压过行/列高亮');
-ok(/\.tbl tbody tr\.day-first > td\{ border-top:16px solid var\(--day-gap/.test(html),
-   '按天分组：用中性浅灰间距带留白（day-first 顶部 border-top，不画线/不涂色）');
+ok(/\.tbl tbody tr\.day-first > td\{ border-top:16px solid #000/.test(html),
+   '按天分组：用黑色间距带留白（day-first 顶部 border-top 黑色，不随日期变色）');
 ok(!/box-shadow: inset 4px 0 0 var\(--dayc/.test(html) && !/--dayc/.test(html),
    '已去掉按天彩条/专属色（不再用颜色区分天数）');
 ok(/function paintDayBands\(\)/.test(html) && /paintDayBands\(\);/.test(html),
