@@ -428,16 +428,10 @@
   .tbl thead th.col-active{ outline:2px solid var(--hl-col); outline-offset:-2px; }
   /* 交叉点（正在编辑的格子）：紫色，压过行/列高亮 —— 和「当前编辑格」紫色描边一致 */
   .tbl tbody tr.row-active > td.col-active{ outline:2px solid var(--purple); outline-offset:-2px; }
-  /* ★ 不同发货日期分组更醒目：每天一组，左侧彩条 + 组头/组尾深色边 + 相邻天交替底色 —— 2026-09-30 续 */
-  .tbl tbody td.col-idx{ box-shadow: inset 4px 0 0 var(--dayc, transparent); }
-  .tbl tbody tr.day-first > td{ border-top:2px solid var(--dayc, #cbd5e1); }
-  .tbl tbody tr.day-last > td{ border-bottom:2px solid var(--dayc, #cbd5e1); }
-  .tbl tbody tr.day-a > td.col-idx,
-  .tbl tbody tr.day-a > td.col-check,
-  .tbl tbody tr.day-a > td.col-act{ background:#eef4ff; }
-  .tbl tbody tr.day-b > td.col-idx,
-  .tbl tbody tr.day-b > td.col-check,
-  .tbl tbody tr.day-b > td.col-act{ background:#fef3f8; }
+  /* ★ 不同发货日期分组：用「间距」区分，不画线、不涂色（按用户要求，避免彩色线条干扰）—— 2026-09-30 续
+     · 每天第一组的第一行顶部加一条中性浅灰间距带（border-top），在相邻天之间留出空白，扫一眼就能分开。
+     · 间距带用统一的浅灰色（--day-gap），不随日期变化 —— 所以它不是「用颜色区分天数」，纯粹是留白。 */
+  .tbl tbody tr.day-first > td{ border-top:16px solid var(--day-gap, #eef2f7); }
 
   @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
 
@@ -5012,32 +5006,22 @@ function hideFoldedRow(tr){ tr.classList.add("date-fold-hidden"); const b=tr.que
 
 let __foldSig=null;   // 折叠指纹：输入完全没变就整段跳过（见下面的说明）
 
-/* ★ 行列高亮 + 按天分组上色（WPS 风格）—— 2026-09-30 续
+/* ★ 行列高亮 + 按天分组留白（WPS 风格）—— 2026-09-30 续
    · 行列高亮用 outline 画在 td 上：不会被「输入框铺满整格」盖住，也不抢「当前编辑格」紫色描边。
-   · 按天分组：相邻不同发货日期用不同彩条色 + 交替底色，组头/组尾加粗边，扫一眼就能分清哪天。 */
-const __DAY_PALETTE = ['#3b82f6','#10b981','#f59e0b','#ec4899','#8b5cf6','#06b6d4','#ef4444','#14b8a6','#f97316','#6366f1'];
-
+   · 按天分组：用「间距」区分（每天第一行顶部留一条中性浅灰空白带），不画线、不涂色，避免彩色干扰。
+     分组边界只标记 day-first，间距带由 CSS 画在 tr.day-first > td 上。 */
 function paintDayBands(){
   const tb=$("tbody"); if(!tb) return;
-  const kids=tb.children; let gi=-1, lastDate=null;
+  const kids=tb.children;
   for(let i=0;i<kids.length;i++){
     const tr=kids[i];
-    if(!isDataRow(tr)) continue;                       // 隔离带/小计行不参与分组（延续上一组底色）
+    if(!isDataRow(tr)) continue;                       // 隔离带/小计行不参与分组
     if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) continue;
     const d = rowRefs(tr).shipdate ? (rowRefs(tr).shipdate.value||"") : "";
-    if(d!==lastDate){ gi++; lastDate=d; }              // 发货日期一变 -> 换一组（相邻天必不同色）
-    tr.classList.remove("day-a","day-b");
-    tr.classList.add(gi%2===0 ? "day-a" : "day-b");
-    const ci = ((gi % __DAY_PALETTE.length) + __DAY_PALETTE.length) % __DAY_PALETTE.length;
-    tr.style.setProperty("--dayc", __DAY_PALETTE[ci]);  // 这天的专属色，传给 td 的彩条/边
     const prev = kids[i-1];
-    const next = kids[i+1];
     const prevSame = prev && isDataRow(prev) && !prev.classList.contains("date-fold-hidden") && !prev.classList.contains("filter-hidden")
                     && (rowRefs(prev).shipdate ? rowRefs(prev).shipdate.value : "") === d;
-    const nextSame = next && isDataRow(next) && !next.classList.contains("date-fold-hidden") && !next.classList.contains("filter-hidden")
-                    && (rowRefs(next).shipdate ? rowRefs(next).shipdate.value : "") === d;
-    tr.classList.toggle("day-first", !prevSame);
-    tr.classList.toggle("day-last", !nextSame);
+    tr.classList.toggle("day-first", !prevSame);       // 发货日期一变 -> 新的一天 -> 第一行顶部加间距带
   }
 }
 
@@ -5188,7 +5172,7 @@ function foldByDate(){
 
     let collapsed=state[g.date];
 
-    if(collapsed===undefined) collapsed=!(g.date>today);  // 当天及之前的日期默认折叠，明天及以后默认展开
+    if(collapsed===undefined) collapsed=(g.date<today);  // 当天及之后默认展开，仅「当天之前」默认折叠
 
     else collapsed=!!collapsed;
 
@@ -5276,7 +5260,7 @@ function foldByDate(){
 
     let collapsed=state[g.date];
 
-    if(collapsed===undefined) collapsed=!(g.date>today);  // 当天及之前的日期默认折叠，明天及以后默认展开
+    if(collapsed===undefined) collapsed=(g.date<today);  // 当天及之后默认展开，仅「当天之前」默认折叠
 
     else collapsed=!!collapsed;
 
