@@ -402,6 +402,26 @@
 
   .tbl td input:focus,.tbl td textarea:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.15);}
 
+  /* ★ 当前正在编辑的格子：一眼可见 —— 2px 醒目描边 + 淡蓝底 + 左上角定位三角（2026-09-30）
+     · 描边必须画在输入框自己身上：td 的 padding 是 0、输入框 width:100%，
+       画在 td 上的内阴影会被输入框整块盖住，看不见。
+     · 三角用 td:focus-within::before（绝对定位，pointer-events:none 不挡点击），
+       配合下面的 td{position:relative} 作为定位参照。 */
+  .tbl tbody td{position:relative;}
+  .tbl tbody td:focus-within input:focus,
+  .tbl tbody td:focus-within textarea:focus,
+  .tbl tbody td:focus-within select:focus{
+    background:#e8f1ff!important;
+    border-color:var(--purple)!important;
+    outline:2px solid var(--purple);
+    outline-offset:-2px;
+  }
+  .tbl tbody td:focus-within::before{
+    content:"";position:absolute;left:0;top:0;width:0;height:0;
+    border-top:9px solid var(--purple);border-right:9px solid transparent;
+    pointer-events:none;z-index:6;
+  }
+
   @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
 
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
