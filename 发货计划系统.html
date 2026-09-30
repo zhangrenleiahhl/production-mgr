@@ -422,6 +422,23 @@
     pointer-events:none;z-index:6;
   }
 
+  /* ★ 行列高亮（像 WPS：点哪个格子，整行+整列亮起来）—— 2026-09-30 续 */
+  .tbl tbody tr.row-active > td{ outline:2px solid var(--hl-row); outline-offset:-2px; }
+  .tbl tbody td.col-active{ outline:2px solid var(--hl-col); outline-offset:-2px; }
+  .tbl thead th.col-active{ outline:2px solid var(--hl-col); outline-offset:-2px; }
+  /* 交叉点（正在编辑的格子）：紫色，压过行/列高亮 —— 和「当前编辑格」紫色描边一致 */
+  .tbl tbody tr.row-active > td.col-active{ outline:2px solid var(--purple); outline-offset:-2px; }
+  /* ★ 不同发货日期分组更醒目：每天一组，左侧彩条 + 组头/组尾深色边 + 相邻天交替底色 —— 2026-09-30 续 */
+  .tbl tbody td.col-idx{ box-shadow: inset 4px 0 0 var(--dayc, transparent); }
+  .tbl tbody tr.day-first > td{ border-top:2px solid var(--dayc, #cbd5e1); }
+  .tbl tbody tr.day-last > td{ border-bottom:2px solid var(--dayc, #cbd5e1); }
+  .tbl tbody tr.day-a > td.col-idx,
+  .tbl tbody tr.day-a > td.col-check,
+  .tbl tbody tr.day-a > td.col-act{ background:#eef4ff; }
+  .tbl tbody tr.day-b > td.col-idx,
+  .tbl tbody tr.day-b > td.col-check,
+  .tbl tbody tr.day-b > td.col-act{ background:#fef3f8; }
+
   @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
 
   .tbl td input.flash{border-color:var(--red)!important;animation:flashc .8s ease 3;}
@@ -4995,6 +5012,60 @@ function hideFoldedRow(tr){ tr.classList.add("date-fold-hidden"); const b=tr.que
 
 let __foldSig=null;   // 折叠指纹：输入完全没变就整段跳过（见下面的说明）
 
+/* ★ 行列高亮 + 按天分组上色（WPS 风格）—— 2026-09-30 续
+   · 行列高亮用 outline 画在 td 上：不会被「输入框铺满整格」盖住，也不抢「当前编辑格」紫色描边。
+   · 按天分组：相邻不同发货日期用不同彩条色 + 交替底色，组头/组尾加粗边，扫一眼就能分清哪天。 */
+const __DAY_PALETTE = ['#3b82f6','#10b981','#f59e0b','#ec4899','#8b5cf6','#06b6d4','#ef4444','#14b8a6','#f97316','#6366f1'];
+
+function paintDayBands(){
+  const tb=$("tbody"); if(!tb) return;
+  const kids=tb.children; let gi=-1, lastDate=null;
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!isDataRow(tr)) continue;                       // 隔离带/小计行不参与分组（延续上一组底色）
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) continue;
+    const d = rowRefs(tr).shipdate ? (rowRefs(tr).shipdate.value||"") : "";
+    if(d!==lastDate){ gi++; lastDate=d; }              // 发货日期一变 -> 换一组（相邻天必不同色）
+    tr.classList.remove("day-a","day-b");
+    tr.classList.add(gi%2===0 ? "day-a" : "day-b");
+    const ci = ((gi % __DAY_PALETTE.length) + __DAY_PALETTE.length) % __DAY_PALETTE.length;
+    tr.style.setProperty("--dayc", __DAY_PALETTE[ci]);  // 这天的专属色，传给 td 的彩条/边
+    const prev = kids[i-1];
+    const next = kids[i+1];
+    const prevSame = prev && isDataRow(prev) && !prev.classList.contains("date-fold-hidden") && !prev.classList.contains("filter-hidden")
+                    && (rowRefs(prev).shipdate ? rowRefs(prev).shipdate.value : "") === d;
+    const nextSame = next && isDataRow(next) && !next.classList.contains("date-fold-hidden") && !next.classList.contains("filter-hidden")
+                    && (rowRefs(next).shipdate ? rowRefs(next).shipdate.value : "") === d;
+    tr.classList.toggle("day-first", !prevSame);
+    tr.classList.toggle("day-last", !nextSame);
+  }
+}
+
+let __hlTr=null, __hlCells=[];
+function clearCross(){
+  if(__hlTr){ __hlTr.classList.remove("row-active"); __hlTr=null; }
+  __hlCells.forEach(c=>c.classList.remove("col-active")); __hlCells=[];
+  const th=document.querySelector(".tbl thead tr"); if(th) th.querySelectorAll("th.col-active").forEach(c=>c.classList.remove("col-active"));
+}
+function setCross(inp){
+  const td = inp.closest && inp.closest("td"); if(!td) return;
+  const tr = td.closest("tr"); if(!tr) return;
+  const ci = td.cellIndex;
+  tr.classList.add("row-active"); __hlTr=tr;
+  const tb=$("tbody");
+  if(tb){ tb.querySelectorAll("tr").forEach(r=>{ const c=r.cells && r.cells[ci]; if(c){ c.classList.add("col-active"); __hlCells.push(c); } }); }
+  const th=document.querySelector(".tbl thead tr"); if(th && th.cells[ci]){ th.cells[ci].classList.add("col-active"); __hlCells.push(th.cells[ci]); }
+}
+(function bindCrosshair(){
+  const tb=$("tbody"); if(!tb) return;
+  tb.addEventListener("focusin", e=>{
+    const inp = e.target.closest && e.target.closest("input,textarea,select,button"); if(!inp) return;
+    clearCross(); setCross(inp);
+  });
+  tb.addEventListener("focusout", e=>{ if(!e.relatedTarget || !tb.contains(e.relatedTarget)) clearCross(); });
+})();
+
+
 function foldByDate(){
 
   // ★ 性能：这段是「改日期 / 筛选 / 加删行」时最重的一环 —— 原来每行要查 2 次
@@ -5261,8 +5332,8 @@ function foldByDate(){
 
   renderIsolationBand();   // 在「明日」计划之后插入视觉隔离带（隔离其后计划）
 
+  paintDayBands();
 }
-
 
 
 function toggleDateFold(date){
