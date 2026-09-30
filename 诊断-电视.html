@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>电视浏览器诊断</title>
+<style>
+  body { background:#0a0e15; color:#e6edf3; font-family:"Microsoft YaHei",sans-serif; margin:0; padding:24px; }
+  h1 { font-size:5.6vh; margin:0 0 10px; color:#7dd3fc; }
+  .tip { font-size:3vh; color:#94a3b8; margin-bottom:16px; }
+  .row { font-size:3.4vh; padding:12px 16px; margin:8px 0; border-radius:10px; background:#141b26; line-height:1.5; word-break:break-all; }
+  .ok  { border-left:10px solid #22c55e; }
+  .bad { border-left:10px solid #ef4444; }
+  .warn{ border-left:10px solid #f59e0b; }
+  .sub { color:#94a3b8; font-size:2.6vh; }
+  .bigtext { color:#fca5a5; }
+  .oktext { color:#86efac; }
+</style>
+</head>
+<body>
+<h1>电视浏览器诊断</h1>
+<div class="tip">打开本页等 10 秒左右，全部项目跑完后拍照发回即可。</div>
+<div id="list"></div>
+<script>
+/* 全 ES5 写法：保证老电视内核也能解析执行，本页自身不会白屏 */
+function addRow(cls, html) {
+  var d = document.createElement("div");
+  d.className = "row " + cls;
+  d.innerHTML = html;
+  document.getElementById("list").appendChild(d);
+}
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+/* 1. 内核版本 */
+(function () {
+  var ua = navigator.userAgent || "(空)";
+  var m = ua.match(/Chrome\/(\d+)/);
+  var v = m ? m[1] : null;
+  var verdict;
+  if (!v)      verdict = '<span class="bigtext">✗ 认不出 Chrome 内核 —— 大概率跑不动本系统</span>';
+  else if (v >= 90) verdict = '<span class="oktext">✓ 内核够新，理论上没问题</span>';
+  else if (v >= 76) verdict = '<span class="oktext">✓ 内核基本够用（≥76）</span>';
+  else if (v >= 55) verdict = '<span class="bigtext">⚠ 内核偏老（' + esc(v) + '，低于 76）：大屏页已补兼容垫片，请刷新大屏页再试</span>';
+  else              verdict = '<span class="bigtext">✗ 内核太老（' + esc(v) + '，低于 55）：页面脚本都无法完整运行，建议换浏览器/盒子</span>';
+  addRow(!v ? "bad" : (v >= 76 ? "ok" : (v >= 55 ? "warn" : "bad")),
+    '<span class="big">浏览器内核：Chrome ' + esc(v || "?") + '</span><br>' + verdict +
+    '<br><span class="sub">UA: ' + esc(ua) + '</span>');
+})();
+
+/* 2. 各项能力 */
+(function () {
+  var t;
+  try { t = typeof Promise; } catch (e) { t = "no"; }
+  addRow(t !== "undefined" ? "ok" : "bad", 'Promise（异步基础）：' + esc(t));
+
+  var as;
+  try { as = typeof Promise.allSettled; } catch (e) { as = "undefined"; }
+  addRow(as !== "undefined" ? "ok" : "warn",
+    'Promise.allSettled（拉数据用）：' + (as === "undefined" ? '<span class="bigtext">没有 → 这就是电视没数据的原因，大屏已补垫片修复</span>' : '有（' + esc(as) + '）'));
+
+  var f;
+  try { f = typeof fetch; } catch (e) { f = "undefined"; }
+  addRow(f !== "undefined" ? "ok" : "warn", 'fetch（联网拉取用）：' + (f === "undefined" ? "没有（会用旧式 XHR 兜底测试）" : "有"));
+
+  var st = "";
+  try { localStorage.setItem("__tv_test", "1"); st = localStorage.getItem("__tv_test"); localStorage.removeItem("__tv_test"); } catch (e) { st = ""; }
+  addRow(st === "1" ? "ok" : "warn", 'localStorage（本机缓存）：' + (st === "1" ? "可用" : '<span class="bigtext">不可用 → 本机无法缓存，全靠实时拉云端</span>'));
+
+  var cnt = 0;
+  try { var arr = JSON.parse(localStorage.getItem("shipping_plans_v1") || "null"); if (arr && arr.length) cnt = arr.length; } catch (e) {}
+  addRow(cnt > 0 ? "ok" : "warn", '本机缓存的计划条数：' + cnt + (cnt > 0 ? "" : '（0 条 = 这台设备从没成功拉到过数据）'));
+
+  var aw = false;
+  try { eval("(async function(){})"); aw = true; } catch (e) { aw = false; }
+  addRow(aw ? "ok" : "bad", 'async/await 语法：' + (aw ? "支持" : '<span class="bigtext">不支持 → 页面脚本直接跑不了</span>'));
+})();
+
+/* 3. 加载 supabase 库 + 实测连云端 */
+(function () {
+  var s = document.createElement("script");
+  s.src = "supabase.min.js?v=lib";
+  s.onload = function () {
+    var ok = false;
+    try { ok = !!(window.supabase && window.supabase.createClient); } catch (e) { ok = false; }
+    addRow(ok ? "ok" : "bad", 'supabase 库加载：' + (ok ? "成功" : '<span class="bigtext">加载了但不可用</span>'));
+    restTest();
+  };
+  s.onerror = function () {
+    addRow("bad", '<span class="bigtext">✗ supabase.min.js 加载失败（文件没下下来 / 内核太老解析不了）</span>');
+    restTest();
+  };
+  document.body.appendChild(s);
+
+  /* 不依赖 supabase 库，直接 REST 拉一条轻量数据，验证「电视 → 云端」网络通不通 */
+  function restTest() {
+    var fin = false;
+    function done(ok, msg) {
+      if (fin) return; fin = true;
+      addRow(ok ? "ok" : "bad",
+        ok ? '<span class="big oktext">✓ 云端连通！</span><span class="sub">' + esc(msg) + '</span>'
+           : '<span class="big bigtext">✗ 连不上云端：' + esc(msg) + '</span><span class="sub">连不上 = 电视网络到 Supabase 被拦（路由器/电视网络限制），或内核 TLS 太老 —— 这就是没数据的直接原因。</span>');
+    }
+    var URLBASE = "https://zxnxvbghsfwsikyncbus.supabase.co";
+    var KEY = "sb_publishable_oig7ufDCFZfh_L8z8fV0sw_CZfMc-c3";
+    var url = URLBASE + "/rest/v1/app_data?select=key&key=eq.shipping_plans_v1";
+    var timer = setTimeout(function () { done(false, "15 秒超时（请求发出去一直没回应）"); }, 15000);
+    function clearT() { clearTimeout(timer); }
+    var usedFetch = false;
+    if (typeof fetch !== "undefined") {
+      usedFetch = true;
+      try {
+        fetch(url, { headers: { "apikey": KEY, "Authorization": "Bearer " + KEY } })
+          .then(function (r) {
+            clearT();
+            if (r.status >= 200 && r.status < 300) {
+              return r.json().then(function (j) { done(true, "返回 " + j.length + " 条（fetch）"); });
+            }
+            done(false, "HTTP " + r.status);
+          })
+          .catch(function (e) { clearT(); done(false, (e && e.message) || String(e)); });
+        return;
+      } catch (e) { /* 落到 XHR */ }
+    }
+    try {
+      var x = new XMLHttpRequest();
+      x.open("GET", url, true);
+      x.setRequestHeader("apikey", KEY);
+      x.setRequestHeader("Authorization", "Bearer " + KEY);
+      x.timeout = 15000;
+      x.onreadystatechange = function () {
+        if (x.readyState !== 4) return;
+        clearT();
+        if (x.status >= 200 && x.status < 300) {
+          try { var j = JSON.parse(x.responseText); done(true, "返回 " + j.length + " 条（XHR" + (usedFetch ? "兜底" : "") + "）"); }
+          catch (e) { done(false, "返回解析失败: " + e); }
+        } else if (x.status === 0) {
+          done(false, "网络不通（status 0，可能被拦截或 TLS 太老）");
+        } else {
+          done(false, "HTTP " + x.status);
+        }
+      };
+      x.ontimeout = function () { clearT(); done(false, "15 秒超时"); };
+      x.send();
+    } catch (e) { clearT(); done(false, "XHR 异常: " + e); }
+  }
+})();
+</script>
+</body>
+</html>
