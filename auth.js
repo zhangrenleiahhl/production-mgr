@@ -45,6 +45,31 @@ window.LOGIN_REQUIRED = true;
     return _sb;
   }
 
+  /* ★ 老内核兜底登录（2026-09-30）：电视等旧浏览器跑不动 supabase.min.js（新版库用了新语法，
+     老内核直接语法报错 -> window.supabase 不存在）。只要 CLOUD_CONFIG 在，
+     就用 ES5 XHR 直连 Supabase Auth REST 登录，任何内核都能跑。 */
+  function xhrSignIn(email, password) {
+    return new Promise(function (res) {
+      try {
+        var x = new XMLHttpRequest();
+        x.open("POST", CFG.url.replace(/\/+$/, "") + "/auth/v1/token?grant_type=password", true);
+        x.setRequestHeader("apikey", CFG.key);
+        x.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        x.timeout = 15000;
+        x.onload = function () {
+          try {
+            var d = JSON.parse(x.responseText || "{}");
+            if (x.status >= 200 && x.status < 300 && d && d.user) { res({ data: { user: d.user }, error: null }); return; }
+            res({ data: null, error: { name: "AuthApiError", status: x.status, message: d.error_description || d.msg || d.message || ("HTTP " + x.status) } });
+          } catch (e) { res({ data: null, error: e }); }
+        };
+        x.onerror = function () { res({ data: null, error: { name: "TypeError", message: "Load failed" } }); };
+        x.ontimeout = function () { res({ data: null, error: { name: "TypeError", message: "timeout" } }); };
+        x.send(JSON.stringify({ email: email, password: password }));
+      } catch (e) { res({ data: null, error: e }); }
+    });
+  }
+
   /* 手机号 / 任意账号 → Supabase 需要的 email 格式。
      INTERNAL_DOMAINS：登录时依次尝试的域名（上次成功的排最前，少一次无谓请求）。
      SIGNUP_DOMAIN   ：只能用带真实顶级域的那个 —— API 注册不认 .local。 */
@@ -120,7 +145,7 @@ window.LOGIN_REQUIRED = true;
   async function signInRetry(c, email, password) {
     let last = { data: null, error: null };
     for (let a = 0; a < 3; a++) {
-      try { last = await c.auth.signInWithPassword({ email: email, password: password }); }
+      try { last = c ? await c.auth.signInWithPassword({ email: email, password: password }) : await xhrSignIn(email, password); }
       catch (e) { last = { data: null, error: e }; }
       if (!last.error || !isNetErr(last.error)) return last;
       if (a < 2) await new Promise(function (r) { setTimeout(r, 800 * (a + 1)); });
@@ -130,7 +155,8 @@ window.LOGIN_REQUIRED = true;
 
   async function login(identifier, password) {
     const c = sb();
-    if (!c) return { ok: false, msg: "云端未配置（CLOUD_CONFIG 缺失，先配置云端同步）" };
+    if (!CFG.url || !CFG.key) return { ok: false, msg: "云端未配置（CLOUD_CONFIG 缺失，先配置云端同步）" };
+    // ↑ 只有 CLOUD_CONFIG 本身缺失才报「未配置」；库没加载成功（老内核）会自动走上面的 XHR 兜底
     const raw = (identifier || "").trim();
     if (!raw) return { ok: false, msg: "请输入账号" };
     // 用户自己写了完整邮箱 → 只试这一次，不猜域名
