@@ -310,8 +310,7 @@ window.ScanLib = (function () {
     c = c || {};
     if (c.cx || 0) return "这一趟车已经「取消」了，不能推进「" + STEP_NAME[to] + "」";
     if ((c.car || 0) < 1) return "司机还没签到（车辆：未到），不能推进「" + STEP_NAME[to] + "」";
-    if (to >= 3 && (c.bz || 0) < 1 && !bzExempt(cust == null ? c.cust : cust))
-      return "品一质保书还没好，不能推进「" + STEP_NAME[to] + "」";
+    /* ★ 2026-09-30：质保书不绑工序 —— 货好/质保书没好也能点「已完成」，只卡车到（car）打底 */
     return "";
   }
   // 推进一步工序（delta 一般是 +1；who 是操作人，用于留痕）
