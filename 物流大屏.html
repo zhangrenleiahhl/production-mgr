@@ -882,6 +882,36 @@ function withTimeout(p, ms){
 
 
 
+/* ★ 电视/老浏览器兼容（2026-09-30）：部分电视自带浏览器内核（Chromium < 76）
+
+   没有 Promise.allSettled —— 以前 pull() 一跑就抛错、整屏静默没数据。
+
+   这里补一个等价实现（Promise.all + 每项包一层结果），老内核也能拉到数据。 */
+
+if (!Promise.allSettled) {
+
+  Promise.allSettled = function (list) {
+
+    var arr = Array.prototype.slice.call(list);
+
+    return Promise.all(arr.map(function (p) {
+
+      return Promise.resolve(p).then(
+
+        function (v) { return { status: "fulfilled", value: v }; },
+
+        function (e) { return { status: "rejected",  reason: e }; }
+
+      );
+
+    }));
+
+  };
+
+}
+
+
+
 async function pull(){
 
   const cs = !!(window.CloudSync && CloudSync.ready());
