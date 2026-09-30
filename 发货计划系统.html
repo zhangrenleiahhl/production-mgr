@@ -429,9 +429,9 @@
   /* 交叉点（正在编辑的格子）：紫色，压过行/列高亮 —— 和「当前编辑格」紫色描边一致 */
   .tbl tbody tr.row-active > td.col-active{ outline:2px solid var(--purple); outline-offset:-2px; }
   /* ★ 不同发货日期分组：用「间距」区分，不画线、不涂色（按用户要求，避免彩色线条干扰）—— 2026-09-30 续
-     · 每天第一组的第一行顶部加一条中性浅灰间距带（border-top），在相邻天之间留出空白，扫一眼就能分开。
-     · 间距带用统一的浅灰色（--day-gap），不随日期变化 —— 所以它不是「用颜色区分天数」，纯粹是留白。 */
-  .tbl tbody tr.day-first > td{ border-top:16px solid var(--day-gap, #eef2f7); }
+     · 每天第一组的第一行顶部加一条黑色间距带（border-top），在相邻天之间留出空白，扫一眼就能分开。
+     · 间距带用统一的黑色，不随日期变化 —— 所以它不是「用颜色区分天数」，纯粹是留白。 */
+  .tbl tbody tr.day-first > td{ border-top:16px solid #000; }
 
   @keyframes flashc{0%,100%{box-shadow:0 0 0 2px rgba(139,92,246,.15)}50%{box-shadow:0 0 0 3px rgba(239,68,68,.45)}}
 
