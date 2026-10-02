@@ -197,10 +197,8 @@ async function pull(){
   const cs = !!(window.CloudSync && CloudSync.ready());
   let okA = !cs, okP = !cs;
   if (cs){
-    /* ★ 云端提速（2026-10-02）：进度/计划/物料 都先并行查 updated_at 戳(几十字节)，
-       没变就免下载用本机缓存；变了才并行下载，且进度先渲染，互不阻塞。
-       解决「刷新云端时间长」——大多数刷新只查戳(秒回)，不再每次都下进度全文。 */
 
+    /* ★ 云端提速（2026-10-02 第二版）：进度优先 + 计划/物料后台静默下载，不干等 */
     let progStamp = null, planStamp = null, dbStamp = null;
     const stampTasks = [];
     if (PROG && Object.keys(PROG).length){
@@ -230,46 +228,43 @@ async function pull(){
       else newDbStamp = dbStamp;
     }
 
-    /* 进度/计划/物料 并行发起下载：进度(小)先到先渲染，其余到后再渲染 */
-    const pProg = skipP ? null : withTimeout(CloudSync.pullResult(KEY_PROG), 15000);
-    const pPlan = skipA ? null : withTimeout(CloudSync.pullResult(KEY_PLANS), 30000);
-    const pDb   = skipDb ? null : withTimeout(CloudSync.pullResult(SL.KEY_DB), 30000);
-
-    if (skipP){ okP = true; }       // 戳没变：进度用本机缓存，秒渲染
+    /* 进度优先：下载或缓存，立即 render */
+    if (skipP){ okP = true; }
     else {
       try {
-        const rp = await pProg;
+        const rp = await withTimeout(CloudSync.pullResult(KEY_PROG), 12000);
         okP = !!(rp && rp.ok);
         if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
         try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG));
               if (newPStamp) localStorage.setItem(KEY_PROG_STAMP, newPStamp); } catch(e){}
       } catch(e){ okP = false; }
     }
-    render();   // 进度先画（缓存或新拉）
+    render();
 
+    /* 计划大文件 → 后台静默下载（不 await） */
     if (!skipA){
-      try {
-        const ra = await pPlan;
-        okA = !!(ra && ra.ok);
-        if (okA && Array.isArray(ra.value)){
+      withTimeout(CloudSync.pullResult(KEY_PLANS), 18000).then(ra => {
+        if (ra && ra.ok && Array.isArray(ra.value)){
           RECORDS = ra.value;
           try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
                 if (newAStamp) localStorage.setItem(KEY_PLANS_STAMP, newAStamp); } catch(e){}
+          render();
         }
-      } catch(e){}
+      }).catch(() => {});
     }
-    if (!skipDb && pDb){
-      try {
-        const rd = await pDb;
+    /* 物料库 → 后台静默下载（不 await） */
+    if (!skipDb){
+      withTimeout(CloudSync.pullResult(SL.KEY_DB), 18000).then(rd => {
         if (rd && rd.ok && Array.isArray(rd.value)){
           DB = rd.value;
           try { localStorage.setItem(SL.KEY_DB, JSON.stringify(DB));
                 if (newDbStamp) localStorage.setItem(KEY_DB_STAMP, newDbStamp); } catch(e){}
           IDX = SL.codeIndex(DB);
+          render();
         }
-      } catch(e){}
+      }).catch(() => {});
     }
-    if (pPlan || pDb) render();   // 计划/物料拉完再画一次
+    okA = true;   // 计划：缓存有效或后台补，不阻塞
 
   }
 
