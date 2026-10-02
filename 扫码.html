@@ -852,13 +852,9 @@ async function pull(){
   const cs = !!(window.CloudSync && CloudSync.ready());
 
   let okA = !cs, okP = !cs, whyA = "", whyP = "";
-
   if (cs){
 
-    /* ★ 云端提速（2026-10-02）：进度/计划 都先并行查 updated_at 戳(几十字节)，
-       没变就免下载、直接用本机缓存并立即渲染；变了才并行下载，且进度先渲染，互不阻塞。
-       解决「刷新云端时间长」——绝大多数刷新只查两个戳(秒回)，不再每次都下进度全文。 */
-
+    /* ★ 云端提速（2026-10-02 第二版）：进度优先 + 计划后台静默下载，不干等 1 分钟 */
     let progStamp = null, planStamp = null;
     const stampTasks = [];
     if (PROG && Object.keys(PROG).length){
@@ -880,14 +876,11 @@ async function pull(){
       else newStamp = planStamp;
     }
 
-    /* 进度与计划并行发起下载：进度(小)先到先渲染，计划(大)到后再渲染一次 */
-    const pProg = skipP ? null : withTimeout(CloudSync.pullResult(KEY_PROG), 15000);
-    const pPlan = skipA ? null : withTimeout(CloudSync.pullResult(KEY_PLANS), 30000);
-
-    if (skipP){ okP = true; whyP = ""; }       // 戳没变：进度用本机缓存，秒渲染
+    /* 进度优先：下载或缓存，立即 render */
+    if (skipP){ okP = true; whyP = ""; }
     else {
       try {
-        const rp = await pProg;
+        const rp = await withTimeout(CloudSync.pullResult(KEY_PROG), 12000);
         okP = !!(rp && rp.ok);
         if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
         whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
@@ -895,21 +888,21 @@ async function pull(){
               if (newPStamp) localStorage.setItem(KEY_PROG_STAMP, newPStamp); } catch(e){}
       } catch(e){ whyP = "超时"; }
     }
-    render();   // 进度先画（缓存或新拉）
+    render();
 
+    /* 计划大文件 → 后台静默下载（不 await），下完再 render；失败不影响已显示进度 */
     if (!skipA){
-      try {
-        const ra = await pPlan;
-        okA = !!(ra && ra.ok);
-        if (okA && Array.isArray(ra.value)){
+      withTimeout(CloudSync.pullResult(KEY_PLANS), 18000).then(ra => {
+        if (ra && ra.ok && Array.isArray(ra.value)){
           RECORDS = ra.value;
           try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
                 if (newStamp) localStorage.setItem(KEY_PLANS_STAMP, newStamp); } catch(e){}
+          render();
         }
-        whyA = ra ? (ra.ok ? "" : (ra.reason || "错误")) : "超时";
-        render();   // 计划拉完再画一次
-      } catch(e){ whyA = "超时"; }
-    } else whyA = "";
+      }).catch(() => {});
+    }
+    okA = true;   // 计划：缓存有效或后台补，不阻塞 pull 结束
+
   }
 
   if (!RECORDS.length) loadLocal();
