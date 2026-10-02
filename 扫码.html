@@ -623,12 +623,13 @@ const SL = window.ScanLib;
 const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
 
 const KEY_PLANS_STAMP = "shipping_plans_stamp_v1";  /* 云端计划数据的 updated_at 戳（弱网免拉全文） */
+const KEY_PROG_STAMP = "shipping_progress_stamp_v1";  /* 云端进度戳（弱网免拉全文） */
 
 const $ = (id) => document.getElementById(id);
 
 const esc = SL.esc;
 
-const POLL_MS = 60000;
+const POLL_MS = 15000;
 
 const LITTLE = ["待确认", "货好", "装货中", "已完成"];
 
@@ -854,62 +855,61 @@ async function pull(){
 
   if (cs){
 
-    /* 计划数据大(~268KB)：先查 updated_at 戳(几十字节)，没变就免下载直接用本机缓存 */
+    /* ★ 云端提速（2026-10-02）：进度/计划 都先并行查 updated_at 戳(几十字节)，
+       没变就免下载、直接用本机缓存并立即渲染；变了才并行下载，且进度先渲染，互不阻塞。
+       解决「刷新云端时间长」——绝大多数刷新只查两个戳(秒回)，不再每次都下进度全文。 */
 
+    let progStamp = null, planStamp = null;
+    const stampTasks = [];
+    if (PROG && Object.keys(PROG).length){
+      stampTasks.push(withTimeout(CloudSync.pullStamp(KEY_PROG), 8000).then(s => { progStamp = s; }).catch(() => {}));
+    }
+    if (RECORDS.length){
+      stampTasks.push(withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000).then(s => { planStamp = s; }).catch(() => {}));
+    }
+    await Promise.all(stampTasks);
+
+    let skipP = false, newPStamp = null;
+    if (progStamp){
+      if (localStorage.getItem(KEY_PROG_STAMP) === progStamp){ skipP = true; okP = true; }
+      else newPStamp = progStamp;
+    }
     let skipA = false, newStamp = null;
-
-    if (CloudSync.pullStamp && RECORDS.length){
-
-      try {
-
-        const st = await withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000);
-
-        if (st && localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; }
-
-        else if (st) newStamp = st;
-
-      } catch(e){}
-
+    if (planStamp){
+      if (localStorage.getItem(KEY_PLANS_STAMP) === planStamp){ skipA = true; okA = true; }
+      else newStamp = planStamp;
     }
 
-    /* 并行拉取：两个键同时请求 */
+    /* 进度与计划并行发起下载：进度(小)先到先渲染，计划(大)到后再渲染一次 */
+    const pProg = skipP ? null : withTimeout(CloudSync.pullResult(KEY_PROG), 15000);
+    const pPlan = skipA ? null : withTimeout(CloudSync.pullResult(KEY_PLANS), 30000);
 
-    const rs = await Promise.allSettled([
-
-      skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_PLANS), 30000),
-
-      withTimeout(CloudSync.pullResult(KEY_PROG), 15000)
-
-    ]);
-
-    const ra = rs[0].status === "fulfilled" ? rs[0].value : null;
-
-    const rp = rs[1].status === "fulfilled" ? rs[1].value : null;
+    if (skipP){ okP = true; whyP = ""; }       // 戳没变：进度用本机缓存，秒渲染
+    else {
+      try {
+        const rp = await pProg;
+        okP = !!(rp && rp.ok);
+        if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
+        whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
+        try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG));
+              if (newPStamp) localStorage.setItem(KEY_PROG_STAMP, newPStamp); } catch(e){}
+      } catch(e){ whyP = "超时"; }
+    }
+    render();   // 进度先画（缓存或新拉）
 
     if (!skipA){
-
-      okA = !!(ra && ra.ok);
-
-      if (okA && Array.isArray(ra.value)){
-
-        RECORDS = ra.value;
-
-        /* ★ 拉到就存手机：下次秒开，弱网/断网也有数据可显 */
-
-        try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
-
-              if (newStamp) localStorage.setItem(KEY_PLANS_STAMP, newStamp); } catch(e){}
-
-      }
-
-    }
-
-    okP = !!(rp && rp.ok); if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
-
-    whyA = skipA ? "" : (ra ? (ra.ok ? "" : (ra.reason || "错误")) : "超时");
-
-    whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
-
+      try {
+        const ra = await pPlan;
+        okA = !!(ra && ra.ok);
+        if (okA && Array.isArray(ra.value)){
+          RECORDS = ra.value;
+          try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
+                if (newStamp) localStorage.setItem(KEY_PLANS_STAMP, newStamp); } catch(e){}
+        }
+        whyA = ra ? (ra.ok ? "" : (ra.reason || "错误")) : "超时";
+        render();   // 计划拉完再画一次
+      } catch(e){ whyA = "超时"; }
+    } else whyA = "";
   }
 
   if (!RECORDS.length) loadLocal();
@@ -1541,6 +1541,8 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
 
   window.addEventListener("online", () => pull());
+  window.addEventListener("focus", () => pull());        // 窗口重新获得焦点也立刻刷新（2026-10-02）
+  window.addEventListener("pageshow", () => pull());      // 从手机后台/bfcache 回来也立刻刷新（2026-10-02）
 
 }
 
