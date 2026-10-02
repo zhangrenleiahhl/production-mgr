@@ -880,7 +880,7 @@ async function pull(){
     if (skipP){ okP = true; whyP = ""; }
     else {
       try {
-        const rp = await withTimeout(CloudSync.pullResult(KEY_PROG), 12000);
+        const rp = await withTimeout(CloudSync.pullResult(KEY_PROG), 1000);
         okP = !!(rp && rp.ok);
         if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
         whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
