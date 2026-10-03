@@ -198,25 +198,27 @@ async function pull(){
   let okA = !cs, okP = !cs;
   if (cs){
 
-    /* ★ 云端提速（2026-10-02 第二版）：进度优先 + 计划/物料后台静默下载，不干等 */
-    let progStamp = null, planStamp = null, dbStamp = null;
+    /* ★ 云端提速（2026-10-03 第三版）：进度并行优先，不等戳查询；戳只管计划/物料 */
+    let planStamp = null, dbStamp = null;
     const stampTasks = [];
-    if (PROG && Object.keys(PROG).length){
-      stampTasks.push(withTimeout(CloudSync.pullStamp(KEY_PROG), 8000).then(s => { progStamp = s; }).catch(() => {}));
-    }
     if (RECORDS.length){
       stampTasks.push(withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000).then(s => { planStamp = s; }).catch(() => {}));
     }
     if (DB.length){
       stampTasks.push(withTimeout(CloudSync.pullStamp(SL.KEY_DB), 8000).then(s => { dbStamp = s; }).catch(() => {}));
     }
-    await Promise.all(stampTasks);
 
-    let skipP = false, newPStamp = null;
-    if (progStamp){
-      if (localStorage.getItem(KEY_PROG_STAMP) === progStamp){ skipP = true; okP = true; }
-      else newPStamp = progStamp;
-    }
+    /* 进度（小、必须最新）：立即并行下载，先回先 render，绝不干等戳查询 8s */
+    withTimeout(CloudSync.pullResult(KEY_PROG), 1000).then(rp => {
+      if (rp && rp.ok && rp.value && typeof rp.value === "object"){
+        PROG = SL.mergeProg(PROG, rp.value); okP = true;
+        try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+      } else if (rp){ okP = !!rp.ok; }
+      render();
+    }).catch(() => { okP = false; render(); });
+
+    /* 戳查询（只决定计划/物料是否下载，不挡进度渲染） */
+    await Promise.all(stampTasks);
     let skipA = false, newAStamp = null;
     if (planStamp){
       if (localStorage.getItem(KEY_PLANS_STAMP) === planStamp){ skipA = true; okA = true; }
@@ -226,18 +228,6 @@ async function pull(){
     if (dbStamp){
       if (localStorage.getItem(KEY_DB_STAMP) === dbStamp) skipDb = true;
       else newDbStamp = dbStamp;
-    }
-
-    /* 进度优先：下载或缓存，立即 render */
-    if (skipP){ okP = true; }
-    else {
-      try {
-        const rp = await withTimeout(CloudSync.pullResult(KEY_PROG), 1000);
-        okP = !!(rp && rp.ok);
-        if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
-        try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG));
-              if (newPStamp) localStorage.setItem(KEY_PROG_STAMP, newPStamp); } catch(e){}
-      } catch(e){ okP = false; }
     }
     render();
 
