@@ -854,39 +854,28 @@ async function pull(){
   let okA = !cs, okP = !cs, whyA = "", whyP = "";
   if (cs){
 
-    /* ★ 云端提速（2026-10-02 第二版）：进度优先 + 计划后台静默下载，不干等 1 分钟 */
-    let progStamp = null, planStamp = null;
+    /* ★ 云端提速（2026-10-03 第三版）：进度并行优先，不等戳查询；戳只管计划大文件 */
+    let planStamp = null;
     const stampTasks = [];
-    if (PROG && Object.keys(PROG).length){
-      stampTasks.push(withTimeout(CloudSync.pullStamp(KEY_PROG), 8000).then(s => { progStamp = s; }).catch(() => {}));
-    }
     if (RECORDS.length){
       stampTasks.push(withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000).then(s => { planStamp = s; }).catch(() => {}));
     }
-    await Promise.all(stampTasks);
 
-    let skipP = false, newPStamp = null;
-    if (progStamp){
-      if (localStorage.getItem(KEY_PROG_STAMP) === progStamp){ skipP = true; okP = true; }
-      else newPStamp = progStamp;
-    }
+    /* 进度（小、必须最新）：立即并行下载，先回先 render，绝不干等戳查询 8s */
+    withTimeout(CloudSync.pullResult(KEY_PROG), 1000).then(rp => {
+      if (rp && rp.ok && rp.value && typeof rp.value === "object"){
+        PROG = SL.mergeProg(PROG, rp.value); okP = true; whyP = "";
+        try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
+      } else if (rp){ okP = !!rp.ok; whyP = rp.ok ? "" : (rp.reason || "错误"); }
+      render();
+    }).catch(() => { okP = false; whyP = "超时"; render(); });
+
+    /* 戳查询（只决定计划大文件是否下载，不挡进度渲染） */
+    await Promise.all(stampTasks);
     let skipA = false, newStamp = null;
     if (planStamp){
       if (localStorage.getItem(KEY_PLANS_STAMP) === planStamp){ skipA = true; okA = true; }
       else newStamp = planStamp;
-    }
-
-    /* 进度优先：下载或缓存，立即 render */
-    if (skipP){ okP = true; whyP = ""; }
-    else {
-      try {
-        const rp = await withTimeout(CloudSync.pullResult(KEY_PROG), 1000);
-        okP = !!(rp && rp.ok);
-        if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
-        whyP = rp ? (rp.ok ? "" : (rp.reason || "错误")) : "超时";
-        try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG));
-              if (newPStamp) localStorage.setItem(KEY_PROG_STAMP, newPStamp); } catch(e){}
-      } catch(e){ whyP = "超时"; }
     }
     render();
 
