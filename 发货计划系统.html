@@ -468,6 +468,8 @@
   .col-check{width:3%;text-align:center;vertical-align:middle;padding:0!important;}
 
   .row-check{width:16px;height:16px;margin:0 auto;padding:0;cursor:pointer;accent-color:#2563eb;display:block;}
+  .day-check{width:17px;height:17px;margin:3px auto 1px;padding:0;cursor:pointer;accent-color:#16a34a;display:block;}  /* 一键勾选本日 */
+  td.col-check{vertical-align:top;}
 
   #checkAll{width:16px;height:16px;margin:0 auto;padding:0;cursor:pointer;accent-color:#2563eb;display:block;}
 
@@ -5030,7 +5032,37 @@ function paintDayBands(){
     const prevSame = prev && isDataRow(prev) && !prev.classList.contains("date-fold-hidden") && !prev.classList.contains("filter-hidden")
                     && (rowRefs(prev).shipdate ? rowRefs(prev).shipdate.value : "") === d;
     tr.classList.toggle("day-first", !prevSame);       // 发货日期一变 -> 新的一天 -> 第一行顶部加间距带
+
+    // 每个日期第一行：注入「一键勾选本日」开关（取消 day-first 时清掉，避免错位残留）
+    const _cell = tr.querySelector("td.col-check");
+    if(_cell){
+      if(tr.classList.contains("day-first")){
+        if(!_cell.querySelector(".day-check")){
+          const _dc=document.createElement("input");
+          _dc.type="checkbox"; _dc.className="day-check"; _dc.title="一键勾选本日期全部行";
+          _dc.onchange=()=>{ setDateChecked(tr, _dc.checked); updateCheckAll(); };
+          _cell.insertBefore(_dc, _cell.firstChild);
+        }
+      } else {
+        const _ex=_cell.querySelector(".day-check"); if(_ex) _ex.remove();
+      }
+    }
   }
+}
+
+/* 取某日期首行所在分组的全部数据行（含首行，直到下一个 day-first 或表尾） */
+function dateGroupRows(dayFirstTr){
+  const out=[dayFirstTr];
+  let n=dayFirstTr.nextElementSibling;
+  while(n && isDataRow(n) && !n.classList.contains("day-first")){ out.push(n); n=n.nextElementSibling; }
+  return out;
+}
+/* 一键勾选/取消本日期全部可见行 */
+function setDateChecked(dayFirstTr, v){
+  dateGroupRows(dayFirstTr).forEach(tr=>{
+    if(tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return;
+    const R=rowRefs(tr); if(R.rowCheck) R.rowCheck.checked=v;
+  });
 }
 
 /* ★ 按天间距带颜色：用户自选（2026-09-30 续）—— 存在本机、下次自动用 */
@@ -6843,6 +6875,21 @@ function updateCheckAll(){
 
   updateDelCheckedBtn();   // 勾选变化 → 同步「批量删除」按钮的可用状态与数量
 
+  // 同步每个日期「一键勾选本日」框状态（可见行全勾=勾选，部分=半选，否则=空）
+  for(let i=0;i<kids.length;i++){
+    const tr=kids[i];
+    if(!tr.classList.contains("day-first")) continue;
+    const dc=tr.querySelector(".day-check"); if(!dc) continue;
+    const grp=dateGroupRows(tr);
+    let _t=0,_c=0;
+    grp.forEach(r=>{
+      if(r.classList.contains("date-fold-hidden")||r.classList.contains("filter-hidden")) return;
+      const R=rowRefs(r);
+      if(R.rowCheck){ _t++; if(R.rowCheck.checked) _c++; }
+    });
+    dc.checked = _t>0 && _c===_t;
+    dc.indeterminate = _c>0 && _c<_t;
+  }
 }
 
 // 只负责把 KPI 写进 DOM（数据由调用方给）—— recalc / updateCheckAll 都已遍历过，不必再扫全表
