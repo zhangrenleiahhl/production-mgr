@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20260924h"></script>
+<script src="scan-lib.js?v=20260930b"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -520,6 +520,7 @@
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
 
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
+  .tbl tbody td:nth-child(9) input[readonly]{background:#eee;color:#555;cursor:default;} /* 箱数只读自动 */
 
   /* 发货点：单选下拉 */
 
@@ -3502,7 +3503,8 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
 
-  const boxVal=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?data.box:((_q>0&&_p>0)?Math.ceil(_q/_p):'');
+  const _boxAuto=(_q>0&&_p>0)?(Math.round((_q/_p)*10)/10).toFixed(1):'';
+  const boxVal=_boxAuto||((data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?String(data.box).trim():'');
 
   // 产品重量T：默认按 数量×单重÷1000 自动；可手填（tonManual 标记）；无单重的历史行保留原 ton 值兜底
 
@@ -3546,7 +3548,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     <td class="col-delivery"><textarea data-f="delivery" placeholder="/" rows="1">${esc(data.delivery)}</textarea></td>
 
-    <td><input data-f="box" type="number" min="0" step="1" value="${esc(boxVal)}" placeholder="/"></td>
+    <td><input data-f="box" type="number" min="0" step="0.1" value="${esc(boxVal)}" placeholder="/" readonly title="箱数按 数量÷每箱件数 自动计算，不可手改"></td>
 
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
 
@@ -3580,19 +3582,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     trackOrig(inp);
 
-    if(inp.dataset.f==="box"){
-
-      inp.addEventListener("input", ()=>{
-
-        if(inp.value.trim()==="") delete inp.dataset.manual;   // 清空 → 恢复自动带出
-
-        else inp.dataset.manual="1";                          // 手填 → 保留，不被覆盖
-
-        scheduleRefresh(recalcLite, saveDraft);
-
-      });
-
-    } else if(inp.dataset.f==="shipdate"){
+    if(inp.dataset.f==="shipdate"){
 
       inp.addEventListener("input", ()=>scheduleRefresh(recalc, saveDraft, styleShipdate));
 
@@ -3601,7 +3591,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     } else if(inp.dataset.f==="qty"){
 
-      inp.addEventListener("input", ()=>scheduleRefresh(recalcLite, saveDraft));   // 打字时实时按算式更新吨位/箱数
+      inp.addEventListener("input", ()=>{ liveBoxFromQty(tr); scheduleRefresh(recalcLite, saveDraft); });   // 打字时箱数第一时间跟随数量
 
       inp.addEventListener("change", ()=>{   // 失焦/回车时把算式换成结果：10*20 → 200
 
@@ -3609,6 +3599,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
         if(r!==null&&r!=="") inp.value=r;
 
+        liveBoxFromQty(tr);
         recalc(); saveDraft();
 
       });
@@ -3645,17 +3636,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
   });
 
-  // 载入已有箱数时标记为手填值，避免被自动计算覆盖（吨位、箱子重量T 始终自动，不在此列）
 
-  ["box"].forEach(k=>{
-
-    if(data[k]!==undefined&&data[k]!==null&&data[k]!=='/'&&String(data[k]).trim()!==''){
-
-      const inp=tr.querySelector(`[data-f="${k}"]`); if(inp) inp.dataset.manual="1";
-
-    }
-
-  });
 
   // 箱子重量T：仅「删除 / 恢复」按钮，不允许手填数字
 
@@ -4358,6 +4339,26 @@ function fitTextareas(force){
 //    用微任务队列合并成一次执行，重复调用只跑一遍。
 
 function recalcLite(){ recalc(true); }   // 具名包装：便于合批调度器按引用去重
+
+// 数量改动 -> 箱数第一时间按「数量÷每箱件数」(保留一位小数) 重算；箱数只读，不手改
+function liveBoxFromQty(tr){
+  if(!tr || !isDataRow(tr)) return;
+  const R=rowRefs(tr); if(!R || !R.qty || !R.box) return;
+  const qty=qtyNum(R.qty.value);
+  const perbox=parseFloat(R.perbox.value)||0;
+  const boxInput=R.box;
+  const autoBox=(qty>0 && perbox>0)?Math.round((qty/perbox)*10)/10:0;   // 保留一位小数
+  setValIfChanged(boxInput, autoBox>0?autoBox.toFixed(1):"");
+  const box=parseFloat(boxInput.value)||0;
+  const cwtInput=R.cwt;
+  if(cwtInput){
+    const autoCwt=box>0?(box*0.07).toFixed(2):"";
+    if(cwtInput.dataset.deleted==="1") setValIfChanged(cwtInput, "");
+    else setValIfChanged(cwtInput, autoCwt);
+    const cwtShow=R.cwtShow; if(cwtShow){ const t=cwtInput.value||""; if(cwtShow.textContent!==t) cwtShow.textContent=t; }
+  }
+}
+
 
 let _rq=0, _rjobs=null, _rqRAF=false;
 
@@ -5750,13 +5751,13 @@ function recalc(skipFold){
 
     const ton=parseFloat(tonInput.value)||0;
 
-    // 箱数：自动带出（数量÷每箱件数），除非手填
+    // 箱数：始终按「数量÷每箱件数」(保留一位小数) 自动带出，不手改
 
     const boxInput=R.box;
 
-    const autoBox=(qty>0&&perbox>0)?Math.ceil(qty/perbox):0;
+    const autoBox=(qty>0&&perbox>0)?Math.round((qty/perbox)*10)/10:0;
 
-    if(boxInput.dataset.manual!=="1") setValIfChanged(boxInput, autoBox>0?autoBox:"");
+    setValIfChanged(boxInput, autoBox>0?autoBox.toFixed(1):"");
 
     const box=parseFloat(boxInput.value)||0;
 
@@ -7476,7 +7477,7 @@ function pasteFill(tr,f,v){
 
   // 贴进来是空的 → 清掉标记，恢复自动（箱数按算式算、物流按客户带）
 
-  if(f==="box"||f==="logistics"){ if(val==="") delete el.dataset.manual; else el.dataset.manual="1"; }
+  if(f==="logistics"){ if(val==="") delete el.dataset.manual; else el.dataset.manual="1"; }   // 箱数只读自动，不手填
 
 }
 
@@ -7794,6 +7795,27 @@ document.addEventListener("paste", onDocPaste);
 
 // ===================== 启动 =====================
 
+// ★ 自动定位发货计划区域（2026-10-10）：打开页面时滚动到「明天」分组；没明天则今天；再没有则往后逐天（后天/大后天…）找第一个有计划的日期。
+//   只定位一次（首帧布局稳定后），不干扰手动滚动与编辑。
+function locateShipDay(){
+  const tb=$("tbody"); if(!tb) return;
+  const rows=[...tb.children].filter(isDataRow);
+  if(!rows.length) return;
+  const have=new Set();
+  rows.forEach(tr=>{ const v=tr.querySelector('[data-f="shipdate"]'); const d=(v&&v.value)?String(v.value).trim():""; if(d) have.add(d); });
+  if(!have.size) return;
+  const fmt=d=>(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"));
+  const today=realTodayStr(), tmr=todayStr();
+  const cand=[tmr, today];                       // 优先：明天 → 今天
+  const base=new Date(); base.setDate(base.getDate()+1);   // 明天为基准
+  for(let off=1; off<=60; off++){ const d=new Date(base); d.setDate(d.getDate()+off); cand.push(fmt(d)); } // 往后逐天：后天、大后天…
+  let target=null;
+  for(const d of cand){ if(have.has(d)){ target=d; break; } }
+  if(!target) return;                            // 未来方向都没命中则不强行跳（停留在顶部）
+  const first=rows.find(tr=>{ const v=tr.querySelector('[data-f="shipdate"]'); return !!(v&&v.value&&String(v.value).trim()===target); });
+  if(first) first.scrollIntoView({block:"center"});
+}
+
 syncDocHead();
 
 updateFoldedButton();
@@ -7848,7 +7870,7 @@ reindex(); recalc(); updateCheckAll(); styleShipdate(); markRowStates();   // �
 
 //   用「有 rAF 就 rAF、没有就 setTimeout」的兜底写法（jsdom 里没有 rAF，不能直接调）。
 
-(window.requestAnimationFrame||function(fn){return setTimeout(fn,16);})(function(){ try{ fitTextareas(); }catch(e){} });
+(window.requestAnimationFrame||function(fn){return setTimeout(fn,16);})(function(){ try{ fitTextareas(); }catch(e){} try{ locateShipDay(); }catch(e){} });
 
 // 计划员：首次设置无需密码，设置后自动锁定；再次修改需输入密码 123456
 
