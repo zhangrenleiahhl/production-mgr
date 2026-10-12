@@ -822,19 +822,45 @@ async function load(manual){
 
   const csReady = !!(window.CloudSync && CloudSync.ready());
 
-  let list = null, ok = !csReady, degraded = false;   // 没接云端 → 直接用本机数据
+  let list = null, ok = !csReady, degraded = false, plansSkip = false;   // 没接云端 → 直接用本机数据
 
   if (csReady){
 
-    try { const r = await CloudSync.pullResult(KEY); ok = r.ok; list = r.value; } catch(e){}
+    /* 省流量（2026-10-12）：计划先查戳，没变就不下载全文（30 秒一轮，单次几百 KB 很可观） */
+    let planStamp = null;
+    try { planStamp = (CloudSync.pullStamp) ? await CloudSync.pullStamp(KEY) : null; } catch(e){ planStamp = null; }
+    if (planStamp && localStorage.getItem("shipping_plans_stamp_v1") === planStamp){
+      ok = true; plansSkip = true;                    // 计划没变：沿用本地缓存
+    } else {
+      try {
+        const r = await CloudSync.pullResult(KEY); ok = r.ok; list = r.value;
+        if (r && r.ok && planStamp){ try { localStorage.setItem("shipping_plans_stamp_v1", planStamp); } catch(e){} }
+      } catch(e){}
+    }
 
     // 现场扫码写进来的进度（只读展示用）。拉不到也不算失败：进度没了不影响单据本身。
 
     try {
 
-      const rp = await CloudSync.pullResult(KEY_PROG);
+      let progStamp = null, skipProg = false;
 
-      if (rp.ok && rp.value && typeof rp.value === "object") PROG = mergeProg(PROG, rp.value);
+      if (CloudSync.pullStamp){ try { progStamp = await CloudSync.pullStamp(KEY_PROG); } catch(e){} }
+
+      if (progStamp && localStorage.getItem("shipping_progress_stamp_v1") === progStamp) skipProg = true;
+
+      if (!skipProg){
+
+        const rp = await CloudSync.pullResult(KEY_PROG);
+
+        if (rp.ok && rp.value && typeof rp.value === "object"){
+
+          PROG = mergeProg(PROG, rp.value);
+
+          if (progStamp){ try { localStorage.setItem("shipping_progress_stamp_v1", progStamp); } catch(e){} }
+
+        }
+
+      }
 
     } catch(e){}
 
@@ -846,7 +872,7 @@ async function load(manual){
 
   if (ok){
 
-    RECORDS = Array.isArray(list) ? list : [];
+    if (!plansSkip) RECORDS = Array.isArray(list) ? list : [];   // 戳没变：沿用已显示的本地缓存（绝不因跳过下载而清屏）
 
   } else {
 
