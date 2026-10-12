@@ -523,7 +523,7 @@
 
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
   .tbl tbody td:nth-child(9) input[readonly]{background:#eee;color:#555;cursor:default;} /* 箱数只读自动 */
-  .tbl tbody td:nth-child(9) input{padding:2px 0;-moz-appearance:textfield;appearance:textfield;} /* 箱数：去左右内边距，小数完整显示 */
+  .tbl tbody td:nth-child(9) input{width:100%;box-sizing:border-box;padding:2px 0;-moz-appearance:textfield;appearance:textfield;} /* 箱数：输入框撑满单元格，小数完整显示 */
   .tbl tbody td:nth-child(9) input::-webkit-outer-spin-button,.tbl tbody td:nth-child(9) input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;} /* 箱数：隐藏数字上下箭头，不遮小数 */
 
   /* 发货点：单选下拉 */
