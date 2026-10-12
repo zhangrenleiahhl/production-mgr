@@ -944,11 +944,27 @@ async function pull(){
 
     }
 
+    /* 省流量（2026-10-12）：进度也先查戳，没变就不下载全文 */
+
+    let skipProg = false, newProgStamp = null;
+
+    if (CloudSync.pullStamp){
+
+      try {
+
+        const st2 = await withTimeout(CloudSync.pullStamp(SL.KEY_PROG), 8000);
+
+        if (st2){ if (localStorage.getItem("shipping_progress_stamp_v1") === st2) skipProg = true; else newProgStamp = st2; }
+
+      } catch(e){}
+
+    }
+
     const rs = await Promise.allSettled([
 
       skipA ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(SL.KEY_PLANS), FETCH_MS),
 
-      withTimeout(CloudSync.pullResult(SL.KEY_PROG), FETCH_MS),
+      skipProg ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(SL.KEY_PROG), FETCH_MS),
 
       skipDb ? Promise.resolve({ ok: true, value: null }) : withTimeout(CloudSync.pullResult(KEY_DB), FETCH_MS)
 
@@ -978,7 +994,13 @@ async function pull(){
 
     okP = !!(rp && rp.ok);
 
-    if (okP && rp.value && typeof rp.value === "object") PROG = SL.mergeProg(PROG, rp.value);
+    if (okP && rp.value && typeof rp.value === "object"){
+
+      PROG = SL.mergeProg(PROG, rp.value);
+
+      if (newProgStamp){ try { localStorage.setItem("shipping_progress_stamp_v1", newProgStamp); } catch(e){} }
+
+    }
 
     if (!skipDb && rd && rd.ok && Array.isArray(rd.value)){
 
