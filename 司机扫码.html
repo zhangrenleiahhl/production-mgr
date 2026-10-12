@@ -208,14 +208,26 @@ async function pull(){
       stampTasks.push(withTimeout(CloudSync.pullStamp(SL.KEY_DB), 8000).then(s => { dbStamp = s; }).catch(() => {}));
     }
 
-    /* 进度（小、必须最新）：立即并行下载，先回先 render，绝不干等戳查询 8s */
-    withTimeout(CloudSync.pullResult(KEY_PROG), 1000).then(rp => {
-      if (rp && rp.ok && rp.value && typeof rp.value === "object"){
-        PROG = SL.mergeProg(PROG, rp.value); okP = true;
-        try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG)); } catch(e){}
-      } else if (rp){ okP = !!rp.ok; }
+    /* 进度（必须最新）：先查进度戳（小请求），没变就不下载全文（省流量）；变了立刻下载，先回先 render */
+    (async () => {
+      let newPStamp = null;
+      try {
+        const pst = await withTimeout(CloudSync.pullStamp(KEY_PROG), 1500);
+        if (pst){
+          if (localStorage.getItem("shipping_progress_stamp_v1") === pst){ okP = true; render(); return; }
+          newPStamp = pst;
+        }
+      } catch(e){}
+      try {
+        const rp = await withTimeout(CloudSync.pullResult(KEY_PROG), 3000);
+        if (rp && rp.ok && rp.value && typeof rp.value === "object"){
+          PROG = SL.mergeProg(PROG, rp.value); okP = true;
+          try { localStorage.setItem(KEY_PROG, JSON.stringify(PROG));
+                if (newPStamp) localStorage.setItem("shipping_progress_stamp_v1", newPStamp); } catch(e){}
+        } else if (rp){ okP = !!rp.ok; }
+      } catch(e){ okP = false; }
       render();
-    }).catch(() => { okP = false; render(); });
+    })();
 
     /* 戳查询（只决定计划/物料是否下载，不挡进度渲染） */
     await Promise.all(stampTasks);
