@@ -939,17 +939,21 @@ function render(){
 
   if (!RECORDS.length) return;
 
-  // collapsed=true 的分组默认折叠（今天之前 / 明天之后）
+  // 分组默认全部展开；手动折叠状态记忆在 localStorage，刷新后保持
+  const FOLD_KEY = "viewer_fold_v1";
+  let foldState = {};
+  try { foldState = JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") || {}; } catch (e) { foldState = {}; }
+  const saveFold = () => { try { localStorage.setItem(FOLD_KEY, JSON.stringify(foldState)); } catch (e) {} };
 
   const groups = [
 
-    { key:"past",     label:"今天之前发货计划", collapsed:true },
+    { key:"past",     label:"今天之前发货计划", collapsed:false },
 
-    { key:"today",    label:"今天发货计划",     collapsed:true },
+    { key:"today",    label:"今天发货计划",     collapsed:false },
 
     { key:"tomorrow", label:"明天发货计划",     collapsed:false },
 
-    { key:"future",   label:"明天之后发货计划", collapsed:true },
+    { key:"future",   label:"明天之后发货计划", collapsed:false },
 
     { key:"other",    label:"其它",             collapsed:false }
 
@@ -967,7 +971,7 @@ function render(){
 
     const sec = document.createElement("div");
 
-    sec.className = "cat-sec cat-" + g.key + (g.collapsed ? " collapsed" : "");
+    sec.className = "cat-sec cat-" + g.key + (foldState[g.key] ? " collapsed" : "");
 
     sec.innerHTML = `<div class="cat-head">
 
@@ -977,7 +981,7 @@ function render(){
 
         <button type="button" class="cat-selall" title="全选 / 取消全选本区域计划">全选</button>
 
-        <button type="button" class="cat-fold" title="展开 / 折叠本区域">${g.collapsed ? "▸ 展开" : "▾ 折叠"}</button>
+        <button type="button" class="cat-fold" title="展开 / 折叠本区域">${foldState[g.key] ? "▸ 展开" : "▾ 折叠"}</button>
 
       </div>
 
@@ -1011,7 +1015,13 @@ function render(){
 
       sec.classList.toggle("collapsed");
 
-      sec.querySelector(".cat-fold").textContent = sec.classList.contains("collapsed") ? "▸ 展开" : "▾ 折叠";
+      const nowFolded = sec.classList.contains("collapsed");
+
+      sec.querySelector(".cat-fold").textContent = nowFolded ? "▸ 展开" : "▾ 折叠";
+
+      foldState[g.key] = nowFolded;
+
+      saveFold();
 
     };
 
