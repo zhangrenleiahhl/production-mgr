@@ -1673,7 +1673,37 @@ async function reconcileNow(manual){
 
   let pr2 = null;                                  // ★ 同上：用 pullResult 取本次结果，不用全局共享状态
 
+  /* 省流量（2026-10-12）：自动校对先查「计划戳」，没变就只并墓碑、不下载计划全文（每次几百 KB，60 秒一轮很可观） */
+
+  let recStamp = null;
+
+  if(CloudSync.pullStamp){ try{ recStamp = await CloudSync.pullStamp(LS_REC); }catch(e){ recStamp = null; } }
+
+  if(!manual && recStamp && !isPending() && localStorage.getItem("shipping_plans_stamp_v1") === recStamp){
+
+    try{
+
+      const cd2 = await CloudSync.pull(LS_DEL);
+
+      if(Array.isArray(cd2) && cd2.length){
+
+        const mine2 = loadDeletedIds(), set2 = new Set(mine2.map(String));
+
+        cd2.forEach(x=>{ if(!set2.has(String(x))){ set2.add(String(x)); mine2.push(x); } });
+
+        try{ localStorage.setItem(LS_DEL, JSON.stringify(mine2.slice(-800))); }catch(e){}
+
+      }
+
+    }catch(e){}
+
+    return true;                                   // 计划没变：本轮无事可做（墓碑已并）
+
+  }
+
   try{ pr2 = await CloudSync.pullResult(LS_REC); }catch(e){ pr2 = null; }
+
+  if(pr2 && pr2.ok && recStamp){ try{ localStorage.setItem("shipping_plans_stamp_v1", recStamp); }catch(e){} }
 
   if(!pr2 || !pr2.ok){
 
@@ -8189,11 +8219,39 @@ async function pullProg(){
 
     try{
 
-      const r = await CloudSync.pullResult(SLB.KEY_PROG);
+      /* 省流量（2026-10-12）：先查进度戳，没变就不下载全文（看板常开 10 秒一轮很可观） */
 
-      ok = r.ok;
+      let skipProg = false, newProgStamp = null;
 
-      if(r.ok && r.value && typeof r.value === "object") PROG = SLB.mergeProg(PROG, r.value);
+      if(CloudSync.pullStamp){
+
+        try{
+
+          const pst = await CloudSync.pullStamp(SLB.KEY_PROG);
+
+          if(pst){ if(localStorage.getItem("shipping_progress_stamp_v1") === pst){ skipProg = true; } else { newProgStamp = pst; } }
+
+        }catch(e){}
+
+      }
+
+      if(skipProg){ ok = true; }
+
+      else{
+
+        const r = await CloudSync.pullResult(SLB.KEY_PROG);
+
+        ok = r.ok;
+
+        if(r.ok && r.value && typeof r.value === "object"){
+
+          PROG = SLB.mergeProg(PROG, r.value);
+
+          if(newProgStamp){ try{ localStorage.setItem("shipping_progress_stamp_v1", newProgStamp); }catch(e){} }
+
+        }
+
+      }
 
     }catch(e){ ok = false; }
 
