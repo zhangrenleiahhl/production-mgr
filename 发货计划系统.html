@@ -3744,7 +3744,8 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
       const auto=(q>0&&p>0)?Math.round((q/p)*10)/10:0;
       const autoStr=auto>0?auto.toFixed(1):"";
       if(boxInp0.value==="" || boxInp0.value===autoStr) return; // 没改或用回自动值
-      SL.uiConfirm("把箱数从自动值 "+autoStr+" 改为 "+boxInp0.value+"？\n确认后将不再随数量自动跳。", ()=>{
+      const _SL=window.ScanLib;
+      if(_SL && _SL.uiConfirm) _SL.uiConfirm("把箱数从自动值 "+autoStr+" 改为 "+boxInp0.value+"？\n确认后将不再随数量自动跳。", ()=>{
         boxInp0.dataset.manual="1"; boxInp0.classList.add("edited");
         recalc(); saveDraftNow(); toast("箱数已改为手动："+boxInp0.value);
       }, { title:"修改箱数", cancelText:"取消", okText:"确认修改", onCancel:()=>{
