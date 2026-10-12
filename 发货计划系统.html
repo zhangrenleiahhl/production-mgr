@@ -522,9 +522,15 @@
   .tbl tbody td:nth-child(5) textarea{text-align:center;}  /* 型号居中 */
 
   .tbl tbody td:nth-child(6) input,.tbl tbody td:nth-child(9) input{text-align:center;} /* 发货数量/箱数居中 */
-  .tbl tbody td:nth-child(9) input[readonly]{background:#eee;color:#555;cursor:default;} /* 箱数只读自动 */
+  .tbl tbody td:nth-child(9) input.edited{background:#eff6ff;color:#1d4ed8;border:1px dashed #93c5fd;font-weight:600;} /* 箱数手填态高亮 */
   .tbl tbody td:nth-child(9) input{width:100%;box-sizing:border-box;padding:2px 0;-moz-appearance:textfield;appearance:textfield;} /* 箱数：输入框撑满单元格，小数完整显示 */
   .tbl tbody td:nth-child(9) input::-webkit-outer-spin-button,.tbl tbody td:nth-child(9) input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;} /* 箱数：隐藏数字上下箭头，不遮小数 */
+  .tbl td.col-box{vertical-align:middle;}
+  .tbl td.col-box .box-wrap{display:flex;align-items:center;gap:2px;justify-content:center;}
+  .tbl td.col-box .box-wrap .box-in{flex:1 1 auto;min-width:0;}
+  .tbl td.col-box .box-reset{flex:0 0 auto;margin-left:2px;border:1px solid #2563eb;background:#eff6ff;color:#2563eb;cursor:pointer;line-height:1;width:16px;height:16px;border-radius:3px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:.15s;}
+  .tbl td.col-box .box-reset:hover{background:#2563eb;color:#fff;border-color:#1d4ed8;}
+  @media print{ .tbl td.col-box .box-reset{display:none;} }
 
   /* 发货点：单选下拉 */
 
@@ -3537,8 +3543,10 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
 
+  const boxManual=(data.boxManual===true||data.boxManual==="1");
   const _boxAuto=(_q>0&&_p>0)?(Math.round((_q/_p)*10)/10).toFixed(1):'';
-  const boxVal=_boxAuto||((data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?String(data.box).trim():'');
+  const _boxFb=(data.box!==undefined&&data.box!==null&&data.box!=='/'&&String(data.box).trim()!=='')?String(data.box).trim():'';
+  const boxVal=boxManual?_boxFb:(_boxAuto||_boxFb);
 
   // 产品重量T：默认按 数量×单重÷1000 自动；可手填（tonManual 标记）；无单重的历史行保留原 ton 值兜底
 
@@ -3582,7 +3590,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     <td class="col-delivery"><textarea data-f="delivery" placeholder="/" rows="1">${esc(data.delivery)}</textarea></td>
 
-    <td><input data-f="box" type="number" min="0" step="0.1" value="${esc(boxVal)}" placeholder="/" readonly title="箱数按 数量÷每箱件数 自动计算，不可手改"></td>
+    <td class="col-box"><div class="box-wrap"><input data-f="box" type="number" min="0" step="0.1" value="${esc(boxVal)}" placeholder="/" class="box-in${boxManual?' edited':''}"${boxManual?' data-manual="1"':''} title="箱数由 数量÷每箱件数 自动计算；可直接修改，修改会询问确认"><button type="button" class="box-reset" title="恢复自动带出">↺</button></div></td>
 
     <td class="col-remark"><textarea data-f="remark" placeholder="/" rows="1">${esc(data.remark)}</textarea></td>
 
@@ -3724,6 +3732,39 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     });
 
+  }
+
+  // 箱数：可手填，保存前询问确认；↺ 恢复自动带出
+  const boxInp0=tr.querySelector('[data-f="box"]');
+  if(boxInp0){
+    boxInp0.addEventListener("change", ()=>{
+      if(boxInp0.dataset.manual==="1") return;                 // 已手填过，不再询问
+      const qEl=tr.querySelector('[data-f="qty"]'), pEl=tr.querySelector('[data-f="perbox"]');
+      const q=parseFloat(qEl?qEl.value:"")||0, p=parseFloat(pEl?pEl.value:"")||0;
+      const auto=(q>0&&p>0)?Math.round((q/p)*10)/10:0;
+      const autoStr=auto>0?auto.toFixed(1):"";
+      if(boxInp0.value==="" || boxInp0.value===autoStr) return; // 没改或用回自动值
+      SL.uiConfirm("把箱数从自动值 "+autoStr+" 改为 "+boxInp0.value+"？\n确认后将不再随数量自动跳。", ()=>{
+        boxInp0.dataset.manual="1"; boxInp0.classList.add("edited");
+        recalc(); saveDraftNow(); toast("箱数已改为手动："+boxInp0.value);
+      }, { title:"修改箱数", cancelText:"取消", okText:"确认修改", onCancel:()=>{
+        delete boxInp0.dataset.manual; boxInp0.classList.remove("edited");
+        recalc(); saveDraftNow();
+      } });
+    });
+  }
+  const boxReset0=tr.querySelector(".box-reset");
+  if(boxReset0){
+    boxReset0.addEventListener("mousedown", e=>e.preventDefault());
+    boxReset0.addEventListener("click", ()=>{
+      const bi=tr.querySelector('[data-f="box"]');
+      const qEl=tr.querySelector('[data-f="qty"]'), pEl=tr.querySelector('[data-f="perbox"]');
+      if(!(parseFloat(qEl?qEl.value:"")>0 && (parseFloat(pEl?pEl.value:"")||0)>0)){
+        toast("这行没有「每箱件数」，算不出自动值；请先补每箱件数，或直接手填箱数"); return;
+      }
+      if(bi){ delete bi.dataset.manual; bi.classList.remove("edited"); }
+      recalc(); saveDraftNow(); toast("已恢复箱数自动带出 ✓");
+    });
   }
 
   tr.querySelectorAll("textarea").forEach(ta=>{
@@ -4382,7 +4423,7 @@ function liveBoxFromQty(tr){
   const perbox=parseFloat(R.perbox.value)||0;
   const boxInput=R.box;
   const autoBox=(qty>0 && perbox>0)?Math.round((qty/perbox)*10)/10:0;   // 保留一位小数
-  setValIfChanged(boxInput, autoBox>0?autoBox.toFixed(1):"");
+  if(boxInput.dataset.manual!=="1") setValIfChanged(boxInput, autoBox>0?autoBox.toFixed(1):"");
   const box=parseFloat(boxInput.value)||0;
   const cwtInput=R.cwt;
   if(cwtInput){
@@ -5719,7 +5760,7 @@ function rowRefs(tr){
 
     ton:null, box:null, cwt:null, remark:null, logistics:null, shippt:null, delivery:null,
 
-    tonReset:null, cwtShow:null, cwtTog:null,
+    tonReset:null, boxReset:null, cwtShow:null, cwtTog:null,
 
     cellShipdate:null, cellCustomer:null, cellRemark:null, cellSubton:null, colIdx:null,
 
@@ -5756,6 +5797,7 @@ function rowRefs(tr){
     else if(cl.contains("col-cwt")){ R.cwtShow=td.querySelector(".cwt-val"); R.cwtTog=td.querySelector(".cwt-toggle"); }
 
     else if(cl.contains("col-ton")) R.tonReset=td.querySelector(".ton-reset");
+    else if(cl.contains("col-box")) R.boxReset=td.querySelector(".box-reset");
 
   }
 
@@ -5821,7 +5863,21 @@ function recalc(skipFold){
 
     const autoBox=(qty>0&&perbox>0)?Math.round((qty/perbox)*10)/10:0;
 
-    setValIfChanged(boxInput, autoBox>0?autoBox.toFixed(1):"");
+    if(boxInput.dataset.manual!=="1") setValIfChanged(boxInput, autoBox>0?autoBox.toFixed(1):"");
+
+    const boxReset=R.boxReset;
+
+    if(boxReset){
+
+      const bm=boxInput.dataset.manual==="1";
+
+      const d=bm?"":"none";
+
+      if(boxReset.style.display!==d) boxReset.style.display=d;
+
+      boxInput.classList.toggle("edited", bm);
+
+    }
 
     const box=parseFloat(boxInput.value)||0;
 
