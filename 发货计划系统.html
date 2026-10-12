@@ -5851,7 +5851,7 @@ function recalc(skipFold){
 
   $("sumTon").textContent=st.toFixed(1);
 
-  $("sumBox").textContent=(sb>0)?sb:"/";
+  $("sumBox").textContent=(sb>0)?sb.toFixed(1):"/";
 
   $("sumCwt").textContent=scwt>0?scwt.toFixed(1):"/";
 
@@ -6751,7 +6751,7 @@ function publish(){
 
     publishedAt:new Date().toLocaleString("zh-CN"),rows,
 
-    sumQty:sumQty||"0",sumTon:sumTon.toFixed(1),sumBox:sumBox>0?sumBox:"/",
+    sumQty:sumQty||"0",sumTon:sumTon.toFixed(1),sumBox:sumBox>0?sumBox.toFixed(1):"/",
 
     sumSubTon:sumSubTon>0?sumSubTon.toFixed(1):"0.0",custTon,fingerprint:fp};
 
