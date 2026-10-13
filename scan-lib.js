@@ -680,6 +680,34 @@ window.ScanLib = (function () {
     return t;
   }
 
+  /* ==========================================================================
+     本地计划缓存「健全性校验」（2026-10-13 现场事故修复）
+     --------------------------------------------------------------------------
+     现象：现场手机「第一次打开有数据，自动刷新后就只剩一张单，重开也不行」。
+     原因：那台设备的 localStorage 里 shipping_plans_v1 只剩 1 条（微信清理存储 /
+            旧版本写坏 / 写盘失败的残留），而省流量逻辑是「截没变就跳过下载」——
+            截还停在最后一次成功拉取的时间，于是永远信任这份坏缓存，永不重拉；
+            手动点「刷新」也因为走同一条路径而无效。
+     规则（三端共用这一份判断，口径只此一处）：
+       ① 每次完整下载成功后记下云端条数 notePlanCloud(n)；
+       ③ 准备「截没变跳过下载」前先校验本地原始缓存条数：
+          没记过云端条数、缓存读不出、或不足云端条数 60% → 判定不可信，
+          本轮强制重新下载一次（下完自动恢复跳过，流量只多一次）。
+     坏缓存最多挂 30 秒就自愈，用户无需任何操作；手动刷新更直接强制拉全文。
+     ========================================================================== */
+  var PLAN_CNT_KEY = "shipping_plans_cnt_v1";
+  function notePlanCloud(n){ try{ localStorage.setItem(PLAN_CNT_KEY, String(n|0)); }catch(e){} }
+  function rawPlanLen(){                 // 本地原始缓存条数（不过墓碑，跟云端条数同口径）
+    try{ const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null"); return Array.isArray(v) ? v.length : -1; }catch(e){ return -1; }
+  }
+  function planCacheSuspect(){
+    var n = 0; try{ n = parseInt(localStorage.getItem(PLAN_CNT_KEY) || "0", 10) || 0; }catch(e){}
+    var raw = rawPlanLen();
+    if (n <= 0) return true;             // 从没记过云端条数 → 先完整拉一次建基线
+    if (raw < 0) return true;            // 缓存读不出/不是数组 → 不可信
+    return raw < n * 0.6;                // 异常缩水 → 不可信
+  }
+
   /* ---- 按物流公司分组（司机扫一个码进来，先找自己那家物流的车） ---- */
   function groupByLogistics(rows){
     var m = {};
@@ -1751,6 +1779,7 @@ window.ScanLib = (function () {
     bzExempt: bzExempt, bzEff: bzEff,    custGroups: custGroups, progStats: progStats, progOf: progOf,
     p2: p2, ymdOf: ymdOf, todayYmd: todayYmd, shiftYmd: shiftYmd, normDate: normDate,
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
+    notePlanCloud: notePlanCloud, planCacheSuspect: planCacheSuspect, rawPlanLen: rawPlanLen,
     sha256Hex: sha256Hex,
     KEY_STAFF: KEY_STAFF, staffUsers: staffUsers, staffLogin: staffLogin, staffSession: staffSession,
     staffPersist: staffPersist,
