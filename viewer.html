@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013c"></script>
+<script src="scan-lib.js?v=20261013d"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -829,12 +829,19 @@ async function load(manual){
     /* 省流量（2026-10-12）：计划先查戳，没变就不下载全文（30 秒一轮，单次几百 KB 很可观） */
     let planStamp = null;
     try { planStamp = (CloudSync.pullStamp) ? await CloudSync.pullStamp(KEY) : null; } catch(e){ planStamp = null; }
-    if (planStamp && localStorage.getItem("shipping_plans_stamp_v1") === planStamp){
+    // 手动刷新 或 本地缓存不可信 → 强制拉全文（坏缓存自愈，见 scan-lib.planCacheSuspect）
+    const stampHit = !!planStamp && localStorage.getItem("shipping_plans_stamp_v1") === planStamp;
+    const forceFull = !!manual || (stampHit && !!(SL.planCacheSuspect && SL.planCacheSuspect()));
+    if (stampHit && !forceFull){
       ok = true; plansSkip = true;                    // 计划没变：沿用本地缓存
     } else {
       try {
         const r = await CloudSync.pullResult(KEY); ok = r.ok; list = r.value;
         if (r && r.ok && planStamp){ try { localStorage.setItem("shipping_plans_stamp_v1", planStamp); } catch(e){} }
+        if (r && r.ok && Array.isArray(list)){
+          if (SL.notePlanCloud) SL.notePlanCloud(list.length);
+          try { localStorage.setItem(KEY, JSON.stringify(list)); } catch(e){}   // 缓存跟上云端（否则坏缓存自愈后每轮轮询都会重拉）
+        }
       } catch(e){}
     }
 
