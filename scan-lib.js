@@ -1607,6 +1607,12 @@ window.ScanLib = (function () {
     '.smkcf-no{background:#eaf2ff;color:#3461c8;font-weight:700;}' +
     '.smkcf-yes{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:800;' +
     'box-shadow:0 4px 12px rgba(37,99,235,.40);}' +
+    '.smkcf-inp{width:100%;box-sizing:border-box;border:1px solid #cde0f8;border-radius:12px;padding:10px 12px;font-size:14px;' +
+    'outline:none;background:#fff;color:#1f2733;font-family:inherit;margin-top:10px;transition:border-color .15s,box-shadow .15s;text-align:left;}' +
+    '.smkcf-inp:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.14);background:#fbfdff;}' +
+    '.smkcf-inp::placeholder{color:#a8b8d8;}' +
+    '.smkcf-err{display:none;margin-top:10px;font-size:12.5px;font-weight:700;color:#d64545;background:#fdecec;' +
+    'border:1px solid #f6cfcf;border-radius:10px;padding:7px 10px;word-break:break-word;}' +
     '@keyframes smkcfFade{from{opacity:0}to{opacity:1}}' +
     '@keyframes smkcfPop{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:scale(1)}}';
 
@@ -1671,9 +1677,59 @@ window.ScanLib = (function () {
     return { close: close, mask: mask, yes: yes };
   }
 
+  // 蓝白同款、带输入框的表单弹窗（删除密码、修改密码、解锁等）
+  // fieldsHtml：一段 input HTML（自动套 smkcf-inp 皮肤）；
+  // onOk(fieldsWrap) 返回错误文案 → 红条提示留在弹窗；返回 ""/falsy → 关闭。
+  function uiForm(msg, fieldsHtml, onOk, opt){
+    opt = opt || {};
+    cfCss();
+    var mask = document.createElement("div"); mask.className = "smkcf-mask";
+    var box  = document.createElement("div"); box.className = "smkcf-box";
+    var ico  = document.createElement("div"); ico.className = "smkcf-ico"; ico.textContent = opt.icon || "\uD83D\uDD11";
+    var ttl  = document.createElement("div"); ttl.className = "smkcf-ttl";
+    ttl.textContent = opt.title || "请输入";
+    var body = document.createElement("div"); body.className = "smkcf-msg";
+    body.textContent = msg == null ? "" : String(msg);
+    if (!String(msg == null ? "" : msg).trim()) body.style.display = "none";
+    var fw = document.createElement("div");
+    fw.innerHTML = fieldsHtml || "";
+    var inputs = fw.querySelectorAll("input");
+    for (var i = 0; i < inputs.length; i++){ try { inputs[i].classList.add("smkcf-inp"); } catch(e){} }
+    var err  = document.createElement("div"); err.className = "smkcf-err";
+    var act  = document.createElement("div"); act.className = "smkcf-act";
+    var no   = document.createElement("button"); no.className = "smkcf-no";  no.type = "button"; no.textContent = opt.cancelText || "取消";
+    var yes  = document.createElement("button"); yes.className = "smkcf-yes"; yes.type = "button"; yes.textContent = opt.okText || "确定";
+    act.appendChild(no); act.appendChild(yes);
+    box.appendChild(ico); box.appendChild(ttl); box.appendChild(body); box.appendChild(fw); box.appendChild(err); box.appendChild(act);
+    mask.appendChild(box);
+    (document.body || document.documentElement).appendChild(mask);
+
+    function close(){ if (mask.parentNode) mask.parentNode.removeChild(mask); }
+    function fail(t){ err.textContent = t; err.style.display = "block"; if (inputs.length){ inputs[0].value = ""; try { inputs[0].focus(); } catch(e){} } }
+    function submit(){
+      var r = "";
+      try { r = onOk ? onOk(fw) : ""; } catch(e){ r = "操作失败，请重试"; }
+      if (r){ fail(String(r)); } else { close(); }
+    }
+    no.onclick  = function(){ close(); if (opt.onCancel) opt.onCancel(); };
+    yes.onclick = submit;
+    mask.onclick = function(e){ if (e.target === mask){ close(); if (opt.onCancel) opt.onCancel(); } };
+    for (var j = 0; j < inputs.length; j++){
+      (function(inp){
+        inp.addEventListener("keydown", function(e){
+          if (e.key === "Enter"){ e.preventDefault(); submit(); }
+          else if (e.key === "Escape"){ e.preventDefault(); close(); if (opt.onCancel) opt.onCancel(); }
+        });
+      })(inputs[j]);
+    }
+    setTimeout(function(){ try { if (inputs.length) inputs[0].focus(); else yes.focus(); } catch(e){} }, 30);
+    return { close: close, mask: mask, yes: yes, no: no, fields: fw, err: err };
+  }
+
   return {
     uiConfirm: uiConfirm,
     uiAlert: uiAlert,
+    uiForm: uiForm,
     stepBlock: stepBlock,
     KEY_PLANS: KEY_PLANS, KEY_PROG: KEY_PROG, KEY_DEL: KEY_DEL, KEY_PENDING: KEY_PENDING,
     KEY_DB: KEY_DB, NO_CODE: NO_CODE, codeIndex: codeIndex, codeOf: codeOf, codeText: codeText,
