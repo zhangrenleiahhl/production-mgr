@@ -1587,18 +1587,28 @@ window.ScanLib = (function () {
      这里改成页面自己画的弹层，只有「取消 / 确定」两个按钮，点空白 = 取消。
      用法：SL.uiConfirm("确认删除？", function(){ 确定后要做的事 });  // 回调式，不再返回值
      ========================================================================== */
-  var CF_CSS = '.smkcf-mask{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:4000;display:flex;' +
-    'align-items:center;justify-content:center;padding:16px;}' +
-    '.smkcf-box{background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.3);width:100%;max-width:340px;' +
-    'overflow:hidden;font-family:"Microsoft YaHei","PingFang SC",sans-serif;}' +
-    '.smkcf-ttl{padding:15px 18px 0;font-size:15px;font-weight:800;color:#111827;}' +
-    '.smkcf-msg{padding:9px 18px 4px;font-size:13.5px;line-height:1.65;color:#374151;white-space:pre-wrap;' +
+  var CF_CSS = '.smkcf-mask{position:fixed;inset:0;background:rgba(46,34,20,.42);z-index:4000;display:flex;' +
+    'align-items:center;justify-content:center;padding:16px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);' +
+    'animation:smkcfFade .18s ease-out;}' +
+    '.smkcf-box{background:linear-gradient(180deg,#fffdf9,#fbf3e6);border:1px solid #f0e2cc;border-radius:22px;' +
+    'box-shadow:0 24px 60px rgba(74,54,30,.30),0 2px 8px rgba(74,54,30,.10);width:100%;max-width:330px;padding:22px 20px 18px;' +
+    'box-sizing:border-box;text-align:center;font-family:"Microsoft YaHei","PingFang SC",sans-serif;' +
+    'animation:smkcfPop .24s cubic-bezier(.34,1.45,.64,1);}' +
+    '.smkcf-ico{width:52px;height:52px;margin:0 auto 10px;border-radius:17px;flex:none;' +
+    'background:linear-gradient(145deg,#f7e5c6,#eac99c);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 3px 8px rgba(150,110,60,.22);' +
+    'display:flex;align-items:center;justify-content:center;font-size:25px;}' +
+    '.smkcf-ttl{font-size:16px;font-weight:800;color:#4a3a26;letter-spacing:.5px;}' +
+    '.smkcf-msg{padding:8px 2px 0;font-size:13.5px;line-height:1.7;color:#7c6a53;white-space:pre-wrap;' +
     'max-height:52vh;overflow:auto;word-break:break-word;}' +
-    '.smkcf-act{display:flex;border-top:1px solid #eef1f5;margin-top:14px;}' +
-    '.smkcf-act button{flex:1;border:none;background:#fff;padding:14px 0;font-size:15px;cursor:pointer;font-family:inherit;}' +
-    '.smkcf-act button:active{background:#f1f5f9;}' +
-    '.smkcf-no{color:#4b5563;font-weight:600;border-right:1px solid #eef1f5;}' +
-    '.smkcf-yes{color:#2563eb;font-weight:800;}';
+    '.smkcf-act{display:flex;gap:10px;margin-top:18px;}' +
+    '.smkcf-act button{flex:1;border:none;border-radius:999px;padding:12px 0;font-size:14.5px;cursor:pointer;' +
+    'font-family:inherit;transition:filter .15s,transform .1s;}' +
+    '.smkcf-act button:active{transform:scale(.96);filter:brightness(.95);}' +
+    '.smkcf-no{background:#f1e6d3;color:#7c6a53;font-weight:700;}' +
+    '.smkcf-yes{background:linear-gradient(135deg,#c99a67,#a87848);color:#fff;font-weight:800;' +
+    'box-shadow:0 4px 12px rgba(168,120,72,.35);}' +
+    '@keyframes smkcfFade{from{opacity:0}to{opacity:1}}' +
+    '@keyframes smkcfPop{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:scale(1)}}';
 
   function cfCss(){
     if (document.getElementById("smkcfCss")) return;
@@ -1614,6 +1624,7 @@ window.ScanLib = (function () {
     cfCss();
     var mask = document.createElement("div"); mask.className = "smkcf-mask";
     var box  = document.createElement("div"); box.className = "smkcf-box";
+    var ico  = document.createElement("div"); ico.className = "smkcf-ico"; ico.textContent = opt.icon || "\u2726";
     var ttl  = document.createElement("div"); ttl.className = "smkcf-ttl";
     ttl.textContent = opt.title || "请确认";
     var body = document.createElement("div"); body.className = "smkcf-msg";
@@ -1622,7 +1633,7 @@ window.ScanLib = (function () {
     var no   = document.createElement("button"); no.className = "smkcf-no";  no.type = "button"; no.textContent = opt.cancelText || "取消";
     var yes  = document.createElement("button"); yes.className = "smkcf-yes"; yes.type = "button"; yes.textContent = opt.okText || "确定";
     act.appendChild(no); act.appendChild(yes);
-    box.appendChild(ttl); box.appendChild(body); box.appendChild(act);
+    box.appendChild(ico); box.appendChild(ttl); box.appendChild(body); box.appendChild(act);
     mask.appendChild(box);
     (document.body || document.documentElement).appendChild(mask);
 
@@ -1640,6 +1651,7 @@ window.ScanLib = (function () {
     cfCss();
     var mask = document.createElement("div"); mask.className = "smkcf-mask";
     var box  = document.createElement("div"); box.className = "smkcf-box";
+    var ico  = document.createElement("div"); ico.className = "smkcf-ico"; ico.textContent = opt.icon || "\u2726";
     var ttl  = document.createElement("div"); ttl.className = "smkcf-ttl";
     ttl.textContent = opt.title || "提示";
     var body = document.createElement("div"); body.className = "smkcf-msg";
@@ -1648,7 +1660,7 @@ window.ScanLib = (function () {
     var yes  = document.createElement("button"); yes.className = "smkcf-yes"; yes.type = "button";
     yes.textContent = opt.okText || "知道了";
     act.appendChild(yes);
-    box.appendChild(ttl); box.appendChild(body); box.appendChild(act);
+    box.appendChild(ico); box.appendChild(ttl); box.appendChild(body); box.appendChild(act);
     mask.appendChild(box);
     (document.body || document.documentElement).appendChild(mask);
 
