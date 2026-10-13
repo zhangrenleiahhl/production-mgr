@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20261013c"></script>
+<script src="scan-lib.js?v=20261013d"></script>
 <style>
   /* ==========================================================================
      司机到车登记（手机端，一个码通吃，不用登录）
@@ -193,7 +193,7 @@ async function saveProg(msg){
 /* ---------- 拉取 ---------- */
 function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
 
-async function pull(){
+async function pull(force){
   const cs = !!(window.CloudSync && CloudSync.ready());
   let okA = !cs, okP = !cs;
   if (cs){
@@ -232,10 +232,10 @@ async function pull(){
     /* 戳查询（只决定计划/物料是否下载，不挡进度渲染） */
     await Promise.all(stampTasks);
     let skipA = false, newAStamp = null;
-    if (planStamp){
-      if (localStorage.getItem(KEY_PLANS_STAMP) === planStamp){ skipA = true; okA = true; }
-      else newAStamp = planStamp;
-    }
+    if (planStamp && !force && localStorage.getItem(KEY_PLANS_STAMP) === planStamp
+        && !(SL.planCacheSuspect && SL.planCacheSuspect())){
+      skipA = true; okA = true;
+    } else if (planStamp){ newAStamp = planStamp; }
     let skipDb = false, newDbStamp = null;
     if (dbStamp){
       if (localStorage.getItem(KEY_DB_STAMP) === dbStamp) skipDb = true;
@@ -250,6 +250,7 @@ async function pull(){
           RECORDS = ra.value;
           try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
                 if (newAStamp) localStorage.setItem(KEY_PLANS_STAMP, newAStamp); } catch(e){}
+          if (SL.notePlanCloud) SL.notePlanCloud(ra.value.length);
           render();
         }
       }).catch(() => {});
