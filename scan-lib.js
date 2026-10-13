@@ -1587,26 +1587,26 @@ window.ScanLib = (function () {
      这里改成页面自己画的弹层，只有「取消 / 确定」两个按钮，点空白 = 取消。
      用法：SL.uiConfirm("确认删除？", function(){ 确定后要做的事 });  // 回调式，不再返回值
      ========================================================================== */
-  var CF_CSS = '.smkcf-mask{position:fixed;inset:0;background:rgba(46,34,20,.42);z-index:4000;display:flex;' +
-    'align-items:center;justify-content:center;padding:16px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);' +
+  var CF_CSS = '.smkcf-mask{position:fixed;inset:0;background:rgba(18,40,82,.46);z-index:4000;display:flex;' +
+    'align-items:center;justify-content:center;padding:16px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);' +
     'animation:smkcfFade .18s ease-out;}' +
-    '.smkcf-box{background:linear-gradient(180deg,#fffdf9,#fbf3e6);border:1px solid #f0e2cc;border-radius:22px;' +
-    'box-shadow:0 24px 60px rgba(74,54,30,.30),0 2px 8px rgba(74,54,30,.10);width:100%;max-width:330px;padding:22px 20px 18px;' +
+    '.smkcf-box{background:linear-gradient(180deg,#ffffff,#f1f7ff);border:1px solid #d6e6fb;border-radius:22px;' +
+    'box-shadow:0 24px 60px rgba(28,86,190,.26),0 2px 8px rgba(28,86,190,.10);width:100%;max-width:330px;padding:22px 20px 18px;' +
     'box-sizing:border-box;text-align:center;font-family:"Microsoft YaHei","PingFang SC",sans-serif;' +
     'animation:smkcfPop .24s cubic-bezier(.34,1.45,.64,1);}' +
     '.smkcf-ico{width:52px;height:52px;margin:0 auto 10px;border-radius:17px;flex:none;' +
-    'background:linear-gradient(145deg,#f7e5c6,#eac99c);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 3px 8px rgba(150,110,60,.22);' +
-    'display:flex;align-items:center;justify-content:center;font-size:25px;}' +
-    '.smkcf-ttl{font-size:16px;font-weight:800;color:#4a3a26;letter-spacing:.5px;}' +
-    '.smkcf-msg{padding:8px 2px 0;font-size:13.5px;line-height:1.7;color:#7c6a53;white-space:pre-wrap;' +
+    'background:linear-gradient(145deg,#e6f0ff,#cfe1ff);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 8px rgba(43,111,224,.22);' +
+    'display:flex;align-items:center;justify-content:center;font-size:25px;color:#2f6fe0;}' +
+    '.smkcf-ttl{font-size:16px;font-weight:800;color:#18407e;letter-spacing:.5px;}' +
+    '.smkcf-msg{padding:8px 2px 0;font-size:13.5px;line-height:1.7;color:#56688a;white-space:pre-wrap;' +
     'max-height:52vh;overflow:auto;word-break:break-word;}' +
     '.smkcf-act{display:flex;gap:10px;margin-top:18px;}' +
     '.smkcf-act button{flex:1;border:none;border-radius:999px;padding:12px 0;font-size:14.5px;cursor:pointer;' +
     'font-family:inherit;transition:filter .15s,transform .1s;}' +
     '.smkcf-act button:active{transform:scale(.96);filter:brightness(.95);}' +
-    '.smkcf-no{background:#f1e6d3;color:#7c6a53;font-weight:700;}' +
-    '.smkcf-yes{background:linear-gradient(135deg,#c99a67,#a87848);color:#fff;font-weight:800;' +
-    'box-shadow:0 4px 12px rgba(168,120,72,.35);}' +
+    '.smkcf-no{background:#eaf2ff;color:#3461c8;font-weight:700;}' +
+    '.smkcf-yes{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:800;' +
+    'box-shadow:0 4px 12px rgba(37,99,235,.40);}' +
     '@keyframes smkcfFade{from{opacity:0}to{opacity:1}}' +
     '@keyframes smkcfPop{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:scale(1)}}';
 
