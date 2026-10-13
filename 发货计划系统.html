@@ -3671,6 +3671,10 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
       });
 
+    } else if(inp.dataset.f==="box"){   // 箱数：手填阶段不触发 recalc —— recalc 未标 manual 时会把箱数冲回自动值，导致根本输不进去
+
+      inp.addEventListener("input", ()=>saveDraft());
+
     } else if(inp.dataset.f!=="ton"){   // 其余可编辑列
 
       inp.addEventListener("input", ()=>scheduleRefresh(recalcLite, saveDraft));
