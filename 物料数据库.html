@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013b"></script>
+<script src="scan-lib.js?v=20261013c"></script>
 
 <style>
 
@@ -645,6 +645,16 @@ function verifyPwd(p){ const s=storedPwd(); return !!s && hashPwd(p)===s; }
 function closeModal(){ const m=$("pwdMask"); if(m) m.classList.remove("show"); }
 
 function openModal(title,sub,fields,onOk){
+
+  const _SLM=window.ScanLib;
+
+  if(_SLM && _SLM.uiForm){           // 蓝白弹窗（与全站确认框同一套）
+
+    _SLM.uiForm(sub||"", fields, onOk, { title:title, icon:'🔒', okText:"确定", cancelText:"取消" });
+
+    return;
+
+  }
 
   $("pwdTitle").textContent=title; $("pwdSub").textContent=sub||"";
 
