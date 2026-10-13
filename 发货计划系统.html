@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20260930b"></script>
+<script src="scan-lib.js?v=20261013a"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -30,7 +30,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261013a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20261013b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <script>try{if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.addEventListener("controllerchange",function(){location.reload();});}}catch(e){}</script>
 
 <style>
@@ -3753,7 +3753,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
       if(_SL && _SL.uiConfirm) _SL.uiConfirm("把箱数从自动值 "+autoStr+" 改为 "+boxInp0.value+"？\n确认后将不再随数量自动跳。", ()=>{
         boxInp0.dataset.manual="1"; boxInp0.classList.add("edited");
         recalc(); saveDraftNow(); toast("箱数已改为手动："+boxInp0.value);
-      }, { title:"修改箱数", cancelText:"取消", okText:"确认修改", onCancel:()=>{
+      }, { title:"修改箱数", icon:"🧮", cancelText:"取消", okText:"确认修改", onCancel:()=>{
         delete boxInp0.dataset.manual; boxInp0.classList.remove("edited");
         recalc(); saveDraftNow();
       } });
