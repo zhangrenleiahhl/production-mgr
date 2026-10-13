@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013b"></script>
+<script src="scan-lib.js?v=20261013c"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -30,7 +30,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261013c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20261013d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <script>try{if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.addEventListener("controllerchange",function(){location.reload();});}}catch(e){}</script>
 
 <style>
@@ -4047,7 +4047,11 @@ function bindSubTonInput(inp){
 
     if(nv!=="" && !/^-?\d+(\.\d+)?$/.test(nv)){            // 非法输入
 
-      alert("客户吨位只能填数字（可带小数点），请重新填写。");
+      const _SL0=window.ScanLib;
+
+      if(_SL0 && _SL0.uiAlert){ _SL0.uiAlert("客户吨位只能填数字（可带小数点），请重新填写。",{title:"格式不对",icon:'⚠️'}); }
+
+      else { alert("客户吨位只能填数字（可带小数点），请重新填写。"); }
 
       inp.value=old; return;
 
@@ -4057,23 +4061,19 @@ function bindSubTonInput(inp){
 
     const newTxt=(nv===""?"（清空，恢复自动合计）":nv);
 
-    const ok=confirm(
+    const msg="客户："+cust+"\n原值："+old+"\n新值："+newTxt+"\n\n说明：只更新这一辆车（同客户+同日期）：几个发货点合起来就是这一个数，\n第二车（客户名带「（第二车）」）单独算；并同步到导出、打印与发货员端。";
 
-      "确认修改客户吨位？\n\n"+
+    const _SL=window.ScanLib;
 
-      "客户："+cust+"\n"+
+    if(_SL && _SL.uiConfirm){        // 蓝白确认弹窗（与箱数修改同一套）
 
-      "原值："+old+"\n"+
+      _SL.uiConfirm(msg, function(){ commitSubTon(inp); }, { title:"确认修改客户吨位？", icon:'⚖️', okText:"确认修改", cancelText:"取消", onCancel:function(){ inp.value=old; } });
 
-      "新值："+newTxt+"\n\n"+
+      return;
 
-      "说明：只更新这一辆车（同客户+同日期）：几个发货点合起来就是这一个数，\n"+
+    }
 
-      "第二车（客户名带「（第二车）」）单独算；并同步到导出、打印与发货员端。"
-
-    );
-
-    if(!ok){ inp.value=old; return; }
+    if(!confirm("确认修改客户吨位？\n\n"+msg)){ inp.value=old; return; }   // 兜底
 
     commitSubTon(inp);
 
@@ -4091,7 +4091,9 @@ function bindSubTonInput(inp){
 
     e.preventDefault();
 
-    if(confirm("撤回【"+cust+"】的客户吨位修改，恢复为系统自动合计？")){
+    const undoMsg="撤回【"+cust+"】的客户吨位修改，恢复为系统自动合计？";
+
+    const undoDo=function(){
 
       const o=loadCT(); delete o[ctKeyOf(cust,date)]; ctDropLegacy(o,cust,date); saveCT(o);
 
@@ -4101,7 +4103,13 @@ function bindSubTonInput(inp){
 
       if(typeof toast==="function") toast("已恢复自动合计 ✓");
 
-    }
+    };
+
+    const _SL2=window.ScanLib;
+
+    if(_SL2 && _SL2.uiConfirm){ _SL2.uiConfirm(undoMsg, undoDo, { title:"撤回吨位修改", icon:'↩️', okText:"撤回", cancelText:"取消" }); return; }
+
+    if(confirm(undoMsg)) undoDo();
 
   });
 
@@ -4127,15 +4135,29 @@ function bindSubTonReset(btn, cust, date, pt, autoTxt){
 
     if(inp) inp.value=inp.dataset.shown||"";        // 丢弃未提交的编辑，避免重复确认
 
-    if(!confirm(
+    const resetMsg="恢复【"+cust+"】的客户吨位为系统自动带出？\n\n当前值："+(inp?inp.dataset.shown:"")+"\n恢复后："+autoTxt;
 
-      "恢复【"+cust+"】的客户吨位为系统自动带出？\n\n"+
+    const _SL3=window.ScanLib;
 
-      "当前值："+(inp?inp.dataset.shown:"")+"\n"+
+    if(_SL3 && _SL3.uiConfirm){        // 蓝白确认弹窗（与箱数修改同一套）
 
-      "恢复后："+autoTxt
+      _SL3.uiConfirm(resetMsg, function(){
 
-    )) return;
+        const o=loadCT(); delete o[ctKeyOf(cust,date)]; ctDropLegacy(o,cust,date); saveCT(o);
+
+        if(typeof recalc==="function") recalc();
+
+        if(typeof mergeCustomerCells==="function") mergeCustomerCells();   // 短路捷径会跳过合并，补一次
+
+        if(typeof toast==="function") toast("已恢复自动带出 ✓");
+
+      }, { title:"恢复自动吨位", icon:'↩️', okText:"恢复", cancelText:"取消" });
+
+      return;
+
+    }
+
+    if(!confirm(resetMsg)) return;
 
     const o=loadCT(); delete o[ctKeyOf(cust,date)]; ctDropLegacy(o,cust,date); saveCT(o);
 
@@ -7097,6 +7119,34 @@ function getDelPwd(){ try{ return localStorage.getItem(DEL_PWD_KEY)||DEFAULT_DEL
 function setDelPwd(p){ try{ localStorage.setItem(DEL_PWD_KEY, String(p)); }catch(e){} }
 
 function askDeletePwd(rec, onOk){
+
+  const _SLD=window.ScanLib;
+
+  if(_SLD && _SLD.uiForm){           // 蓝白弹窗（与全站确认框同一套）
+
+    _SLD.uiForm(
+
+      "单号："+(rec.no||"")+"（共 "+((rec.rows||[]).length)+" 行）。删除后可在「数据急救」页找回。",
+
+      '<input type="password" placeholder="请输入删除密码" autocomplete="off">',
+
+      function(f){
+
+        const v=f.querySelector("input").value.trim();
+
+        if(v!==getDelPwd()) return "密码错误，请重新输入";
+
+        onOk(); return "";
+
+      },
+
+      { title:"删除发布记录需要密码", icon:'🔑', okText:"确定删除", cancelText:"取消" }
+
+    );
+
+    return;
+
+  }
 
   const overlay=document.createElement("div"); overlay.className="modal-overlay";
 
