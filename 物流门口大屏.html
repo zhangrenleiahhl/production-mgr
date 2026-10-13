@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013c"></script>
+<script src="scan-lib.js?v=20261013d"></script>
 
 <style>
 
@@ -926,7 +926,7 @@ async function pull(){
 
         const st = await withTimeout(CloudSync.pullStamp(SL.KEY_PLANS), 8000);
 
-        if (st){ if (localStorage.getItem(KEY_PLANS_STAMP) === st){ skipA = true; okA = true; } else newAStamp = st; }
+        if (st){ if (localStorage.getItem(KEY_PLANS_STAMP) === st && !(SL.planCacheSuspect && SL.planCacheSuspect())){ skipA = true; okA = true; } else newAStamp = st; }
 
       } catch(e){}
 
@@ -987,6 +987,8 @@ async function pull(){
         try { localStorage.setItem(SL.KEY_PLANS, JSON.stringify(RECORDS));
 
               if (newAStamp) localStorage.setItem(KEY_PLANS_STAMP, newAStamp); } catch(e){}
+
+        if (SL.notePlanCloud) SL.notePlanCloud(ra.value.length);
 
       }
 
