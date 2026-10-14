@@ -384,6 +384,21 @@ const $ = (id) => document.getElementById(id);
 
 let RECORDS = [];
 
+// 「查看明细」展开状态：按记录 id 记在 localStorage，刷新页面 / 30 秒自动刷新后仍然保持展开
+// （和分组折叠 viewer_fold_v1 一个思路——发货员正展开着明细看，不能一刷新就收起来）
+let detailState = {};
+try { detailState = JSON.parse(localStorage.getItem("viewer_detail_v1") || "{}") || {}; } catch (e) { detailState = {}; }
+function saveDetail(){
+  try {
+    if (RECORDS.length){                  // 有数据时才顺手清掉已删除记录的残留，防止 key 无限堆积
+      const live = {};
+      RECORDS.forEach(r => { const k = String(r && r.id); if (detailState[k]) live[k] = true; });
+      detailState = live;
+    }
+    localStorage.setItem("viewer_detail_v1", JSON.stringify(detailState));
+  } catch (e) {}
+}
+
 
 
 // 本页地址：跟着当前打开它的服务器走，不写死（搬到别的服务器后这行文字自动跟着变）
@@ -1164,13 +1179,22 @@ function card(rec){
 
   div.querySelector(".rec-sel").onchange = updateSel;
 
-  div.querySelector('[data-act="toggle"]').onclick = () => {
+  const d = div.querySelector(".rec-detail");
 
-    const d = div.querySelector(".rec-detail");
+  // 刷新后恢复：上次打开着明细的单，重新画出来时直接就是展开的
+  if (rec.id != null && detailState[String(rec.id)]){
+    d.innerHTML = detailTable(rec, tonByCust);
+    d.style.display = "block";
+    bindDetail(d, rec);
+  }
+
+  div.querySelector('[data-act="toggle"]').onclick = () => {
 
     if (d.style.display === "none"){ d.innerHTML = detailTable(rec, tonByCust); d.style.display = "block"; bindDetail(d, rec); applyProgressToDom(); }
 
     else d.style.display = "none";
+
+    if (rec.id != null){ detailState[String(rec.id)] = (d.style.display !== "none"); saveDetail(); }
 
   };
 
