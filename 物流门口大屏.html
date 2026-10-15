@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013d"></script>
+<script src="scan-lib.js?v=20261013e"></script>
 
 <style>
 
@@ -782,7 +782,7 @@ const $ = (id) => document.getElementById(id);
 
 const esc = SL.esc, raw = SL.raw;
 
-const POLL_MS = 120000;
+const POLL_MS = 15000;   // 2026-10-15：120s->15s 对齐扫码页（戳没变只查戳，不费流量；工人扫码后大屏最多15秒就动）
 
 const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
 
@@ -1823,6 +1823,9 @@ function boot(){
   setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
 
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+  window.addEventListener("focus", () => { if (!document.hidden) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
+  window.addEventListener("pageshow", () => { if (!document.hidden) pull(); });    // 从后台/bfcache 回来也立刻刷新
+  if (SL.verWatch) SL.verWatch();   // 线上版本自检：版本变了自动重载，别让大屏跑旧代码（2026-10-15）
 
   // 长时间挂着的大屏：每天凌晨 4 点自动重载一次，清掉累积的内存/定时器
 
