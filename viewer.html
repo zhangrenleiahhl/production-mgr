@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013d"></script>
+<script src="scan-lib.js?v=20261013e"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -695,11 +695,13 @@ function init(){
 
   load();
 
-  setInterval(() => load(false), 30000);   // 每 30 秒自动拉取最新（内容无变化不重绘；后台时跳过）
+  setInterval(() => load(false), 15000);   // 每 15 秒自动拉取最新（2026-10-15：30s->15s；戳没变只查戳，不费流量）
 
   // 从别的页签切回来 → 立刻拉一次，保证看到的是最新
 
   document.addEventListener("visibilitychange", () => { if (!document.hidden) load(false); });
+  window.addEventListener("focus", () => { if (!document.hidden) load(false); });   // 窗口重新获得焦点也立刻刷新（2026-10-15）
+  if (SL.verWatch) SL.verWatch();   // 线上版本自检：版本变了自动重载（2026-10-15）
 
   $("refresh").onclick = () => load(true);
 
