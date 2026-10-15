@@ -8,7 +8,7 @@
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js"></script>
-<script src="scan-lib.js?v=20261013d"></script>
+<script src="scan-lib.js?v=20261013e"></script>
 <style>
   /* ==========================================================================
      司机到车登记（手机端，一个码通吃，不用登录）
@@ -430,6 +430,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
   window.addEventListener("online", () => pull());
   window.addEventListener("focus", () => pull());        // 窗口重新获得焦点也立刻刷新（2026-10-02）
+  if (SL.verWatch) SL.verWatch({ skip: () => isPending() });   // 线上版本自检；有没推上去的待办时不重载（2026-10-15）
   window.addEventListener("pageshow", () => pull());      // 从手机后台/bfcache 回来也立刻刷新（2026-10-02）
 }
 boot();
