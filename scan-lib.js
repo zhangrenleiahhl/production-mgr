@@ -708,6 +708,51 @@ window.ScanLib = (function () {
     return raw < n * 0.6;                // 异常缩水 → 不可信
   }
 
+
+  /* ==========================================================================
+     线上版本自检（2026-10-15）：页面开着不重载就会一直跑旧代码，每次发新功能
+     总有几台电脑"改了没生效"（Service Worker 只护住页面加载那一刻）。
+     这里每 5 分钟（页面可见时）对一次线上版本号 ver.json（几十字节），
+     发现与本页 scan-lib?v= 不一致 → 自动重载，加载最新代码。
+       * 防爆：本次会话最多自动重载 2 次、两次间隔>=30s——CDN 生效有先后，
+         HTML 已新而 ver.json 还旧时最多多刷一次，不会死循环；
+       * opt.skip() 返回 true 时本轮跳过（扫码页有没推上去的待办时不重载）；
+       * file:// 本地打开 / 网络失败 -> 静默跳过，不影响本地使用。
+     ========================================================================== */
+  var VER_URL = "ver.json";
+  function verWatch(opt){
+    opt = opt || {};
+    try{
+      if (location.protocol === "file:") return;
+      var last = 0;
+      setInterval(async function(){
+        try{
+          if (document.hidden) return;
+          if (opt.skip && opt.skip()) return;
+          var n = 0; try{ n = parseInt(sessionStorage.getItem("_verwatch_n") || "0", 10) || 0; }catch(e){}
+          if (n >= 2) return;
+          var now = Date.now();
+          if (now - last < 30000) return;
+          var r = await fetch(VER_URL + "?_=" + now, { cache: "no-store" });
+          if (!r || !r.ok) return;
+          var j = await r.json();
+          var cur = "";
+          var els = document.querySelectorAll('script[src*="scan-lib.js"]');
+          for (var i = 0; i < els.length; i++){
+            var m = /scan-lib\.js\?v=([0-9a-zA-Z_-]+)/.exec(els[i].getAttribute("src") || "");
+            if (m){ cur = m[1]; break; }
+          }
+          if (!cur || !j || !j.sl) return;
+          if (j.sl !== cur){
+            last = now;
+            try{ sessionStorage.setItem("_verwatch_n", String(n + 1)); }catch(e){}
+            location.reload();
+          }
+        }catch(e){}
+      }, 300000);
+    }catch(e){}
+  }
+
   /* ---- 按物流公司分组（司机扫一个码进来，先找自己那家物流的车） ---- */
   function groupByLogistics(rows){
     var m = {};
@@ -1780,6 +1825,7 @@ window.ScanLib = (function () {
     p2: p2, ymdOf: ymdOf, todayYmd: todayYmd, shiftYmd: shiftYmd, normDate: normDate,
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
     notePlanCloud: notePlanCloud, planCacheSuspect: planCacheSuspect, rawPlanLen: rawPlanLen,
+    verWatch: verWatch,
     sha256Hex: sha256Hex,
     KEY_STAFF: KEY_STAFF, staffUsers: staffUsers, staffLogin: staffLogin, staffSession: staffSession,
     staffPersist: staffPersist,
