@@ -650,7 +650,7 @@ window.ScanLib = (function () {
           rt: c.rt || 0, autoReady: readyIsAuto(c),
           bz: bzEff(c.bz, g.customer), bzt: c.bzt || 0, bzb: raw(c.bzb),
           bzAuto: !(c.bz || 0) && bzExempt(g.customer),
-          no: raw(rec.no), planner: raw(rec.planner),
+          no: raw(rec.no), planner: planNameOf(rec),
           done: done, isToday: isToday, isYesterday: isYest, stale: !isToday
         });
       });
@@ -751,6 +751,34 @@ window.ScanLib = (function () {
         }catch(e){}
       }, 300000);
     }catch(e){}
+  }
+
+
+  /* ==========================================================================
+     发布记录「署名」唯一口径（2026-10-16）：
+     「计划员」输入框的值存在各电脑自己的浏览器里（PLANNER_KEY），跟登录账号
+     不联动——有台电脑从没设过它，发布出来的记录 planner 是空的，
+     viewer/列表里这条单就不显示名字（FH20261016-2028，operator=赵兵）。
+     统一兜底链：planner 有值就用 → 空则 operator 手机号反查名册 →
+     operator 本身是名册姓名 → 都没有返回 ""（显示端不渲染，发布端还有会话名兜底）。
+     ========================================================================== */
+  function planNameOf(rec){
+    rec = rec || {};
+    var p = raw(rec.planner);
+    if (p) return p;
+    var op = String(rec.operator == null ? "" : rec.operator).trim();
+    if (!op) return "";
+    var list = staffUsers();
+    var i, u;
+    for (i = 0; i < list.length; i++){                 // ① operator 是手机号 → 反查名册姓名
+      u = list[i];
+      if (u && String(u.phone == null ? "" : u.phone).trim() === op) return raw(u.name);
+    }
+    for (i = 0; i < list.length; i++){                 // ② operator 存的是姓名 → 名册有同名则采用
+      u = list[i];
+      if (u && String(u.name == null ? "" : u.name).trim() === op) return raw(u.name);
+    }
+    return "";
   }
 
   /* ---- 按物流公司分组（司机扫一个码进来，先找自己那家物流的车） ---- */
@@ -1825,7 +1853,7 @@ window.ScanLib = (function () {
     p2: p2, ymdOf: ymdOf, todayYmd: todayYmd, shiftYmd: shiftYmd, normDate: normDate,
     isDoneCell: isDoneCell, boardRows: boardRows, boardStats: boardStats, groupByLogistics: groupByLogistics,
     notePlanCloud: notePlanCloud, planCacheSuspect: planCacheSuspect, rawPlanLen: rawPlanLen,
-    verWatch: verWatch,
+    verWatch: verWatch, planNameOf: planNameOf,
     sha256Hex: sha256Hex,
     KEY_STAFF: KEY_STAFF, staffUsers: staffUsers, staffLogin: staffLogin, staffSession: staffSession,
     staffPersist: staffPersist,
