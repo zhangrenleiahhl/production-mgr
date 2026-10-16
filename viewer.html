@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013e"></script>
+<script src="scan-lib.js?v=20261016a"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -1135,7 +1135,7 @@ function card(rec){
 
       <div class="rec-info">
 
-        <b>${pad(rec.no)}${rec.planner?` · ${esc(rec.planner)}`:""}</b>
+        <b>${pad(rec.no)}${SL.planNameOf(rec)?` · ${esc(SL.planNameOf(rec))}`:""}</b>
 
         <div class="meta">
 
@@ -2186,7 +2186,7 @@ async function batchPrint(){
 
     blocks += '<section class="one"><div class="ph"><div class="ph-l">' +
 
-      "<h2>发货计划 " + esc(pad(rec.no)) + (rec.planner ? " · " + esc(rec.planner) : "") + "</h2>" +
+      "<h2>发货计划 " + esc(pad(rec.no)) + (SL.planNameOf(rec) ? " · " + esc(SL.planNameOf(rec)) : "") + "</h2>" +
 
       '<div class="phs">发货日期 ' + esc(pad(recShipDate(rec))) + " ｜ 共 " + (rec.rows || []).length + " 行</div></div>" +
 
