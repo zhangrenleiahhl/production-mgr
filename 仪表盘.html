@@ -446,7 +446,9 @@ function collectRows(src){
   var out=[], seen={};
   function push(r){
     if(!r || !r.model || r.model==="/") return;
-    var key=[r.shipdate,r.customer,r.model,r.qty,r.delivery].join("|");
+    // 去重键不含型号文本（2026-10-16）：同一车次(交货单号)+日期+客户+数量+吨位=同一行货，
+    // 型号名被改过（改代码/调前后缀）也能对上，不再和已发布记录双份计数
+    var key=[r.shipdate,r.customer,num(r.qty),num(r.ton).toFixed(1),r.delivery].join("|");
     if(seen[key]) return;
     seen[key]=1; out.push(r);
   }
@@ -850,8 +852,16 @@ function aiAnswer(q){
     var c=a.cust[cn];
     var list2=frows.filter(function(r){ return (isBlank(r.customer)?"（未填客户）":String(r.customer).trim())===cn; });
     var late=list2.filter(function(r){ var d=(r.shipdate||"").trim(); return d&&d!=="/"&&d<b; });
+    // 口径透明（2026-10-16）：草稿里还有没发布的货时，明说「已发布多少 + 草稿多少」，
+    // 免得总数比用户记忆里的大被当成算错
+    var inScope2=function(r){ return (isBlank(r.customer)?"（未填客户）":String(r.customer).trim())===cn &&
+      (!mq || String(r.shipdate||"").trim().indexOf(mq)===0); };
+    var pubQ=0, drQ=0;
+    collectRows("rec").forEach(function(r){ if(inScope2(r)) pubQ+=num(r.qty); });
+    collectRows("draft").forEach(function(r){ if(inScope2(r)) drQ+=num(r.qty); });
     var t="客户 <b>"+esc(cn)+"</b>"+esc(scope)+"：共 <b>"+c.rows+"</b> 行、<b>"+Math.round(c.qty)+"</b> 件、<b>"+c.ton.toFixed(1)+"t</b>。\n"+
           "发货区间："+(c.min||"-")+" ~ "+(c.max||"-")+
+          (drQ>0?"\n📦 口径：已发布 <b>"+Math.round(pubQ)+"</b> 件 + 当前草稿未发布 <b>"+Math.round(drQ)+"</b> 件":"")+
           (late.length?"\n⚠ 其中 <b>"+late.length+"</b> 行已滞后。":"\n✅ 没有滞后计划。");
     return {text:t, table:list2.map(lineOf).slice(0,20)};
   }
