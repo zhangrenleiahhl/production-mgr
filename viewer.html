@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261016a"></script>
+<script src="scan-lib.js?v=20261016b"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -1121,7 +1121,7 @@ function card(rec){
 
   const fmtTon = sumTon.toFixed(1);
 
-  const fmtBox = sumBox > 0 ? sumBox : "/";
+  const fmtBox = sumBox > 0 ? Math.round(sumBox * 10) / 10 : "/";   // 2026-10-16：箱数也要 round，JS 浮点累加会出 81.20000000000002
 
   const fmtSubTon = sumSubTon > 0 ? sumSubTon.toFixed(1) : "0.0";
 
@@ -1422,7 +1422,7 @@ function detailTable(rec, tonByCust){
 
       <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(2)}</td><td class="num">${sumT.toFixed(1)}</td>
 
-      <td></td><td class="num">${sumB}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td><td></td>
+      <td></td><td class="num">${Math.round(sumB * 10) / 10}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td><td></td>
 
     </tr>`;
 
