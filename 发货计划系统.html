@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20260922d"></script>
 
-<script src="scan-lib.js?v=20261013e"></script>
+<script src="scan-lib.js?v=20261016a"></script>
 
 <script src="auth.js?v=20260930a"></script>
 
@@ -30,7 +30,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261013f";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20261016a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <script>try{if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.addEventListener("controllerchange",function(){location.reload();});}}catch(e){}</script>
 
 <style>
@@ -1808,7 +1808,7 @@ function cleanDupRecs(){
 
   if(!dups.length){ try{ toast("没有发现重复的发布记录"); }catch(e){} return; }
 
-  const lines = dups.map(r=>"· "+(r.no||"?")+(r.planner?("（"+r.planner+"）"):"")+"　"+(r.publishedAt||"")).join("\n");
+  const lines = dups.map(r=>"· "+(r.no||"?")+((window.ScanLib&&window.ScanLib.planNameOf(r))?("（"+window.ScanLib.planNameOf(r)+"）"):"")+"　"+(r.publishedAt||"")).join("\n");
 
   if(!confirm("发现 "+dups.length+" 条【同一计划员】内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？")) return;
 
@@ -6861,7 +6861,7 @@ function publish(){
 
   const rec={id:Date.now(),date:$("shipDate").value,no:fixPlanNo($("planNo").value, pubShipDate),
 
-    planner:($("planner")?.value||"").trim(),
+    planner:($("planner")?.value||"").trim() || (window.ScanLib && window.ScanLib.planNameOf({operator: currentOperator()})) || (window.ScanLib && window.ScanLib.staffName && window.ScanLib.staffName()) || "",
 
     operator:currentOperator(),
 
@@ -6877,7 +6877,7 @@ function publish(){
 
   saveRec(rec); renderRecords();
 
-  toast("已发布 ✓（单号 "+(rec.planner?rec.no+" · "+rec.planner:rec.no)+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
+  toast("已发布 ✓（单号 "+((window.ScanLib&&window.ScanLib.planNameOf(rec))?rec.no+" · "+window.ScanLib.planNameOf(rec):rec.no)+" · 共 "+rows.length+" 行）· 已同步到发货员链接");
 
   // 发布后自动取消勾选，避免顺手重复发布同一批
 
@@ -7296,7 +7296,7 @@ function renderRecords(){
 
       const card=document.createElement("div"); card.className="rec"; card.dataset.rec=String(rec.id);   // 进度摘要就地刷新时用来找回记录
 
-      const noText=esc(rec.no||"")+(rec.planner?` · ${esc(rec.planner)}`:"");
+      const noText=esc(rec.no||"")+((window.ScanLib&&window.ScanLib.planNameOf(rec))?` · ${esc(window.ScanLib.planNameOf(rec))}`:"");
 
       card.innerHTML=`
 
@@ -8571,7 +8571,7 @@ function groupHay(rec, g, codeMap){
 
 function recHay(rec){
 
-  return [rec.no, rec.planner, recShipDate(rec), rec.publishedAt];
+  return [rec.no, SLB.planNameOf(rec), recShipDate(rec), rec.publishedAt];
 
 }
 
@@ -8879,7 +8879,7 @@ function renderBoard(){
 
         (dl ? ' <span class="daytag ' + dl.cls + '">' + dl.txt + "</span>" : "") +
 
-        (rec.planner ? ' <span class="pl">' + SLB.esc(rec.planner) + "</span>" : "") +
+        (SLB.planNameOf(rec) ? ' <span class="pl">' + SLB.esc(SLB.planNameOf(rec)) + "</span>" : "") +
 
         '<div class="m">发货日期 ' + SLB.esc(SLB.pad(recShipDate(rec))) + " ｜ " + gs.length +
 
