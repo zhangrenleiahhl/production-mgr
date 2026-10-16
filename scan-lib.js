@@ -523,6 +523,7 @@ window.ScanLib = (function () {
           g.ton += (ov3 !== null ? ov3 : g._byPt[pt]);
         });
       }
+      g.ton = Math.round(g.ton * 100) / 100;   // 2026-10-16：清浮点毛刺（0.1+0.2 式累积），显示/导出都不再露 81.20000000000002
       delete g._byPt;
       return g;
     });
@@ -676,6 +677,8 @@ window.ScanLib = (function () {
       if (r.done) t.done++; else { t.left++; t.tonLeft += r.ton || 0; }
       if (!r.isToday) t.stale++;
     });
+    t.ton = Math.round(t.ton * 100) / 100;          // 2026-10-16：清浮点毛刺
+    t.tonLeft = Math.round(t.tonLeft * 100) / 100;
     t.pct = t.total ? Math.round(t.step / (t.total * 3) * 100) : 0;
     return t;
   }
