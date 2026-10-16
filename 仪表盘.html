@@ -779,6 +779,14 @@ function pickDate(q){
   if(m){ var y=new Date().getFullYear(); return y+"-"+String(+m[1]).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0"); }
   return null;
 }
+// 月份解析：2026年10月 / 2026-10月 / 10月（默认当年）
+function pickMonth(q){
+  var m=q.match(/(\d{4})\s*[-/年]\s*(\d{1,2})\s*月/);
+  if(m) return m[1]+"-"+String(+m[2]).padStart(2,"0");
+  m=q.match(/(\d{1,2})\s*月/);
+  if(m){ var y=new Date().getFullYear(); return y+"-"+String(+m[1]).padStart(2,"0"); }
+  return null;
+}
 function lineOf(r){
   return {日期:(r.shipdate||"-"), 客户:(isBlank(r.customer)?"-":r.customer), 型号:(r.model||"-"),
           数量:Math.round(num(r.qty)), 吨位:num(r.ton).toFixed(1)};
@@ -793,7 +801,20 @@ function aiAnswer(q){
   if(!q) return {text:"你可以直接问我，比如「明天要发什么？」「哪些滞后了？」"};
   var rows=currentRows();
   if(!rows.length) return {text:"当前数据源里还没有计划数据。先到「发货计划」录入几行，或切换右上角的数据源再问我 🙂"};
-  var a=agg(rows);
+  // 月份过滤：问到「10月」「2026年10月」只统计该月发货日期（问到具体某天/今天明天的不走这）
+  var dq0=pickDate(q), mq=pickMonth(q);
+  var frows=rows;
+  var mLabel=mq ? (mq.split("-")[0]+"年"+(+mq.split("-")[1])+"月") : "";
+  if(mq && !dq0 && !TODAY.test(q)){
+    frows=rows.filter(function(r){ var d=(r.shipdate||"").trim(); return d.indexOf(mq)===0; });
+    var af=agg(rows);
+    var cnF=pickEntity(q, af.custList.map(function(x){return x.name;}));
+    if(cnF && !frows.some(function(r){ return (isBlank(r.customer)?"（未填客户）":String(r.customer).trim())===cnF; }))
+      return {text:"客户 "+esc(cnF)+" 在 "+mLabel+" 没有发货计划。"};
+    if(!frows.length) return {text:mLabel+" 没有安排发货计划。"};
+  }
+  var scope=mq ? "（"+mLabel+"）" : "";
+  var a=agg(frows);
   var b=todayStr(), rt=realTodayStr();
 
   if(GREET.test(q)){
@@ -814,7 +835,7 @@ function aiAnswer(q){
   // 1) 具体日期
   var dq=pickDate(q);
   if(dq && !TODAY.test(q)){
-    var list=rows.filter(function(r){ return (r.shipdate||"").trim()===dq; });
+    var list=frows.filter(function(r){ return (r.shipdate||"").trim()===dq; });
     if(!list.length) return {text:dq+" 没有安排发货计划。"};
     var s=statOf(list);
     var tag = dq<b?"（已滞后）" : (dq===b?"（当日计划）":"（待发）");
@@ -827,9 +848,9 @@ function aiAnswer(q){
   var cn=pickEntity(q,custNames);
   if(cn){
     var c=a.cust[cn];
-    var list2=rows.filter(function(r){ return (isBlank(r.customer)?"（未填客户）":String(r.customer).trim())===cn; });
+    var list2=frows.filter(function(r){ return (isBlank(r.customer)?"（未填客户）":String(r.customer).trim())===cn; });
     var late=list2.filter(function(r){ var d=(r.shipdate||"").trim(); return d&&d!=="/"&&d<b; });
-    var t="客户 <b>"+esc(cn)+"</b>：共 <b>"+c.rows+"</b> 行、<b>"+Math.round(c.qty)+"</b> 件、<b>"+c.ton.toFixed(1)+"t</b>。\n"+
+    var t="客户 <b>"+esc(cn)+"</b>"+esc(scope)+"：共 <b>"+c.rows+"</b> 行、<b>"+Math.round(c.qty)+"</b> 件、<b>"+c.ton.toFixed(1)+"t</b>。\n"+
           "发货区间："+(c.min||"-")+" ~ "+(c.max||"-")+
           (late.length?"\n⚠ 其中 <b>"+late.length+"</b> 行已滞后。":"\n✅ 没有滞后计划。");
     return {text:t, table:list2.map(lineOf).slice(0,20)};
@@ -840,10 +861,10 @@ function aiAnswer(q){
   var mn=pickEntity(q,modelNames);
   if(mn){
     var m=a.model[mn];
-    var list3=rows.filter(function(r){ return (isBlank(r.model)?"（未填型号）":String(r.model).trim())===mn; });
+    var list3=frows.filter(function(r){ return (isBlank(r.model)?"（未填型号）":String(r.model).trim())===mn; });
     var dates={}; list3.forEach(function(r){ var d=(r.shipdate||"").trim(); if(d&&d!=="/") dates[d]=(dates[d]||0)+num(r.qty); });
     var dk=Object.keys(dates).sort();
-    return {text:"型号 <b>"+esc(mn)+"</b>：共 <b>"+m.rows+"</b> 行、<b>"+Math.round(m.qty)+"</b> 件、<b>"+m.ton.toFixed(1)+"t</b>。\n"+
+    return {text:"型号 <b>"+esc(mn)+"</b>"+esc(scope)+"：共 <b>"+m.rows+"</b> 行、<b>"+Math.round(m.qty)+"</b> 件、<b>"+m.ton.toFixed(1)+"t</b>。\n"+
                  "客户："+esc(isBlank(m.customer)?"-":m.customer)+"\n"+
                  "发货日期："+(dk.length?dk.join("、"):"-"),
             table:list3.map(lineOf).slice(0,20)};
@@ -900,7 +921,7 @@ function aiAnswer(q){
   // 8) 总量 / 总结
   if(SUM.test(q)){
     var share=a.ton?(a.overdue.reduce(function(s,r){return s+num(r.ton);},0)/a.ton*100):0;
-    return {text:"📊 当前数据概览：\n"+
+    return {text:"📊 当前数据概览"+esc(scope)+"：\n"+
       "· 计划行数：<b>"+a.n+"</b> 行\n"+
       "· 客户数量：<b>"+a.custList.length+"</b> 家\n"+
       "· 总数量：<b>"+Math.round(a.qty)+"</b> 件\n"+
@@ -914,7 +935,7 @@ function aiAnswer(q){
   // 9) 备注 / 交货方式
   if(/备注|交货|方式|物流|备注写/.test(q)){
     var seen={}, arr=[];
-    rows.forEach(function(r){
+    frows.forEach(function(r){
       var k=isBlank(r.delivery)?"-":String(r.delivery).trim();
       if(!seen[k]){ seen[k]={交货方式:k,行数:0,吨位:0}; arr.push(seen[k]); }
       seen[k].行数++; seen[k].吨位+=num(r.ton);
@@ -960,7 +981,9 @@ function ask(q){
   setTimeout(function(){
     var res;
     try{ res=aiAnswer(q); }catch(e){ res={text:"分析时出错了："+esc(e.message)}; }
-    var html=String(res.text||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+    // 先整体转义防注入，再把白名单标签还原成真标签（否则 aiAnswer 里的 <b> 会裸显）
+    var html=String(res.text||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/&lt;(\/?)(b|i|em|strong)&gt;/gi,"<$1$2>").replace(/\n/g,"<br>");
     if(res.table && res.table.length){
       var cols=Object.keys(res.table[0]);
       html+='<table class="mini"><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join("")+
