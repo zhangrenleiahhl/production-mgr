@@ -262,6 +262,53 @@
 
 
 
+  /* 序号列（2026-10-19 用户要求：门口大屏也加，与内部大屏同一套视觉）
+
+     只做行锚点，不承载业务数据。**门口这一屏仍然只显代码、不显客户名** ——
+
+     序号只是"第几行"，不含任何客户信息，不影响保密口径（test_dash_safe 的 customer 断言仍应全过）。
+
+
+     ★ 胶囊高度必须 ≤ 同行文字自然高度（padding 只 1px、line-height 1.25）：
+
+       这一屏有 fitCodeFont 的「一行不许高过 --perrow 配额」硬约束，
+
+       序号胶囊一旦把行顶高，代码字号就再也放不大 —— 门口最关键的信息被这一列连累。
+
+
+     ★ 行左色条（tr.stN td:first-child 的 inset 阴影）跟着这一格走 —— 本来就在最左格，
+
+       序号列接管最左格后色条位置不变，老观感零变化（流体条那套测试里的 first-child 契约也不用动）。 */
+
+  thead th.idx{text-align:right;padding-right:10px;letter-spacing:0;}
+
+  tbody td.idx{padding-left:11px;padding-right:10px;text-align:right;
+
+    font-variant-numeric:tabular-nums;}
+
+  tbody td.idx .n{display:inline-block;min-width:1.75em;padding:1px 0;border-radius:6px;
+
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+
+    font-size:.82em;font-weight:800;line-height:1.25;text-align:center;
+
+    color:var(--dim);background:rgba(148,163,184,.10);}
+
+  /* 序号跟着行状态换色：一行一行扫下来，今天这些活儿各自走到哪一步就出来了 */
+
+  tbody tr.st0 td.idx .n{color:#ff8f8f;background:rgba(255,93,93,.13);}
+
+  tbody tr.st1 td.idx .n{color:#6fd8e6;background:rgba(56,200,216,.13);}
+
+  tbody tr.st2 td.idx .n{color:#ffc978;background:rgba(255,180,84,.13);}
+
+  tbody tr.st3 td.idx .n{color:#79e7b4;background:rgba(61,220,151,.13);}
+
+  tbody tr.done td.idx .n{color:#8fe8c2;background:rgba(61,220,151,.09);}
+
+
+
+
   /* 每道工序一种颜色（左细条 + 极淡同色底），一眼分清走到哪一步：
 
      货待确认=红 · 货好=青 · 装货中=琥珀 · 已完成=绿（红只是标记，正文保持清晰） */
@@ -328,9 +375,9 @@
 
      这一列永远是全行最高的，它的内边距就是"从字号嘴里抢走的行高"。
 
-     ★ 2026-09-21 状态列删掉后，代码是第 1 格 */
+     ★ 2026-09-21 状态列删掉后代码是第 1 格；2026-10-19 加序号列后 → 第 2 格 */
 
-  tbody td:nth-child(1){padding-top:2px;padding-bottom:2px;}
+  tbody td:nth-child(2){padding-top:2px;padding-bottom:2px;}
 
   /* 单号（2026-09-17 起从代码格里分出来，独占一列）：单号本身用等宽字体，
 
@@ -382,7 +429,7 @@
 
      四道工序四种液体：待确认红 · 货好青 · 装货中琥珀 · 已完成绿（与整行底色同一套色）。
 
-     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(4)）：
+     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(5)；2026-10-19 加序号列后工序是第 5 格）：
 
        进度条自带高度，让它"吃自己的"内边距，整行高度仍由别的列说了算，
 
@@ -544,7 +591,7 @@
 
      ★ 2026-09-21 状态列删掉后，工序从第 5 格变成第 4 格 */
 
-  tbody td:nth-child(4){padding-top:0;padding-bottom:0;}
+  tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
 
   @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after{animation:none;}}
 
@@ -692,7 +739,9 @@
 
     <table id="tbl">
 
-      <!-- 列序（2026-09-24 改：车辆列与工序更新列换位）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
+      <!-- 列序（2026-10-19 加：最左边新增一列窄「序号」，与内部大屏同一套视觉，只做行锚点不承载业务数据；
+
+           2026-09-24 改：车辆列与工序更新列换位）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
 
            「工序」「车辆」两个状态列相邻靠前，后面跟「品一质保书」；
 
@@ -700,15 +749,15 @@
 
       <colgroup>
 
-        <col style="width:12%"><col style="width:10%"><col style="width:13%">
+        <col style="width:5%"><col style="width:12%"><col style="width:10%"><col style="width:12.5%">
 
-        <col style="width:17%"><col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:13%">
+        <col style="width:16%"><col style="width:9.5%"><col style="width:9.5%"><col style="width:12.5%"><col style="width:13%">
 
       </colgroup>
 
       <thead><tr>
 
-        <th>送达方代码</th><th>吨位</th><th>单号</th>
+        <th class="idx">序号</th><th>送达方代码</th><th>吨位</th><th>单号</th>
 
         <th>工序</th><th>车辆</th><th>品一质保书</th><th>工序更新</th><th>车辆更新</th>
 
@@ -1206,7 +1255,7 @@ const CODE_R_MAX = 3, CODE_R_MIN = 1, CODE_R_LO = 1.5, CODE_R_HI = 2.5, CODE_R_S
 
 function fitCodeFont(){
 
-  const tds = Array.prototype.slice.call(document.querySelectorAll("#tbody td:nth-child(1)"));   // ★ 2026-09-21 状态列删掉后，代码是第 1 格
+  const tds = Array.prototype.slice.call(document.querySelectorAll("#tbody td:nth-child(2)"));   // ★ 2026-10-19 加序号列后，代码是第 2 格
 
   if (!tds.length) return;
 
@@ -1382,7 +1431,7 @@ function fitUpdFont(){
 
   const tb = document.getElementById("tbody"); if (!tb) return;
 
-  const tds = tb.querySelectorAll("td:nth-child(7),td:nth-child(8)");
+  const tds = tb.querySelectorAll("td:nth-child(8),td:nth-child(9)");
 
   const tms = Array.prototype.map.call(tds, td => td.querySelector(".tm"));
 
@@ -1440,7 +1489,10 @@ function kpiHtml(s){
 
 /* 一行怎么画 —— 注意：这里**没有**任何一处输出客户名，改动前先想清楚这句话 */
 
-function rowHtml(r){
+/* i = 这一行在当前排序里的序号（0 起）；只用来印行号，不参与任何业务判断。
+
+   ★ 不含客户信息 —— 门口这一屏的保密口径不受影响。 */
+function rowHtml(r, i){
 
   const s = Math.min(3, r.s || 0);
 
@@ -1495,6 +1547,8 @@ function rowHtml(r){
   const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" + plCell + "</span>";
 
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
+
+    '<td class="idx"><span class="n">' + (i + 1) + '</span></td>' +
 
     '<td>' + stale + codeCell + "</td>" +
 
@@ -1596,7 +1650,7 @@ function render(){
 
   missCount = 0;
 
-  $("tbody").innerHTML = rows.map(rowHtml).join("");
+  $("tbody").innerHTML = rows.map((r, i) => rowHtml(r, i)).join("");
 
   fitCodeFont();                       // 行出来了才知道这一列多宽，再定代码字号
 
