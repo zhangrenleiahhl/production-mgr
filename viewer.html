@@ -62,9 +62,39 @@
 
   .wrap{max-width:1100px;margin:0 auto;padding:16px 14px 60px;}
 
-  header.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0 14px;}
+  /* ★ 2026-10-19 用户报「每次刷新时钟都会换位置」——根因是原来那行 justify-content:space-between：
 
+     时钟夹在「标题块」和「刷新按钮」之间，两侧空隙均分；而左边 #status 的文案长度每次刷新都在变
+
+     （共 200 个计划 / 共 8 个计划 / 后面还可能缀上归档条数 / 断网提示，实测漂移 225px），
+
+     标题块一变宽，均分出去的空隙就跟着变 → 时钟左右跑。
+
+
+     修法：不用 space-between 浮动，改成「标题块 flex:1 吃掉全部富余宽度，其余靠右排」。
+
+     这样时钟的left 只由头部总宽决定，跟 #status 文案多长彻底无关。
+
+     ★ 为什么不用 grid：brand.js 会往 header.top 里 append 一个 .brandLogo（logo 角标），
+       一旦写成固定列数的 grid，logo 就多占一列、被挤到第二行去（实测真浏览器就是这样）。
+
+       flex 对「有几个孩子」免疫 —— 以后再注入新元素也不会打乱排布。
+
+     窄屏（≤760px）本来就 display:none 掉了时钟，不受影响。 */
+  header.top{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin:10px 0 14px;}
+
+  /* ★ 标题块吃掉全部富余宽度：.sub 再长也只在自己这一块里省略，绝不反过来挤动时钟 */
+  header.top > div:first-child{flex:1 1 auto;min-width:0;}
+
+  header.top .sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* ★ 其余元素（时钟 / 刷新按钮 / brand.js 注入的 logo）一律不许被压缩 */
+  header.top > *{flex:0 0 auto;}
+
+  /* ★ 不许 flex 压缩 / 换行：时钟宽度恒定，位置才不会因为兄弟变化而抖动 */
   .clock{display:inline-flex;align-items:center;gap:10px;padding:6px 16px;border-radius:999px;
+
+    flex:0 0 auto;white-space:nowrap;
 
     background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
 
@@ -320,7 +350,8 @@
 
       <h1 data-page-node-id="9d77PK2Swkej7Th8UClaOh"><span class="dot" data-page-node-id="Yg2EuXltkLwNw9mMxFMSzL"></span>发货计划查看 <span class="tag" data-page-node-id="Mwu88Kz9CaTHUDbXsvpV1l">（发货员端）</span></h1>
 
-      <p class="sub" id="status" data-page-node-id="h0FB3IsConFNijxXo6gNZT">正在连接云端…</p>
+      <!-- ★ title：窄屏下 .sub 会走省略号，鼠标悬停仍要能读到完整文案（2026-10-19） -->
+      <p class="sub" id="status" title="正在连接云端…" data-page-node-id="h0FB3IsConFNijxXo6gNZT">正在连接云端…</p>
 
     </div>
 
@@ -832,6 +863,7 @@ async function load(manual){
     restoreCustTon();
     RECORDS = localList;
     $("status").textContent = `已显示本地缓存 · ${RECORDS.length} 个计划，正在连接云端…`;
+  $("status").title = $("status").textContent;   // ★ 省略号兜底：悬停能看全文
     render();
     applyProgressToDom();
     __lastFp = dataFingerprint(RECORDS);    // 记本地预览指纹，云端回来若没变就不重绘
@@ -938,6 +970,7 @@ async function load(manual){
     ? `⚠ 暂时连不上云端，显示的是上次的数据（${RECORDS.length} 个计划），会自动重试`
 
     : `已连接云端 · 共 ${RECORDS.length} 个计划 · 更新于 ${t}`;
+  $("status").title = $("status").textContent;         // ★ 同上：悬停看全文
 
   // 归档条数透明展示（2026-10-16：有用户看到"共 200 个计划"以为其他计划丢了——
   // 其实超出保留上限的老计划自动转归档，一条没少；把归档条数显示出来，别再让大家瞎猜）。
@@ -948,7 +981,7 @@ async function load(manual){
       try{
         var n = parseInt(localStorage.getItem("viewer_arch_cnt_v1") || "0", 10) || 0;
         var el = $("status");
-        if (n > 0 && el) el.textContent += `（更早的 ${n} 条已归档 · 发货计划系统→数据急救可查）`;
+        if (n > 0 && el){ el.textContent += `（更早的 ${n} 条已归档 · 发货计划系统→数据急救可查）`; el.title = el.textContent; }
       }catch(e){}
     };
     try{
