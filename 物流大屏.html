@@ -250,6 +250,52 @@
 
 
 
+  /* 序号列（2026-10-19 用户要求：「客户」左边加一列序号）
+
+     这一列**不承载业务数据**，只做行锚点：一眼数到第几行、横向扫视时不串行。
+
+     刻意做得很轻 —— 等宽数字、右对齐、跟着工序状态换色（复用行色，不新增颜色），
+
+     圆角小胶囊 + 极淡同色底。绝不能抢工序进度条和客户名的注意力。
+
+
+     ★ 行左色条（tr.stN td:first-child 的 inset 阴影）跟着这一格走 —— 它本来就在最左格，
+
+       序号列接管最左格后色条位置不变，老观感零变化（test_shippt_anim 的 first-child 契约也不用动）。
+
+
+     ★ 胶囊高度必须 ≤ 同行文字自然高度（下面 padding 只有 1px、line-height 1.25），
+
+       否则整行被顶高 —— 工序列 padding:0 那条规矩就是为了防这个。 */
+
+  thead th.idx{text-align:right;padding-right:10px;letter-spacing:0;}
+
+  tbody td.idx{padding-left:11px;padding-right:10px;text-align:right;
+
+    font-variant-numeric:tabular-nums;}
+
+  tbody td.idx .n{display:inline-block;min-width:1.75em;padding:1px 0;border-radius:6px;
+
+    font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+
+    font-size:.82em;font-weight:800;line-height:1.25;text-align:center;
+
+    color:var(--dim);background:rgba(148,163,184,.10);}
+
+  /* 序号跟着行状态换色：一行一行扫下来，今天这些活儿各自走到哪一步就出来了 */
+
+  tbody tr.st0 td.idx .n{color:#ff8f8f;background:rgba(255,93,93,.13);}
+
+  tbody tr.st1 td.idx .n{color:#6fd8e6;background:rgba(56,200,216,.13);}
+
+  tbody tr.st2 td.idx .n{color:#ffc978;background:rgba(255,180,84,.13);}
+
+  tbody tr.st3 td.idx .n{color:#79e7b4;background:rgba(61,220,151,.13);}
+
+  tbody tr.done td.idx .n{color:#8fe8c2;background:rgba(61,220,151,.09);}
+
+
+
   /* 每道工序一种颜色（左细条 + 极淡同色底），一眼分清走到哪一步：
 
      货待确认=红 · 货好=青 · 装货中=琥珀 · 已完成=绿（红只是标记，正文保持清晰） */
@@ -386,7 +432,7 @@
 
      四道工序四种液体：待确认红 · 货好青 · 装货中琥珀 · 已完成绿（与整行底色同一套色）。
 
-     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(5)，2026-09-23 物流列隐藏后工序回到第 5 格）：
+     ★ 这一格的上下内边距收到 0（见下面 tbody td:nth-child(6)，2026-10-19 加序号列后工序是第 6 格）：
 
        进度条自带高度，让它"吃自己的"内边距，整行高度仍由别的列说了算，
 
@@ -546,9 +592,11 @@
 
   /* 工序列上下内边距收到 0：进度条"吃自己的"内边距，不许把行顶高（门口/内部两屏同一口径）
 
-     ★ 2026-09-21 状态列删掉后曾是第 6 格；2026-09-23 物流列隐藏后又回到第 5 格 */
+     ★ 2026-09-21 状态列删掉后曾是第 6 格；2026-09-23 物流列隐藏后回到第 5 格；
 
-  tbody td:nth-child(5){padding-top:0;padding-bottom:0;}
+       2026-10-19 最左边加序号列 → 第 6 格 */
+
+  tbody td:nth-child(6){padding-top:0;padding-bottom:0;}
 
   @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after{animation:none;}}
 
@@ -696,7 +744,9 @@
 
     <table id="tbl">
 
-      <!-- 列序（2026-09-24 改：车辆列与工序更新列换位）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
+      <!-- 列序（2026-10-19 加：最左边新增一列窄「序号」，只做行锚点，不承载业务数据；
+
+           2026-09-24 改：车辆列与工序更新列换位）：状态列删掉（行色条已经说了工序状态，不再重复占一列）；
 
            「工序」「车辆」两个状态列相邻靠前，后面跟「品一质保书」；
 
@@ -704,15 +754,15 @@
 
       <colgroup>
 
-        <col style="width:16%"><col style="width:8%"><col style="width:7%">
+        <col style="width:5%"><col style="width:15%"><col style="width:7.5%"><col style="width:6.5%">
 
-        <col style="width:14%"><col style="width:16%"><col style="width:8%"><col style="width:8%"><col style="width:12%"><col style="width:11%">
+        <col style="width:13%"><col style="width:15.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:11%"><col style="width:11.5%">
 
       </colgroup>
 
       <thead><tr>
 
-        <th>客户</th><th>送达方代码</th><th>吨位</th>
+        <th class="idx">序号</th><th>客户</th><th>送达方代码</th><th>吨位</th>
 
         <th>单号</th><th>工序</th><th>车辆</th><th>品一质保书</th><th>工序更新</th><th>车辆更新</th>
 
@@ -1132,7 +1182,7 @@ function fitCustNames(){
 
   const tb = $("tbody"); if (!tb) return;
 
-  const list = tb.querySelectorAll("td:nth-child(1) .cust");   // ★ 2026-09-21 状态列删掉后，客户是第 1 格
+  const list = tb.querySelectorAll("td:nth-child(2) .cust");   // ★ 2026-10-19 加序号列后，客户是第 2 格
 
   // ★ 性能（2026-09-20）：原来每行「复位字号 → 量宽度」交错做，每行都强制一次同步重排
 
@@ -1272,7 +1322,7 @@ function fitUpdFont(){
 
   const tb = document.getElementById("tbody"); if (!tb) return;
 
-  const tds = tb.querySelectorAll("td:nth-child(8),td:nth-child(9)");
+  const tds = tb.querySelectorAll("td:nth-child(9),td:nth-child(10)");
 
   const tms = Array.prototype.map.call(tds, td => td.querySelector(".tm"));
 
@@ -1322,7 +1372,8 @@ function kpiHtml(s){
 
 
 
-function rowHtml(r){
+/* i = 这一行在当前排序里的序号（0 起）；只用来印行号，不参与任何业务判断。 */
+function rowHtml(r, i){
 
   const s = Math.min(3, r.s || 0);
 
@@ -1371,6 +1422,8 @@ function rowHtml(r){
   const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" + plCell + "</span>";
 
   return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
+
+    '<td class="idx"><span class="n">' + (i + 1) + '</span></td>' +
 
     '<td>' + stale + '<span class="cust">' + esc(r.customer) + '</span></td>' +
 
@@ -1450,7 +1503,7 @@ function render(){
 
   fitRows(rows.length);
 
-  $("tbody").innerHTML = rows.map(rowHtml).join("");
+  $("tbody").innerHTML = rows.map((r, i) => rowHtml(r, i)).join("");
 
   fitCustNames();                             // 行出来了才知道客户名列多宽，再定名字字号
 
