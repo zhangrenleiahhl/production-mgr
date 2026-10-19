@@ -30,7 +30,22 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261019c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20261019d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+/* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
+   DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
+   会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
+(function(){try{
+  var K="_blankwd_v1",n=0;
+  try{ n=parseInt(sessionStorage.getItem(K)||"0",10)||0; }catch(e){}
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(function(){
+      if(document.querySelector(".topbar")){ try{ sessionStorage.removeItem(K); }catch(e){} return; }
+      if(n>=2) return;
+      try{ sessionStorage.setItem(K,String(n+1)); }catch(e){}
+      location.reload();
+    },2500);
+  });
+}catch(e){}})();</script>
 <script>try{if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.addEventListener("controllerchange",function(){location.reload();});}}catch(e){}</script>
 
 <style>
