@@ -30,7 +30,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261019b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
+<script>var APP_VER="20261019c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();</script>
 <script>try{if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.addEventListener("controllerchange",function(){location.reload();});}}catch(e){}</script>
 
 <style>
@@ -6583,7 +6583,10 @@ function publish(){
     }).filter(Boolean));
     if(_dts.size > 1){
       const _list = [..._dts].sort();
-      alert("⚠ 一次只能发布【同一天】的发货计划。\n\n本次勾选了 "+checkedTrs.length+" 行，却涉及 "+_dts.size+" 个发货日期：\n\n  "+_list.join("\n  ")+"\n\n请只勾选同一天的行再发布；\n若想把不同日期的行统一改到同一天，可先点工具栏「📅 批量改日期」再发布。");
+      const _msg="一次只能发布【同一天】的发货计划。\n\n本次勾选了 "+checkedTrs.length+" 行，却涉及 "+_dts.size+" 个发货日期：\n\n  "+_list.join("\n  ")+"\n\n请只勾选同一天的行再发布；\n若想把不同日期的行统一改到同一天，可先点工具栏「📅 批量改日期」再发布。";
+      const _SL=window.ScanLib;
+      if(_SL && _SL.uiAlert) _SL.uiAlert(_msg, { title:"不能发布：日期不一致", icon:"🚫", okText:"知道了" });
+      else alert(_msg);
       return;
     }
   }
