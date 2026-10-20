@@ -10,6 +10,10 @@
 
 <title>发货计划查看 · 发货员端</title>
 
+<!-- 性能（2026-10-19）：提前与云端建立连接（DNS+TCP+TLS 握手），页面脚本就绪后发数据请求时不用再等握手（弱网下尤其明显） -->
+<link rel="preconnect" href="https://zxnxvbghsfwsikyncbus.supabase.co" crossorigin>
+<link rel="dns-prefetch" href="https://zxnxvbghsfwsikyncbus.supabase.co">
+
 <script src="supabase.min.js?v=lib"></script>
 
 <script src="cloud-config.js?v=20260920a"></script>
@@ -876,16 +880,62 @@ async function load(manual){
   if (csReady){
 
     /* 省流量（2026-10-12）：计划先查戳，没变就不下载全文（30 秒一轮，单次几百 KB 很可观） */
+
+    /* ★ 性能（2026-10-19）：三组数据（计划/进度/归档）的云端请求并行发起。
+       原来是「计划戳→计划值→进度戳→进度值→归档戳→归档值」一路串行 await，6 次往返约 1.7s；
+       现在三个戳同时探（1 次往返），再按需把三个全文拉取并行发（1 次往返），总等待约为原来的 1/3。
+       数据合并 / 缓存 / 戳写入 / 降级行为与原来完全一致。 */
+    var ARCH_KEY = "shipping_plans_archive_v1";
+    var pullStampSafe = function(k){
+      return CloudSync.pullStamp ? CloudSync.pullStamp(k).then(function(v){ return v; }, function(){ return null; }) : Promise.resolve(null);
+    };
+    var pStampPlan = pullStampSafe(KEY);
+    var pStampProg  = pullStampSafe(KEY_PROG);
+    var pStampArch  = pullStampSafe(ARCH_KEY);
+
+    // —— 计划：戳没变且本地缓存可信 → 跳过下载（手动刷新或坏缓存自愈时强制拉全文，见 scan-lib.planCacheSuspect）
     let planStamp = null;
-    try { planStamp = (CloudSync.pullStamp) ? await CloudSync.pullStamp(KEY) : null; } catch(e){ planStamp = null; }
-    // 手动刷新 或 本地缓存不可信 → 强制拉全文（坏缓存自愈，见 scan-lib.planCacheSuspect）
+    try { planStamp = await pStampPlan; } catch(e){ planStamp = null; }
     const stampHit = !!planStamp && localStorage.getItem("shipping_plans_stamp_v1") === planStamp;
     const forceFull = !!manual || (stampHit && !!(SL.planCacheSuspect && SL.planCacheSuspect()));
+    var pPlanVal = null;
     if (stampHit && !forceFull){
       ok = true; plansSkip = true;                    // 计划没变：沿用本地缓存
     } else {
+      pPlanVal = CloudSync.pullResult(KEY).then(function(r){ return r; }, function(){ return { ok:false, value:null }; });
+    }
+
+    // —— 进度（现场扫码写进来的，只读展示用）。拉不到也不算失败：进度没了不影响单据本身。
+    let progStamp = null, skipProg = false;
+    try { progStamp = await pStampProg; } catch(e){}
+    if (progStamp && localStorage.getItem("shipping_progress_stamp_v1") === progStamp) skipProg = true;
+    var pProgVal = null;
+    if (!skipProg){
+      pProgVal = CloudSync.pullResult(KEY_PROG).then(function(r){ return r; }, function(){ return { ok:false, value:null }; });
+    }
+
+    // —— 归档：戳没变就不下载全文；条数的展示延后到状态栏文案写完之后（否则会被覆盖）
+    var archPromise = pStampArch.then(function(st){
+      var old = null; try{ old = localStorage.getItem("viewer_arch_stamp_v1"); }catch(e){}
+      if (st && st === old) return null;              // 戳没变 → 展示阶段再读本地记的条数
+      return CloudSync.pullResult(ARCH_KEY).then(function(r){
+        var v = r && r.value;
+        var arr = Array.isArray(v) ? v : (v && Array.isArray(v.rows) ? v.rows : null);
+        if (arr){
+          try{
+            localStorage.setItem("viewer_arch_cnt_v1", String(arr.length));
+            if (st) localStorage.setItem("viewer_arch_stamp_v1", st);
+          }catch(e){}
+          return arr.length;
+        }
+        return null;                                  // 结构不对 → 沿用本地条数，且不写戳（下次还会重试，与原来一致）
+      }, function(){ return null; });                 // 拉取失败 → 沿用本地条数
+    });
+
+    // —— 计划/进度两组结果并行落地（两个请求早已同时在路上，这里只按原顺序处理，逻辑一字不差）
+    if (pPlanVal){
       try {
-        const r = await CloudSync.pullResult(KEY); ok = r.ok; list = r.value;
+        const r = await pPlanVal; ok = r.ok; list = r.value;
         if (r && r.ok && planStamp){ try { localStorage.setItem("shipping_plans_stamp_v1", planStamp); } catch(e){} }
         if (r && r.ok && Array.isArray(list)){
           if (SL.notePlanCloud) SL.notePlanCloud(list.length);
@@ -894,31 +944,15 @@ async function load(manual){
       } catch(e){}
     }
 
-    // 现场扫码写进来的进度（只读展示用）。拉不到也不算失败：进度没了不影响单据本身。
-
-    try {
-
-      let progStamp = null, skipProg = false;
-
-      if (CloudSync.pullStamp){ try { progStamp = await CloudSync.pullStamp(KEY_PROG); } catch(e){} }
-
-      if (progStamp && localStorage.getItem("shipping_progress_stamp_v1") === progStamp) skipProg = true;
-
-      if (!skipProg){
-
-        const rp = await CloudSync.pullResult(KEY_PROG);
-
+    if (pProgVal){
+      try {
+        const rp = await pProgVal;
         if (rp.ok && rp.value && typeof rp.value === "object"){
-
           PROG = mergeProg(PROG, rp.value);
-
           if (progStamp){ try { localStorage.setItem("shipping_progress_stamp_v1", progStamp); } catch(e){} }
-
         }
-
-      }
-
-    } catch(e){}
+      } catch(e){}
+    }
 
   } else {
 
@@ -975,33 +1009,20 @@ async function load(manual){
   // 归档条数透明展示（2026-10-16：有用户看到"共 200 个计划"以为其他计划丢了——
   // 其实超出保留上限的老计划自动转归档，一条没少；把归档条数显示出来，别再让大家瞎猜）。
   // 带 stamp 探针：归档极少变，戳没变就用本地记的条数，不重复下载。
+  // ★ 性能（2026-10-19）：戳与全文已在上方随计划/进度并行预取，这里只负责把结果拼到状态栏。
   (function(){
-    var ARCH_KEY = "shipping_plans_archive_v1";
-    var done = function(){
+    var done = function(n){
       try{
-        var n = parseInt(localStorage.getItem("viewer_arch_cnt_v1") || "0", 10) || 0;
         var el = $("status");
         if (n > 0 && el){ el.textContent += `（更早的 ${n} 条已归档 · 发货计划系统→数据急救可查）`; el.title = el.textContent; }
       }catch(e){}
     };
-    try{
-      if (!(window.CloudSync && CloudSync.ready())) { done(); return; }
-      CloudSync.pullStamp(ARCH_KEY).then(function(st){
-        var old = null; try{ old = localStorage.getItem("viewer_arch_stamp_v1"); }catch(e){}
-        if (st && st === old){ done(); return; }
-        return CloudSync.pullResult(ARCH_KEY).then(function(r){
-          var v = r && r.value;
-          var arr = Array.isArray(v) ? v : (v && Array.isArray(v.rows) ? v.rows : null);
-          if (arr){
-            try{
-              localStorage.setItem("viewer_arch_cnt_v1", String(arr.length));
-              if (st) localStorage.setItem("viewer_arch_stamp_v1", st);
-            }catch(e){}
-          }
-          done();
-        }).catch(done);
-      }).catch(done);
-    }catch(e){ done(); }
+    var localCnt = function(){ try{ return parseInt(localStorage.getItem("viewer_arch_cnt_v1") || "0", 10) || 0; }catch(e){ return 0; } };
+    if (archPromise){
+      archPromise.then(function(n){ done(n == null ? localCnt() : n); }, function(){ done(localCnt()); });
+    } else {
+      done(localCnt());                 // 没接云端 → 用本地记的条数
+    }
   })();
 
   // 上次改的吨位没能推上云（当时拉取失败）→ 这次拉取成功了才补传（拉不到就推是危险的）
