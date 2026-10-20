@@ -10,6 +10,10 @@
 
 <title>发货计划系统</title>
 
+<!-- 性能（2026-10-19）：提前与云端建立连接（DNS+TCP+TLS 握手），页面脚本就绪后发数据请求时不用再等握手（弱网下尤其明显） -->
+<link rel="preconnect" href="https://zxnxvbghsfwsikyncbus.supabase.co" crossorigin>
+<link rel="dns-prefetch" href="https://zxnxvbghsfwsikyncbus.supabase.co">
+
 <script src="supabase.min.js?v=lib"></script>
 
 <script src="cloud-config.js?v=20260920a"></script>
@@ -1700,13 +1704,16 @@ async function reconcileNow(manual){
 
   let recStamp = null;
 
+  /* ★ 性能（2026-10-19）：墓碑探针与计划戳并行发起（原来先等戳再拉墓碑，白等一个往返）。
+     墓碑在「戳没变 / 戳变了」两条路径里都要用，提前并行拉好，两条路共用同一个 promise。 */
+  var pDelCloud = CloudSync.pull(LS_DEL).then(function(v){ return v; }, function(){ return null; });
   if(CloudSync.pullStamp){ try{ recStamp = await CloudSync.pullStamp(LS_REC); }catch(e){ recStamp = null; } }
 
   if(!manual && recStamp && !isPending() && localStorage.getItem("shipping_plans_stamp_v1") === recStamp && !(window.ScanLib && window.ScanLib.planCacheSuspect && window.ScanLib.planCacheSuspect())){
 
     try{
 
-      const cd2 = await CloudSync.pull(LS_DEL);
+      const cd2 = await pDelCloud;
 
       if(Array.isArray(cd2) && cd2.length){
 
@@ -1750,7 +1757,7 @@ async function reconcileNow(manual){
 
   try{
 
-    const cd = await CloudSync.pull(LS_DEL);
+    const cd = await pDelCloud;
 
     if(Array.isArray(cd) && cd.length){
 
