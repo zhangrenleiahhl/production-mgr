@@ -146,15 +146,17 @@ window.CloudSync = (function () {
     if (!ready) { if (after) after(); return { failed: keys.slice(), ok: 0 }; }
     let keptLocal = false;
     const failed = [];
-    for (const k of keys) {
+    /* ★ 性能（2026-10-19）：多个键并行拉取（原来是 for 里一路 await，4 个键白等 3 个往返）。
+       每个键的合并/防覆盖/备份逻辑与原来完全一致，只是同时发起、各自落地。 */
+    await Promise.all(keys.map(async (k) => {
       const r0 = await pullResult(k);                          // ★ 用"自带结果"的拉取，避免并发拉取把失败状态洗掉
-      if (!r0.ok) { failed.push(k); continue; }                // 这次真的没拉到 → 算失败（绝不据此覆盖本机）
+      if (!r0.ok) { failed.push(k); return; }                  // 这次真的没拉到 → 算失败（绝不据此覆盖本机）
       const v = r0.value;
-      if (v === null) continue;                                // 云端确实还没有这条 → 不算失败
+      if (v === null) return;                                  // 云端确实还没有这条 → 不算失败
       const incoming = (typeof v === "string") ? v : JSON.stringify(v);
       const local = localStorage.getItem(k);
       if (local != null) {
-        if (local === incoming) continue;                       // 完全一致，省一次写
+        if (local === incoming) return;                        // 完全一致，省一次写
         // 合并模式：调用方自己决定怎么合（例如按 id 取并集），永不丢数据
         if (merge && typeof merge[k] === "function") {
           let merged = null;
@@ -163,18 +165,18 @@ window.CloudSync = (function () {
             try { localStorage.setItem(k + "__bak", local); } catch (e) {}
             try { localStorage.setItem(k, merged); } catch (e) {}
           }
-          continue;
+          return;
         }
         const ll = arrLen(local), cl = arrLen(incoming);
         if (!force && ll > 0 && cl >= 0 && cl * 100 < ll * 60) { // 云端不足本地的 60% → 判定为异常，保留本地
           try { localStorage.setItem(k + "__cloud", incoming); } catch (e) {}
           keptLocal = true;
-          continue;
+          return;
         }
         try { localStorage.setItem(k + "__bak", local); } catch (e) {}   // 覆盖前留底
       }
       try { localStorage.setItem(k, incoming); } catch (e) {}
-    }
+    }));
     if (keptLocal) setStatus("云端数据偏少，已保留本地", "warn");
     if (after) after();
     return { failed: failed, ok: keys.length - failed.length };
