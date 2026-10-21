@@ -35,10 +35,14 @@
     justify-content:space-between;align-items:center;}
   .who button{border:none;background:#fff;color:var(--brand);border-radius:8px;padding:6px 12px;
     font-size:12px;font-weight:700;cursor:pointer;}
+  .wx-tip{display:none;margin-bottom:16px;padding:12px 14px;border-radius:12px;
+    background:rgba(255,193,7,.14);border:1px solid rgba(255,193,7,.4);color:#ffd66b;font-size:13px;line-height:1.6;}
+  .wx-tip b{color:#ffe9a8;}
 </style>
 </head>
 <body>
   <div class="card">
+    <div class="wx-tip" id="wxTip"></div>
     <div class="brand">
       <img src="icon.svg" alt="海立铸运通">
       <div><div class="t1">海立铸运通</div><div class="t2">发货管理平台 · 账号登录</div></div>
@@ -68,6 +72,13 @@
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const back = params.get("redirect") || "index.html";
+  (function(){
+    if (/MicroMessenger/i.test(navigator.userAgent || "")) {
+      var t = document.getElementById("wxTip");
+      if (t) { t.style.display = "block";
+        t.innerHTML = "⚠ 你正在微信里打开，微信内置浏览器可能连不上云端。<br>请点右上角 <b>⋯</b> → 选 <b>在 Safari 中打开</b>，再用手机号+密码登录。"; }
+    }
+  })();
 
   (function init(){
     const s = (window.Auth && Auth.getSession && Auth.getSession()) || null;
@@ -91,7 +102,9 @@
     busy(true); err("");
     const r = await Auth.login(id, pw);
     busy(false);
-    if (!r.ok){ err(r.msg); return; }
+    if (!r.ok){ var m = r.msg;
+      if (/MicroMessenger/i.test(navigator.userAgent || "") && /网络连不上/.test(m)) m += "（微信内建议点右上角 ⋯ → 在 Safari 中打开）";
+      err(m); return; }
     location.href = back;
   }
   $("loginBtn").onclick = doLogin;
