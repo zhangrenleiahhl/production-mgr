@@ -669,7 +669,7 @@ let ME = "";   /* 当前操作人（分工权限按他算；每次 render 刷新
 
    发货进度默认只看自己发的单；下拉可随时切回「全部」或看别人发的。
 
-   选择按操作人分别记在本机（scan_pfilter_v1|姓名），换人登录互不干扰；其他人默认全部。
+   2026-10-23 定稿：每次打开/刷新都默认回「只看自己」；看别人要手动选，只在本次打开有效（不记住）。其他人默认全部。
 
    只影响显示，不影响工序写入/合并/加戳 —— 操作仍按记录键走，隐藏的单照常同步。 */
 
@@ -679,17 +679,15 @@ let PFilter = "", PFilterInit = "", PF_SIG = "";
 
 function initPFilter(){
 
-  const k = "scan_pfilter_v1|" + (ME || "");
+  const k = ME || "";
 
   if (PFilterInit === k) return;
 
   PFilterInit = k;
 
-  let saved = null;
+  /* 打开/刷新默认只看自己发的单；看别人是临时手动选，不落盘 */
 
-  try { saved = localStorage.getItem(k); } catch(e){}
-
-  PFilter = (saved != null) ? saved : ((ME && PLAN_DELIVERY.indexOf(ME) >= 0) ? ME : "");
+  PFilter = (ME && PLAN_DELIVERY.indexOf(ME) >= 0) ? ME : "";
 
 }
 
@@ -809,13 +807,11 @@ $("pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); 
 
 $("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").focus(); });
 
-/* 发布人筛选下拉：改动按操作人记在本机；重绘只在选项变化时才重建（别打断现场点选） */
+/* 发布人筛选下拉：只在本次打开有效（重开/刷新默认回自己）；重绘只在选项变化时才重建（别打断现场点选） */
 
 $("pfilterSel").addEventListener("change", (e) => {
 
   PFilter = e.target.value || "";
-
-  try { localStorage.setItem("scan_pfilter_v1|" + (ME || ""), PFilter); } catch(e){}
 
   lastFp = "";
 
