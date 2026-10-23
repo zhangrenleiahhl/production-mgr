@@ -362,6 +362,16 @@
 
     100%{box-shadow:0 1px 3px rgba(15,23,42,.06);background:#fff;}}
 
+  .pfilter{display:flex;align-items:center;gap:8px;padding:2px 0 8px;}
+
+  .plab{font-size:13px;color:#64748b;white-space:nowrap;}
+
+  .pfilter select{flex:0 1 auto;min-width:160px;max-width:100%;height:38px;border:1px solid var(--line);
+
+    border-radius:10px;background:#fff;color:#0f172a;font-size:14px;padding:0 10px;outline:none;}
+
+  .pfilter select:focus{border-color:#2563eb;}
+
 </style>
 
 <link rel="manifest" href="manifest.json">
@@ -447,6 +457,16 @@
   <!-- 登录后 -->
 
   <div id="app">
+
+    <div class="pfilter" id="pfilterWrap">
+
+      <span class="plab">只看：</span>
+
+      <select id="pfilterSel"></select>
+
+    </div>
+
+
 
     <div class="searchbar" id="searchWrap">
 
@@ -645,6 +665,36 @@ let ME = "";   /* 当前操作人（分工权限按他算；每次 render 刷新
 
 
 
+/* ===== 计划交付岗按「发布人」筛选（2026-10-23）：这 7 个人发的计划，
+
+   发货进度默认只看自己发的单；下拉可随时切回「全部」或看别人发的。
+
+   选择按操作人分别记在本机（scan_pfilter_v1|姓名），换人登录互不干扰；其他人默认全部。
+
+   只影响显示，不影响工序写入/合并/加戳 —— 操作仍按记录键走，隐藏的单照常同步。 */
+
+const PLAN_DELIVERY = ["陈昌平", "吴爱红", "贾春雷", "黄鑫", "周霞", "胡开龙", "赵兵"];
+
+let PFilter = "", PFilterInit = "", PF_SIG = "";
+
+function initPFilter(){
+
+  const k = "scan_pfilter_v1|" + (ME || "");
+
+  if (PFilterInit === k) return;
+
+  PFilterInit = k;
+
+  let saved = null;
+
+  try { saved = localStorage.getItem(k); } catch(e){}
+
+  PFilter = (saved != null) ? saved : ((ME && PLAN_DELIVERY.indexOf(ME) >= 0) ? ME : "");
+
+}
+
+
+
 /* 操作人姓名显示全：放不下就缩字号（12px→9px），绝不截断成「操…」 */
 
 function fitWho(){
@@ -758,6 +808,22 @@ $("doLogin").onclick = doLogin;
 $("pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
 $("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").focus(); });
+
+/* 发布人筛选下拉：改动按操作人记在本机；重绘只在选项变化时才重建（别打断现场点选） */
+
+$("pfilterSel").addEventListener("change", (e) => {
+
+  PFilter = e.target.value || "";
+
+  try { localStorage.setItem("scan_pfilter_v1|" + (ME || ""), PFilter); } catch(e){}
+
+  lastFp = "";
+
+  render();
+
+});
+
+
 
 $("logout").onclick = () => {
 
@@ -997,6 +1063,10 @@ function render(){
 
     $("sumTxt").textContent = "请先登录后再操作";
 
+
+
+    $("pfilterWrap").style.display = "none";
+
     lastFp = ""; rendered = false;
 
     return;
@@ -1007,13 +1077,57 @@ function render(){
 
   ME = who();                       // ★ 当前操作人：下面每一行的按钮都按他的分工来
 
-  ROWS = SL.boardRows(RECORDS, PROG, ONLY ? { onlyRec: ONLY } : {});
+  /* 计划交付岗：按发布人筛选（?d= 深链只看一张单时不做筛选，免得把这一单滤掉） */
+
+  initPFilter();
+
+  const pfNames = (function(){
+
+    const ns = [];
+
+    RECORDS.forEach(function(r){ const p = ((r && r.planner) || "").trim(); if (p && ns.indexOf(p) < 0) ns.push(p); });
+
+    if (ME && PLAN_DELIVERY.indexOf(ME) >= 0 && ns.indexOf(ME) < 0) ns.unshift(ME);
+
+    return ns;
+
+  })();
+
+  const recsF = (PFilter && !ONLY) ? RECORDS.filter(function(r){ return ((r && r.planner) || "").trim() === PFilter; }) : RECORDS;
+
+  ROWS = SL.boardRows(recsF, PROG, ONLY ? { onlyRec: ONLY } : {});
+
+
+
+  const pfOn = !!(session() && (pfNames.length >= 2 || PFilter || (ME && PLAN_DELIVERY.indexOf(ME) >= 0)));
+
+  const pfWrap = $("pfilterWrap");
+
+  if (pfWrap) pfWrap.style.display = pfOn ? "" : "none";
+
+  const pfSig = pfNames.join("\u0001") + "\u0002" + PFilter + "\u0002" + ME;
+
+  if (pfOn && pfSig !== PF_SIG){
+
+    PF_SIG = pfSig;
+
+    const cntOf = function(n){ return RECORDS.filter(function(r){ return ((r && r.planner) || "").trim() === n; }).length; };
+
+    $("pfilterSel").innerHTML = '<option value="">全部（' + RECORDS.length + ' 单）</option>' +
+
+      pfNames.map(function(n){ return '<option value="' + esc(n) + '">' + esc(n) + '（' + cntOf(n) + ' 单）</option>'; }).join("");
+
+  }
+
+  if ($("pfilterSel").value !== PFilter) $("pfilterSel").value = PFilter;
 
   const leftN = ROWS.filter(r => !r.done).length;
 
   $("sumTxt").innerHTML = "在屏 <b>" + ROWS.length + "</b> 趟 ｜ 没走完 <b>" + leftN + "</b> 趟" +
 
-    (ONLY ? " ｜ 只显示这一张单" : "");
+    (ONLY ? " ｜ 只显示这一张单" : "") +
+
+    (PFilter ? " ｜ 只看 <b>" + esc(PFilter) + "</b> 发的" : "");
 
 
 
@@ -1027,7 +1141,7 @@ function render(){
 
 
 
-  const fp = TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.bz, r.u, r.by].join(":")).join("|");
+  const fp = PFilter + "|" + TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.bz, r.u, r.by].join(":")).join("|");
 
   if (rendered && fp === lastFp) return;       // 内容没变就不重绘（别打断现场操作）
 
@@ -1047,7 +1161,7 @@ function render(){
 
   if (!ROWS.length){
 
-    $("list").innerHTML = '<div class="flag">今天没有要发的计划。<br>过一会儿再刷新看看。</div>';
+    $("list").innerHTML = '<div class="flag">' + (PFilter ? '「' + esc(PFilter) + '」发的计划没有在屏的。<br>点上面「只看」切回 <b>全部</b>，也能看别人发的。' : '今天没有要发的计划。<br>过一会儿再刷新看看。') + '</div>';
 
     return;
 
@@ -1055,7 +1169,7 @@ function render(){
 
   if (!show.length){
 
-    $("list").innerHTML = '<div class="flag">这个分类下暂时没有单。<br>点上面别的分类看看。</div>';
+    $("list").innerHTML = '<div class="flag">' + (PFilter ? '「' + esc(PFilter) + '」发的单里这个分类暂时没有。<br>点上面别的分类，或切回 <b>全部</b>。' : '这个分类下暂时没有单。<br>点上面别的分类看看。') + '</div>';
 
     return;
 
