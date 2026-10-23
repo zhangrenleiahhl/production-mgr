@@ -34,7 +34,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261023a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261023b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -1038,103 +1038,123 @@
 
   .pb-hit.on{display:inline-block;}
 
-  /* ===== 发货进度看板 UI 焕新 + 发布人筛选（2026-10-23）===== */
+  /* ===== 发货进度看板 UI v2（2026-10-23 配色/字体/字号精修）===== */
 
-  .prog-mask{background:rgba(15,23,42,.5);backdrop-filter:blur(3px);}
+  .prog-mask{background:rgba(15,23,42,.48);backdrop-filter:blur(4px);
 
-  .prog-mask .pb{border-radius:18px;box-shadow:0 32px 80px rgba(15,23,42,.4),0 2px 8px rgba(15,23,42,.18);border:1px solid rgba(255,255,255,.6);}
+    font-family:"HarmonyOS Sans SC","MiSans","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;}
 
-  .prog-mask .head{padding:15px 22px;gap:12px;background:linear-gradient(120deg,#eef4ff 0%,#f8faff 55%,#fff 100%);border-bottom:1px solid #e6ecf7;}
+  .prog-mask .pb{border-radius:18px;box-shadow:0 36px 90px rgba(11,22,44,.45),0 3px 10px rgba(11,22,44,.2);
 
-  .prog-mask .head .t{font-size:18px;font-weight:900;letter-spacing:.5px;
+    border:1px solid rgba(255,255,255,.65);}
 
-    background:linear-gradient(120deg,#1d4ed8,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .prog-mask .head{padding:13px 22px;gap:12px;
 
-  .prog-mask .head .t::before{content:"";display:inline-block;width:4px;height:16px;border-radius:3px;
+    background:linear-gradient(115deg,#eef3ff 0%,#f7faff 52%,#fdfeff 100%);border-bottom:1px solid #e4ebf7;}
 
-    background:linear-gradient(180deg,#3b82f6,#1d4ed8);margin-right:8px;vertical-align:-2px;}
+  .prog-mask .head .t{font-size:17px;font-weight:800;letter-spacing:1px;
 
-  .prog-mask .head .s{color:#64748b;}
+    background:linear-gradient(115deg,#1b3f9e,#2f6bf0);-webkit-background-clip:text;background-clip:text;color:transparent;}
 
-  .pb-body{padding:16px 22px 26px;background:#f6f8fc;}
+  .prog-mask .head .t::before{content:"";display:inline-block;width:4px;height:15px;border-radius:2px;
 
-  .pbone{border:1px solid #e5ebf5;border-radius:14px;margin-bottom:14px;overflow:hidden;background:#fff;
+    background:linear-gradient(180deg,#3f79f2,#1b3f9e);margin-right:8px;vertical-align:-1px;}
 
-    box-shadow:0 1px 2px rgba(15,23,42,.04),0 10px 28px rgba(15,23,42,.06);transition:box-shadow .18s;}
+  .prog-mask .head .s{color:#7a8aa8;font-size:11.5px;}
 
-  .pbone:hover{box-shadow:0 2px 6px rgba(15,23,42,.06),0 14px 36px rgba(15,23,42,.1);}
+  .pb-body{padding:14px 22px 24px;background:#eef2f9;}
 
-  .pbone.full{border-color:#b7e4cf;background:linear-gradient(180deg,#f3fffa,#fff);}
+  .pbone{border:1px solid #e3e9f4;border-radius:13px;margin-bottom:12px;overflow:hidden;background:#fff;
 
-  .pbone .ph{padding:12px 16px;background:linear-gradient(120deg,#f7f9fe,#fff);border-bottom:1px solid #eef2f9;}
+    box-shadow:0 1px 2px rgba(19,33,68,.05),0 8px 22px rgba(19,33,68,.05);transition:box-shadow .18s;}
 
-  .pbone.full .ph{background:linear-gradient(120deg,#ecfdf5,#f7fffb);}
+  .pbone:hover{box-shadow:0 2px 6px rgba(19,33,68,.07),0 14px 32px rgba(19,33,68,.09);}
 
-  .pbone .ph b{font-size:15.5px;font-weight:900;letter-spacing:.3px;font-variant-numeric:tabular-nums;}
+  .pbone.full{border-color:#bfe7d2;background:linear-gradient(180deg,#f2fbf6,#fff);}
 
-  .pbone .ph .pl{background:#eef2ff;color:#4338ca;border-radius:999px;padding:1px 10px;font-size:11.5px;font-weight:700;margin-left:6px;}
+  .pbone .ph{padding:10px 14px;background:linear-gradient(115deg,#f6f9ff,#fff);border-bottom:1px solid #edf1f8;}
 
-  .pbone .ph .daytag{border-radius:999px;padding:2px 10px;font-size:11px;letter-spacing:.3px;}
+  .pbone.full .ph{background:linear-gradient(115deg,#ecfaf2,#f6fdf9);}
 
-  .pbone .ph .m{font-size:12px;color:#7c8aa5;margin-top:3px;}
+  .pbone .ph b{font-size:14px;font-weight:800;letter-spacing:.4px;color:#16233a;font-variant-numeric:tabular-nums;}
 
-  .pbstat{font-size:12.5px;font-weight:800;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;
+  .pbone .ph .pl{background:#e9eefc;color:#33419d;border-radius:999px;padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px;}
 
-    border-radius:999px;padding:3px 12px;white-space:nowrap;}
+  .pbone .ph .daytag{border-radius:999px;padding:1px 9px;font-size:10.5px;font-weight:800;letter-spacing:.4px;}
 
-  .pbstat.ok{color:#047857;background:#ecfdf5;border-color:#a7f3d0;}
+  .pbone .ph .m{font-size:11px;color:#8593b0;margin-top:2px;font-variant-numeric:tabular-nums;}
 
-  table.pbt2{font-size:13px;}
+  .pbstat{font-size:11.5px;font-weight:800;color:#a3620c;background:#fff6e6;border:1px solid #f2ddb2;
 
-  table.pbt2 th{background:linear-gradient(180deg,#f4f7ff,#eef3fd);color:#334155;font-weight:800;
+    border-radius:999px;padding:2px 11px;white-space:nowrap;font-variant-numeric:tabular-nums;}
 
-    padding:9px 14px;letter-spacing:.4px;border-bottom:1px solid #e2e9f5;}
+  .pbstat.ok{color:#0b7a52;background:#e9f8f0;border-color:#bde6cd;}
 
-  table.pbt2 td{padding:10px 14px;border-top:1px solid #eef2f8;}
+  table.pbt2{font-size:12px;}
 
-  table.pbt2 tbody tr:hover td{background:#f7faff;}
+  table.pbt2 th{background:linear-gradient(180deg,#f2f6fe,#eaf0fb);color:#43537a;font-weight:800;
 
-  .pbcx{border-radius:999px;padding:4px 12px;font-size:12px;border:1px solid #f3c1c1;background:#fff1f1;
+    padding:7px 12px;letter-spacing:.6px;border-bottom:1px solid #dfe7f4;}
 
-    color:#dc2626;font-weight:800;transition:.15s;box-shadow:0 1px 2px rgba(220,38,38,.08);}
+  table.pbt2 td{padding:8px 12px;border-top:1px solid #edf1f8;color:#2b3a55;line-height:1.55;}
 
-  .pbcx:hover{background:#ffe1e1;transform:translateY(-1px);}
+  table.pbt2 tbody tr:hover td{background:#f4f8ff;}
 
-  .pbcx.undo{border-color:#d8dee9;background:#f8fafc;color:#5b6b7f;}
+  table.pbt2 td.n{font-variant-numeric:tabular-nums;font-weight:600;color:#16233a;}
 
-  .rdy{border-radius:999px;padding:2px 10px;font-size:11.5px;letter-spacing:.2px;}
+  table.pbt2 td.t{color:#8593b0;font-size:11px;}
 
-  .pbrdy{border-radius:999px;padding:4px 12px;font-size:12px;border:1px solid #b2e6c4;background:#f2fdf6;
+  .pbcx{border-radius:999px;padding:3px 11px;font-size:11.5px;border:1px solid #f0c0c0;background:#fff1f1;
 
-    color:#15803d;font-weight:800;transition:.15s;}
+    color:#d43c3c;font-weight:700;transition:.15s;}
 
-  .pbrdy:hover{background:#e3f9ec;transform:translateY(-1px);}
+  .pbcx:hover{background:#ffe3e3;transform:translateY(-1px);}
 
-  .pbrdy.undo{border-color:#d8dee9;background:#f8fafc;color:#5b6b7f;}
+  .pbcx.undo{border-color:#d5dde9;background:#f5f8fd;color:#5a6b86;}
 
-  .pbq{height:32px;border-radius:10px;border:1px solid #d9e1ef;}
+  .rdy{border-radius:999px;padding:1px 9px;font-size:11px;font-weight:800;letter-spacing:.2px;}
 
-  .pbq:focus{border-color:#7db3ff;box-shadow:0 0 0 3px rgba(96,165,250,.22);}
+  .pbrdy{border-radius:999px;padding:3px 11px;font-size:11.5px;border:1px solid #aee0c0;background:#f0fbf5;
 
-  .pbpf{height:32px;min-width:150px;max-width:220px;border-radius:10px;border:1px solid #d9e1ef;
+    color:#0e8454;font-weight:700;transition:.15s;}
 
-    background:#fff;color:#1e293b;font-size:12.5px;padding:0 10px;outline:none;}
+  .pbrdy:hover{background:#e2f7ea;transform:translateY(-1px);}
 
-  .pbpf:focus{border-color:#7db3ff;box-shadow:0 0 0 3px rgba(96,165,250,.22);}
+  .pbrdy.undo{border-color:#d5dde9;background:#f5f8fd;color:#5a6b86;}
 
-  /* 进度胶囊：scan-lib 注入的 PILL_CSS 在运行时才挂，用两层选择器压过它（只影响本弹窗） */
+  .rdytime .lb{font-size:10.5px;color:#8593b0;}
 
-  .prog-mask .p-pill{font-size:11.5px;font-weight:800;padding:3px 12px;border-radius:999px;
+  input.pbrt{font-size:11px;padding:2px 5px;border:1px solid #d4dded;border-radius:7px;background:#fff;}
 
-    letter-spacing:.3px;box-shadow:0 1px 2px rgba(15,23,42,.08);}
+  .pbclr{font-size:10.5px;border-color:#e2e8f2;background:#fff;color:#7a8aa8;}
 
-  .prog-mask .p-pill.p-wait{background:#e2e8f0;color:#475569;}
+  .pbq{height:30px;border-radius:10px;border:1px solid #d4dded;font-size:12.5px;}
 
-  .prog-mask .p-pill.p-ok{background:#dbeafe;color:#1d4ed8;}
+  .pbq:focus{border-color:#6f9df2;box-shadow:0 0 0 3px rgba(87,134,246,.2);}
 
-  .prog-mask .p-pill.p-mid{background:#fef3c7;color:#b45309;}
+  .pbpf{height:30px;min-width:150px;max-width:220px;border-radius:10px;border:1px solid #d4dded;
 
-  .prog-mask .p-pill.p-done{background:#dcfce7;color:#15803d;}
+    background:#fff;color:#22304c;font-size:12px;padding:0 10px;outline:none;}
+
+  .pbpf:focus{border-color:#6f9df2;box-shadow:0 0 0 3px rgba(87,134,246,.2);}
+
+  .pb-legend{font-size:11px;color:#8593b0;}
+
+  .pb-empty{color:#7a8aa8;}
+
+  /* 进度胶囊：两层选择器压过 scan-lib 运行时注入的 PILL_CSS（只影响本弹窗） */
+
+  .prog-mask .p-pill{font-size:10.5px;font-weight:800;padding:2px 10px;border-radius:999px;
+
+    letter-spacing:.3px;font-variant-numeric:tabular-nums;}
+
+  .prog-mask .p-pill.p-wait{background:#e8edf5;color:#5b6b84;}
+
+  .prog-mask .p-pill.p-ok{background:#dfe9ff;color:#2b5fd9;}
+
+  .prog-mask .p-pill.p-mid{background:#fbf0d3;color:#a3620c;}
+
+  .prog-mask .p-pill.p-done{background:#d8f2e4;color:#0b7a52;}
 
 </style>
 
