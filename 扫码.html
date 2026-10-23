@@ -669,25 +669,31 @@ let ME = "";   /* 当前操作人（分工权限按他算；每次 render 刷新
 
    发货进度默认只看自己发的单；下拉可随时切回「全部」或看别人发的。
 
-   2026-10-23 定稿：每次打开/刷新都默认回「只看自己」；看别人要手动选，只在本次打开有效（不记住）。其他人默认全部。
+   2026-10-23 定稿：每次打开/刷新默认回「只看自己」；看别人要手动选，只在本次打开有效（不记住）。不发计划的人默认全部。
 
    只影响显示，不影响工序写入/合并/加戳 —— 操作仍按记录键走，隐藏的单照常同步。 */
 
 const PLAN_DELIVERY = ["陈昌平", "吴爱红", "贾春雷", "黄鑫", "周霞", "胡开龙", "赵兵"];
 
-let PFilter = "", PFilterInit = "", PF_SIG = "";
+let PFilter = "", PFTouched = false, PF_SIG = "";
 
-function initPFilter(){
+function defaultPFilter(){
 
-  const k = ME || "";
+  if (!ME) return "";
 
-  if (PFilterInit === k) return;
+  /* ① 计划交付岗 7 人：默认只看自己发的单；
 
-  PFilterInit = k;
+     ② 其他人只要当前数据里确实发过计划（老板/计划员等），同样默认只看自己；
 
-  /* 打开/刷新默认只看自己发的单；看别人是临时手动选，不落盘 */
+     ③ 从不发计划的人（发货员/质保书等）默认全部，免得打开是空屏没法干活。
 
-  PFilter = (ME && PLAN_DELIVERY.indexOf(ME) >= 0) ? ME : "";
+     手动切换不落盘，刷新/重开回默认。 */
+
+  if (PLAN_DELIVERY.indexOf(ME) >= 0) return ME;
+
+  const has = RECORDS.some(function(r){ return ((r && r.planner) || "").trim() === ME; });
+
+  return has ? ME : "";
 
 }
 
@@ -812,6 +818,8 @@ $("uid").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pwd").fo
 $("pfilterSel").addEventListener("change", (e) => {
 
   PFilter = e.target.value || "";
+
+  PFTouched = true;
 
   lastFp = "";
 
@@ -1075,7 +1083,7 @@ function render(){
 
   /* 计划交付岗：按发布人筛选（?d= 深链只看一张单时不做筛选，免得把这一单滤掉） */
 
-  initPFilter();
+  if (!PFTouched) PFilter = defaultPFilter();
 
   const pfNames = (function(){
 
