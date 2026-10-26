@@ -34,7 +34,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261023c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261026a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -677,6 +677,14 @@
   .col-subton{color:var(--purple-d);font-weight:700;background:#f6f8fa;border:1px solid #000;border-radius:0;text-align:center;vertical-align:middle;}
 
   .col-subton.merged-cell{padding:0!important;vertical-align:middle;background:#f6f8fa;text-align:center;}
+
+  /* 「时效要求」组内不一致：逐行显示各自真值 + 橙色标记（合并会掩盖差异 → 容易出错） */
+
+  .col-remark.remark-diff{background:#fff7e6;box-shadow:inset 3px 0 0 #f59e0b;}
+
+  .col-remark.remark-diff textarea{background:#fff7e6;}
+
+  .col-remark.remark-diff textarea:focus{background:#fff;border-color:var(--purple);}
 
   /* 「客户吨位」单元格：输入框 + 恢复按钮（仅在手填过时出现，样式同箱子重量T） */
 
@@ -3395,6 +3403,12 @@ function applyCustomerToRow(tr, cust, overwrite){
 
   if(!custInp) return;
 
+  // ★ 记住改之前的客户与旧车组的时效要求：换了车才知道该把哪一个值带过去
+
+  const _oldKey=remarkKeyOf(tr);
+
+  const _oldVals=remarkScan(remarkPeersByKey(_oldKey,tr)).vals;
+
   // 换客户名时把这行的车号原样带回来（原本是第二车就别写成第一车），随后由 carTick 复核
 
   if(overwrite===true || !custInp.value.trim()) custInp.value=custName(cust, carNo(custInp.value));   // 粘贴并确认选择时允许覆盖；其余情况保留已有手填值
@@ -3414,6 +3428,10 @@ function applyCustomerToRow(tr, cust, overwrite){
   }
 
   carTick(tr);        // 送达方带出来了 → 判定这一天的第几车
+
+  // ★ 改型号带出了新客户 → 换车了：时效要求跟着新车组同步（旧车组继承来的值要换成新车组的）
+
+  remarkAdoptNewCar(tr,_oldKey,_oldVals);
 
 }
 
@@ -4016,7 +4034,37 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
   });
 
-  tr.querySelector('[data-f="remark"]').addEventListener("input", ()=>scheduleRefresh(mergeCustomerCells, saveDraft));
+  tr.querySelector('[data-f="remark"]').addEventListener("input", ()=>{
+
+    // ★ 改的是「合并格」（代表整组）→ 同步整组：编辑页所见 = 落库 = 发布 = 查看页，
+
+    //   不会再出现「只改到首行、别的行还留着旧值」的不同步（改型号合并后同样同步）。
+
+    const _R=rowRefs(tr);
+
+    const _v=_R.remark?String(_R.remark.value):"";
+
+    if(_R.cellRemark && _R.cellRemark.classList.contains("merged-cell") && _R.cellRemark.rowSpan>1){
+
+      const _fol=remarkFollowers(tr);
+
+      for(let i=0;i<_fol.length;i++){
+
+        const Rx=rowRefs(_fol[i]);
+
+        if(!Rx.remark) continue;
+
+        if(String(Rx.remark.value||"")===_v) continue;
+
+        Rx.remark.value=_v;
+
+      }
+
+    }
+
+    scheduleRefresh(mergeCustomerCells, saveDraft);
+
+  });
 
   ["model"].forEach(k=>{
 
@@ -5126,9 +5174,209 @@ function unmergeRow(tr){
 
     const c=cells[i];
 
-    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
+    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.classList.remove("remark-diff"); c.removeAttribute("title"); c.style.height=""; }
 
   }
+
+}
+
+// ===================== 「时效要求」组内一致性（2026-10-26）=====================
+
+// 背景：过去「时效要求」与「客户」一起做 rowspan 合并，组内只显示首行的值：
+
+//   ① 组内各行本来不同的到货要求被合并掩盖，肉眼看不出来（同一客户同一天、不同交货单，到货时间可以不同）；
+
+//   ② 改合并格只写到首行 → 其余行还留着旧值 → 编辑页 / 发布 / 查看页 三处对不上（容易出错）。
+
+// 现在口径（与发布端 remarkMap 完全一致）：
+
+//   · 组内各行时效要求一致 → 合并成一格显示；改这格 = 改整组（同步写回全组）；
+
+//     组内空行也补成同一个值 → 编辑页所见 = 落库 = 发布 = 查看页。
+
+//   · 组内出现不同的到货要求 → 绝不合并，逐行显示各自真值 + 橙色标记提示核对。
+
+//   · 换车（客户变了）→ 时效要求跟着新车组同步：继承旧车组的值跟着走，单独填的保留。
+
+let __remarkMap={};             // key（客户|发货日期）→ 组内全部数据行（DOM 顺序，含折叠/筛选隐藏行）
+
+let __remarkPrev=new Map();     // 行 → 上一轮的车组上下文 {key, val}：换车时判断「这值是不是继承来的」
+
+let __remarkFilled=false;       // 本轮是否补写过空值（补空后要落盘，保证「编辑页所见 = 落库」）
+
+function remarkKeyOf(tr){
+
+  const R=rowRefs(tr);
+
+  const cust=((R.customer&&R.customer.value)||"").trim();
+
+  const date=((R.shipdate&&R.shipdate.value)||"").trim();
+
+  return (cust&&date)?(cust+"|"+date):"";
+
+}
+
+// 组内全部数据行（同一客户+同一发货日期 = 同一辆车）
+
+function remarkRowsByKey(key){
+
+  if(!key) return [];
+
+  return __remarkMap[key]||[];
+
+}
+
+// 实时按 key 找同组行（不看缓存）：给「换车同步」用
+
+function remarkPeersByKey(key, self){
+
+  const out=[];
+
+  if(!key) return out;
+
+  const kids=[...$("tbody").children].filter(isDataRow);
+
+  for(let i=0;i<kids.length;i++){
+
+    if(kids[i]===self) continue;
+
+    if(remarkKeyOf(kids[i])===key) out.push(kids[i]);
+
+  }
+
+  return out;
+
+}
+
+// 扫一组行的时效要求 → {vals:各不相同的非空值, first:首个非空值}
+
+function remarkScan(rows){
+
+  const vals=[]; let first="";
+
+  for(let i=0;i<rows.length;i++){
+
+    const R=rowRefs(rows[i]);
+
+    const v=((R.remark&&R.remark.value)||"").trim();
+
+    if(!v||v==="/") continue;
+
+    if(vals.indexOf(v)<0) vals.push(v);
+
+    if(!first) first=v;
+
+  }
+
+  return {vals:vals, first:first};
+
+}
+
+// 只把组内「空」的行补成同一个值，绝不覆盖已有的不同值（与发布端 remarkMap 兜底同口径）
+
+function remarkFillEmpty(rows,V){
+
+  if(!V) return false;
+
+  let ch=false;
+
+  for(let i=0;i<rows.length;i++){
+
+    const R=rowRefs(rows[i]);
+
+    if(!R.remark) continue;
+
+    const cur=(R.remark.value||"").trim();
+
+    if(cur && cur!=="/") continue;
+
+    if(cur===V) continue;
+
+    R.remark.value=V; ch=true;
+
+  }
+
+  if(ch) __remarkFilled=true;
+
+  return ch;
+
+}
+
+// 被合并格代表的那一整组（改合并格 = 改整组，折叠/筛选隐藏的行一起改）
+
+function remarkFollowers(tr){
+
+  const key=remarkKeyOf(tr);
+
+  if(!key) return [];
+
+  return remarkPeersByKey(key, tr);
+
+}
+
+// 换车同步（通用路径：客户一变就生效，改型号/手动改客户都走这里）
+
+//   本行空 → 取新车组的值；本行是继承旧车组的值 → 换成新车组的值；本行是单独填的 → 保留
+
+function remarkAdoptMoved(tr, newKey, prev){
+
+  const peers=remarkPeersByKey(newKey, tr);
+
+  if(!peers.length) return;
+
+  const s=remarkScan(peers);
+
+  if(s.vals.length!==1 || !s.first) return;   // 新组本身就五花八门/没填 → 不动，留给用户核对
+
+  const R=rowRefs(tr);
+
+  if(!R.remark) return;
+
+  const cur=((R.remark.value||"").trim());
+
+  if(cur && cur!=="/"){
+
+    if(!prev || !prev.val || cur!==prev.val) return;   // 本行是单独填的 → 保留
+
+  }
+
+  if(cur===s.first) return;
+
+  R.remark.value=s.first;
+
+}
+
+// 换车同步（applyCustomerToRow 路径：改型号自动带出客户时）
+
+function remarkAdoptNewCar(tr, oldKey, oldVals){
+
+  const newKey=remarkKeyOf(tr);
+
+  if(!newKey || newKey===oldKey) return;
+
+  const peers=remarkPeersByKey(newKey, tr);
+
+  if(!peers.length) return;
+
+  const s=remarkScan(peers);
+
+  if(s.vals.length!==1 || !s.first) return;
+
+  const R=rowRefs(tr);
+
+  if(!R.remark) return;
+
+  const cur=((R.remark.value||"").trim());
+
+  if(cur && cur!=="/"){
+
+    if(!oldKey || !oldVals || oldVals.length===0 || oldVals.indexOf(cur)<0) return;   // 单独填的 → 保留
+
+  }
+
+  if(cur===s.first) return;
+
+  R.remark.value=s.first;
 
 }
 
@@ -5145,6 +5393,56 @@ function mergeCustomerCells(){
   // 按「客户+发货日期」分组，合并客户、时效要求、客户吨位合计三列；基于全部数据行合并
 
   const allRows=[...$("tbody").children].filter(isDataRow);
+
+  // ★ 「时效要求」组索引（同一客户+同一发货日期 = 同一辆车）：与发布端 remarkMap 同范围（全部数据行）
+
+  __remarkMap={};
+
+  for(let i=0;i<allRows.length;i++){
+
+    const k=remarkKeyOf(allRows[i]);
+
+    if(!k) continue;
+
+    if(!__remarkMap[k]) __remarkMap[k]=[];
+
+    __remarkMap[k].push(allRows[i]);
+
+  }
+
+  // ★ 换车同步：这一行换到了另一辆车（客户变了）→ 时效要求跟着新车组走
+
+  //   （继承旧车组的值 → 换成新车组的值；单独填的 → 保留；新车组五花八门 → 不动，只标差异让用户核对）
+
+  for(let i=0;i<allRows.length;i++){
+
+    const tr=allRows[i];
+
+    const k=remarkKeyOf(tr);
+
+    if(!k) continue;
+
+    const _prev=__remarkPrev.get(tr);
+
+    if(!_prev || !_prev.key || _prev.key===k) continue;
+
+    remarkAdoptMoved(tr, k, _prev);
+
+  }
+
+  // ★ 组内空行按「组内首个非空值」补齐（= 发布端 remarkMap 兜底口径）
+
+  //   → 编辑页所见 = 落库 = 发布 = 查看页，不会再出现「这里空、那里有值」的错位
+
+  for(const _k in __remarkMap){
+
+    const _grp=__remarkMap[_k];
+
+    const _s=remarkScan(_grp);
+
+    if(_s.first) remarkFillEmpty(_grp, _s.first);
+
+  }
 
   // 1) 清除所有数据行的合并状态
 
@@ -5168,7 +5466,7 @@ function mergeCustomerCells(){
 
     const r=R.cellRemark;
 
-    if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); r.style.height=""; }
+    if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); r.classList.remove("remark-diff"); r.removeAttribute("title"); r.style.height=""; }
 
     const sub=R.cellSubton;
 
@@ -5304,11 +5602,33 @@ function mergeCustomerCells(){
 
       if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
 
-      // 时效要求列与客户列保持同组合并：同一客户+同一日期下自动合并，只显示首行时效要求
-
-      if(r){ r.rowSpan=len; r.classList.add("merged-cell"); }
-
       if(subCell) subCell.rowSpan=len;
+
+      // ★★ 「时效要求」：**整组**一致才合并（改这一格 = 改整组）；不一致就逐行显示各自真值（绝不掩盖差异）
+
+      const _key=remarkKeyOf(rows[i]);
+
+      const _grp=remarkRowsByKey(_key);
+
+      const _scan=remarkScan(_grp.length?_grp:rows.slice(i,j));
+
+      const _bSame=(_scan.vals.length<=1);
+
+      const _bTip="本组各行时效要求不一致，已逐行显示，请核对后统一";
+
+      if(r){
+
+        if(_bSame){
+
+          r.rowSpan=len; r.classList.add("merged-cell"); r.classList.remove("remark-diff"); r.removeAttribute("title");
+
+        }else{
+
+          r.rowSpan=1; r.classList.remove("merged-cell"); r.classList.add("remark-diff"); r.title=_bTip;
+
+        }
+
+      }
 
       for(let k=i+1;k<j;k++){
 
@@ -5318,7 +5638,23 @@ function mergeCustomerCells(){
 
         if(c2 && c2.style.display!=="none"){ c2.style.display="none"; c2.rowSpan=1; }
 
-        if(r2 && r2.style.display!=="none"){ r2.style.display="none"; r2.rowSpan=1; }
+        if(r2){
+
+          if(_bSame){
+
+            if(r2.style.display!=="none"){ r2.style.display="none"; r2.rowSpan=1; }
+
+            r2.classList.remove("remark-diff"); r2.removeAttribute("title");
+
+          }else{
+
+            r2.rowSpan=1; if(r2.style.display==="none") r2.style.display="";
+
+            r2.classList.add("remark-diff"); r2.title=_bTip;
+
+          }
+
+        }
 
         if(s2 && s2.style.display!=="none"){ s2.style.display="none"; s2.rowSpan=1; }
 
@@ -5333,6 +5669,28 @@ function mergeCustomerCells(){
   }
 
   fitTextareas();
+
+  // 记录本轮每行的「车组上下文」：下一轮若这一行换了车，就知道它的值是不是继承来的
+
+  __remarkPrev.clear();
+
+  for(let i=0;i<allRows.length;i++){
+
+    const tr=allRows[i];
+
+    const k=remarkKeyOf(tr);
+
+    let gv="";
+
+    if(k){ const _g=remarkRowsByKey(k); const _s=remarkScan(_g); gv=_s.first||""; }
+
+    __remarkPrev.set(tr, {key:k, val:gv});
+
+  }
+
+  // 补写过空值 → 立刻落盘（保证「编辑页所见 = 落库」，不留半截状态）
+
+  if(__remarkFilled){ __remarkFilled=false; saveDraft(); }
 
   } finally { __merging = false; }
 
@@ -6843,51 +7201,43 @@ function publish(){
 
   // 兼容合并单元格：按「送达方|发货日期」取组内首个非空时效要求作为该组合规值
 
+  // ★ 与编辑页完全同口径：全表同一个 key 的所有行一起看（不再只看连续的一段，也不受折叠/筛选隐藏影响）
+
   const remarkMap={};
 
   (function(){
 
-    let i=0;
+    const _allRows=[...$("tbody").children].filter(isDataRow);
 
-    while(i<visRows.length){
+    for(let i=0;i<_allRows.length;i++){
 
-      const first=visRows[i];
+      const cust=(_allRows[i].querySelector('[data-f="customer"]')?.value||"").trim();
 
-      const cust=(first.querySelector('[data-f="customer"]')?.value||"").trim();
+      const date=(_allRows[i].querySelector('[data-f="shipdate"]')?.value||"").trim();
 
-      const date=(first.querySelector('[data-f="shipdate"]')?.value||"").trim();
-
-      if(!cust){ i++; continue; }
+      if(!cust){ continue; }
 
       const key=cust+"|"+date;
 
-      let j=i+1;
-
-      while(j<visRows.length){
-
-        const c2=(visRows[j].querySelector('[data-f="customer"]')?.value||"").trim();
-
-        const d2=(visRows[j].querySelector('[data-f="shipdate"]')?.value||"").trim();
-
-        if(c2+"|"+d2!==key) break;
-
-        j++;
-
-      }
+      if(remarkMap[key]!==undefined) continue;
 
       let remark="";
 
-      for(let k=i;k<j;k++){
+      for(let k=0;k<_allRows.length;k++){
 
-        const v=(visRows[k].querySelector('[data-f="remark"]')?.value||"").trim();
+        const c2=(_allRows[k].querySelector('[data-f="customer"]')?.value||"").trim();
+
+        const d2=(_allRows[k].querySelector('[data-f="shipdate"]')?.value||"").trim();
+
+        if(c2+"|"+d2!==key) continue;
+
+        const v=(_allRows[k].querySelector('[data-f="remark"]')?.value||"").trim();
 
         if(v && v!=="/"){ remark=v; break; }
 
       }
 
       remarkMap[key]=remark;
-
-      i=j;
 
     }
 
