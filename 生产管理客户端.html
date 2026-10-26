@@ -149,13 +149,29 @@
   const OWN_PREFIX=["shipping_","order_mgmt_"];
   const OWN_KEYS=["last_client_tab","last_backup","auto_backup"];
   const LEGACY_KEYS={"shipping_schedule_v1":1};
-  const REDUNDANT_KEYS={
-    "shipping_db_v1__bak":1,"shipping_db_v1_bak":1,"shipping_db_v1__cloud":1,"shipping_db_v1_cloud":1,
-    "shipping_plans_v1__bak":1,"shipping_plans_v1_bak":1,"shipping_plans_v1__cloud":1,"shipping_plans_v1_cloud":1,
-    "shipping_plans_archive_v1__bak":1,"shipping_draft_v1__bak":1,"shipping_custton_v1__bak":1
-  };
+  // ★ 冗余留底的识别口径（2026-10-26）：与发货计划页、数据急救页完全同一套
+  //   「后缀 + 基础键属于本系统」—— 以前是写死的名单，漏掉的变体就永远清不掉，
+  //   用户「清完没几天又满」就是这么来的。
+  const REDUNDANT_SUFFIX=/(__bak|_bak|__cloud|_cloud)$/;
+  function redundantBaseOf(k){
+    if(typeof k!=="string") return null;
+    const m=k.match(REDUNDANT_SUFFIX);
+    return m ? k.slice(0,k.length-m[0].length) : null;
+  }
+  function isRedundantKey(k){
+    const b=redundantBaseOf(k);
+    if(!b) return false;
+    if(OWN_KEYS.indexOf(b)>=0) return true;
+    return OWN_PREFIX.some(p=>b.indexOf(p)===0);
+  }
+  function redundantLabelOf(k){
+    const b=redundantBaseOf(k); if(!b) return k;
+    const base=STORE_LABELS[b]||b;
+    return base+(/cloud$/.test(k)?" · 被拒的云端旧数据":" · 覆盖留底");
+  }
   function isOwnKey(k){
-    if(LEGACY_KEYS[k]||REDUNDANT_KEYS[k]) return false;
+    if(LEGACY_KEYS[k]) return false;
+    if(isRedundantKey(k)) return false;
     if(OWN_KEYS.indexOf(k)>=0) return true;
     return OWN_PREFIX.some(p=>k.indexOf(p)===0);
   }
@@ -203,7 +219,7 @@
     if(pop){
       const fmt=n=>n>=1024?(n/1024).toFixed(0)+" K":String(n);
       const rows=r.byKey.filter(o=>o.n>0).slice(0,6)
-        .map(o=>`<div class="li"><span>${esc(STORE_LABELS[o.k]||o.k)}${isOwnKey(o.k)?"":`<span class="tagf">${REDUNDANT_KEYS[o.k]?"留底":"外来"}</span>`}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
+        .map(o=>`<div class="li"><span>${esc(STORE_LABELS[o.k]||(isRedundantKey(o.k)?redundantLabelOf(o.k):o.k))}${isOwnKey(o.k)?"":`<span class="tagf">${isRedundantKey(o.k)?"留底":"外来"}</span>`}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
       const tip=pct>=85?"已接近上限，请立即导出备份并清理无用记录"
               :pct>=60?"占用偏高，建议导出备份并清理"
               :"空间充足，可放心使用";
