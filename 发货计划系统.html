@@ -34,7 +34,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261026a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261026b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -1502,9 +1502,11 @@ function safeSet(key, val, quiet){
 
 function getSnapshots(){ try{ return JSON.parse(localStorage.getItem(LS_SNAP)) || []; }catch(e){ return []; } }
 
-// 关键操作前留快照。最多 3 份、总体积约 1.2MB 以内；快照本身写不下就安静放弃，绝不影响主流程。
+// 关键操作前留快照。最多 3 份、总体积约 500K 以内；快照本身写不下就安静放弃，绝不影响主流程。
 
-function snapshot(key, tag){
+// ★ 2026-10-26 起：发布/删除/清理重复这类操作改存「差量快照」（只记这次动了哪几条），体积从 700K 降到几 KB。
+
+function snapshot(key, tag, delta){
 
   try{
 
@@ -1514,7 +1516,23 @@ function snapshot(key, tag){
 
     const list = getSnapshots();
 
-    list.unshift({ key:key, tag:(tag||"自动"), at:new Date().toISOString(), size:cur.length, data:cur });
+    // ★ 差量快照（2026-10-26）：只记「这一次操作新增/移除了哪几条」，体积只有几 KB。
+
+    //   以前「发布前」存的是整份发布记录（700K），几份就吃掉 1M+ —— 存储反复爆满的大头之一。
+
+    //   delta = { add:[这次新增的记录], remove:[这次移除的记录] }；恢复 = 撤掉 add、放回 remove。
+
+    if(delta && delta.mode === "delta"){
+
+      const d = { add:(delta.add||[]), remove:(delta.remove||[]) };
+
+      const dj = JSON.stringify(d);
+
+      list.unshift({ key:key, tag:(tag||"自动"), at:new Date().toISOString(), size:dj.length, mode:"delta", data:dj });
+
+    }
+
+    else list.unshift({ key:key, tag:(tag||"自动"), at:new Date().toISOString(), size:cur.length, data:cur });
 
     const picked = []; let total = 0;
 
@@ -1522,7 +1540,7 @@ function snapshot(key, tag){
 
       if(picked.length >= 3) break;
 
-      if(picked.length > 0 && total + s.size > 1200000) break;
+      if(picked.length > 0 && total + s.size > 500000) break;
 
       picked.push(s); total += s.size;
 
@@ -1553,6 +1571,48 @@ function restoreSnapshot(idx){
   if(!s){ try{ toast("没有可用的自动快照"); }catch(e){} return false; }
 
   const when = String(s.at||"").replace("T"," ").slice(0,19);
+
+  // ★ 差量快照 = 精确撤销那一次操作（撤掉这次新增的、放回这次移除的），其它记录一项都不动
+
+  if(s.mode === "delta"){
+
+    let d=null; try{ d=JSON.parse(s.data); }catch(e){ d=null; }
+
+    if(!d){ try{ toast("这份快照无法恢复"); }catch(e){} return false; }
+
+    const adds = Array.isArray(d.add) ? d.add : [];
+
+    const rms  = Array.isArray(d.remove) ? d.remove : [];
+
+    if(!confirm("确定撤销「"+(s.tag||"自动")+"」这一次操作？\n（会撤掉这次新增的 "+adds.length+" 条，把这次移除的 "+rms.length+" 条放回来）\n其它记录一项都不动。\n当前数据会先自动备份一份，可再次恢复。")) return false;
+
+    snapshot(s.key, "恢复前");
+
+    const addKeys = new Set(adds.map(recKeyOf).filter(Boolean));
+
+    const next = loadRec().filter(r => { const k=recKeyOf(r); return !(k && addKeys.has(k)); });
+
+    const have = new Set(next.map(recKeyOf).filter(Boolean));
+
+    rms.forEach(r => { const k=recKeyOf(r); if(!k || have.has(k)) return; have.add(k); next.push(r); });
+
+    next.sort((a,b)=>(Number(b&&b.id)||0)-(Number(a&&a.id)||0));
+
+    safeSet(s.key, JSON.stringify(next));
+
+    // 放回来的记录原来被打过「删除墓碑」，不摘掉的话下次同步又会被删一遍
+
+    try{ unmarkDeleted(rms.map(r=>r&&r.id).filter(x=>x!=null)); }catch(e){}
+
+    if(window.CloudSync){ markPending(true); flushRec(false); }
+
+    try{ toast("已撤销「"+(s.tag||"自动")+"」，正在刷新…"); }catch(e){}
+
+    setTimeout(()=>location.reload(), 700);
+
+    return true;
+
+  }
 
   if(!confirm("确定恢复到 "+when+" 的自动快照？\n（快照内容："+(s.tag||"自动")+" · "+(s.key||"")+"）\n当前数据会先自动备份一份，可再次恢复。")) return false;
 
@@ -1623,6 +1683,24 @@ function markDeleted(id){
   if(!a.some(x=>String(x)===s)) a.push(s);
 
   try{ localStorage.setItem(LS_DEL, JSON.stringify(a.slice(-800))); }catch(e){}
+
+}
+
+// ★ 撤销删除时要把「删除墓碑」摘掉，否则下次同步/合并又会把这条当"已删"过滤掉
+
+function unmarkDeleted(ids){
+
+  if(!ids || !ids.length) return 0;
+
+  const a = loadDeletedIds(), set = new Set(ids.map(String));
+
+  const out = a.filter(x => !set.has(String(x)));
+
+  const n = a.length - out.length;
+
+  if(n){ try{ localStorage.setItem(LS_DEL, JSON.stringify(out)); }catch(e){} }
+
+  return n;
 
 }
 
@@ -1995,7 +2073,7 @@ function cleanDupRecs(){
 
   if(!confirm("发现 "+dups.length+" 条【同一计划员】内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？")) return;
 
-  snapshot(LS_REC, "清理重复前");
+  snapshot(LS_REC, "清理重复前", {mode:"delta", add:[], remove:dups});
 
   const dupIds = new Set(dups.map(r=>String(r.id)));
 
@@ -2093,19 +2171,49 @@ const LEGACY_KEYS = { "shipping_schedule_v1": 1 };     // 旧版排产表功能�
 
 // 能删（不影响运行），但删掉就失去"那次覆盖"的回退底 → 默认不勾。
 
-const REDUNDANT_KEYS = {
+// ★ 冗余留底的识别口径（2026-10-26）
 
-  "shipping_db_v1__bak":1,        "shipping_db_v1_bak":1,
+//   以前是一张写死的名单（REDUNDANT_KEYS），漏掉了 shipping_plans_archive_v1_bak、
 
-  "shipping_db_v1__cloud":1,      "shipping_db_v1_cloud":1,
+//   shipping_db_v1_cloud 等变体 → 清理面板认不出它们，用户「清完没几天又满」。
 
-  "shipping_plans_v1__bak":1,     "shipping_plans_v1_bak":1,
+//   现在改成「后缀 + 基础键属于本系统」，与 数据急救.html 的 rBaseOf 完全同一口径。
 
-  "shipping_plans_v1__cloud":1,   "shipping_plans_v1_cloud":1,
+const REDUNDANT_SUFFIX = /(__bak|_bak|__cloud|_cloud)$/;
 
-  "shipping_plans_archive_v1__bak":1, "shipping_draft_v1__bak":1, "shipping_custton_v1__bak":1
+function redundantBaseOf(k){
 
-};
+  if(typeof k !== "string") return null;
+
+  const m = k.match(REDUNDANT_SUFFIX);
+
+  return m ? k.slice(0, k.length - m[0].length) : null;
+
+}
+
+function isRedundantKey(k){
+
+  const b = redundantBaseOf(k);
+
+  if(!b) return false;
+
+  if(OWN_KEYS.indexOf(b) >= 0) return true;
+
+  return OWN_KEY_PREFIX.some(p => b.indexOf(p) === 0);
+
+}
+
+// 留底的中文名：基础键名 + 「覆盖留底 / 被拒的云端旧数据」
+
+function redundantLabelOf(k){
+
+  const b = redundantBaseOf(k); if(!b) return ("未知： " + k);
+
+  const base = STORE_LABELS[b] || b;
+
+  return base + (/cloud$/.test(k) ? " · 被拒的云端旧数据" : " · 覆盖留底");
+
+}
 
 const FOREIGN_LABELS = {
 
@@ -2139,7 +2247,9 @@ const FOREIGN_LABELS = {
 
 function isOwnKey(k){
 
-  if(LEGACY_KEYS[k] || REDUNDANT_KEYS[k]) return false;  // 旧版残留 / 冗余留底 → 都可清理
+  if(LEGACY_KEYS[k]) return false;      // 旧版残留 → 可清理
+
+  if(isRedundantKey(k)) return false;   // 冗余留底 → 可清理
 
   if(OWN_KEYS.indexOf(k) >= 0) return true;
 
@@ -2165,11 +2275,13 @@ function foreignEntries(){
 
       if(n <= 0) continue;
 
-      out.push({ k:k, n:n, label:FOREIGN_LABELS[k] || ("未知： " + k),
+      const red = isRedundantKey(k);
 
-        kind: REDUNDANT_KEYS[k] ? "redundant" : "foreign",
+      out.push({ k:k, n:n, label:FOREIGN_LABELS[k] || redundantLabelOf(k),
 
-        keep: !!(FOREIGN_KEEP_DEFAULT[k] || REDUNDANT_KEYS[k]) });
+        kind: red ? "redundant" : "foreign",
+
+        keep: !!FOREIGN_KEEP_DEFAULT[k] });   // ★ 留底不再默认不勾：它现在只存「会丢的那几条」，量很小，清掉才是真腾空间
 
     }
 
@@ -2227,11 +2339,15 @@ function openForeignClean(){
 
         <div style="font-weight:400;font-size:13px;color:#6b7280;margin-top:5px;line-height:1.6">
 
-          两类：①<b>外来</b> —— 同一个网址下别的工具（答题助手、排产系统…），它们和发货系统挤在同一份额度里；②<b>留底</b> —— 云端数据覆盖本机前自动存下的旧副本，体积和主数据一样大。清理前都会先导出备份文件。
+          两类：①<b>外来</b> —— 同一个网址下别的工具（答题助手、排产系统…），它们和发货系统挤在同一份额度里；②<b>留底</b> —— 云端数据覆盖本机前自动存下的旧副本。
+
+          <b>留底现在只存「会被覆盖掉的那几条」</b>（以前存整份，体积和主数据一样大，是「清完没几天又满」的元凶），所以量很小、可以放心清。清理前都会先导出备份文件。
 
         </div>
 
       </div>
+
+      <div id="fcRed" style="margin-top:8px;font-size:12.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:7px 10px;line-height:1.6"></div>
 
       <div id="fcList" style="max-height:300px;overflow:auto;border:1px solid #eef2f7;border-radius:8px;padding:2px 12px"></div>
 
@@ -2262,6 +2378,18 @@ function openForeignClean(){
   document.body.appendChild(overlay);
 
   const listEl = overlay.querySelector("#fcList"), sumEl = overlay.querySelector("#fcSum");
+
+  const redItems = items.filter(o=>o.kind==="redundant");
+
+  const redSum = redItems.reduce((s,o)=>s+o.n,0);
+
+  const redEl = overlay.querySelector("#fcRed");
+
+  if(redEl) redEl.innerHTML = redItems.length
+
+    ? ("留底 <b>"+redItems.length+" 项</b> · 可释放 <b>"+storeSizeText(redSum)+" 字符</b>　（留底＝云端覆盖本机前自动存下的旧副本，现在只存「会丢的那几条」）")
+
+    : "";
 
   listEl.innerHTML = items.map((o,i)=>`
 
@@ -2415,13 +2543,109 @@ function storageBreakdown(){
 
 }
 
+// ★ 无损瘦身：把旧版留下的「等大留底」压成差集
+
+//   （不会丢任何一条，只是去掉与主键重复的部分；差集为空时整个留底键直接删掉）
+
+function slimStoreBaks(){
+
+  try{ if(window.CloudSync && window.CloudSync.slimBaks) return (window.CloudSync.slimBaks()||0); }catch(e){}
+
+  return 0;
+
+}
+
+// ★ 自动收敛（2026-10-26）：占用高的时候自动做「无损瘦身」，不让它悄悄涨到爆满
+
+//   ① 留底瘦身：旧版留下的等大留底压成差集（不会丢任何一条，只是去掉与主键重复的部分）
+
+//   ② 快照收缩：只保留最近 1 份自动快照
+
+//   两步都只动冗余、不动主数据，用户不会有任何损失。
+
+function autoConvergeStore(pct){
+
+  if(pct < 78) return 0;
+
+  let freed = slimStoreBaks();
+
+  try{
+
+    const list = getSnapshots();
+
+    if(list.length > 1){
+
+      const before = (localStorage.getItem(LS_SNAP)||"").length;
+
+      localStorage.setItem(LS_SNAP, JSON.stringify(list.slice(0,1)));
+
+      const after = (localStorage.getItem(LS_SNAP)||"").length;
+
+      freed += Math.max(0, before-after);
+
+    }
+
+  }catch(e){}
+
+  if(freed > 0) invalidateStoreCache();
+
+  return freed;
+
+}
+
+// ★ 一键深度清理：先自动无损瘦身，再打开清理面板让用户勾选
+
+function deepCleanStore(){
+
+  let freed = 0;
+
+  try{ freed = autoConvergeStore(100) || 0; }catch(e){}
+
+  invalidateStoreCache();
+
+  try{ updateStorageMeter(); }catch(e){}
+
+  const fe = foreignEntries();
+
+  const msg = freed>0 ? ("已自动释放 "+storeSizeText(freed)+" 字符") : "";
+
+  if(!fe.length){ try{ toast(msg ? (msg+"，本机存储已很干净") : "本机存储已很干净，没有可清理的项"); }catch(e){} return; }
+
+  try{ if(msg) toast(msg); }catch(e){}
+
+  openForeignClean();
+
+}
+
 function updateStorageMeter(){
 
   const el = $("storeMeter"); if(!el) return;
 
-  const r = storageBreakdown();
+  let r = storageBreakdown();
 
-  const pct = Math.min(100, r.used / r.limit * 100);
+  // ★ 首次进页面：把旧版留下的「等大留底」自动压成差集（无损，一条都不少，只是去掉与主键重复的部分）
+
+  //   用户机器上「清完没几天又满」的元凶就是这些等大副本，必须主动瘦掉，不能等它涨到 78% 才动
+
+  if(!window.__slimOnce){
+
+    window.__slimOnce = true;
+
+    if(slimStoreBaks() > 0){ invalidateStoreCache(); r = storageBreakdown(); }
+
+  }
+
+  let pct = Math.min(100, r.used / r.limit * 100);
+
+  // ★ 占用 ≥78% 自动收敛（无损瘦身：只动冗余，不动主数据），瘦完再算一次水位
+
+  if(pct >= 78){
+
+    const _freed = autoConvergeStore(pct);
+
+    if(_freed > 0){ invalidateStoreCache(); r = storageBreakdown(); pct = Math.min(100, r.used / r.limit * 100); }
+
+  }
 
   const cls = pct >= 85 ? "danger" : (pct >= 60 ? "warn" : "");
 
@@ -2445,7 +2669,7 @@ function updateStorageMeter(){
 
     const rows = r.byKey.filter(o=>o.n>0).slice(0,6)
 
-      .map(o=>`<div class="li"><span>${STORE_LABELS[o.k]||FOREIGN_LABELS[o.k]||esc(o.k)}${isOwnKey(o.k)?"":`<span class="tagf">${REDUNDANT_KEYS[o.k]?"留底":"外来"}</span>`}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
+      .map(o=>`<div class="li"><span>${STORE_LABELS[o.k]||FOREIGN_LABELS[o.k]||(isRedundantKey(o.k)?redundantLabelOf(o.k):esc(o.k))}${isOwnKey(o.k)?"":`<span class="tagf">${isRedundantKey(o.k)?"留底":"外来"}</span>`}</span><b>${fmt(o.n)} 字符 · ${(o.n/r.limit*100).toFixed(1)}%</b></div>`).join("");
 
     const tip = pct>=85 ? "已接近上限，请立即导出备份并清理无用记录"
 
@@ -2457,11 +2681,13 @@ function updateStorageMeter(){
 
     const act = fe.length ? `<div class="act"><button type="button" data-store-act="clean-foreign">清理可释放占用 ${fe.length} 项 · ${fmt(feSum)}</button></div>` : "";
 
+    const deep = pct>=90 ? `<div class="act"><button type="button" data-store-act="deep-clean">⚡ 一键深度清理（自动收缩快照与留底）</button></div>` : "";
+
     pop.innerHTML = `<div class="hd">本机存储占用</div>${rows||'<div class="li"><span>暂无数据</span><b>—</b></div>'}
 
       <div class="li total"><span>合计</span><b>${(r.used/1024).toFixed(0)} K 字符 / 上限约 5,120 K</b></div>
 
-      <div class="ft">${tip}</div>${act}`;
+      <div class="ft">${tip}</div>${act}${deep}`;
 
   }
 
@@ -2509,7 +2735,11 @@ document.addEventListener("visibilitychange", ()=>{
 
     const btn = (t && t.closest) ? t.closest("[data-store-act]") : null;
 
-    if(btn && btn.getAttribute("data-store-act") === "clean-foreign"){ e.preventDefault(); openForeignClean(); }
+    const _act = btn.getAttribute("data-store-act");
+
+    if(_act === "clean-foreign"){ e.preventDefault(); openForeignClean(); }
+
+    else if(_act === "deep-clean"){ e.preventDefault(); deepCleanStore(); }
 
   });
 
@@ -7455,7 +7685,7 @@ function publish(){
 
     if(confirm("⚠ 发现已发布的单与本次内容基本相同（同一天、同一计划员）：\n\n"+_lines+"\n\n再发布会两份并存，大屏会成对显示重复。\n\n【确定】＝替换：这几张旧单转入归档（可找回），只保留这次这份\n【取消】＝不替换")){
 
-      snapshot(LS_REC, "发布替换近似重复单前");
+      snapshot(LS_REC, "发布替换近似重复单前", {mode:"delta", add:[], remove:_similar.map(s=>s.rec)});
 
       const _ids=new Set(_similar.map(s=>String(s.rec.id)));
 
@@ -7591,7 +7821,7 @@ function publish(){
 
     sumSubTon:sumSubTon>0?sumSubTon.toFixed(1):"0.0",custTon,fingerprint:fp};
 
-  snapshot(LS_REC, "发布前");   // 发布前留档：万一发错/发重，可整批退回
+  snapshot(LS_REC, "发布前", {mode:"delta", add:[rec], remove:[]});   // 发布前留档（只记本次发布的这一条，体积几 KB；万一发错/发重可精确撤销）
 
   saveRec(rec); renderRecords();
 
@@ -8047,7 +8277,7 @@ function renderRecords(){
 
         askDeletePwd(rec, ()=>{
 
-          snapshot(LS_REC, "删除记录前");   // 删除前自动留档（快照只留最近 3 份、总 ≤1.2MB，会被后续"发布前"挤掉，仅当临时保险）
+          snapshot(LS_REC, "删除记录前", {mode:"delta", add:[], remove:[rec]});   // 删除前自动留档（只记被删的这一条，几 KB；可在「数据急救」页精确撤销）
 
           // ★★ 删除前必须把这条记录写进「归档区」：归档才是长期留档（上限 500 条）。
 
