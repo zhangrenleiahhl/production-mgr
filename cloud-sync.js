@@ -137,12 +137,94 @@ window.CloudSync = (function () {
     try { const v = JSON.parse(s); return Array.isArray(v) ? v.length : -1; } catch (e) { return -1; }
   }
 
+  // ★ 留底差集化（2026-10-26）
+  //   以前：覆盖本机之前，把「本机整份旧值」原样存成 key+"__bak" —— 体积和主键一样大。
+  //   发布记录 700K + 归档区 600K + 物料库 500K ≈ 1.8M 白占着额度，而且每次同步都重写一遍，
+  //   所以「清完没几天又满」。
+  //   现在：只留「本机有、下一份里没有」的那几条（通常 0~2 条），体积降到几百字符，
+  //   回退能力一点不丢 —— 数据急救页的「并回」语义下，整份留底和差集留底结果完全等价。
+  //
+  //   键的取法：记录有 id 用 id、有单号用单号；都没有（物料库那种）就用整条内容。
+  //   宁可多留（多留只是占点地方），也绝不能因为认不出同一条而漏留。
+  function bakIdOf(x) {
+    if (x && typeof x === "object") {
+      if (x.id != null) return "i" + x.id;
+      if (x.no != null && x.no !== "") return "n" + x.no;
+      try { return "j" + JSON.stringify(x); } catch (e) {}
+    }
+    return "v" + String(x);
+  }
+  // 返回「本地有、下一份没有」的那些条；不是数组型数据时返回 null（调用方退回整份留底）
+  function bakDiff(localStr, nextStr) {
+    let a, b;
+    try { a = JSON.parse(localStr); } catch (e) { return null; }
+    try { b = JSON.parse(nextStr); } catch (e) { return null; }
+    if (!Array.isArray(a) || !Array.isArray(b)) return null;
+    const ids = new Set(b.map(bakIdOf));
+    return a.filter(x => !ids.has(bakIdOf(x)));
+  }
+  // 写留底：只存「本机有、下一份里没有」的那些条。
+  //   并且和旧留底**合并**（旧留底里现在仍然缺的也留着）——
+  //   否则一次「没丢东西」的同步会把上一次真丢过的记录冲掉，回退能力就没了。
+  function writeBak(key, localStr, nextStr) {
+    try {
+      const lost = bakDiff(localStr, nextStr);
+      if (lost === null) { localStorage.setItem(key + "__bak", localStr); return; }   // 非数组型 → 整份
+      const oldRaw = localStorage.getItem(key + "__bak");
+      const prev = (oldRaw == null) ? [] : (bakDiff(oldRaw, nextStr) || []);
+      const seen = new Set(), out = [];
+      prev.concat(lost).forEach(x => {
+        const id = bakIdOf(x);
+        if (seen.has(id)) return;
+        seen.add(id); out.push(x);
+      });
+      if (out.length) localStorage.setItem(key + "__bak", JSON.stringify(out));
+      else { try { localStorage.removeItem(key + "__bak"); } catch (e) {} }
+    } catch (e) {}
+  }
+
+  // ★ 留底瘦身（2026-10-26）
+  //   用户机器上还留着旧版留下的「等大留底」（发布记录 700K + 归档区 600K + 物料库 500K ≈ 1.9M），
+  //   那是「清完没几天又被同步写回来」的元凶。这里按新口径把它们重算一次：
+  //   只留「旧留底里、现在仍然缺」的那几条 —— 在「并回」语义下与整份留底等价，
+  //   不会少找回任何一条，但体积从几百 K 掉到几百字符。
+  function slimBaks() {
+    let saved = 0;
+    let keys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        // ★ 所有留底变体都要瘦身：__bak / _bak / __cloud / _cloud
+        if (k && /(__bak|_bak|__cloud|_cloud)$/.test(k)) keys.push(k);
+      }
+    } catch (e) { return 0; }
+    keys.forEach(k => {
+      const base = k.replace(/(__bak|_bak|__cloud|_cloud)$/, "");
+      if (!base || base === k) return;
+      const cur = localStorage.getItem(base);
+      const bak = localStorage.getItem(k);
+      if (bak == null) return;
+      const lost = bakDiff(bak, cur == null ? "" : cur);
+      if (lost === null) return;                       // 不是数组型 → 不动
+      const s = JSON.stringify(lost);
+      if (lost.length === 0) {
+        try { localStorage.removeItem(k); } catch (e) {}
+        saved += bak.length;
+      } else if (s.length < bak.length) {
+        try { localStorage.setItem(k, s); } catch (e) { return; }
+        saved += (bak.length - s.length);
+      }
+    });
+    return saved;
+  }
+
   // 拉取多个键，存在则写回 localStorage，结束后回调重渲染
   // ★ 防覆盖保护：云端数据明显少于本地时拒绝覆盖（例如云端被误清 / 另一台机器推了旧数据），
   //   并先把本地当前值备份成 key+"__bak"，任何一次覆盖都可回退。
   // force=true 表示用户手动点了「同步」，按用户意图强制以云端为准
   // merge={ key: (localStr, cloudStr) => mergedStr } 时该键走"合并"而不是"覆盖"（最安全，只增不减）
   async function pullAll(keys, after, force, merge) {
+    try { slimBaks(); } catch (e) {}      // ★ 先把旧版留下的等大留底缩到最小（一次性迁移）
     if (!ready) { if (after) after(); return { failed: keys.slice(), ok: 0 }; }
     let keptLocal = false;
     const failed = [];
@@ -162,18 +244,24 @@ window.CloudSync = (function () {
           let merged = null;
           try { merged = merge[k](local, incoming); } catch (e) { merged = null; }
           if (typeof merged === "string" && merged !== local) {
-            try { localStorage.setItem(k + "__bak", local); } catch (e) {}
+            writeBak(k, local, merged);                     // ★ 只留「会丢的那几条」，不再留整份
             try { localStorage.setItem(k, merged); } catch (e) {}
           }
           return;
         }
         const ll = arrLen(local), cl = arrLen(incoming);
         if (!force && ll > 0 && cl >= 0 && cl * 100 < ll * 60) { // 云端不足本地的 60% → 判定为异常，保留本地
-          try { localStorage.setItem(k + "__cloud", incoming); } catch (e) {}
+          // ★ 同样差集化：只存「云端有、本机没有」的那些条（「并回」语义下与整份等价）
+          const _cd = bakDiff(incoming, local);
+          try {
+            if (_cd === null) localStorage.setItem(k + "__cloud", incoming);
+            else if (_cd.length) localStorage.setItem(k + "__cloud", JSON.stringify(_cd));
+            else localStorage.removeItem(k + "__cloud");
+          } catch (e) {}
           keptLocal = true;
           return;
         }
-        try { localStorage.setItem(k + "__bak", local); } catch (e) {}   // 覆盖前留底
+        writeBak(k, local, incoming);                      // ★ 覆盖前留底：只留「会被覆盖掉的那几条」
       }
       try { localStorage.setItem(k, incoming); } catch (e) {}
     }));
@@ -198,6 +286,7 @@ window.CloudSync = (function () {
   return {
     init, ready: () => ready, configured,
     pull, pullResult, pullStamp, push, autoPush, pullAll, bindStatus, setStatus, guard,
+    slimBaks,                                   // ★ 留底瘦身（自动收敛用）
     lastPullFailed: () => pullErr,      // ⚠ 共享状态，并发拉取会互相覆盖，仅兼容旧代码；新代码用 pullResult
     retryAll, lastErrorText: () => lastErrorText
   };
