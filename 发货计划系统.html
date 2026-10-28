@@ -34,7 +34,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261026d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261026e";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -501,11 +501,11 @@
 
   .tbl th:nth-child(2),.tbl tbody td:nth-child(2){width:2%;}    /* 勾选 */
 
-  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:10%;}   /* 发货日期 */
+  .tbl th:nth-child(3),.tbl tbody td:nth-child(3){width:8%;}    /* 发货日期（缩短：日期本身短，留白过多） */
 
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 送达方（原客户） */
 
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:13%;}   /* 型号（让出 2% 给「客户订单号」列） */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:17%;}   /* 型号（加长：型号名最长，如「气缸座_VC_Q11200001_灰铁_粗抛件」） */
 
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:5%;}    /* 发货数量 */
 
@@ -525,7 +525,7 @@
 
   .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:3%;}  /* 物流（按客户自动带出） */
 
-  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:7.5%;}  /* 客户订单号（加长：订单号较长，需完整显示） */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:6.5%;}  /* 客户订单号（订单号文字已缩小一档，这里收窄一档把空间让给型号） */
 
   /* ★「客户订单号」5 个字：固定列宽下窄屏会把表头挤掉字（存量：4 个字时「客户订单」已被裁切）
      → 这一列表头允许折行：宽屏仍单行，窄屏折成两行完整可读，不动其它列宽（17 列宽度合计已 100%） */
@@ -535,8 +535,11 @@
      宽屏仍是单行，窄屏折成两行完整可读 */
   .tbl thead th.col-code{white-space:normal;line-height:1.15;vertical-align:middle;}
 
+  /* ★「操作」2 个字在 3% 的窄列里（1024 屏只有 30px）会被裁 → 同样允许折行 */
+  .tbl thead th.col-act{white-space:normal;line-height:1.15;vertical-align:middle;}
+
   .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4.5%;}  /* 物料编码（缩短：编码本身很短） */
-  .tbl th:nth-child(17),.tbl tbody td:nth-child(17){width:4%!important;}  /* 操作 */
+  .tbl th:nth-child(17),.tbl tbody td:nth-child(17){width:3%!important;}  /* 操作（缩短：只有「＋」「✕」两个 13px 小按钮） */
 
   /* 交货单：按字数自动换行（textarea 自适应高度，列宽不够自动折行且撑高行） */
 
@@ -546,7 +549,7 @@
 
   /* ★ 客户订单号：订单号长（如 SO-2026-00123），原来 white-space:nowrap + overflow:hidden
      会把超出部分直接裁掉看不见 → 改为可换行，由 fitTextarea 自动撑高行高，确保完整显示 */
-  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.2;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;overflow:hidden;height:auto;min-height:26px;padding:2px 3px;}
+  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:10px;font-weight:400;line-height:1.2;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;overflow:hidden;height:auto;min-height:26px;padding:2px 3px;}
   /* ★ 物料编码：同理改为可换行（编码无空格，用 break-all 任意位置断行）+ 行高自动撑开。
      padding-right 给右上角的「复制」按钮留出位置，避免按钮压住编码文字（存量问题） */
   .tbl tbody td:nth-child(16) textarea{text-align:center;font-size:9px;font-weight:400;line-height:1.2;white-space:pre-wrap;word-break:break-all;overflow-wrap:anywhere;overflow:hidden;height:auto;min-height:26px;padding:2px 3px;}
@@ -742,7 +745,7 @@
 
   @media print{ input.subton-in{border:none;background:transparent;padding:0;} }
 
-  .col-act{width:4%;white-space:nowrap;padding:3px 2px;}
+  .col-act{width:3%;white-space:nowrap;padding:3px 1px;}
 
   /* 滞后计划（发货日期已过期 = < 当前日期边界）高亮 */
 
@@ -1313,6 +1316,8 @@
     <button class="btn btn-line" id="copyModelCode" title="复制勾选行的整行信息（发货日期/送达方/型号/发货数量/发货点/交货单/箱数/箱重T/产品重量T/客户吨位/物流/客户订单号/物料编码，制表符分隔；可直接粘回表格，也可粘到 Excel。注意：时效要求不复制，粘回来需另填最新值）">复制</button>
 
     <button class="btn btn-line" id="progBoardBtn" title="发货进度看板：现场用手机扫码逐道工序更新；这里实时显示（打开时每 10 秒刷新）">📱 发货进度</button>
+
+    <a class="btn btn-line" id="dashAnalyzeLink" href="数据透析.html" target="_blank" title="数据透析：按日期区间查「哪个型号发了多少件、多少箱」，也能按订单号/客户/物料编码快速定位那一单。数据来自云端已发布的发货计划（含归档）。">📊 数据透析</a>
 
     <button class="btn btn-line" id="codesBtn" title="全厂只有两张码：内部人员码（要登录，推四道工序）和司机签到码（只勾车已到）。点开可打印张贴。">▣ 两个码</button>
 
