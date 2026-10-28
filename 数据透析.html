@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据透析 · 发货计划</title>
+<style>
+  :root{--brand:#2563eb;--ok:#16a34a;--err:#dc2626;--warn:#ca8a04;--bg:#f8fafc;--card:#fff;--line:#e2e8f0;--muted:#64748b;}
+  body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);margin:0;padding:16px;line-height:1.55;color:#1e293b;}
+  .wrap{max-width:1280px;margin:0 auto;}
+  h1{font-size:21px;color:#1e293b;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 4px 12px rgba(0,0,0,.04);}
+  h2{font-size:15px;color:#334155;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  h2 .n{font-weight:400;color:var(--muted);font-size:12px;}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;}
+  .fld{display:flex;flex-direction:column;gap:3px;}
+  .fld label{font-size:12px;color:var(--muted);}
+  input[type=date],input[type=text],select{font:inherit;font-size:13px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#1e293b;}
+  input[type=text]{min-width:220px;}
+  .btn{font:inherit;font-size:13px;padding:7px 14px;border:none;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer;}
+  .btn:hover{opacity:.9;}
+  .btn2{background:#f1f5f9;color:#334155;border:1px solid var(--line);}
+  .btn2:hover{background:#e2e8f0;}
+  .quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .mini{background:#f1f5f9;color:#334155;border:1px solid var(--line);border-radius:14px;padding:3px 11px;font-size:12px;cursor:pointer;}
+  .mini:hover{background:#e2e8f0;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:4px;}
+  .kpi{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+  .kpi .v{font-size:21px;font-weight:700;color:#1e293b;font-variant-numeric:tabular-nums;line-height:1.25;}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:1px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{color:#475569;font-weight:600;font-size:12px;background:#f8fafc;position:sticky;top:0;z-index:1;white-space:nowrap;}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  tbody tr:hover{background:#f8fafc;}
+  td.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;}
+  .tw{overflow:auto;max-height:64vh;border:1px solid var(--line);border-radius:9px;}
+  .tag{display:inline-block;padding:1px 7px;border-radius:11px;font-size:11px;font-weight:600;}
+  .tag-ok{background:#dcfce7;color:var(--ok);}
+  .tag-warn{background:#fef9c3;color:var(--warn);}
+  .tag-err{background:#fee2e2;color:var(--err);}
+  .tag-info{background:#dbeafe;color:#1d4ed8;}
+  .empty{color:#94a3b8;font-style:italic;padding:14px 4px;}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:9px 12px;font-size:12.5px;color:#92400e;margin-bottom:10px;}
+  .note.info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af;}
+  .log{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;max-height:180px;overflow:auto;margin-top:10px;}
+  .ord{font-weight:600;color:#1d4ed8;}
+  .clickable{cursor:pointer;}
+  .clickable:hover{background:#eff6ff;}
+  .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid #cbd5e1;border-top-color:var(--brand);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  @media(max-width:640px){ body{padding:10px;} input[type=text]{min-width:150px;} .kpi .v{font-size:18px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hd">
+    <div>
+      <h1>📊 数据透析</h1>
+      <div class="sub">发货计划数据统计与快速查询 · 数据来自<b>云端已发布的发货计划</b>（含历史归档）</div>
+    </div>
+    <div>
+      <a class="btn btn2" href="发货计划系统.html" style="text-decoration:none;display:inline-block;">← 回发货计划</a>
+    </div>
+  </div>
+
+  <!-- ① 区间统计 -->
+  <div class="card">
+    <h2>① 按日期区间统计 <span class="n" id="statScope"></span></h2>
+    <div class="bar">
+      <div class="fld"><label>开始日期</label><input type="date" id="dFrom"></div>
+      <div class="fld"><label>结束日期</label><input type="date" id="dTo"></div>
+      <button class="btn" id="btnStat">统计</button>
+      <button class="btn btn2" id="btnThisMonth">本月</button>
+      <button class="btn btn2" id="btnLastMonth">上月</button>
+      <button class="btn btn2" id="btnSep">9月</button>
+      <button class="btn btn2" id="btnAll">全部</button>
+    </div>
+    <div class="quick" id="quickMonths"></div>
+    <div id="statArea" style="margin-top:12px;"><div class="empty">选好日期区间后点「统计」。</div></div>
+  </div>
+
+  <!-- ② 快速查询 -->
+  <div class="card">
+    <h2>② 快速查询一单</h2>
+    <div class="bar">
+      <div class="fld">
+        <label>关键字（订单号 / 客户 / 型号 / 物料编码 / 单号）</label>
+        <input type="text" id="qText" placeholder="例：CD2026102800208197 或 曲轴箱_BK21 或 10000000008905">
+      </div>
+      <div class="fld">
+        <label>匹配方式</label>
+        <select id="qMode">
+          <option value="all">全部字段</option>
+          <option value="orderno">客户订单号（精确）</option>
+          <option value="model">型号</option>
+          <option value="customer">客户 / 送达方</option>
+          <option value="code">物料编码</option>
+          <option value="no">发货单号</option>
+        </select>
+      </div>
+      <button class="btn" id="btnQuery">查询</button>
+    </div>
+    <div id="queryArea" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>③ 运行日志</h2>
+    <div class="log" id="logBox">等待操作…</div>
+  </div>
+
+</div>
+
+<script src="cloud-config.js"></script>
+<script>
+/* ============================================================
+   数据透析：按日期区间统计型号/件数/箱数 + 按关键字快速定位一单
+   数据源：云端 app_data 的 shipping_plans_v1（当前）+
+           shipping_plans_archive_v1（归档）——两把合并才是全量历史
+   ============================================================ */
+
+const CFG = window.CLOUD_CONFIG || {};
+const K_PLAN = 'shipping_plans_v1';
+const K_ARCH = 'shipping_plans_archive_v1';
+
+let ALL = [];        // 全量明细行（已摊平）
+let LOADED = false;
+
+/* ---------- 工具 ---------- */
+const $ = id => document.getElementById(id);
+function log(s, cls){
+  const box = $('logBox');
+  const t = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+  const line = '[' + t + '] ' + s;
+  if(cls === 'err') box.style.color = '#fca5a5';
+  else if(cls === 'ok') box.style.color = '#86efac';
+  else if(cls === 'warn') box.style.color = '#fde047';
+  else box.style.color = '';
+  box.textContent = (box.textContent === '等待操作…' ? '' : box.textContent + '\n') + line;
+  box.scrollTop = box.scrollHeight;
+}
+function num(v){
+  const s = String(v == null ? '' : v).trim();
+  if(!s || s === '/') return 0;
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function fmt(n){
+  if(!isFinite(n)) return '-';
+  const r = Math.round(n * 100) / 100;
+  return (Math.abs(r - Math.round(r)) < 0.005) ? String(Math.round(r)) : String(r);
+}
+function ymd(v){
+  const s = String(v == null ? '' : v).trim();
+  const m = s.match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})/);
+  if(m) return m[1] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[3]).padStart(2,'0');
+  return s.slice(0,10);
+}
+
+/* ---------- 拉云端 ---------- */
+async function fetchCloud(key){
+  if(!CFG.url || !CFG.key || CFG.url.indexOf('YOUR-') > -1) return null;
+  let base = CFG.url.replace(/\/rest\/v1\/?$/,'');
+  const api = base + '/rest/v1/app_data?key=eq.' + encodeURIComponent(key) + '&select=value';
+  try{
+    const r = await fetch(api, {headers:{'apikey':CFG.key,'Authorization':'Bearer '+CFG.key}});
+    if(r.status !== 200){ log('GET ' + key + ' → HTTP ' + r.status, 'err'); return null; }
+    const obj = await r.json();
+    // ★ Supabase REST 的 select 返回**数组**：[{"value":[...],"updated_at":...}]
+    //   （急救页用 Accept 头让它返回单个对象；这里不加那个头，必须按数组解析）
+    let v = null;
+    if(Array.isArray(obj)){
+      v = obj.length ? obj[0].value : null;
+    }else if(obj && obj.value != null){
+      v = obj.value;
+    }
+    if(v == null) return null;
+    if(typeof v === 'string'){ try{ v = JSON.parse(v); }catch(e){} }
+    return Array.isArray(v) ? v : null;
+  }catch(e){
+    log('GET ' + key + ' 失败：' + e.message, 'err');
+    return null;
+  }
+}
+
+/* 把 rec.rows 摊平成明细行，并补上「所属单号 / 归档标记」 */
+function flatten(recs, archived){
+  const out = [];
+  (recs || []).forEach(rec => {
+    (rec.rows || []).forEach(r => {
+      out.push({
+        shipdate : ymd(r.shipdate || rec.date),
+        model    : String(r.model || '').trim() || '(未填型号)',
+        qty      : num(r.qty),
+        box      : num(r.box),
+        perbox   : num(r.perbox),
+        cwt      : num(r.cwt),
+        ton      : num(r.ton),
+        orderno  : String(r.orderno || '').trim(),
+        customer : String(r.customer || '').trim(),
+        delivery : String(r.delivery || '').trim(),
+        code     : String(r.code || '').trim(),
+        shippt   : String(r.shippt || '').trim(),
+        remark   : String(r.remark || '').trim(),
+        logistics: String(r.logistics || '').trim(),
+        no       : String(rec.no || '').trim(),
+        planner  : String(rec.planner || '').trim(),
+        operator : String(rec.operator || '').trim(),
+        archived : !!archived
+      });
+    });
+  });
+  return out;
+}
+
+/* 箱数：优先用行上的 box；没有就用「每箱数量 perbox」推算（21% 的历史行 box 是空的） */
+/* ★ 箱数分三种来源，必须区分，不能混成 0：
+     1) 实填：发布时填了「箱数」            → 最准
+     2) 推算：有「每箱数量 perbox」，可算箱数 → 近似（件数 ÷ 每箱数量）
+     3) 无记录：box 与 perbox 都是空         → **算不出箱数**（不是 0 箱！）
+   历史数据里有 21% 的行属于第 3 种，直接当 0 会让老板误判成「没装箱」。 */
+function boxInfo(r){
+  if(r.box > 0) return {v:r.box, src:'fill'};
+  if(r.perbox > 0 && r.qty > 0) return {v:Math.round(r.qty / r.perbox * 100) / 100, src:'calc'};
+  return {v:0, src:'none'};
+}
+function boxOf(r){ return boxInfo(r).v; }
+
+async function loadAll(force){
+  if(LOADED && !force){ log('数据已在内存，直接用（不重复拉云端）'); return true; }
+  log('正在拉取云端数据…（当前计划 + 历史归档）');
+  const cur = await fetchCloud(K_PLAN);
+  const arc = await fetchCloud(K_ARCH);
+  if(cur === null && arc === null){
+    log('❌ 云端没拉到数据，检查网络或 cloud-config.js', 'err');
+    return false;
+  }
+  ALL = flatten(cur || [], false).concat(flatten(arc || [], true));
+  LOADED = true;
+  log('✅ 拉取完成：当前 ' + (cur||[]).length + ' 单 + 归档 ' + (arc||[]).length +
+      ' 单 → 摊平 ' + ALL.length + ' 行', 'ok');
+  buildMonthQuick();
+  return true;
+}
+
+/* ---------- ① 区间统计 ---------- */
+function inRange(r, from, to){
+  if(!r.shipdate) return false;
+  if(from && r.shipdate < from) return false;
+  if(to && r.shipdate > to) return false;
+  return true;
+}
+
+async function doStat(){
+  if(!(await loadAll(false))) return;
+  const from = $('dFrom').value, to = $('dTo').value;
+  if(from && to && from > to){ log('开始日期晚于结束日期，已自动对调', 'warn'); }
+
+  const rows = ALL.filter(r => inRange(r, from, to));
+  $('statScope').textContent = (from || '最早') + ' ~ ' + (to || '最新') + '　共 ' + rows.length + ' 行';
+
+  if(!rows.length){
+    $('statArea').innerHTML = '<div class="empty">这个区间没有数据。</div>';
+    log('区间内无数据', 'warn');
+    return;
+  }
+
+  /* 汇总 */
+  const byModel = new Map();
+  rows.forEach(r => {
+    let a = byModel.get(r.model);
+    if(!a){ a = {model:r.model, qty:0, box:0, boxFill:0, boxCalc:0, noBox:0, n:0, cust:new Set(), ord:new Set(), no:new Set(), ton:0, days:new Set(), sample:''}; byModel.set(r.model, a); }
+    const bi = boxInfo(r);
+    a.qty += r.qty; a.box += bi.v; a.n++; a.ton += r.ton;
+    if(bi.src === 'fill') a.boxFill += bi.v;
+    else if(bi.src === 'calc') a.boxCalc += bi.v;
+    else a.noBox++;
+    if(r.customer) a.cust.add(r.customer);
+    if(r.orderno && r.orderno !== '/') a.ord.add(r.orderno);
+    if(r.no) a.no.add(r.no);
+    if(r.shipdate) a.days.add(r.shipdate);
+    if(!a.sample) a.sample = r.customer || r.shippt || '';
+  });
+  const list = Array.from(byModel.values()).sort((a,b) => b.qty - a.qty);
+
+  const tQty = list.reduce((s,a) => s + a.qty, 0);
+  const tBox = list.reduce((s,a) => s + a.box, 0);
+  const tBoxFill = list.reduce((s,a) => s + a.boxFill, 0);
+  const tBoxCalc = list.reduce((s,a) => s + a.boxCalc, 0);
+  const tNoBox = list.reduce((s,a) => s + a.noBox, 0);
+  const tTon = list.reduce((s,a) => s + a.ton, 0);
+  const tOrd = new Set(); list.forEach(a => a.ord.forEach(x => tOrd.add(x)));
+  const tCust = new Set(); list.forEach(a => a.cust.forEach(x => tCust.add(x)));
+  const tDays = new Set(); rows.forEach(r => { if(r.shipdate) tDays.add(r.shipdate); });
+  const tNo = new Set(); list.forEach(a => a.no.forEach(x => tNo.add(x)));
+
+  const hasOrd = tOrd.size > 0;
+  const boxGuess = list.filter(a => a.box > 0).length;
+
+  let html = '';
+  /* KPI */
+  html += '<div class="kpis">'
+    + '<div class="kpi"><div class="v">' + fmt(tQty) + '</div><div class="l">总件数</div></div>'
+    + '<div class="kpi"><div class="v">' + fmt(tBox) + '</div><div class="l">总箱数（实填 ' + fmt(tBoxFill) + ' ＋推算 ' + fmt(tBoxCalc) + '）</div></div>'
+    + '<div class="kpi"><div class="v">' + list.length + '</div><div class="l">型号数</div></div>'
+    + '<div class="kpi"><div class="v">' + rows.length + '</div><div class="l">明细行数</div></div>'
+    + '<div class="kpi"><div class="v">' + tNo.size + '</div><div class="l">发货单数</div></div>'
+    + '<div class="kpi"><div class="v">' + tCust.size + '</div><div class="l">客户数</div></div>'
+    + '<div class="kpi"><div class="v">' + tDays.size + '</div><div class="l">发货天数</div></div>'
+    + '<div class="kpi"><div class="v">' + fmt(tTon) + '</div><div class="l">总吨位</div></div>'
+    + '<div class="kpi"><div class="v">' + tOrd.size + '</div><div class="l">订单号数</div></div>'
+    + '<div class="kpi"><div class="v">' + tNoBox + '</div><div class="l">箱数无记录的行</div></div>'
+    + '</div>';
+
+  /* 订单号覆盖提示 */
+  if(!hasOrd){
+    html += '<div class="note" style="margin-top:10px;">⚠️ 这个区间<b>没有客户订单号</b>。'
+      + '「客户订单号」是 2026-10-28 才加进系统的，之前的单子发布时没有这个字段，所以查不到订单号属于正常。'
+      + '下面仍可按<b>客户 / 型号 / 物料编码 / 发货单号</b>用第②块快速定位。</div>';
+  }else if(tOrd.size < list.length){
+    html += '<div class="note info" style="margin-top:10px;">ℹ️ 有 ' + tOrd.size + ' 个客户订单号，'
+      + '但只覆盖部分型号（其余是 10-28 之前发布的老单，本来就没有订单号字段）。</div>';
+  }
+
+  /* 箱数来源提示：算不出的行必须说清楚，不能让「0 箱」被误读成「没装箱」 */
+  if(tNoBox > 0){
+    html += '<div class="note info" style="margin-top:10px;">ℹ️ 有 <b>' + tNoBox + '</b> 行<b>箱数算不出来</b>'
+      + '（发布时既没填「箱数」，也没有「每箱数量」可推算）。这类行表格里显示 0，'
+      + '<b>不代表真的没装箱</b>，只是没数据。'
+      + '其中 ' + fmt(tBoxCalc) + ' 箱是用「件数 ÷ 每箱数量」推算的（近似值）。</div>';
+  }
+
+  /* 型号汇总表 */
+  html += '<div class="tw" style="margin-top:10px;"><table><thead><tr>'
+    + '<th style="width:30%">型号</th>'
+    + '<th class="num">件数</th><th class="num">箱数</th><th class="num">实填箱</th>'
+    + '<th class="num">推算箱</th><th class="num">无记录行</th><th class="num">吨位</th>'
+    + '<th class="num">行数</th><th class="num">单数</th><th class="num">客户数</th>'
+    + '<th class="num">订单号</th><th class="num">天数</th><th>主要客户</th>'
+    + '</tr></thead><tbody>';
+  list.forEach(a => {
+    html += '<tr>'
+      + '<td>' + esc(a.model) + '</td>'
+      + '<td class="num"><b>' + fmt(a.qty) + '</b></td>'
+      + '<td class="num"><b>' + fmt(a.box) + '</b></td>'
+      + '<td class="num">' + fmt(a.boxFill) + '</td>'
+      + '<td class="num">' + fmt(a.boxCalc) + '</td>'
+      + '<td class="num">' + (a.noBox ? '<span class="tag tag-warn">' + a.noBox + '</span>' : '0') + '</td>'
+      + '<td class="num">' + fmt(a.ton) + '</td>'
+      + '<td class="num">' + a.n + '</td>'
+      + '<td class="num">' + a.no.size + '</td>'
+      + '<td class="num">' + a.cust.size + '</td>'
+      + '<td class="num">' + (a.ord.size ? a.ord.size : '<span class="tag tag-warn">无</span>') + '</td>'
+      + '<td class="num">' + a.days.size + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + esc(a.sample) + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  $('statArea').innerHTML = html;
+  log('统计完成：' + rows.length + ' 行 / ' + list.length + ' 个型号 / ' + fmt(tQty) + ' 件 / ' + fmt(tBox) + ' 箱', 'ok');
+
+  /* 顺带把「客户 × 型号」也列出来（老板常问"哪个客户要了多少"） */
+  const byCust = new Map();
+  rows.forEach(r => {
+    const k = r.customer || '(未填客户)';
+    let a = byCust.get(k);
+    if(!a){ a = {c:k, qty:0, box:0, boxFill:0, boxCalc:0, noBox:0, n:0, models:new Set()}; byCust.set(k, a); }
+    const bi = boxInfo(r);
+    a.qty += r.qty; a.box += bi.v; a.n++; a.models.add(r.model);
+    if(bi.src === 'fill') a.boxFill += bi.v;
+    else if(bi.src === 'calc') a.boxCalc += bi.v;
+    else a.noBox++;
+  });
+  const clist = Array.from(byCust.values()).sort((a,b) => b.qty - a.qty);
+  let chtml = '<div style="margin-top:14px;"><h2 style="font-size:14px;">按客户汇总 <span class="n">' + clist.length + ' 个客户</span></h2>'
+    + '<div class="tw" style="max-height:38vh;"><table><thead><tr>'
+    + '<th>客户 / 送达方</th><th class="num">件数</th><th class="num">箱数</th>'
+    + '<th class="num">实填箱</th><th class="num">推算箱</th><th class="num">无记录行</th>'
+    + '<th class="num">行数</th><th class="num">型号数</th><th>型号</th>'
+    + '</tr></thead><tbody>';
+  clist.forEach(a => {
+    chtml += '<tr><td>' + esc(a.c) + '</td>'
+      + '<td class="num"><b>' + fmt(a.qty) + '</b></td>'
+      + '<td class="num"><b>' + fmt(a.box) + '</b></td>'
+      + '<td class="num">' + fmt(a.boxFill) + '</td>'
+      + '<td class="num">' + fmt(a.boxCalc) + '</td>'
+      + '<td class="num">' + (a.noBox ? '<span class="tag tag-warn">' + a.noBox + '</span>' : '0') + '</td>'
+      + '<td class="num">' + a.n + '</td>'
+      + '<td class="num">' + a.models.size + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + esc(Array.from(a.models).slice(0,4).join('、')) + (a.models.size > 4 ? ' 等 ' + a.models.size + ' 个' : '') + '</td></tr>';
+  });
+  chtml += '</tbody></table></div></div>';
+  $('statArea').innerHTML += chtml;
+}
+
+/* ---------- ② 快速查询 ---------- */
+async function doQuery(){
+  const q = $('qText').value.trim();
+  if(!q){ log('请输入关键字', 'warn'); $('queryArea').innerHTML = '<div class="empty">输入关键字后点「查询」。</div>'; return; }
+  if(!(await loadAll(false))) return;
+  const mode = $('qMode').value;
+  const ql = q.toLowerCase();
+
+  let hit = ALL.filter(r => {
+    switch(mode){
+      case 'orderno':  return r.orderno.toLowerCase() === ql || (r.orderno && r.orderno.toLowerCase().indexOf(ql) >= 0);
+      case 'model':    return r.model.toLowerCase().indexOf(ql) >= 0;
+      case 'customer': return (r.customer + ' ' + r.delivery + ' ' + r.shippt).toLowerCase().indexOf(ql) >= 0;
+      case 'code':     return r.code.toLowerCase().indexOf(ql) >= 0;
+      case 'no':       return r.no.toLowerCase().indexOf(ql) >= 0;
+      default:
+        return (r.orderno + ' ' + r.model + ' ' + r.customer + ' ' + r.delivery + ' ' +
+                r.shippt + ' ' + r.code + ' ' + r.no + ' ' + r.remark).toLowerCase().indexOf(ql) >= 0;
+    }
+  });
+
+  $('queryArea').innerHTML = hit.length
+    ? '<div class="tag tag-ok">找到 ' + hit.length + ' 行</div>'
+    : '<div class="tag tag-err">没找到</div>';
+
+  if(!hit.length){
+    let extra = '';
+    if(mode === 'orderno'){
+      extra = '<div class="note" style="margin-top:10px;">⚠️ 没查到订单号「' + esc(q) + '」。'
+        + '「客户订单号」是 2026-10-28 才加的，之前发布的老单没有这个字段 —— 那些单子查订单号一定查不到。'
+        + '可以把「匹配方式」改成<b>客户 / 型号 / 物料编码 / 发货单号</b>再查。</div>';
+    }
+    $('queryArea').innerHTML += extra;
+    log('查询「' + q + '」无结果', 'warn');
+    return;
+  }
+
+  /* 按单号分组（同一次发布的多行算一单） */
+  const groups = new Map();
+  hit.forEach(r => {
+    const k = r.no || (r.shipdate + '@' + r.customer);
+    if(!groups.has(k)) groups.set(k, {no:r.no, date:r.shipdate, cust:r.customer, rows:[]});
+    groups.get(k).rows.push(r);
+  });
+  const gl = Array.from(groups.values()).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+  let html = '<div class="tw"><table><thead><tr>'
+    + '<th>发货单号</th><th>日期</th><th>客户 / 送达方</th><th>型号</th>'
+    + '<th class="num">件数</th><th class="num">箱数</th><th>客户订单号</th>'
+    + '<th>物料编码</th><th>发货点</th><th>时效要求</th><th>制单人</th>'
+    + '</tr></thead><tbody>';
+  gl.forEach(g => {
+    g.rows.forEach((r,i) => {
+      html += '<tr>'
+        + '<td class="mono">' + (i===0 ? '<span class="ord">' + esc(r.no) + '</span>' : '') + (r.archived ? ' <span class="tag">归档</span>' : '') + '</td>'
+        + '<td class="mono">' + esc(r.shipdate) + '</td>'
+        + '<td>' + esc(r.customer) + '</td>'
+        + '<td>' + esc(r.model) + '</td>'
+        + '<td class="num">' + fmt(r.qty) + '</td>'
+        + '<td class="num">' + fmt(boxOf(r)) + '</td>'
+        + '<td class="mono">' + (r.orderno ? esc(r.orderno) : '<span class="tag tag-warn">无</span>') + '</td>'
+        + '<td class="mono">' + esc(r.code) + '</td>'
+        + '<td>' + esc(r.shippt) + '</td>'
+        + '<td style="font-size:12px">' + esc(r.remark) + '</td>'
+        + '<td style="font-size:12px;color:#64748b">' + esc(r.planner || r.operator) + '</td>'
+        + '</tr>';
+    });
+  });
+  html += '</tbody></table></div>';
+  $('queryArea').innerHTML += html;
+  log('查询「' + q + '」→ 命中 ' + hit.length + ' 行 / ' + gl.length + ' 单', 'ok');
+}
+
+/* ---------- 月份快捷 ---------- */
+function buildMonthQuick(){
+  const cnt = new Map();
+  ALL.forEach(r => { const m = (r.shipdate||'').slice(0,7); if(m) cnt.set(m, (cnt.get(m)||0)+1); });
+  const ms = Array.from(cnt.keys()).sort().reverse();
+  $('quickMonths').innerHTML = ms.map(m =>
+    '<button class="mini" data-m="' + m + '">' + m.replace('-','年') + '月（' + cnt.get(m) + '行）</button>'
+  ).join('') || '<span class="empty">暂无数据</span>';
+  $('quickMonths').querySelectorAll('[data-m]').forEach(b => {
+    b.onclick = () => {
+      const m = b.getAttribute('data-m');
+      $('dFrom').value = m + '-01';
+      $('dTo').value = m + '-' + new Date(+m.split('-')[0], +m.split('-')[1], 0).getDate();
+      doStat();
+    };
+  });
+}
+function setMonth(m){
+  const y = +m.split('-')[0], mo = +m.split('-')[1];
+  $('dFrom').value = m + '-01';
+  $('dTo').value = m + '-' + new Date(y, mo, 0).getDate();
+}
+function thisMonth(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+
+/* ---------- 绑定 ---------- */
+$('btnStat').onclick = doStat;
+$('btnQuery').onclick = doQuery;
+$('btnThisMonth').onclick = () => { setMonth(thisMonth()); doStat(); };
+$('btnLastMonth').onclick = () => {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1);
+  setMonth(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')); doStat();
+};
+$('btnSep').onclick = () => { setMonth('2026-09'); doStat(); };
+$('btnAll').onclick = () => { $('dFrom').value = ''; $('dTo').value = ''; doStat(); };
+$('qText').addEventListener('keydown', e => { if(e.key === 'Enter') doQuery(); });
+
+/* 首次进来：自动拉数据 + 填好本月区间 */
+(async function init(){
+  $('dFrom').value = thisMonth() + '-01';
+  $('dTo').value = thisMonth() + '-' + new Date().getDate();
+  log('页面就绪，正在拉取云端数据…');
+  const okLoad = await loadAll(false);
+  if(okLoad){ doStat(); }
+  else{
+    $('statArea').innerHTML = '<div class="note">❌ 没拉到云端数据。请检查网络连接，或确认 <b>cloud-config.js</b> 里的 url/key 填对了。</div>';
+  }
+})();
+</script>
+</body>
+</html>
