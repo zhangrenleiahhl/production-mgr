@@ -18,6 +18,9 @@
   .fld label{font-size:12px;color:var(--muted);}
   input[type=date],input[type=text],select{font:inherit;font-size:13px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#1e293b;}
   input[type=text]{min-width:220px;}
+  /* 客户/型号筛选框：客户名 15 字、型号名 35 字，要留足宽度才看得全 */
+  #fCust{min-width:260px;max-width:340px;}
+  #fModel{min-width:320px;max-width:460px;}
   .btn{font:inherit;font-size:13px;padding:7px 14px;border:none;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer;}
   .btn:hover{opacity:.9;}
   .btn2{background:#f1f5f9;color:#334155;border:1px solid var(--line);}
@@ -80,6 +83,19 @@
       <button class="btn btn2" id="btnAll">全部</button>
     </div>
     <div class="quick" id="quickMonths"></div>
+    <div class="bar" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);">
+      <div class="fld">
+        <label>客户筛选（可打字过滤）</label>
+        <input type="text" id="fCust" list="dlCust" placeholder="全部客户" autocomplete="off">
+        <datalist id="dlCust"></datalist>
+      </div>
+      <div class="fld">
+        <label>型号筛选（可打字过滤）</label>
+        <input type="text" id="fModel" list="dlModel" placeholder="全部型号" autocomplete="off">
+        <datalist id="dlModel"></datalist>
+      </div>
+      <button class="btn btn2" id="btnClearFilter" title="清掉客户与型号筛选，回到全区间全量统计">✖ 清除筛选</button>
+    </div>
     <div id="statArea" style="margin-top:12px;"><div class="empty">选好日期区间后点「统计」。</div></div>
   </div>
 
@@ -128,6 +144,7 @@ const K_ARCH = 'shipping_plans_archive_v1';
 
 let ALL = [];        // 全量明细行（已摊平）
 let LOADED = false;
+let __lastFilterRange = '';   // 上次生成筛选选项时的日期区间（区间没变就别重建，否则打字会被打断）
 
 /* ---------- 工具 ---------- */
 const $ = id => document.getElementById(id);
@@ -259,17 +276,70 @@ function inRange(r, from, to){
   return true;
 }
 
+/* ★ 客户/型号筛选：选项跟着「当前日期区间」动态生成（区间外的客户型号不该出现在下拉里），
+     并保留当前选中项 —— 若它在新区间里已不存在，则自动退回「全部」而不是留一个空结果。 */
+function buildFilterOptions(dateRows){
+  const custs = new Set(), mods = new Set();
+  dateRows.forEach(r => {
+    custs.add(normFilterVal(r.customer, '（未填客户）'));
+    mods.add(normFilterVal(r.model, '（未填型号）'));
+  });
+  fillFilter('fCust', 'dlCust', '全部客户', Array.from(custs).sort((a,b) => a.localeCompare(b, 'zh')));
+  fillFilter('fModel', 'dlModel', '全部型号', Array.from(mods).sort((a,b) => a.localeCompare(b, 'zh')));
+}
+/* ★ 空值在数据里是「/」（发布时 pad() 把空串转成 /），不是空串 →
+   下拉里要显示成「（未填型号）」，否则会出现一个名叫「/」的选项，用户看不懂 */
+function normFilterVal(v, emptyLabel){
+  const s = String(v == null ? '' : v).trim();
+  return (!s || s === '/') ? emptyLabel : s;
+}
+/* 用 input+datalist 而不是 select：型号有 400+ 个，原生下拉靠鼠标找太慢，
+   datalist 可以直接打字过滤。输入框留空 = 全部。 */
+function fillFilter(inputId, listId, allLabel, list){
+  const inp = $(inputId), dl = $(listId);
+  const prev = inp.value.trim();
+  dl.innerHTML = list.map(v => '<option value="' + esc(v) + '"></option>').join('');
+  // 之前的选中项在新选项里还在就保留，不在就清空（而不是留一个查不到的结果）
+  inp.value = (prev && list.indexOf(prev) >= 0) ? prev : '';
+  inp.placeholder = allLabel + '（' + list.length + '）';
+}
+function applyFilter(r){
+  const fc = $('fCust').value.trim(), fm = $('fModel').value.trim();
+  if(fc && normFilterVal(r.customer, '（未填客户）') !== fc) return false;
+  if(fm && normFilterVal(r.model, '（未填型号）') !== fm) return false;
+  return true;
+}
+
 async function doStat(){
   if(!(await loadAll(false))) return;
   const from = $('dFrom').value, to = $('dTo').value;
   if(from && to && from > to){ log('开始日期晚于结束日期，已自动对调', 'warn'); }
 
-  const rows = ALL.filter(r => inRange(r, from, to));
-  $('statScope').textContent = (from || '最早') + ' ~ ' + (to || '最新') + '　共 ' + rows.length + ' 行';
+  /* 先按日期区间取，再按客户/型号筛选 */
+  const dateRows = ALL.filter(r => inRange(r, from, to));
+  /* ★ 选项只在「区间变了」时重建 —— 否则用户正在打字，输入框会被清空打断 */
+  const rangeKey = from + '~' + to;
+  if(rangeKey !== __lastFilterRange){
+    __lastFilterRange = rangeKey;
+    buildFilterOptions(dateRows);
+  }
+  const rows = dateRows.filter(applyFilter);
+
+  const fc = $('fCust').value.trim(), fm = $('fModel').value.trim();
+  const filterTxt = (fc ? '　客户：' + fc : '') + (fm ? '　型号：' + fm : '');
+  $('statScope').textContent = (from || '最早') + ' ~ ' + (to || '最新') + '　共 ' + rows.length + ' 行' + filterTxt;
 
   if(!rows.length){
-    $('statArea').innerHTML = '<div class="empty">这个区间没有数据。</div>';
-    log('区间内无数据', 'warn');
+    let msg = dateRows.length ? '这个筛选条件下没有数据。' : '这个区间没有数据。';
+    /* ★ 打字筛到一半（不是完整名称）是最常见原因 → 明确告诉用户，并给「清掉筛选」按钮 */
+    if(dateRows.length && (fc || fm)){
+      msg += '<br><span style="color:#64748b;font-size:12.5px;">'
+        + '筛选词必须和下拉里的名称<b>完全一致</b>（下拉里能打出来才作数）。'
+        + '若只是记了个大概，可以点「✖ 清除筛选」回到全量。</span><br>'
+        + '<button class="mini" style="margin-top:8px" onclick="document.getElementById(\'btnClearFilter\').click()">✖ 清除筛选</button>';
+    }
+    $('statArea').innerHTML = '<div class="empty">' + msg + '</div>';
+    log('区间内无数据' + (filterTxt ? '（含筛选：' + filterTxt.trim() + '）' : ''), 'warn');
     return;
   }
 
@@ -381,7 +451,11 @@ async function doStat(){
     else a.noBox++;
   });
   const clist = Array.from(byCust.values()).sort((a,b) => b.qty - a.qty);
-  let chtml = '<div style="margin-top:14px;"><h2 style="font-size:14px;">按客户汇总 <span class="n">' + clist.length + ' 个客户</span></h2>'
+  /* 筛了客户时，这张表自然只剩那一个客户 → 标题要说清楚，避免看着像"数据丢了" */
+  const cTitle = fc
+    ? '按客户汇总 <span class="n">（已按「' + esc(fc) + '」筛选，只剩 1 个客户）</span>'
+    : '按客户汇总 <span class="n">' + clist.length + ' 个客户</span>';
+  let chtml = '<div style="margin-top:14px;"><h2 style="font-size:14px;">' + cTitle + '</h2>'
     + '<div class="tw" style="max-height:38vh;"><table><thead><tr>'
     + '<th>客户 / 送达方</th><th class="num">件数</th><th class="num">箱数</th>'
     + '<th class="num">实填箱</th><th class="num">推算箱</th><th class="num">无记录行</th>'
@@ -502,6 +576,24 @@ function thisMonth(){ const d = new Date(); return d.getFullYear() + '-' + Strin
 /* ---------- 绑定 ---------- */
 $('btnStat').onclick = doStat;
 $('btnQuery').onclick = doQuery;
+/* ★ 客户/型号筛选：改了下拉立刻重算（不用再点「统计」） */
+$('fCust').onchange = doStat;
+$('fModel').onchange = doStat;
+/*   input+datalist：打字时先过滤提示，失焦/回车再正式重算（打字过程中不反复刷统计） */
+let _fTimer = null;
+function onFilterInput(){
+  clearTimeout(_fTimer);
+  _fTimer = setTimeout(doStat, 400);
+}
+$('fCust').addEventListener('input', onFilterInput);
+$('fModel').addEventListener('input', onFilterInput);
+$('fCust').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
+$('fModel').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
+$('btnClearFilter').onclick = () => {
+  $('fCust').value = ''; $('fModel').value = '';
+  doStat();
+  log('已清除客户与型号筛选', 'ok');
+};
 $('btnThisMonth').onclick = () => { setMonth(thisMonth()); doStat(); };
 $('btnLastMonth').onclick = () => {
   const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1);
