@@ -1464,7 +1464,7 @@ function detailTable(rec, tonByCust){
 
       `<input type="text" class="custton-in${ovd}" value="${val}" data-key="${escAttr(key)}" data-old="${val}" inputmode="decimal">`,
 
-      pad(r.logistics), pad(r.code),
+      pad(r.logistics), pad(r.orderno), pad(r.code),
 
       { raw: `<td class="pg" data-ck="${escAttr(pgKey)}" title="现场扫码后实时显示"></td>` }   // 14 = 发货进度（工序 + 车辆），按两段 key 查进度
 
@@ -1508,7 +1508,7 @@ function detailTable(rec, tonByCust){
 
       <td class="num">${sumQ}</td><td></td><td class="num">${sumCwt.toFixed(2)}</td><td class="num">${sumT.toFixed(1)}</td>
 
-      <td></td><td class="num">${Math.round(sumB * 10) / 10}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td><td></td>
+      <td></td><td class="num">${Math.round(sumB * 10) / 10}</td><td></td><td class="num" data-act="sumCustT">${sumCustT.toFixed(1)}</td><td></td><td></td><td></td><td></td>
 
     </tr>`;
 
@@ -1536,7 +1536,7 @@ function detailTable(rec, tonByCust){
 
       <th></th><th>发货日期</th><th>送达方</th><th>型号</th><th>发货数量</th><th>发货点</th><th>箱重T</th><th>产品重量T</th>
 
-      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物流</th><th>物料编码</th><th>发货进度</th>
+      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物流</th><th>客户订单</th><th>物料编码</th><th>发货进度</th>
 
     </tr></thead><tbody>${body}</tbody></table>`;
 
@@ -1944,7 +1944,7 @@ function csvText(head, data, tonCol){
 
 function matrix(rows, date, rec){
 
-  const head = ["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","物料编码"];
+  const head = ["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","客户订单","物料编码"];
 
   // 先把行数据（不含客户吨位列）按 rec.rows 算 tonByKey（同时含「客户|日期」与各发货点两种 key）
 
@@ -1960,7 +1960,7 @@ function matrix(rows, date, rec){
 
       pad(r.delivery), pad(r.box), pad(r.remark),
 
-      tonNumber(rec, r, tonByKey), pad(r.logistics), pad(r.code)];
+      tonNumber(rec, r, tonByKey), pad(r.logistics), pad(r.orderno), pad(r.code)];
 
   });
 
@@ -2054,7 +2054,7 @@ function downloadOne(rec, fmt){
 
 function batchMatrix(recs){
 
-  const head = ["单号","发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","物料编码"];
+  const head = ["单号","发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","客户订单","物料编码"];
 
   // 逐单独立计算 tonByKey：不同单的同客户同日期不应互相加总，避免跨单泄漏
 
@@ -2072,7 +2072,7 @@ function batchMatrix(recs){
 
       data.push([pad(rec.no), sd, pad(r.customer), pad(r.model), pad(r.qty), pad(r.shippt), pad(r.cwt), pad(r.ton),
 
-        pad(r.delivery), pad(r.box), pad(r.remark), tonNumber(rec, r, tonByKey), pad(r.logistics), pad(r.code)]);
+        pad(r.delivery), pad(r.box), pad(r.remark), tonNumber(rec, r, tonByKey), pad(r.logistics), pad(r.orderno), pad(r.code)]);
 
     });
 
