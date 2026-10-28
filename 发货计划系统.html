@@ -18,7 +18,7 @@
 
 <script src="cloud-config.js?v=20260920a"></script>
 
-<script src="cloud-sync.js?v=20260922d"></script>
+<script src="cloud-sync.js?v=20261026a"></script>
 
 <script src="scan-lib.js?v=20261016b"></script>
 
@@ -34,7 +34,7 @@
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script>var APP_VER="20261026b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261026c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -420,7 +420,7 @@
 
   .tbl td textarea{resize:none;overflow:hidden;font-family:inherit;padding:2px 3px;white-space:pre-wrap;word-break:break-word;display:block;text-align:center;}
 
-  .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"]{text-align:center;}
+  .tbl td textarea[data-f="model"],.tbl td textarea[data-f="code"],.tbl td textarea[data-f="orderno"]{text-align:center;}
 
   .tbl td input:focus,.tbl td textarea:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(37,99,235,.15);}
 
@@ -505,7 +505,7 @@
 
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 送达方（原客户） */
 
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:20%;}   /* 型号 */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:15%;}   /* 型号 */
 
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:5%;}    /* 发货数量 */
 
@@ -525,9 +525,10 @@
 
   .tbl th:nth-child(14),.tbl tbody td:nth-child(14){width:3%;}  /* 物流（按客户自动带出） */
 
-  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:5%;}  /* 物料编码 */
+  .tbl th:nth-child(15),.tbl tbody td:nth-child(15){width:5%;}    /* 客户订单 */
 
-  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4%!important;}  /* 操作 */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:5%;}  /* 物料编码 */
+  .tbl th:nth-child(17),.tbl tbody td:nth-child(17){width:4%!important;}  /* 操作 */
 
   /* 交货单：按字数自动换行（textarea 自适应高度，列宽不够自动折行且撑高行） */
 
@@ -535,7 +536,8 @@
 
   .tbl td.col-delivery{vertical-align:middle;overflow:visible;padding:0;}
 
-  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:9px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;}  /* 物料编码：小字体单行显示 */
+  .tbl tbody td:nth-child(15) textarea{text-align:center;font-size:11px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;}  /* 客户订单：单行居中 */
+  .tbl tbody td:nth-child(16) textarea{text-align:center;font-size:9px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;}  /* 物料编码：小字体单行显示 */
 
   .tbl tbody td:nth-child(14) input{font-size:10px;font-weight:600;}  /* 物流：窄列小字体单行 */
 
@@ -1290,7 +1292,7 @@
 
     <button class="btn btn-primary" id="publish" title="发布" data-page-node-id="x8ZOCo3qHvgR9AqsmFPrH3">发布</button>
 
-    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的整行信息（发货日期/送达方/型号/发货数量/发货点/交货单/箱数/箱重T/产品重量T/客户吨位/物流/物料编码，制表符分隔；可直接粘回表格，也可粘到 Excel。注意：时效要求不复制，粘回来需另填最新值）">复制</button>
+    <button class="btn btn-line" id="copyModelCode" title="复制勾选行的整行信息（发货日期/送达方/型号/发货数量/发货点/交货单/箱数/箱重T/产品重量T/客户吨位/物流/客户订单/物料编码，制表符分隔；可直接粘回表格，也可粘到 Excel。注意：时效要求不复制，粘回来需另填最新值）">复制</button>
 
     <button class="btn btn-line" id="progBoardBtn" title="发货进度看板：现场用手机扫码逐道工序更新；这里实时显示（打开时每 10 秒刷新）">📱 发货进度</button>
 
@@ -1368,7 +1370,7 @@
 
           <th class="col-idx" data-page-node-id="l3Z6YTbbwEiQQ6zgEwICm5">#</th><th class="col-check" data-page-node-id="J4LJcEcs67il3BI3B50mk5"><input type="checkbox" id="checkAll" title="全选 / 取消全选" data-page-node-id="BTNcAAmlK72aLnP1eNvZ9E"></th><th data-page-node-id="cFafwanzKFMeFzVDeLQcrs">发货日期</th><th data-page-node-id="D2gCKTVOpYlEjLH496SFBa">送达方<span class="req">*</span></th><th data-page-node-id="CwALvycyDFU7k0gI0hw9XQ">型号</th><th data-page-node-id="xyqSaveNIkf34xcYTM0HNV">发货数量</th><th class="col-shippt" data-page-node-id="l3mXc75iLDU4gOMsD0ad3j">发货点</th><th data-page-node-id="ahyKu0hWNPHAoHkSDMUxfA">交货单</th><th data-page-node-id="tZD9nzJVMUW8HYtN59fB5m">箱数</th><th data-page-node-id="8iCwQYmuEqTeQcrLVgfMYj">时效要求<span class="req">*</span></th><th data-page-node-id="0XjmDD6elRGX78GFv0IErb">箱重T</th><th data-page-node-id="KDONZAUjAUsjdn49FB8sVL">产品重量T</th>
 
-          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位<span class="req">*</span></th><th data-page-node-id="thLogistics">物流</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
+          <th data-page-node-id="66L7iw1ETXquQmEQxSyXV4">客户吨位<span class="req">*</span></th><th data-page-node-id="thLogistics">物流</th><th class="col-order" data-page-node-id="colOrderNo">客户订单</th><th class="col-code" data-page-node-id="bDPi0xc9poC3VBpdwh0pnu">物料编码</th><th class="col-act" data-page-node-id="4jnqhkAFwLkM9qAEnEk5c1">操作</th>
 
         </tr></thead>
 
@@ -1395,6 +1397,8 @@
           <td class="num-cell" id="sumSubTon" data-page-node-id="oHPZjgLLC5hheJ46sZ23qK">/</td>
 
           <td data-page-node-id="tdLogisticsFoot"></td>
+
+          <td data-page-node-id="tdOrderFoot"></td>
 
           <td data-page-node-id="5wWyKK46NDKWWK8CeJ8bNh"></td>
 
@@ -4056,6 +4060,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}"${((data.logisticsManual===true||data.logisticsManual==="1")?' data-manual="1"':'')} placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
 
+    <td class="col-order"><textarea data-f="orderno" placeholder="/" rows="1" title="客户订单号（可选，部分客户需填写）">${esc(data.orderno)}</textarea></td>
     <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" title="物料编码（支持粘贴/编辑，也可点右侧按钮复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
 
     <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"${(data.unit&&data.unit!=="/"&&data.model)?` data-for="${esc(data.model)}"`:''}><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"${(data.perbox&&data.perbox!=="/"&&data.model)?` data-for="${esc(data.model)}"`:''}></td>`;
@@ -4984,7 +4989,7 @@ function scheduleRefresh(){
 
 let undoStack=[];
 
-const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12,14,15];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱重T/客户吨位/操作；12=产品重量T 14=物流 15=物料编码）
+const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12,14,15,16];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱重T/客户吨位/操作；12=产品重量T 14=物流 15=客户订单 16=物料编码）
 
 function collectRowData(tr){
 
@@ -5017,6 +5022,8 @@ function collectRowData(tr){
     //    撤回时也读不到 → 只能靠 addRow 再按客户自动带一次，手填过的物流就串了。
 
     logistics:g("logistics"),
+
+    orderno:g("orderno"),   // 客户订单号（可选，部分客户需填写）
 
     // ★ 手填物流标记也要带上：撤回/发布都走这一份字段表，缺了它「手填的物流」会被自动带出冲掉
 
@@ -6617,7 +6624,7 @@ function rowRefs(tr){
 
     shipdate:null, customer:null, code:null, model:null, qty:null, unit:null, perbox:null,
 
-    ton:null, box:null, cwt:null, remark:null, logistics:null, shippt:null, delivery:null,
+    ton:null, box:null, cwt:null, remark:null, logistics:null, shippt:null, delivery:null, orderno:null,
 
     tonReset:null, boxReset:null, cwtShow:null, cwtTog:null,
 
@@ -7036,6 +7043,8 @@ function writeDraftNow(){
 
         logistics:R.logistics?R.logistics.value:"",
 
+        orderno:R.orderno?R.orderno.value:"",   // ★ 客户订单号也要存草稿（漏了刷新页面就没了）
+
         // ★ 手填标记必须一起存：重开页面后标记若丢了，自动带出会把人工填的物流冲掉
 
         logisticsManual:!!(R.logistics&&R.logistics.dataset.manual==="1"),
@@ -7248,7 +7257,8 @@ function rowSubtonText(tr){
 
 function readRowCells(tr){
 
-  return PASTE_COLS.map(f=>{
+  // ★ 复制走新口径（14 列，含「客户订单」）；粘回来时 pastePlan 会按列数自动切回对应口径
+  return PASTE_COLS_V2.map(f=>{
 
     if(f==="subton") return rowSubtonText(tr).replace(/[\t\r\n]+/g," ");
 
@@ -7274,7 +7284,7 @@ function copyModelCode(){
 
   const lines=[];
 
-  const __ri=PASTE_COLS.indexOf("remark");   // ★ 复制时剔除「时效要求」：避免把上期旧内容（如「17吨16号到货」）原样带进新计划；粘回来该列为空，由使用者填最新值
+  const __ri=PASTE_COLS_V2.indexOf("remark");   // ★ 复制时剔除「时效要求」：避免把上期旧内容（如「17吨16号到货」）原样带进新计划；粘回来该列为空，由使用者填最新值
 
   rows.forEach(tr=>{
 
@@ -7292,7 +7302,7 @@ function copyModelCode(){
 
   copyToClipboard(lines.join("\n"), this, (ok, err)=>{
 
-    if(ok) toast("已复制 "+lines.length+" 行的整行信息（"+PASTE_COLS.length+" 列）✓");
+    if(ok) toast("已复制 "+lines.length+" 行的整行信息（"+PASTE_COLS_V2.length+" 列）✓");
 
     else toast("复制失败："+(err||"请重试")+"，可尝试按 Ctrl+C 手动复制");
 
@@ -7608,6 +7618,8 @@ function publish(){
       remark,
 
       logistics:f(b.logistics), logisticsManual:!!b.logisticsManual,
+
+      orderno:f(b.orderno),          // ★ 客户订单号：部分客户有订单号，必须跟着记录走（漏了发布出去就没了）
 
       noCar:!!b.noCar
 
@@ -8373,6 +8385,8 @@ function importRecToEditor(rec){
 
       remark:r.remark||"", logistics:r.logistics||"",
 
+      orderno:r.orderno||"",          // ★ 客户订单号：从发布记录导回编辑器时也要带回来
+
       logisticsManual:(r.logisticsManual===true||r.logisticsManual==="1"),
 
       noCar:(r.noCar===true||r.noCar==="1")            // 手删过「（第二车）」后缀的行，导入后别被自动挂回来
@@ -8417,11 +8431,11 @@ function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.repla
 
 function rowsToCsv(rows){ 
 
-  const head=["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","物流"];
+  const head=["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","物流","客户订单"];
 
   const lines=[head.join(",")];
 
-  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark,r.logistics].map(csvCell).join(",")));
+  rows.forEach(r=>lines.push([r.shipdate,r.customer,r.model,r.qty,r.shippt,r.cwt,r.ton,r.delivery,r.box,r.remark,r.logistics,r.orderno||""].map(csvCell).join(",")));
 
   return "﻿"+lines.join("\n");
 
@@ -8567,11 +8581,37 @@ document.addEventListener("keydown", e=>{
 
 // 展示列顺序（与表头/每行单元格 data-f 一一对应）；箱重T/产品重量T/客户吨位 为自动列，只占位不填充
 
+// ★ 粘贴口径分两套：
+//   PASTE_COLS     = 13 列老口径（没有「客户订单」）
+//   PASTE_COLS_V2  = 14 列新口径（物流 → 客户订单 → 物料编码，与表格视觉顺序一致）
+//   老 Excel 整行粘贴靠「片段长度」自动切回老口径 → 「物料编码」不会错位到「客户订单」。
 const PASTE_COLS=["shipdate","customer","model","qty","shippt","delivery","box","remark","cwt","ton","subton","logistics","code"];
+
+const PASTE_COLS_V2=["shipdate","customer","model","qty","shippt","delivery","box","remark","cwt","ton","subton","logistics","orderno","code"];
+
+// 按「落点列 + 片段长度」决定用哪套口径，并算出片段起点列号
+function pastePlan(startField, maxCols){
+  if(!startField){                                   // 整行粘贴：按列数判断（14 列＝新版）
+    const cols=(maxCols>=PASTE_COLS_V2.length)?PASTE_COLS_V2:PASTE_COLS;
+    return {cols:cols, start:0};
+  }
+  const oi=PASTE_COLS.indexOf(startField), ni=PASTE_COLS_V2.indexOf(startField);
+  let cols=PASTE_COLS;
+  if(ni>=0 && oi<0) cols=PASTE_COLS_V2;               // 「客户订单」只在新版里
+  else if(maxCols>PASTE_COLS.length) cols=PASTE_COLS_V2;   // 片段比老口径还长 → 必然含新列
+  else if(oi>=0 && ni>=0 && oi!==ni){
+    const oldSpan=PASTE_COLS.length-oi;               // 老口径从落点往右还剩几列
+    if(maxCols>oldSpan) cols=PASTE_COLS_V2;           // 多出来的那一列就是「客户订单」
+  }
+  let a=cols.indexOf(startField);
+  if(a<0){ cols=PASTE_COLS_V2; a=cols.indexOf(startField); }
+  if(a<0) a=0;
+  return {cols:cols, start:a};
+}
 
 const PASTE_AUTO={cwt:1,ton:1,subton:1};
 
-const PASTE_LABEL={shipdate:"发货日期",customer:"送达方",model:"型号",qty:"发货数量",shippt:"发货点",delivery:"交货单",box:"箱数",remark:"时效要求",logistics:"物流",code:"物料编码"};
+const PASTE_LABEL={shipdate:"发货日期",customer:"送达方",model:"型号",qty:"发货数量",shippt:"发货点",delivery:"交货单",box:"箱数",remark:"时效要求",logistics:"物流",orderno:"客户订单",code:"物料编码"};
 
 // 往单元格写值（下拉框自动补选项；箱数手填要打 manual 标记，避免被自动计算覆盖）
 
@@ -8763,11 +8803,13 @@ function onTablePaste(e){
 
     const rows=pasteTargetRows(tr0, grid.length, !tr0);
 
+    const _pp=pastePlan(null, maxCols);                // ★ 整行粘贴永远从「发货日期」起 → 只按列数判口径（14 列新 / 13 列老）
+
     grid.forEach((vals,ri)=>{
 
       const tr=rows[ri];
 
-      vals.forEach((v,ci)=>{ const f=PASTE_COLS[ci]; if(f) pasteFill(tr,f,v); });
+      vals.forEach((v,ci)=>{ const f=_pp.cols[ci]; if(f) pasteFill(tr,f,v); });
 
     });
 
@@ -8775,7 +8817,7 @@ function onTablePaste(e){
 
     sortRowsByDate();                                  // 按日期归位（同日期保持原有先后）
 
-    const custPasted=PASTE_COLS.slice(0,maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
+    const custPasted=_pp.cols.slice(0,maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
 
     finish(rows, "已粘贴 "+grid.length+" 行（整行信息）", custPasted, planDate);
 
@@ -8859,11 +8901,13 @@ function onTablePaste(e){
 
   e.preventDefault();
 
-  let a=PASTE_COLS.indexOf(startField);
+  const _pp=pastePlan(startField, maxCols);            // ★ 落点 + 片段长度 → 选口径与起点列
 
-  if(a<0) a=0;
+  const a=_pp.start;
 
-  const custPasted=PASTE_COLS.slice(a, a+maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
+  const _pcols=_pp.cols;
+
+  const custPasted=_pcols.slice(a, a+maxCols).indexOf("customer")>=0;   // 粘贴区含「送达方」列 → 以粘贴值为准
 
   const rows=pasteTargetRows(tr0, grid.length);
 
@@ -8871,13 +8915,13 @@ function onTablePaste(e){
 
     const tr=rows[ri];
 
-    vals.forEach((v,ci)=>{ const f=PASTE_COLS[a+ci]; if(f) pasteFill(tr,f,v); });
+    vals.forEach((v,ci)=>{ const f=_pcols[a+ci]; if(f) pasteFill(tr,f,v); });
 
   });
 
   // 粘贴区覆盖了「发货日期」列 → 日期统一给表头日期（默认明天）；没覆盖就完全不碰日期
 
-  const coversDate=PASTE_COLS.slice(a, a+maxCols).indexOf("shipdate")>=0;
+  const coversDate=_pcols.slice(a, a+maxCols).indexOf("shipdate")>=0;
 
   const planDate=coversDate?applyPlanDateToRows(rows):null;
 
