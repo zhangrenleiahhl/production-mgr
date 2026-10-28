@@ -180,19 +180,67 @@
 
   .rec-acts{display:flex;flex-wrap:wrap;gap:6px;}
 
-  .rec-detail{padding:0 14px 14px;border-top:1px dashed var(--line);}
+  .rec-detail{padding:0 14px 14px;border-top:1px dashed var(--line);overflow-x:auto;}
 
   .dt-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 0 8px;}
 
   .dt-acts .sub{margin-left:auto;}
 
-  table.dt{width:100%;border-collapse:collapse;font-size:12px;}
+  /* ★ 记录明细表（16 列）：固定列宽 + 长内容在列内换行
+     原来没有 table-layout:fixed → 14 位物料编码（如 10000000003741）把那一列撑到 110px，
+     整表总宽超出容器，右侧「发货进度」列被切掉看不见。→ 改固定列宽 + 换行 */
+  table.dt{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
 
   table.dt th,table.dt td{border:1px solid var(--line);padding:6px 7px;vertical-align:middle;}
 
-  table.dt th{background:#f1f5ff;color:#1e3a8a;font-weight:700;white-space:nowrap;}
+  table.dt th{background:#f1f5ff;color:#1e3a8a;font-weight:700;}
+
+  /* 16 列宽度（合计 100%）：勾选3/日期8/送达方10/型号14/数量5/发货点5/箱重T5/产品重T5/
+     交货单7/箱数4/时效要求8/客户吨位6/物流4/客户订单号7/物料编码6/发货进度4 */
+  table.dt th:nth-child(1),table.dt td:nth-child(1){width:3%;}
+  table.dt th:nth-child(2),table.dt td:nth-child(2){width:8%;}
+  table.dt th:nth-child(3),table.dt td:nth-child(3){width:10%;}
+  table.dt th:nth-child(4),table.dt td:nth-child(4){width:13%;}
+  table.dt th:nth-child(5),table.dt td:nth-child(5){width:5%;}
+  table.dt th:nth-child(6),table.dt td:nth-child(6){width:5%;}
+  table.dt th:nth-child(7),table.dt td:nth-child(7){width:5%;}
+  table.dt th:nth-child(8),table.dt td:nth-child(8){width:5%;}
+  table.dt th:nth-child(9),table.dt td:nth-child(9){width:7%;}
+  table.dt th:nth-child(10),table.dt td:nth-child(10){width:4%;}
+  table.dt th:nth-child(11),table.dt td:nth-child(11){width:8%;}
+  table.dt th:nth-child(12),table.dt td:nth-child(12){width:6%;}
+  table.dt th:nth-child(13),table.dt td:nth-child(13){width:4%;}
+  table.dt th:nth-child(14),table.dt td:nth-child(14){width:7%;}
+  table.dt th:nth-child(15),table.dt td:nth-child(15){width:6%;}
+  table.dt th:nth-child(16),table.dt td:nth-child(16){width:4%;}
+
+  /* ★「客户订单号」「物料编码」两列：表头与内容都允许折行，长编码在格内断行完整显示 */
+  table.dt th:nth-child(14),table.dt th:nth-child(15){white-space:normal;line-height:1.2;}
+  table.dt td:nth-child(14),table.dt td:nth-child(15){word-break:break-all;overflow-wrap:anywhere;line-height:1.35;}
+
+  /* 其余长文本列也允许换行（型号/送达方/时效要求/交货单）*/
+  table.dt td:nth-child(3),table.dt td:nth-child(4),table.dt td:nth-child(9),table.dt td:nth-child(11){word-break:break-word;overflow-wrap:anywhere;line-height:1.35;}
+  table.dt th:nth-child(3),table.dt th:nth-child(4),table.dt th:nth-child(9),table.dt th:nth-child(11){white-space:normal;line-height:1.2;}
+
+  /* ★ 表头统一允许折行：「发货数量」「产品重量T」「客户吨位」等字多的，nowrap 会被裁掉字 */
+  table.dt th{white-space:normal;line-height:1.2;}
+
+  /* ★ 客户吨位输入框：原来 min-width:62px 比列宽（6% ≈ 62px）还大 → 撑破表格。
+     这条必须放在 table.dt input.custton-in 之后（同等特异性时后者胜），
+     所以用更高特异性：table.dt tbody td input.custton-in */
+  table.dt tbody td input.custton-in{min-width:0;width:100%;}
+
+  /* ★ 发货进度格：原来 nowrap → 工序文字（「已发完」+车辆）撑破 4% 的窄列 → 允许折行 */
+  table.dt td.pg{text-align:center;white-space:normal;line-height:1.25;word-break:break-word;overflow-wrap:anywhere;}
+  /*   徽章 .p-pill 来自 scan-lib 的公共 PILL_CSS（white-space:nowrap，三端共用）——
+     不改公共库，只在 viewer 这张窄表里让它能断行（否则「货好 · 车已到」82px 撑爆 42px 的列） */
+  table.dt td.pg .p-pill{white-space:normal;display:inline-block;max-width:100%;word-break:break-word;overflow-wrap:anywhere;padding:1px 4px;font-size:10px;line-height:1.3;letter-spacing:-.2px;}
 
   table.dt td.num{text-align:right;font-variant-numeric:tabular-nums;}
+
+  /* ★ 数字列（件数/箱重/产品重/箱数/客户吨位）不该折行：「21000」被折成「2100/0」很难看
+     → 数字列不折行，宽度不够时靠上面的列宽保证；确实放不下就缩小字号 */
+  table.dt td.num{white-space:nowrap;}
 
   table.dt tbody tr:nth-child(even){background:#fafbff;}
 
@@ -1536,7 +1584,7 @@ function detailTable(rec, tonByCust){
 
       <th></th><th>发货日期</th><th>送达方</th><th>型号</th><th>发货数量</th><th>发货点</th><th>箱重T</th><th>产品重量T</th>
 
-      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物流</th><th>客户订单</th><th>物料编码</th><th>发货进度</th>
+      <th>交货单</th><th>箱数</th><th>时效要求</th><th>客户吨位</th><th>物流</th><th>客户订单号</th><th>物料编码</th><th>发货进度</th>
 
     </tr></thead><tbody>${body}</tbody></table>`;
 
@@ -1944,7 +1992,7 @@ function csvText(head, data, tonCol){
 
 function matrix(rows, date, rec){
 
-  const head = ["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","客户订单","物料编码"];
+  const head = ["发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","客户订单号","物料编码"];
 
   // 先把行数据（不含客户吨位列）按 rec.rows 算 tonByKey（同时含「客户|日期」与各发货点两种 key）
 
@@ -2054,7 +2102,7 @@ function downloadOne(rec, fmt){
 
 function batchMatrix(recs){
 
-  const head = ["单号","发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","客户订单","物料编码"];
+  const head = ["单号","发货日期","送达方","型号","发货数量","发货点","箱重T","产品重量T","交货单","箱数","时效要求","客户吨位","物流","客户订单号","物料编码"];
 
   // 逐单独立计算 tonByKey：不同单的同客户同日期不应互相加总，避免跨单泄漏
 
