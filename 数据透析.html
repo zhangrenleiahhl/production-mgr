@@ -64,11 +64,29 @@
   <div class="hd">
     <div>
       <h1>📊 数据透析</h1>
-      <div class="sub">发货计划数据统计与快速查询 · 数据来自<b>云端已发布的发货计划</b>（含历史归档）</div>
+      <div class="sub">发货计划数据统计与快速查询 · <b id="srcDesc">数据来自发货计划系统本机的数据</b></div>
     </div>
     <div>
       <a class="btn btn2" href="发货计划系统.html" style="text-decoration:none;display:inline-block;">← 回发货计划</a>
     </div>
+  </div>
+
+  <!-- 0. 数据来源 -->
+  <div class="card">
+    <h2>数据来源</h2>
+    <div class="bar">
+      <div class="fld">
+        <label>统计哪个数据</label>
+        <select id="srcSel">
+          <option value="local">发货计划系统（本机）：已发布 + 归档 + 未发布草稿</option>
+          <option value="cloud">云端已发布记录（含历史归档）</option>
+        </select>
+      </div>
+      <button class="btn" id="btnReloadSrc">重新读取</button>
+      <button class="btn btn2" id="btnSyncLocal" title="把云端的已发布记录与归档拉到本机浏览器里（和发货计划系统页面做的同步一样），这样本机统计就有数据了">☁️ 同步到本机</button>
+      <button class="btn btn2" id="btnGoEditor" title="跳到发货计划系统页，可在那里继续编辑与发布">去发货计划系统 →</button>
+    </div>
+    <div id="srcInfo" style="margin-top:10px;"></div>
   </div>
 
   <!-- ① 区间统计 -->
@@ -147,9 +165,11 @@
 const CFG = window.CLOUD_CONFIG || {};
 const K_PLAN = 'shipping_plans_v1';
 const K_ARCH = 'shipping_plans_archive_v1';
+const K_DRAFT = 'shipping_draft_v1';   // 发货计划系统本机的「未发布草稿」——就是正在编辑、还没发布的那批明细
 
 let ALL = [];        // 全量明细行（已摊平）
 let LOADED = false;
+let LOADED_SRC = ''; // 当前内存里的数据来自哪儿（local / cloud）
 let __lastFilterRange = '';   // 上次生成筛选选项时的日期区间（区间没变就别重建，否则打字会被打断）
 
 /* ---------- 工具 ---------- */
@@ -215,7 +235,7 @@ async function fetchCloud(key){
 }
 
 /* 把 rec.rows 摊平成明细行，并补上「所属单号 / 归档标记」 */
-function flatten(recs, archived){
+function flatten(recs, archived, isDraft){
   const out = [];
   (recs || []).forEach(rec => {
     (rec.rows || []).forEach(r => {
@@ -237,7 +257,8 @@ function flatten(recs, archived){
         no       : String(rec.no || '').trim(),
         planner  : String(rec.planner || '').trim(),
         operator : String(rec.operator || '').trim(),
-        archived : !!archived
+        archived : !!archived,
+        draft    : !!isDraft          // ★ 来自「未发布草稿」的行
       });
     });
   });
@@ -257,8 +278,102 @@ function boxInfo(r){
 }
 function boxOf(r){ return boxInfo(r).v; }
 
+/* ---------- 读本机 localStorage（发货计划系统用的就是这套数据）---------- */
+function lsGet(key){
+  try{
+    const raw = localStorage.getItem(key);
+    if(raw == null) return null;
+    const v = JSON.parse(raw);
+    return v;
+  }catch(e){ return null; }
+}
+
+/* ★ 本机数据源：与发货计划系统页面完全同一套 localStorage
+     shipping_plans_v1        已发布记录
+     shipping_plans_archive_v1 历史归档
+     shipping_draft_v1        未发布草稿（正在编辑、还没发布的那批明细）
+   —— 用户要的是「发货计划系统里的」数值，所以草稿必须算进去，不能只取已发布的。 */
+function loadLocal(){
+  const cur  = lsGet(K_PLAN);
+  const arc  = lsGet(K_ARCH);
+  const draft = lsGet(K_DRAFT);
+  const curArr  = Array.isArray(cur) ? cur : [];
+  const arcArr  = Array.isArray(arc) ? arc : [];
+  const hasDraft = draft && Array.isArray(draft.rows) && draft.rows.length;
+  const draftArr = hasDraft ? [{ no: draft.no || '', date: draft.date, rows: draft.rows }] : [];
+
+  if(!curArr.length && !arcArr.length && !hasDraft){
+    log('❌ 本机没有发货计划数据 —— 请先打开「发货计划系统」页面（数据存在本机浏览器里）', 'err');
+    return null;
+  }
+  const rows = flatten(curArr, false).concat(flatten(arcArr, true)).concat(flatten(draftArr, false, true));
+  const info = {
+    published: curArr.length, archived: arcArr.length,
+    draftRows: hasDraft ? draft.rows.length : 0,
+    draftDate: hasDraft ? (draft.date || '') : '',
+    draftNo: hasDraft ? (draft.no || '') : '',
+    total: rows.length
+  };
+  log('✅ 本机读取完成：已发布 ' + info.published + ' 单 + 归档 ' + info.archived +
+      ' 单' + (info.draftRows ? ' + 未发布草稿 ' + info.draftRows + ' 行' : '（无草稿）') +
+      ' → 摊平 ' + info.total + ' 行', 'ok');
+  return { rows: rows, info: info };
+}
+
+/* ---------- 把云端数据同步到本机（和发货计划系统页面同一套逻辑：合并，不覆盖）---------- */
+function mergeById(base, extra){
+  const map = new Map();
+  (base||[]).forEach(r => { if(r && r.id != null) map.set(String(r.id), r); });
+  (extra||[]).forEach(r => { if(r && r.id != null) map.set(String(r.id), r); });
+  return Array.from(map.values());
+}
+async function syncToLocal(){
+  log('正在把云端数据同步到本机…');
+  const btn = $('btnSyncLocal');
+  btn.disabled = true; btn.textContent = '同步中…';
+  try{
+    const cur = await fetchCloud(K_PLAN);
+    const arc = await fetchCloud(K_ARCH);
+    if(cur === null && arc === null){
+      log('❌ 云端没拉到数据，同步失败', 'err');
+      return false;
+    }
+    const localCur = Array.isArray(lsGet(K_PLAN)) ? lsGet(K_PLAN) : [];
+    const localArc = Array.isArray(lsGet(K_ARCH)) ? lsGet(K_ARCH) : [];
+    // ★ 合并而不是覆盖：云端有的 + 本机有的 = 并集，本机独有的记录绝不能被冲掉
+    const mergedCur = mergeById(localCur, cur || []);
+    const mergedArc = mergeById(localArc, arc || []);
+    try{
+      localStorage.setItem(K_PLAN, JSON.stringify(mergedCur));
+      localStorage.setItem(K_ARCH, JSON.stringify(mergedArc));
+    }catch(e){
+      log('❌ 写入本机失败（可能本机存储已满）：' + e.message, 'err');
+      return false;
+    }
+    log('✅ 同步完成：本机已发布 ' + localCur.length + ' → ' + mergedCur.length +
+        ' 单，归档 ' + localArc.length + ' → ' + mergedArc.length + ' 单', 'ok');
+    return true;
+  }finally{
+    btn.disabled = false; btn.textContent = '☁️ 同步到本机';
+  }
+}
+
 async function loadAll(force){
-  if(LOADED && !force){ log('数据已在内存，直接用（不重复拉云端）'); return true; }
+  const src = $('srcSel') ? $('srcSel').value : 'local';
+  if(src === 'local'){
+    if(LOADED && !force && LOADED_SRC === 'local'){ log('本机数据已在内存（不重复读取）'); return true; }
+    log('正在读取发货计划系统本机数据…');
+    const r = loadLocal();
+    if(!r){ showSrcInfo(null); return false; }
+    ALL = r.rows;
+    LOADED = true; LOADED_SRC = 'local';
+    showSrcInfo(r.info);
+    buildMonthQuick();
+    return true;
+  }
+
+  /* 云端源 */
+  if(LOADED && !force && LOADED_SRC === 'cloud'){ log('云端数据已在内存，直接用（不重复拉云端）'); return true; }
   log('正在拉取云端数据…（当前计划 + 历史归档）');
   const cur = await fetchCloud(K_PLAN);
   const arc = await fetchCloud(K_ARCH);
@@ -267,11 +382,45 @@ async function loadAll(force){
     return false;
   }
   ALL = flatten(cur || [], false).concat(flatten(arc || [], true));
-  LOADED = true;
-  log('✅ 拉取完成：当前 ' + (cur||[]).length + ' 单 + 归档 ' + (arc||[]).length +
+  LOADED = true; LOADED_SRC = 'cloud';
+  showSrcInfo({ published:(cur||[]).length, archived:(arc||[]).length, draftRows:0, cloud:true, total: ALL.length });
+  log('✅ 云端拉取完成：当前 ' + (cur||[]).length + ' 单 + 归档 ' + (arc||[]).length +
       ' 单 → 摊平 ' + ALL.length + ' 行', 'ok');
   buildMonthQuick();
   return true;
+}
+
+/* 数据源说明区：把「取到了什么、少了什么」讲清楚 */
+function showSrcInfo(info){
+  const el = $('srcInfo');
+  const desc = $('srcDesc');
+  if(!info){
+    el.innerHTML = '<div class="note" style="color:#b91c1c;">'
+      + '❌ 本机没读到发货计划数据。数据存在<b>浏览器的本机存储</b>里 —— '
+      + '请先打开一次「<a href="发货计划系统.html" target="_blank">发货计划系统</a>」页面'
+      + '（它会把数据同步到本机），再回来点「重新读取」。'
+      + '<br>若你只想看<b>已发布的历史数据</b>（不分设备），把上面的「统计哪个数据」切成「云端已发布记录」即可。</div>';
+    desc.textContent = '数据来自发货计划系统本机的数据';
+    return;
+  }
+  if(info.cloud){
+    desc.textContent = '数据来自云端已发布的发货计划（含历史归档）';
+    el.innerHTML = '<div class="note info">☁️ 当前读的是<b>云端已发布记录</b>：已发布 ' + info.published +
+      ' 单 + 归档 ' + info.archived + ' 单 → 摊平 ' + info.total + ' 行。</div>';
+    return;
+  }
+  desc.textContent = '数据来自发货计划系统本机的数据';
+  let h = '<div class="note info">📁 当前读的是<b>发货计划系统本机</b>的数据：已发布 ' + info.published +
+    ' 单 + 归档 ' + info.archived + ' 单 → 摊平 ' + info.total + ' 行。';
+  if(info.draftRows){
+    h += '<br>➕ 另含<b>未发布草稿 ' + info.draftRows + ' 行</b>'
+       + (info.draftDate ? '（日期 ' + esc(info.draftDate) + (info.draftNo ? ' · 单号 ' + esc(info.draftNo) : '') + '）' : '')
+       + ' —— 这是在发货计划系统里<b>正在编辑、还没发布</b>的那批明细。';
+  }else{
+    h += '<br>（发货计划系统里当前<b>没有未发布的草稿</b>）';
+  }
+  h += '</div>';
+  el.innerHTML = h;
 }
 
 /* ---------- ① 区间统计 ---------- */
@@ -347,6 +496,17 @@ async function doStat(){
   const fc = $('fCust').value.trim(), fm = $('fModel').value.trim(), fo = $('fOrder').value.trim();
   const filterTxt = (fc ? '　客户：' + fc : '') + (fm ? '　型号：' + fm : '') + (fo ? '　订单号：' + fo : '');
   $('statScope').textContent = (from || '最早') + ' ~ ' + (to || '最新') + '　共 ' + rows.length + ' 行' + filterTxt;
+
+  /* ★ 草稿的日期可能不在当前区间里（还没发布，多半是明天/后天的活）
+     → 明确说「草稿在区间外」，否则用户会以为草稿没算进去 */
+  const draftRows = ALL.filter(r => r.draft);
+  const draftIn = draftRows.filter(r => inRange(r, from, to)).length;
+  if(draftRows.length && draftIn < draftRows.length){
+    const outside = draftRows.filter(r => !inRange(r, from, to)).map(r => r.shipdate).filter(Boolean);
+    const dates = Array.from(new Set(outside)).sort();
+    $('statScope').textContent += '　（未发布草稿 ' + draftRows.length + ' 行，其中 ' + (draftRows.length - draftIn)
+      + ' 行不在本区间' + (dates.length ? '：' + dates.join('、') : '') + '）';
+  }
 
   if(!rows.length){
     let msg = dateRows.length ? '这个筛选条件下没有数据。' : '这个区间没有数据。';
@@ -602,6 +762,32 @@ function thisMonth(){ const d = new Date(); return d.getFullYear() + '-' + Strin
 /* ---------- 绑定 ---------- */
 $('btnStat').onclick = doStat;
 $('btnQuery').onclick = doQuery;
+/* ★ 数据来源切换：换源要重新读数据 + 重建筛选候选（不同源的候选不一样） */
+$('srcSel').onchange = async () => {
+  LOADED = false; LOADED_SRC = '';
+  __lastFilterRange = '';        // 强制重建筛选选项
+  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = '';
+  log('已切换数据来源：' + ($('srcSel').value === 'local' ? '发货计划系统（本机）' : '云端已发布记录'), 'ok');
+  const ok = await loadAll(true);
+  if(ok){ doStat(); }
+};
+$('btnReloadSrc').onclick = async () => {
+  LOADED = false; LOADED_SRC = '';
+  __lastFilterRange = '';
+  log('重新读取数据…');
+  const ok = await loadAll(true);
+  if(ok){ doStat(); }
+};
+$('btnSyncLocal').onclick = async () => {
+  const ok = await syncToLocal();
+  if(!ok) return;
+  LOADED = false; LOADED_SRC = '';
+  __lastFilterRange = '';
+  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = '';
+  const ok2 = await loadAll(true);
+  if(ok2){ doStat(); }
+};
+$('btnGoEditor').onclick = () => { window.location.href = '发货计划系统.html'; };
 /* ★ 客户/型号筛选：改了下拉立刻重算（不用再点「统计」） */
 $('fCust').onchange = doStat;
 $('fModel').onchange = doStat;
@@ -636,11 +822,12 @@ $('qText').addEventListener('keydown', e => { if(e.key === 'Enter') doQuery(); }
 (async function init(){
   $('dFrom').value = thisMonth() + '-01';
   $('dTo').value = thisMonth() + '-' + new Date().getDate();
-  log('页面就绪，正在拉取云端数据…');
+  log('页面就绪，正在读取发货计划系统的数据…');
   const okLoad = await loadAll(false);
   if(okLoad){ doStat(); }
   else{
-    $('statArea').innerHTML = '<div class="note">❌ 没拉到云端数据。请检查网络连接，或确认 <b>cloud-config.js</b> 里的 url/key 填对了。</div>';
+    $('statArea').innerHTML = '<div class="note">❌ 没读到数据。请先打开一次<b>「发货计划系统」</b>页面'
+      + '（数据存在浏览器本机），或把上面的「数据来源」切到「云端已发布记录」试试。</div>';
   }
 })();
 </script>
