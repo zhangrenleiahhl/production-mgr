@@ -21,6 +21,7 @@
   /* 客户/型号筛选框：客户名 15 字、型号名 35 字，要留足宽度才看得全 */
   #fCust{min-width:260px;max-width:340px;}
   #fModel{min-width:320px;max-width:460px;}
+  #fOrder{min-width:260px;max-width:340px;}
   .btn{font:inherit;font-size:13px;padding:7px 14px;border:none;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer;}
   .btn:hover{opacity:.9;}
   .btn2{background:#f1f5f9;color:#334155;border:1px solid var(--line);}
@@ -94,7 +95,12 @@
         <input type="text" id="fModel" list="dlModel" placeholder="全部型号" autocomplete="off">
         <datalist id="dlModel"></datalist>
       </div>
-      <button class="btn btn2" id="btnClearFilter" title="清掉客户与型号筛选，回到全区间全量统计">✖ 清除筛选</button>
+      <div class="fld">
+        <label>订单号筛选（可打字过滤）</label>
+        <input type="text" id="fOrder" list="dlOrder" placeholder="全部订单号" autocomplete="off">
+        <datalist id="dlOrder"></datalist>
+      </div>
+      <button class="btn btn2" id="btnClearFilter" title="清掉客户、型号与订单号筛选，回到全区间全量统计">✖ 清除筛选</button>
     </div>
     <div id="statArea" style="margin-top:12px;"><div class="empty">选好日期区间后点「统计」。</div></div>
   </div>
@@ -279,13 +285,25 @@ function inRange(r, from, to){
 /* ★ 客户/型号筛选：选项跟着「当前日期区间」动态生成（区间外的客户型号不该出现在下拉里），
      并保留当前选中项 —— 若它在新区间里已不存在，则自动退回「全部」而不是留一个空结果。 */
 function buildFilterOptions(dateRows){
-  const custs = new Set(), mods = new Set();
+  const custs = new Set(), mods = new Set(), ords = new Set();
   dateRows.forEach(r => {
     custs.add(normFilterVal(r.customer, '（未填客户）'));
     mods.add(normFilterVal(r.model, '（未填型号）'));
+    const o = String(r.orderno || '').trim();
+    if(o && o !== '/') ords.add(o);
   });
   fillFilter('fCust', 'dlCust', '全部客户', Array.from(custs).sort((a,b) => a.localeCompare(b, 'zh')));
   fillFilter('fModel', 'dlModel', '全部型号', Array.from(mods).sort((a,b) => a.localeCompare(b, 'zh')));
+  /* ★ 订单号候选：只收有订单号的行。「订单号」是 2026-10-28 才加的字段，
+     之前的单子发布时没有 → 区间里没有订单号时占位符要写明，不能让人对着空框发呆 */
+  fillFilter('fOrder', 'dlOrder', '全部订单号', Array.from(ords).sort((a,b) => a.localeCompare(b, 'zh')));
+  if(!ords.size){
+    const inp = $('fOrder');
+    inp.placeholder = '这个区间没有订单号';
+    inp.title = '「客户订单号」是 2026-10-28 才加进系统的，之前的单子发布时没有这个字段。';
+  }else{
+    $('fOrder').title = '';
+  }
 }
 /* ★ 空值在数据里是「/」（发布时 pad() 把空串转成 /），不是空串 →
    下拉里要显示成「（未填型号）」，否则会出现一个名叫「/」的选项，用户看不懂 */
@@ -304,9 +322,10 @@ function fillFilter(inputId, listId, allLabel, list){
   inp.placeholder = allLabel + '（' + list.length + '）';
 }
 function applyFilter(r){
-  const fc = $('fCust').value.trim(), fm = $('fModel').value.trim();
+  const fc = $('fCust').value.trim(), fm = $('fModel').value.trim(), fo = $('fOrder').value.trim();
   if(fc && normFilterVal(r.customer, '（未填客户）') !== fc) return false;
   if(fm && normFilterVal(r.model, '（未填型号）') !== fm) return false;
+  if(fo && String(r.orderno || '').trim() !== fo) return false;
   return true;
 }
 
@@ -325,18 +344,25 @@ async function doStat(){
   }
   const rows = dateRows.filter(applyFilter);
 
-  const fc = $('fCust').value.trim(), fm = $('fModel').value.trim();
-  const filterTxt = (fc ? '　客户：' + fc : '') + (fm ? '　型号：' + fm : '');
+  const fc = $('fCust').value.trim(), fm = $('fModel').value.trim(), fo = $('fOrder').value.trim();
+  const filterTxt = (fc ? '　客户：' + fc : '') + (fm ? '　型号：' + fm : '') + (fo ? '　订单号：' + fo : '');
   $('statScope').textContent = (from || '最早') + ' ~ ' + (to || '最新') + '　共 ' + rows.length + ' 行' + filterTxt;
 
   if(!rows.length){
     let msg = dateRows.length ? '这个筛选条件下没有数据。' : '这个区间没有数据。';
     /* ★ 打字筛到一半（不是完整名称）是最常见原因 → 明确告诉用户，并给「清掉筛选」按钮 */
-    if(dateRows.length && (fc || fm)){
+    if(dateRows.length && (fc || fm || fo)){
       msg += '<br><span style="color:#64748b;font-size:12.5px;">'
         + '筛选词必须和下拉里的名称<b>完全一致</b>（下拉里能打出来才作数）。'
         + '若只是记了个大概，可以点「✖ 清除筛选」回到全量。</span><br>'
         + '<button class="mini" style="margin-top:8px" onclick="document.getElementById(\'btnClearFilter\').click()">✖ 清除筛选</button>';
+    }
+    /* ★ 筛了订单号却查不到 —— 十有八九是老单本来就没有订单号字段 */
+    if(fo && dateRows.length){
+      msg += '<br><span style="color:#92400e;font-size:12.5px;">'
+        + '⚠️ 订单号「' + esc(fo) + '」没匹配上。'
+        + '「客户订单号」是 <b>2026-10-28</b> 才加进系统的，之前的单子发布时没有这个字段 → 老单查订单号必然查不到。'
+        + '若要查老单，请改用<b>客户 / 型号 / 物料编码 / 发货单号</b>。</span>';
     }
     $('statArea').innerHTML = '<div class="empty">' + msg + '</div>';
     log('区间内无数据' + (filterTxt ? '（含筛选：' + filterTxt.trim() + '）' : ''), 'warn');
@@ -579,6 +605,7 @@ $('btnQuery').onclick = doQuery;
 /* ★ 客户/型号筛选：改了下拉立刻重算（不用再点「统计」） */
 $('fCust').onchange = doStat;
 $('fModel').onchange = doStat;
+$('fOrder').onchange = doStat;
 /*   input+datalist：打字时先过滤提示，失焦/回车再正式重算（打字过程中不反复刷统计） */
 let _fTimer = null;
 function onFilterInput(){
@@ -587,10 +614,12 @@ function onFilterInput(){
 }
 $('fCust').addEventListener('input', onFilterInput);
 $('fModel').addEventListener('input', onFilterInput);
+$('fOrder').addEventListener('input', onFilterInput);
 $('fCust').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
 $('fModel').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
+$('fOrder').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
 $('btnClearFilter').onclick = () => {
-  $('fCust').value = ''; $('fModel').value = '';
+  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = '';
   doStat();
   log('已清除客户与型号筛选', 'ok');
 };
