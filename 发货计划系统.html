@@ -14,25 +14,75 @@
 <link rel="preconnect" href="https://zxnxvbghsfwsikyncbus.supabase.co" crossorigin>
 <link rel="dns-prefetch" href="https://zxnxvbghsfwsikyncbus.supabase.co">
 
-<script src="supabase.min.js?v=lib"></script>
+<script src="supabase.min.js?v=lib&h=8c36ed69"></script>
 
-<script src="cloud-config.js?v=20260920a"></script>
+<script src="cloud-config.js?v=20260920a&h=4faf2f0d"></script>
 
-<script src="cloud-sync.js?v=20261026a"></script>
+<script src="cloud-sync.js?v=20261026a&h=03fc2c35"></script>
 
-<script src="scan-lib.js?v=20261016b"></script>
+<script src="scan-lib.js?v=20261016b&h=5acc5e7c"></script>
 
-<script src="auth.js?v=20260930a"></script>
+<script src="auth.js?v=20260930a&h=9d9fdae3"></script>
 
+<!-- ★ 全局错误可见化（2026-10-29）：白屏时别让用户对着空白页发呆，
+     直接把出错原因和堆栈显示在页面上，还能一键复制。 -->
+<script>
+window.__errBox=function(msg,src){
+  try{
+    var d=document.createElement("div");
+    d.id="__errBox";
+    d.style.cssText="position:fixed;left:12px;right:12px;top:12px;z-index:99999;background:#fff7ed;border:2px solid #ea580c;border-radius:12px;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.25);font:13px/1.6 ui-monospace,Consolas,monospace;color:#7c2d12;max-height:60vh;overflow:auto;white-space:pre-wrap;text-align:left";
+    d.textContent="⚠️ 页面出错了（下面是原因，可复制给技术）\n\n"+String(msg||"")+"\n\n来源："+String(src||"未知");
+    var b=document.createElement("button");
+    b.textContent="复制错误信息";
+    b.style.cssText="margin-top:10px;margin-right:8px;padding:6px 12px;border-radius:8px;border:none;background:#ea580c;color:#fff;font-weight:700;cursor:pointer";
+    b.onclick=function(){var t=d.textContent; if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){b.textContent="✓ 已复制";},function(){b.textContent="复制失败，请手动选中"});}else{b.textContent="请手动选中复制";}};
+    var c=document.createElement("button");
+    c.textContent="关闭";
+    c.style.cssText="margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid #ea580c;background:#fff;color:#7c2d12;cursor:pointer";
+    c.onclick=function(){d.remove();};
+    d.appendChild(b);d.appendChild(c);
+    (document.body||document.documentElement).appendChild(d);
+  }catch(e){}
+};
+window.addEventListener("error",function(e){
+  if(e && e.target && e.target!==window && e.target.tagName) return;   // 资源加载失败不弹（那不是致命错误）
+  var where=(e&&e.filename?e.filename:"")+":"+(e&&e.lineno?e.lineno:"");
+  window.__errBox((e&&e.message?e.message:String(e))+"\n"+where, (e&&e.filename?e.filename:""));
+});
+window.addEventListener("unhandledrejection",function(e){
+  var r=(e&&e.reason)?e.reason:e;
+  window.__errBox("异步操作失败："+(r&&r.message?r.message:String(r)), "Promise");
+});
+/* ★ 主体空白看门狗（2026-10-29）：8 秒后表格还没渲染出来（连表头都没有）→
+   直接给出排查提示，别让用户对着空白页猜半天。
+   常见原因：浏览器缓存了「新版 HTML + 旧版 JS」的混搭文件，渲染中途报错。 */
+setTimeout(function(){
+  try{
+    var tb=document.getElementById("tbody");
+    var tbl=document.getElementById("tbl");
+    if(tb&&tbl&&tb.children.length===0&&!tbl.querySelector("thead tr")){
+      var d=document.createElement("div");
+      d.style.cssText="margin:16px 24px;background:#fff7ed;border:2px solid #ea580c;border-radius:12px;padding:16px 18px;font:14px/1.7 system-ui,sans-serif;color:#7c2d12;text-align:left";
+      d.innerHTML='<b>⚠️ 表格没能渲染出来</b><br>页面框架在，但表格内容是空的 —— 多半是浏览器缓存了<b>新旧混搭</b>的文件。<br>'
+        +'<br>👉 请按 <b>Ctrl+Shift+R</b>（或 Ctrl+F5）<b>强制刷新</b>；还不行就换个浏览器打开，'
+        +'或按 F12 → Application → Service Workers → Unregister 再刷新。<br>'
+        +'<br><span style="color:#9a3412;font-size:12.5px">若还是白的，把这一页截图发我 —— 上面（若有）会有具体出错原因。</span>';
+      var p=tbl.parentNode;
+      if(p&&p.parentNode) p.parentNode.insertBefore(d,p); else document.body.appendChild(d);
+    }
+  }catch(e){}
+},8000);
+</script>
 <script>if(window.Auth)Auth.guard();</script>
 
   <!-- 右下悬浮条显示「👋 欢迎 当前账号」：姓名靠下面这份名册（手机号 → 中文姓名） -->
 
-  <script src="staff-config.js?v=20260924c"></script>
+  <script src="staff-config.js?v=20260924c&h=3f18049c"></script>
 
   <script>window.STAFF_WELCOME = 1;</script>
 
-  <script src="staff-admin.js?v=20260924a"></script>
+  <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
 <script>var APP_VER="20261026e";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
@@ -10392,7 +10442,7 @@ else updateOpStatus();
 
 </div>
 
-<script src="brand.js?v=3"></script>
+<script src="brand.js?v=3&h=97e1b625"></script>
 
 </body>
 
