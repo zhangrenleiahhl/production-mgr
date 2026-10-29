@@ -84,7 +84,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261026e";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261029a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -407,6 +407,27 @@ setTimeout(function(){
   .btn-ghost{background:#eff6ff;color:#2563eb;border-color:#bfdbfe;}
 
   .btn-ghost:hover{background:#dbeafe;}
+
+  /* ★ 「＋ 添加」组合按钮：主按钮加 1 行，右侧小三角下拉可一次加 3/5/10 行 */
+  .add-split{display:inline-flex;align-items:stretch;vertical-align:middle;}
+  .add-split .btn-add{border-top-right-radius:0;border-bottom-right-radius:0;}
+  .add-split .btn-add-caret{
+    background:linear-gradient(135deg,#059669 0%,#047857 100%);color:#fff;border-color:#047857;
+    border-left:1px solid rgba(255,255,255,.35);border-top-right-radius:8px;border-bottom-right-radius:8px;
+    font-size:11px;font-weight:800;padding:0 7px;line-height:1;cursor:pointer;margin-left:-1px;
+    box-shadow:0 2px 10px rgba(16,185,129,.38);transition:.15s;}
+  .add-split .btn-add-caret:hover{background:linear-gradient(135deg,#047857 0%,#065f46 100%);}
+  .add-split .btn-add-caret:focus{outline:2px solid #10b981;outline-offset:1px;}
+  .add-split .btn-add-caret.on{background:linear-gradient(135deg,#047857 0%,#065f46 100%);}
+  .add-menu{
+    position:absolute;z-index:1200;min-width:132px;background:#fff;border:1px solid var(--line);
+    border-radius:10px;box-shadow:0 8px 26px rgba(0,0,0,.16);padding:5px;display:none;}
+  .add-menu.show{display:block;}
+  .add-menu button{
+    display:block;width:100%;text-align:left;background:none;border:none;border-radius:7px;
+    padding:8px 11px;font-size:13px;font-weight:600;color:#1f2328;cursor:pointer;white-space:nowrap;}
+  .add-menu button:hover{background:#ecfdf5;color:#047857;}
+  .add-menu .sep{height:1px;background:var(--line);margin:4px 2px;}
 
   .btn-line{background:#fff;color:#1f2328;border:1px solid #d0d7de;}
 
@@ -1337,7 +1358,17 @@ setTimeout(function(){
 
     <div class="btn-group">
 
-      <button class="btn btn-add" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
+      <div class="add-split" style="position:relative;">
+        <button class="btn btn-add" id="addRow" title="添加一行" data-page-node-id="Z9VTIncuym6pQUBpAIfGjD">＋ 添加</button>
+        <button class="btn btn-add-caret" id="addRowCaret" title="一次加多行" aria-haspopup="true" aria-expanded="false">▼</button>
+        <div class="add-menu" id="addRowMenu">
+          <button data-n="3">＋ 添加 3 行</button>
+          <button data-n="5">＋ 添加 5 行</button>
+          <button data-n="10">＋ 添加 10 行</button>
+          <div class="sep"></div>
+          <button data-n="1">＋ 只添加 1 行</button>
+        </div>
+      </div>
 
       <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
 
@@ -8527,6 +8558,52 @@ function exportRowsCsv(rows, name){
 // ===================== 其它按钮 =====================
 
 $("addRow").onclick=()=>{ addRow(); saveDraftNow(); };
+
+/* ★ 「＋ 添加」右侧小三角：一次加 3 / 5 / 10 行。
+   批量加行时用 skipRefresh 跳过每行的重复计算（reindex/recalc/fitTextareas），
+   全部加完再统一算一次 —— 10 行时能快很多。
+   addRow() 会按「发货日期升序」插到正确位置，所以连续调用即可排好序。 */
+(function(){
+  const caret=$("addRowCaret"), menu=$("addRowMenu");
+  if(!caret||!menu) return;
+
+  function closeMenu(){
+    menu.classList.remove("show");
+    caret.classList.remove("on");
+    caret.setAttribute("aria-expanded","false");
+  }
+  function openMenu(){
+    menu.classList.add("show");
+    caret.classList.add("on");
+    caret.setAttribute("aria-expanded","true");
+  }
+
+  caret.onclick=(e)=>{
+    e.stopPropagation();
+    menu.classList.contains("show") ? closeMenu() : openMenu();
+  };
+
+  menu.querySelectorAll("button[data-n]").forEach(b=>{
+    b.onclick=(e)=>{
+      e.stopPropagation();
+      const n=Math.max(1, parseInt(b.getAttribute("data-n"),10)||1);
+      closeMenu();
+      // 逐行添加：日期/型号/客户等留空，用户自己填
+      for(let i=0;i<n;i++) addRow({}, null, null, true);
+      reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();
+      saveDraftNow();
+      toast("已添加 "+n+" 行"+(n===1?"":"（往下填日期、型号、数量即可）"));
+    };
+  });
+
+  // 点别处 / 按 Esc → 收起菜单
+  document.addEventListener("click",(e)=>{
+    if(!menu.contains(e.target)&&e.target!==caret) closeMenu();
+  });
+  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeMenu(); });
+  // 页面滚动时收起（否则菜单会脱离按钮飘着）
+  window.addEventListener("scroll",()=>closeMenu(), true);
+})();
 
 $("checkAll").onchange=()=>{ const v=$("checkAll").checked; [...$("tbody").children].forEach(tr=>{ if(tr.classList.contains("subtotal")||tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden")) return; const b=tr.querySelector(".row-check"); if(b) b.checked=v; }); updateCheckAll(); };
 
