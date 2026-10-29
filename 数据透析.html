@@ -160,6 +160,44 @@
 
 </div>
 
+<!-- ★ 全局错误可见化（2026-10-29）：出错时直接把原因显示在页面上，别让用户对着空白页猜。 -->
+<script>
+(function(){
+  var NL=String.fromCharCode(10);
+  window.__errBox=function(msg,src){
+    try{
+      var d=document.createElement("div");
+      d.id="__errBox";
+      d.style.cssText="position:fixed;left:12px;right:12px;top:12px;z-index:99999;background:#fff7ed;border:2px solid #ea580c;border-radius:12px;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.25);font:13px/1.6 ui-monospace,Consolas,monospace;color:#7c2d12;max-height:60vh;overflow:auto;white-space:pre-wrap;text-align:left";
+      d.textContent="⚠️ 页面出错了（下面是原因，可复制给技术）"+NL+NL+String(msg||"")+NL+NL+"来源："+String(src||"未知");
+      var b=document.createElement("button");
+      b.textContent="复制错误信息";
+      b.style.cssText="margin-top:10px;margin-right:8px;padding:6px 12px;border-radius:8px;border:none;background:#ea580c;color:#fff;font-weight:700;cursor:pointer";
+      b.onclick=function(){
+        var t=d.textContent;
+        if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){b.textContent="✓ 已复制";},function(){b.textContent="复制失败，请手动选中";});}
+        else{b.textContent="请手动选中复制";}
+      };
+      var c=document.createElement("button");
+      c.textContent="关闭";
+      c.style.cssText="margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid #ea580c;background:#fff;color:#7c2d12;cursor:pointer";
+      c.onclick=function(){d.remove();};
+      d.appendChild(b);d.appendChild(c);
+      (document.body||document.documentElement).appendChild(d);
+    }catch(e){}
+  };
+  window.addEventListener("error",function(e){
+    if(e && e.target && e.target!==window && e.target.tagName) return;
+    var where=String(e&&e.filename?e.filename:"")+":"+String(e&&e.lineno?e.lineno:"");
+    window.__errBox(String(e&&e.message?e.message:e)+NL+where, String(e&&e.filename?e.filename:""));
+  });
+  window.addEventListener("unhandledrejection",function(e){
+    var r=(e&&e.reason)?e.reason:e;
+    window.__errBox("异步操作失败："+String(r&&r.message?r.message:r), "Promise");
+  });
+})();
+</script>
+
 <script src="cloud-config.js"></script>
 <script>
 /* ============================================================
