@@ -197,6 +197,30 @@ function num(v){
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
+/* ★★ 发货数量支持算式（发货计划系统里 qtyNum → evalQtyExpr）：
+     "10*20" → 200；"500+300" → 800；也支持 × ÷ 和括号。
+   之前这里只用 parseFloat → "1000*2" 被算成 1000（丢掉 ×2），件数直接少一半 → 数量对不上。
+   必须和发货计划系统同一套算法，否则两边数字永远对不上。 */
+const PURE_NUM = /^\d+(\.\d+)?$/;
+function evalQtyExpr(v){
+  const s = String(v == null ? '' : v).trim().replace(/×/g,'*').replace(/÷/g,'/');
+  if(s === '') return '';
+  if(/^[0-9]+(\.[0-9]+)?$/.test(s)) return s;
+  if(!/^[0-9+\-*/().\s]+$/.test(s)) return null;      // 含非法字符 → 不处理
+  try{
+    const r = Function('"use strict";return (' + s + ')')();
+    if(typeof r !== 'number' || !isFinite(r)) return null;
+    return Number.isInteger(r) ? String(r) : String(Math.round(r*100)/100);
+  }catch(e){ return null; }                            // 残缺算式（如 10*）→ 不处理
+}
+function qtyNum(v){
+  if(v == null) return 0;
+  const s = String(v).trim();
+  if(!s) return 0;
+  if(PURE_NUM.test(s)) return parseFloat(s);
+  const e = evalQtyExpr(s);
+  return parseFloat(e !== null && e !== '' ? e : s) || 0;
+}
 function esc(s){
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -248,7 +272,7 @@ function flatten(recs, archived, isDraft){
       out.push({
         shipdate : ymd(r.shipdate || rec.date),
         model    : String(r.model || '').trim() || '(未填型号)',
-        qty      : num(r.qty),
+        qty      : qtyNum(r.qty),
         box      : num(r.box),
         perbox   : num(r.perbox),
         cwt      : num(r.cwt),
