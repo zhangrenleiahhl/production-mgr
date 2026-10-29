@@ -78,7 +78,8 @@
       <div class="fld">
         <label>统计哪个数据</label>
         <select id="srcSel">
-          <option value="local">发货计划系统（本机）：已发布 + 归档 + 未发布草稿</option>
+          <option value="draft">发货计划系统里正在编辑的（未发布草稿）</option>
+          <option value="local">本机已发布 + 归档 + 草稿</option>
           <option value="cloud">云端已发布记录（含历史归档）</option>
         </select>
       </div>
@@ -117,6 +118,11 @@
         <label>订单号筛选（可打字过滤）</label>
         <input type="text" id="fOrder" list="dlOrder" placeholder="全部订单号" autocomplete="off">
         <datalist id="dlOrder"></datalist>
+      </div>
+      <div class="fld">
+        <label>发货日期筛选（可打字过滤）</label>
+        <input type="text" id="fDate" list="dlDate" placeholder="全部发货日期" autocomplete="off">
+        <datalist id="dlDate"></datalist>
       </div>
       <button class="btn btn2" id="btnClearFilter" title="清掉客户、型号与订单号筛选，回到全区间全量统计">✖ 清除筛选</button>
     </div>
@@ -293,7 +299,7 @@ function lsGet(key){
      shipping_plans_archive_v1 历史归档
      shipping_draft_v1        未发布草稿（正在编辑、还没发布的那批明细）
    —— 用户要的是「发货计划系统里的」数值，所以草稿必须算进去，不能只取已发布的。 */
-function loadLocal(){
+function loadLocal(mode){
   const cur  = lsGet(K_PLAN);
   const arc  = lsGet(K_ARCH);
   const draft = lsGet(K_DRAFT);
@@ -301,6 +307,26 @@ function loadLocal(){
   const arcArr  = Array.isArray(arc) ? arc : [];
   const hasDraft = draft && Array.isArray(draft.rows) && draft.rows.length;
   const draftArr = hasDraft ? [{ no: draft.no || '', date: draft.date, rows: draft.rows }] : [];
+
+  /* ★★ mode='draft'：只取发货计划系统里「正在编辑、还没发布」的那批明细（草稿）。
+     已发布和归档都不算 —— 用户要的就是这个口径。 */
+  if(mode === 'draft'){
+    if(!hasDraft){
+      log('❌ 发货计划系统里现在没有未发布的草稿（可能已发布或清空了）', 'err');
+      return { rows: [], info: { published:curArr.length, archived:arcArr.length, draftRows:0, draftDate:'', draftNo:'', total:0, onlyDraft:true } };
+    }
+    const rows = flatten(draftArr, false, true);
+    const info = {
+      published: curArr.length, archived: arcArr.length,
+      draftRows: draft.rows.length,
+      draftDate: draft.date || '',
+      draftNo: draft.no || '',
+      total: rows.length,
+      onlyDraft: true
+    };
+    log('✅ 只取未发布草稿：' + info.draftRows + ' 行（' + (info.draftDate || '未填日期') + '）→ 摊平 ' + rows.length + ' 行', 'ok');
+    return { rows: rows, info: info };
+  }
 
   if(!curArr.length && !arcArr.length && !hasDraft){
     log('❌ 本机没有发货计划数据 —— 请先打开「发货计划系统」页面（数据存在本机浏览器里）', 'err');
@@ -359,14 +385,16 @@ async function syncToLocal(){
 }
 
 async function loadAll(force){
-  const src = $('srcSel') ? $('srcSel').value : 'local';
-  if(src === 'local'){
-    if(LOADED && !force && LOADED_SRC === 'local'){ log('本机数据已在内存（不重复读取）'); return true; }
-    log('正在读取发货计划系统本机数据…');
-    const r = loadLocal();
+  const src = $('srcSel') ? $('srcSel').value : 'draft';
+  if(src !== 'cloud'){
+    /* 本机源（draft = 只取未发布草稿 / local = 已发布+归档+草稿） */
+    const key = src + '|' + (LOADED_SRC === src ? '1' : '0');
+    if(LOADED && !force && LOADED_SRC === src){ log('本机数据已在内存（不重复读取）'); return true; }
+    log(src === 'draft' ? '正在读取发货计划系统里正在编辑的（未发布草稿）…' : '正在读取发货计划系统本机数据…');
+    const r = loadLocal(src);
     if(!r){ showSrcInfo(null); return false; }
     ALL = r.rows;
-    LOADED = true; LOADED_SRC = 'local';
+    LOADED = true; LOADED_SRC = src;
     showSrcInfo(r.info);
     buildMonthQuick();
     return true;
@@ -409,6 +437,22 @@ function showSrcInfo(info){
       ' 单 + 归档 ' + info.archived + ' 单 → 摊平 ' + info.total + ' 行。</div>';
     return;
   }
+  /* ★★ 只取未发布草稿的模式（默认）：已发布和归档都不算 */
+  if(info.onlyDraft){
+    desc.textContent = '数据来自发货计划系统里正在编辑、还没发布的那批明细';
+    if(!info.draftRows){
+      el.innerHTML = '<div class="note" style="color:#b91c1c;">'
+        + '📝 发货计划系统里现在<b>没有未发布的草稿</b>（可能已经发布了，或表被清空了）。<br>'
+        + '若想看已发布的历史数据，把上面的「统计哪个数据」切成「本机已发布 + 归档 + 草稿」或「云端已发布记录」。</div>';
+      return;
+    }
+    el.innerHTML = '<div class="note info">📝 当前只统计<b>发货计划系统里正在编辑、还没发布</b>的那批明细：'
+      + '<b>' + info.draftRows + ' 行</b>'
+      + (info.draftDate ? '（表头日期 ' + esc(info.draftDate) + (info.draftNo ? ' · 单号 ' + esc(info.draftNo) : '') + '）' : '')
+      + '。<br><b>已发布记录（' + info.published + ' 单）与归档（' + info.archived + ' 单）都不参与统计</b>。'
+      + '草稿里每一行都有各自的发货日期，可用下面的「发货日期」筛选。</div>';
+    return;
+  }
   desc.textContent = '数据来自发货计划系统本机的数据';
   let h = '<div class="note info">📁 当前读的是<b>发货计划系统本机</b>的数据：已发布 ' + info.published +
     ' 单 + 归档 ' + info.archived + ' 单 → 摊平 ' + info.total + ' 行。';
@@ -434,12 +478,13 @@ function inRange(r, from, to){
 /* ★ 客户/型号筛选：选项跟着「当前日期区间」动态生成（区间外的客户型号不该出现在下拉里），
      并保留当前选中项 —— 若它在新区间里已不存在，则自动退回「全部」而不是留一个空结果。 */
 function buildFilterOptions(dateRows){
-  const custs = new Set(), mods = new Set(), ords = new Set();
+  const custs = new Set(), mods = new Set(), ords = new Set(), dates = new Set();
   dateRows.forEach(r => {
     custs.add(normFilterVal(r.customer, '（未填客户）'));
     mods.add(normFilterVal(r.model, '（未填型号）'));
     const o = String(r.orderno || '').trim();
     if(o && o !== '/') ords.add(o);
+    if(r.shipdate) dates.add(r.shipdate);
   });
   fillFilter('fCust', 'dlCust', '全部客户', Array.from(custs).sort((a,b) => a.localeCompare(b, 'zh')));
   fillFilter('fModel', 'dlModel', '全部型号', Array.from(mods).sort((a,b) => a.localeCompare(b, 'zh')));
@@ -453,6 +498,8 @@ function buildFilterOptions(dateRows){
   }else{
     $('fOrder').title = '';
   }
+  /* ★ 发货日期候选：草稿里每一行都有各自的发货日期（能混着好几天的活）→ 这层筛选最实用 */
+  fillFilter('fDate', 'dlDate', '全部发货日期', Array.from(dates).sort());
 }
 /* ★ 空值在数据里是「/」（发布时 pad() 把空串转成 /），不是空串 →
    下拉里要显示成「（未填型号）」，否则会出现一个名叫「/」的选项，用户看不懂 */
@@ -472,9 +519,11 @@ function fillFilter(inputId, listId, allLabel, list){
 }
 function applyFilter(r){
   const fc = $('fCust').value.trim(), fm = $('fModel').value.trim(), fo = $('fOrder').value.trim();
+  const fd = $('fDate').value.trim();
   if(fc && normFilterVal(r.customer, '（未填客户）') !== fc) return false;
   if(fm && normFilterVal(r.model, '（未填型号）') !== fm) return false;
   if(fo && String(r.orderno || '').trim() !== fo) return false;
+  if(fd && r.shipdate !== fd) return false;
   return true;
 }
 
@@ -494,7 +543,9 @@ async function doStat(){
   const rows = dateRows.filter(applyFilter);
 
   const fc = $('fCust').value.trim(), fm = $('fModel').value.trim(), fo = $('fOrder').value.trim();
-  const filterTxt = (fc ? '　客户：' + fc : '') + (fm ? '　型号：' + fm : '') + (fo ? '　订单号：' + fo : '');
+  const fd = $('fDate').value.trim();
+  const filterTxt = (fc ? '　客户：' + fc : '') + (fm ? '　型号：' + fm : '')
+                    + (fo ? '　订单号：' + fo : '') + (fd ? '　发货日期：' + fd : '');
   $('statScope').textContent = (from || '最早') + ' ~ ' + (to || '最新') + '　共 ' + rows.length + ' 行' + filterTxt;
 
   /* ★ 草稿的日期可能不在当前区间里（还没发布，多半是明天/后天的活）
@@ -511,7 +562,7 @@ async function doStat(){
   if(!rows.length){
     let msg = dateRows.length ? '这个筛选条件下没有数据。' : '这个区间没有数据。';
     /* ★ 打字筛到一半（不是完整名称）是最常见原因 → 明确告诉用户，并给「清掉筛选」按钮 */
-    if(dateRows.length && (fc || fm || fo)){
+    if(dateRows.length && (fc || fm || fo || fd)){
       msg += '<br><span style="color:#64748b;font-size:12.5px;">'
         + '筛选词必须和下拉里的名称<b>完全一致</b>（下拉里能打出来才作数）。'
         + '若只是记了个大概，可以点「✖ 清除筛选」回到全量。</span><br>'
@@ -766,10 +817,23 @@ $('btnQuery').onclick = doQuery;
 $('srcSel').onchange = async () => {
   LOADED = false; LOADED_SRC = '';
   __lastFilterRange = '';        // 强制重建筛选选项
-  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = '';
-  log('已切换数据来源：' + ($('srcSel').value === 'local' ? '发货计划系统（本机）' : '云端已发布记录'), 'ok');
+  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = ''; $('fDate').value = '';
+  const SRC_TXT = { draft:'发货计划系统里正在编辑的（未发布草稿）', local:'本机已发布+归档+草稿', cloud:'云端已发布记录' };
+  log('已切换数据来源：' + (SRC_TXT[$('srcSel').value] || $('srcSel').value), 'ok');
   const ok = await loadAll(true);
-  if(ok){ doStat(); }
+  if(ok){
+    /* ★ 草稿模式：区间对齐到草稿实际范围（草稿多是明后天的活，默认区间会全滤掉）
+       切到其它源：区间放宽到全部（否则还停在草稿范围，已发布/归档一行都看不到） */
+    if($('srcSel').value === 'draft'){
+      if(ALL.length){
+        const ds = ALL.map(r => r.shipdate).filter(Boolean).sort();
+        if(ds.length){ $('dFrom').value = ds[0]; $('dTo').value = ds[ds.length-1]; }
+      }
+    }else{
+      $('dFrom').value = ''; $('dTo').value = '';
+    }
+    doStat();
+  }
 };
 $('btnReloadSrc').onclick = async () => {
   LOADED = false; LOADED_SRC = '';
@@ -783,7 +847,7 @@ $('btnSyncLocal').onclick = async () => {
   if(!ok) return;
   LOADED = false; LOADED_SRC = '';
   __lastFilterRange = '';
-  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = '';
+  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = ''; $('fDate').value = '';
   const ok2 = await loadAll(true);
   if(ok2){ doStat(); }
 };
@@ -792,6 +856,7 @@ $('btnGoEditor').onclick = () => { window.location.href = '发货计划系统.ht
 $('fCust').onchange = doStat;
 $('fModel').onchange = doStat;
 $('fOrder').onchange = doStat;
+$('fDate').onchange = doStat;
 /*   input+datalist：打字时先过滤提示，失焦/回车再正式重算（打字过程中不反复刷统计） */
 let _fTimer = null;
 function onFilterInput(){
@@ -801,11 +866,13 @@ function onFilterInput(){
 $('fCust').addEventListener('input', onFilterInput);
 $('fModel').addEventListener('input', onFilterInput);
 $('fOrder').addEventListener('input', onFilterInput);
+$('fDate').addEventListener('input', onFilterInput);
 $('fCust').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
 $('fModel').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
 $('fOrder').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
+$('fDate').addEventListener('keydown', e=>{ if(e.key==='Enter'){ clearTimeout(_fTimer); doStat(); } });
 $('btnClearFilter').onclick = () => {
-  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = '';
+  $('fCust').value = ''; $('fModel').value = ''; $('fOrder').value = ''; $('fDate').value = '';
   doStat();
   log('已清除客户与型号筛选', 'ok');
 };
@@ -824,7 +891,19 @@ $('qText').addEventListener('keydown', e => { if(e.key === 'Enter') doQuery(); }
   $('dTo').value = thisMonth() + '-' + new Date().getDate();
   log('页面就绪，正在读取发货计划系统的数据…');
   const okLoad = await loadAll(false);
-  if(okLoad){ doStat(); }
+  if(okLoad){
+    /* ★ 草稿模式下，把日期区间自动对齐到草稿实际覆盖的日期范围 ——
+       草稿多半是明后天的活，默认区间（本月1号→今天）会把它们全滤掉，看着像没数据。 */
+    if($('srcSel').value === 'draft' && ALL.length){
+      const ds = ALL.map(r => r.shipdate).filter(Boolean).sort();
+      if(ds.length){
+        $('dFrom').value = ds[0];
+        $('dTo').value = ds[ds.length-1];
+        log('已把日期区间对齐到草稿的范围：' + ds[0] + ' ~ ' + ds[ds.length-1]);
+      }
+    }
+    doStat();
+  }
   else{
     $('statArea').innerHTML = '<div class="note">❌ 没读到数据。请先打开一次<b>「发货计划系统」</b>页面'
       + '（数据存在浏览器本机），或把上面的「数据来源」切到「云端已发布记录」试试。</div>';
