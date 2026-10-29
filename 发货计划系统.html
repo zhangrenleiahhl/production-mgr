@@ -84,7 +84,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261029a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261029b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -576,7 +576,7 @@ setTimeout(function(){
 
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 送达方（原客户） */
 
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:17%;}   /* 型号（加长：型号名最长，如「气缸座_VC_Q11200001_灰铁_粗抛件」） */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:13%;}   /* 型号（让出 4% 给物料编码：14 位编码要一行放下 + 复制按钮要看得见） */
 
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:5%;}    /* 发货数量 */
 
@@ -609,7 +609,7 @@ setTimeout(function(){
   /* ★「操作」2 个字在 3% 的窄列里（1024 屏只有 30px）会被裁 → 同样允许折行 */
   .tbl thead th.col-act{white-space:normal;line-height:1.15;vertical-align:middle;}
 
-  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4.5%;}  /* 物料编码（缩短：编码本身很短） */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:8.5%;}  /* 物料编码（13-14 位数字串要一行放下，右下角还要放复制按钮） */
   .tbl th:nth-child(17),.tbl tbody td:nth-child(17){width:3%!important;}  /* 操作（缩短：只有「＋」「✕」两个 13px 小按钮） */
 
   /* 交货单：按字数自动换行（textarea 自适应高度，列宽不够自动折行且撑高行） */
@@ -848,17 +848,32 @@ setTimeout(function(){
 
   .col-code .code-wrap{ position:relative; }
 
-  /* ★ 物料编码是 13-14 位数字串（如 10000000002106），列窄 + 按钮常显会把编码压得只剩 2-3 行，
-     行高暴涨。→ 按钮改为「鼠标悬停该格才显示」：常态整列宽度全给编码文字，不再白占 24px；
-     点进编辑时按钮自动让位（focus-within），绝压住正在编辑的字；触屏设备（无 hover）保持常显。 */
-  .copy-code{ position:absolute; top:1px; right:1px; z-index:1; font-size:8px; line-height:1; padding:1px 3px; border:1px solid var(--purple-l); background:#fff; color:var(--purple-d); border-radius:3px; cursor:pointer; user-select:none; opacity:0; transition:opacity .12s; }
-  .col-code:hover .copy-code{ opacity:1; }
+  /* ★ 物料编码复制按钮（2026-10-29 改版）：
+     原来 8px 小字 + 悬停才显示 → 太小、又要点鼠标才冒出来，用户根本注意不到。
+     改成：图标化 18×18、**常显**、**永远在最上层**（z-index 拉满，不会被文字压住）。
+     ★ 位置经过实测确定：编码文字是**居中**的，14 位数字串在 7.5% 的列里会断成 2 行，
+       右上角正是第 1 行文字的右端（放右上必定压字）；
+       而**第 2 行只有末尾几个字符、右边大片空白** → 按钮放**右下角**，正好落在空白里。
+     ★ 配套：物料编码列 4.5% → 7.5%（从型号匀来），编码字号 14px → 13px。 */
+  .copy-code{
+    position:absolute; right:2px; bottom:2px; z-index:30;
+    width:18px; height:18px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; line-height:1; font-weight:700;
+    border:1px solid var(--purple-l); background:#fff; color:var(--purple-d);
+    border-radius:4px; cursor:pointer; user-select:none;
+    opacity:.95; box-shadow:0 1px 3px rgba(0,0,0,.16);
+    transition:opacity .12s,background .12s,border-color .12s; }
+  .copy-code:hover{ opacity:1; background:var(--purple-bg); border-color:var(--purple); }
+  .copy-code:active{ transform:scale(.92); }
+
+  /* 编码文字用满整列宽（不加右侧留白）→ 13px 字号断行更少 */
+  .col-code .code-wrap textarea[data-f="code"]{ font-size:13px; }
+
+  /* 点进编辑时按钮让位（不挡正在编辑的字），失焦后恢复 */
   .col-code:focus-within .copy-code{ opacity:0; }
-  @media (hover:none){ .copy-code{ opacity:1; } }
 
-  .copy-code:hover{ background:var(--purple-bg); border-color:var(--purple); }
-
-  .copy-code.copied{ background:var(--green); color:#fff; border-color:var(--green); }
+  .copy-code.copied{ background:var(--green); color:#fff; border-color:var(--green); opacity:1; }
 
   input[data-f="qty"]{min-width:0;}
 
@@ -4165,7 +4180,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     <td class="col-logistics"><input data-f="logistics" value="${esc(data.logistics)}"${((data.logisticsManual===true||data.logisticsManual==="1")?' data-manual="1"':'')} placeholder="/" title="按「客户」自动带出（取自物料数据库），也可手动修改"></td>
 
     <td class="col-order"><textarea data-f="orderno" placeholder="/" rows="1" title="客户订单号（可选，部分客户需填写）">${esc(data.orderno)}</textarea></td>
-    <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" title="物料编码（支持粘贴/编辑，也可点右侧按钮复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码">复制</button></div></td>
+    <td class="col-code"><div class="code-wrap"><textarea data-f="code" placeholder="/" rows="1" title="物料编码（支持粘贴/编辑，也可点右侧按钮复制）">${esc(data.code)}</textarea><button type="button" class="copy-code" title="复制物料编码" aria-label="复制物料编码">⧉</button></div></td>
 
     <td class="col-act"><button class="ins-x" title="在下方插入一行">＋</button><button class="del-x" title="删除">✕</button><input type="hidden" data-f="unit" value="${esc(data.unit)}"${(data.unit&&data.unit!=="/"&&data.model)?` data-for="${esc(data.model)}"`:''}><input type="hidden" data-f="perbox" value="${esc(data.perbox)}"${(data.perbox&&data.perbox!=="/"&&data.model)?` data-for="${esc(data.model)}"`:''}></td>`;
 
@@ -7201,7 +7216,16 @@ function copyToClipboard(text, btn, onResult){
 
   const ok=()=>{
 
-    if(btn){ const o=btn.textContent; btn.textContent="已复制"; btn.classList.add("copied"); setTimeout(()=>{ btn.textContent=o; btn.classList.remove("copied"); },1200); }
+    if(btn){
+      const o=btn.textContent;
+      /* ★ 图标型按钮（如物料编码的 ⧉，18×18 小方块）放不下「已复制」三个字 → 换成 ✓ 图标 */
+      const isIcon=(o==="\u29c9"||o==="\u2713"||o==="\u29c9\u29c9");
+      btn.textContent = isIcon ? "\u2713" : "已复制";
+      btn.classList.add("copied");
+      if(isIcon){ const ot=btn.title; btn.title="已复制物料编码";
+        setTimeout(()=>{ btn.title=ot; },1200); }
+      setTimeout(()=>{ btn.textContent=o; btn.classList.remove("copied"); },1200);
+    }
 
     if(onResult) onResult(true);
 
