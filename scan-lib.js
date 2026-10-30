@@ -220,6 +220,30 @@ window.ScanLib = (function () {
     });
     return out;
   }
+  /* 进度合并「健全性自检」（2026-10-30）：mergeProg 是「有 rv 比 rv，rv 高者赢」。
+     正常情况下 rv 与 u（更新时间）同增，云端总是 rv、u 双新；
+     但本机缓存一旦被写进「rv 更高、内容却更旧」的格子（云端重建过、恢复过快照、
+     换过缓存就会出现），本机旧值会永远压住云端新值 —— 大屏显示「已同步 ✓」
+     却整屏锁在几天前的状态（2026-10-30 门口屏实况）。
+     这里在合并后核对：若「云端更新时间明显更新、合并结果却没采用」的格子过多，
+     判定本机缓存中毒，整份信云端（宁可丢本机旧状态，不能整屏锁旧）。
+     返回 { data: 合并结果, poisoned: 是否中毒 }。 */
+  function mergeProgSafe(local, cloud){
+    var out = mergeProg(local, cloud);
+    var bad = 0, total = 0, rk, ck;
+    try{
+      for (rk in (cloud || {})){
+        var C = cloud[rk] || {}, M = out[rk] || {};
+        for (ck in C){
+          var c = C[ck]; if (!c || typeof c !== "object") continue;
+          total++;
+          if ((c.u || 0) > (((M || {})[ck] || {}).u || 0) + 60000) bad++;
+        }
+      }
+    }catch(e){}
+    var poisoned = total > 0 && bad >= 3 && bad >= Math.ceil(total * 0.2);
+    return { data: (poisoned ? cloud : out), poisoned: poisoned };
+  }
   function parseObj(s){
     try { var v = JSON.parse(s || "{}"); return (v && typeof v === "object" && !Array.isArray(v)) ? v : {}; } catch (e){ return {}; }
   }
@@ -717,7 +741,7 @@ window.ScanLib = (function () {
      总有几台电脑"改了没生效"（Service Worker 只护住页面加载那一刻）。
      这里每 5 分钟（页面可见时）对一次线上版本号 ver.json（几十字节），
      发现与本页 scan-lib?v= 不一致 → 自动重载，加载最新代码。
-       * 防爆：本次会话最多自动重载 2 次、两次间隔>=30s——CDN 生效有先后，
+       * 防爆：最近 60 分钟最多自动重载 2 次、两次间隔>=30s——CDN 生效有先后，不会死循环；
          HTML 已新而 ver.json 还旧时最多多刷一次，不会死循环；
        * opt.skip() 返回 true 时本轮跳过（扫码页有没推上去的待办时不重载）；
        * file:// 本地打开 / 网络失败 -> 静默跳过，不影响本地使用。
@@ -732,9 +756,14 @@ window.ScanLib = (function () {
         try{
           if (document.hidden) return;
           if (opt.skip && opt.skip()) return;
-          var n = 0; try{ n = parseInt(sessionStorage.getItem("_verwatch_n") || "0", 10) || 0; }catch(e){}
-          if (n >= 2) return;
+          /* 预算改「滚动窗口」（2026-10-30）：原来是本次会话总共 2 次 —— 大屏/常开页面
+             用完预算后 ver.json 再变也不重载，等于永远跑旧代码（2026-10-30 大屏实况）。
+             改成最近 60 分钟最多 2 次，预算随时间自动恢复。 */
+          var hist = []; try{ hist = JSON.parse(sessionStorage.getItem("_verwatch_hist") || "[]"); }catch(e){}
+          if (!Array.isArray(hist)) hist = [];
           var now = Date.now();
+          hist = hist.filter(function(t){ return now - t < 3600000; });
+          if (hist.length >= 2) return;
           if (now - last < 30000) return;
           var r = await fetch(VER_URL + "?_=" + now, { cache: "no-store" });
           if (!r || !r.ok) return;
@@ -746,9 +775,12 @@ window.ScanLib = (function () {
             if (m){ cur = m[1]; break; }
           }
           if (!cur || !j || !j.sl) return;
-          if (j.sl !== cur){
+          var stale = (j.sl && cur && j.sl !== cur) ||
+                      (opt.field && opt.pageVer && j[opt.field] && j[opt.field] !== opt.pageVer);
+          if (stale){
             last = now;
-            try{ sessionStorage.setItem("_verwatch_n", String(n + 1)); }catch(e){}
+            hist.push(now);
+            try{ sessionStorage.setItem("_verwatch_hist", JSON.stringify(hist)); }catch(e){}
             location.reload();
           }
         }catch(e){}
@@ -1846,7 +1878,7 @@ window.ScanLib = (function () {
     pad: pad, raw: raw, esc: esc, escAttr: escAttr, fmtHM: fmtHM,
     recKeyOf: recKeyOf, custKeyOf: custKeyOf, recShipDate: recShipDate,
     scanUrl: scanUrl, pageUrl: pageUrl,
-    mergeCell: mergeCell, mergeProg: mergeProg, parseObj: parseObj, guardFn: guardFn,
+    mergeCell: mergeCell, mergeProg: mergeProg, mergeProgSafe: mergeProgSafe, parseObj: parseObj, guardFn: guardFn,
     cellAt: cellAt, applyStep: applyStep, applyCar: applyCar, applyUndo: applyUndo,
     applyCarCancel: applyCarCancel, applyCarUncancel: applyCarUncancel,
     applyReady: applyReady, applyReadyAt: applyReadyAt, applyReadyAuto: applyReadyAuto,
