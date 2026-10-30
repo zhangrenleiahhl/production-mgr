@@ -20,7 +20,7 @@
 
 <script src="cloud-sync.js?v=20261026a&h=03fc2c35"></script>
 
-<script src="scan-lib.js?v=20261016b&h=5acc5e7c"></script>
+<script src="scan-lib.js?v=20261030a&h=0a91907e"></script>
 
 <script src="auth.js?v=20260930a&h=9d9fdae3"></script>
 
@@ -84,7 +84,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261029b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261029c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -576,7 +576,7 @@ setTimeout(function(){
 
   .tbl th:nth-child(4),.tbl tbody td:nth-child(4){width:10%;}   /* 送达方（原客户） */
 
-  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:13%;}   /* 型号（让出 4% 给物料编码：14 位编码要一行放下 + 复制按钮要看得见） */
+  .tbl th:nth-child(5),.tbl tbody td:nth-child(5){width:17%;}   /* 型号（加长：型号名最长，如「气缸座_VC_Q11200001_灰铁_粗抛件」） */
 
   .tbl th:nth-child(6),.tbl tbody td:nth-child(6){width:5%;}    /* 发货数量 */
 
@@ -609,7 +609,7 @@ setTimeout(function(){
   /* ★「操作」2 个字在 3% 的窄列里（1024 屏只有 30px）会被裁 → 同样允许折行 */
   .tbl thead th.col-act{white-space:normal;line-height:1.15;vertical-align:middle;}
 
-  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:8.5%;}  /* 物料编码（13-14 位数字串要一行放下，右下角还要放复制按钮） */
+  .tbl th:nth-child(16),.tbl tbody td:nth-child(16){width:4.5%;}  /* 物料编码（缩短：编码本身很短） */
   .tbl th:nth-child(17),.tbl tbody td:nth-child(17){width:3%!important;}  /* 操作（缩短：只有「＋」「✕」两个 13px 小按钮） */
 
   /* 交货单：按字数自动换行（textarea 自适应高度，列宽不够自动折行且撑高行） */
@@ -868,8 +868,6 @@ setTimeout(function(){
   .copy-code:active{ transform:scale(.92); }
 
   /* 编码文字用满整列宽（不加右侧留白）→ 13px 字号断行更少 */
-  .col-code .code-wrap textarea[data-f="code"]{ font-size:13px; }
-
   /* 点进编辑时按钮让位（不挡正在编辑的字），失焦后恢复 */
   .col-code:focus-within .copy-code{ opacity:0; }
 
