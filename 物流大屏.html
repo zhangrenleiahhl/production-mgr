@@ -16,7 +16,7 @@
 
 <script src="cloud-sync.js?v=20261026a"></script>
 
-<script src="scan-lib.js?v=20261016b"></script>
+<script src="scan-lib.js?v=20261030a"></script>
 
 <script src="html2canvas.min.js?v=lib"></script>
 
@@ -832,6 +832,10 @@ const esc = SL.esc, raw = SL.raw;
 
 const POLL_MS = 15000;   // 2026-10-15：120s->15s 对齐扫码页（戳没变只查戳，不费流量；工人扫码后大屏最多15秒就动）
 
+let pollN = 0;           // 轮询计数：定期强制全文拉一次进度（防「戳没变」误判把旧数据锁死）
+
+let progHeal = false;    // 本轮是否发生过「进度缓存中毒自愈」（顶栏提示用）
+
 const FETCH_MS = 15000;              // 云端拉取超时（别让一次卡住的请求把整屏拖死）
 
 
@@ -1004,17 +1008,32 @@ async function pull(){
 
     let skipProg = false, newProgStamp = null;
 
+pollN++;
+
+
+
+    /* ★ 定期强制全文拉一次进度（2026-10-30）：约每 40 轮（10 分钟）无视戳下载全文。
+
+       「戳没变就跳过」省流量，但哪台电脑的戳/缓存一旦不对（旧代码探错键、写坏戳），
+
+       就会永远「已同步 ✓」却永远不下载 —— 定期强拉一次兜底自愈。 */
+
+    const forceProg = (pollN % 40) === 0;
+
+
+
     if (CloudSync.pullStamp){
 
       try {
 
         const st2 = await withTimeout(CloudSync.pullStamp(SL.KEY_PROG), 8000);
 
-        if (st2){ if (localStorage.getItem("shipping_progress_stamp_v1") === st2) skipProg = true; else newProgStamp = st2; }
+        if (st2 && !forceProg){ if (localStorage.getItem("shipping_progress_stamp_v1") === st2) skipProg = true; else newProgStamp = st2; }
 
       } catch(e){}
 
     }
+
 
     const rs = await Promise.allSettled([
 
@@ -1054,7 +1073,20 @@ async function pull(){
 
     if (okP && rp.value && typeof rp.value === "object"){
 
-      PROG = SL.mergeProg(PROG, rp.value);
+/* ★ 进度缓存健全性自检（2026-10-30）：本机缓存里若留着「rv 更高、内容却更旧」
+
+         的格子，mergeProg 会永远输给本机旧值 —— 屏幕显示「已同步 ✓」却整屏锁在
+
+         几天前的状态（门口屏 2026-10-30 实况）。检出中毒：整份信云端，顶栏提示。 */
+
+      const sm = SL.mergeProgSafe ? SL.mergeProgSafe(PROG, rp.value)
+
+                                  : { data: SL.mergeProg(PROG, rp.value), poisoned: false };
+
+      if (sm.poisoned && SL.mergeProgSafe) progHeal = true;
+
+      PROG = sm.data;
+
 
       if (newProgStamp){ try { localStorage.setItem("shipping_progress_stamp_v1", newProgStamp); } catch(e){} }
 
@@ -1115,6 +1147,8 @@ async function pull(){
   if (!cs){ setSync("本机缓存 " + t, "warn"); sw.title = "云端未配置，正在显示本机缓存的数据"; }
 
   else if (degraded){ setSync("网络波动 " + t, "warn"); sw.title = "网络有波动，正在显示上一次拉到的数据"; }
+
+else if (progHeal){ progHeal = false; setSync("已按云端校正本机缓存 ✓ " + t, "warn"); sw.title = "发现本机进度缓存落后于云端，已自动用云端数据纠正"; }
 
   else { setSync("已同步 ✓ " + t, "ok"); sw.title = "已同步云端，时间 " + t; }
 
@@ -1818,7 +1852,10 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden) pull(); });    // 从后台/bfcache 回来也立刻刷新
-  if (SL.verWatch) SL.verWatch();   // 线上版本自检：版本变了自动重载，别让大屏跑旧代码（2026-10-15）
+const APP_VER = "20261030a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+
+if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
+
 
   // 长时间挂着的大屏：每天凌晨 4 点自动重载一次，清掉累积的内存/定时器
 
