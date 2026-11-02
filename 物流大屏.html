@@ -794,7 +794,7 @@
 
     <span class="k"><i style="background:#3ddc97"></i>已完成（工序走完 + 车已到）</span>
 
-    <span class="k" style="margin-left:auto">进度高的排最前 · 物流门口请用「门口大屏」保密版 · 每 15 秒自动刷新 · 夜间 23:30–7:30 暂停省流量 · 超出一屏自动慢速滚动</span>
+    <span class="k" style="margin-left:auto">进度高的排最前 · 物流门口请用「门口大屏」保密版 · 每 5 秒自动刷新 · 夜间 23:30–7:30 暂停省流量 · 超出一屏自动慢速滚动</span>
 
   </div>
 
@@ -830,10 +830,10 @@ const $ = (id) => document.getElementById(id);
 
 const esc = SL.esc, raw = SL.raw;
 
-const POLL_MS = 15000;   // 2026-10-15：120s->15s 对齐扫码页（戳没变只查戳，不费流量；工人扫码后大屏最多15秒就动）
+const POLL_MS = 5000;    // 2026-11-02：15s->5s 用户要求白天更快上屏（戳没变只查戳，不费流量；工人扫码后大屏最多5秒就动）
 
 /* 夜间 23:30–次日 7:30 停刷省流量（2026-11-02）：该时段完全不轮询云端，
-   屏幕保持进入夜间前最后状态；白天（7:30–23:29）仍每 15 秒刷新。
+   屏幕保持进入夜间前最后状态；白天（7:30–23:29）仍每 5 秒刷新。
    凌晨 4 点的 reload 保留（清内存/拾取新发布），其后的轮询仍受本闸门约束。 */
 function nightPaused(){
   const d = new Date(), h = d.getHours(), m = d.getMinutes();
@@ -844,6 +844,7 @@ function nightPaused(){
 }
 
 let pollN = 0;           // 轮询计数：定期强制全文拉一次进度（防「戳没变」误判把旧数据锁死）
+let lastForceProg = 0;   // 2026-11-02：自愈强制全量改为按时间（每10分钟），不再按轮次（避免刷新调快后自愈变频繁吃流量）
 
 let progHeal = false;    // 本轮是否发生过「进度缓存中毒自愈」（顶栏提示用）
 
@@ -1029,7 +1030,10 @@ pollN++;
 
        就会永远「已同步 ✓」却永远不下载 —— 定期强拉一次兜底自愈。 */
 
-    const forceProg = (pollN % 40) === 0;
+    /* 改为按时间（固定每 10 分钟）强制全文拉一次，而不是按轮次：
+       这样白天的刷新频率再怎么调（15s→5s），自愈兜底频率都不变，不会多吃流量。 */
+    const forceProg = (Date.now() - lastForceProg) >= 600000;
+    if (forceProg) lastForceProg = Date.now();
 
 
 
@@ -1863,7 +1867,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261102a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261102b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
