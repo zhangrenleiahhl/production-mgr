@@ -84,7 +84,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261029c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261029d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -4904,6 +4904,68 @@ function custFontFor(ta){
 
 }
 
+/* ★ 型号 / 客户订单号：一行放不下 → 自动缩小字号挤成一行（2026-10-30）。
+
+   与客户名 custFontFor 同一套路：折行了就逐档降字号（0.5px 步进），
+
+   缩到 ONE_FS_MIN 仍放不下 → 回原字号折行（绝不裁字）。 */
+
+let __oneFsCache=new WeakMap();
+
+const ONE_FS_MIN=9;             // 缩到 9px 仍放不下 → 回原字号折行
+
+function oneLineFontFor(ta){
+
+  const val=(ta.value||"").trim();
+
+  const box=ta.clientWidth-8;                   // 没有布局盒（折叠/隐藏）时 ≈ 0
+
+  if(!val || box<=10) return 0;
+
+  const hit=__oneFsCache.get(ta);
+
+  if(hit && hit.val===val && hit.box===box) return hit.fs;
+
+  ta.style.transition="none";                   // 先关过渡再量（同 custFontFor 的教训）
+
+  ta.style.fontSize="";
+
+  ta.style.height="auto";
+
+  let out=0;
+
+  if(ta.scrollHeight>CUST_ONE_LINE){            // 折行了 → 逐档降字号，直到回到一行
+
+    for(let fs=CUST_FS_BASE-0.5; fs>=ONE_FS_MIN-0.01; fs-=0.5){
+
+      ta.style.fontSize=fs+"px";
+
+      ta.style.height="auto";
+
+      if(ta.scrollHeight<=CUST_ONE_LINE){ out=Math.round(fs*10)/10; break; }
+
+    }
+
+    if(!out) ta.style.fontSize="";              // 缩到底仍折行 → 回原字号折行
+
+  }
+
+  ta.style.transition="";
+
+  __oneFsCache.set(ta, { val:val, box:box, fs:out });
+
+  return out;
+
+}
+
+function applyOneLineFont(ta){
+
+  const fs=oneLineFontFor(ta), v=fs?fs+"px":"";
+
+  if(ta.style.fontSize!==v) ta.style.fontSize=v;
+
+}
+
 function fitTextarea(ta){
 
   if(!ta) return;
@@ -4915,6 +4977,16 @@ function fitTextarea(ta){
     if(ta.style.fontSize!==v3) ta.style.fontSize=v3;
 
   }
+else if(ta.dataset.f==="model"||ta.dataset.f==="orderno"){   // 型号/订单号：放不下自动缩字号
+
+
+
+    applyOneLineFont(ta);
+
+
+
+  }
+
 
   ta.style.height="auto";
 
@@ -5000,13 +5072,30 @@ function fitTextareas(force){
 
     const ta0=dirty[i];
 
-    if(ta0.dataset.f!=="customer") continue;
+    if(ta0.dataset.f==="customer"){
 
-    const fs0=custFontFor(ta0), v0=fs0?fs0+"px":"";
 
-    if(ta0.style.fontSize!==v0) ta0.style.fontSize=v0;
 
+      const fs0=custFontFor(ta0), v0=fs0?fs0+"px":"";
+
+
+
+      if(ta0.style.fontSize!==v0) ta0.style.fontSize=v0;
+
+
+
+    }else if(ta0.dataset.f==="model"||ta0.dataset.f==="orderno"){   // 型号/订单号：放不下自动缩字号
+
+
+
+      applyOneLineFont(ta0);
+
+
+
+    }
   }
+
+
 
   // 读写分离：先批量写 auto，再批量读高度（这样浏览器只会做一次布局）
 
