@@ -244,6 +244,13 @@
 
   .go.lock{background:linear-gradient(135deg,#cbd5e1,#94a3b8);box-shadow:none;}
 
+  /* ★ 车辆已取消（cx）：整行灰掉，工序 / 质保书 / 车 都点不动，明确显示「已取消」（2026-11-02） */
+  .row.cx{opacity:.6;background:#f8fafc;border-color:#e2e8f0;}
+  .rh .badge.cx{background:#ef4444;}                       /* 已取消：红底白字 */
+  .go.cx{background:#cbd5e1;box-shadow:none;color:#64748b;cursor:not-allowed;}
+  .carx{display:inline-flex;align-items:center;justify-content:center;flex:1;padding:9px;border-radius:10px;
+    background:#fee2e2;color:#b91c1c;font-weight:800;font-size:14px;border:1.5px solid #fecaca;}
+
   /* ★ 不是你负责的那一步：压暗 + 🔒，点一下会说清楚为什么（绝不静默无反应） */
 
   .lkbar{width:100%;text-align:left;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:10px;
@@ -649,7 +656,8 @@ const $ = (id) => document.getElementById(id);
 
 const esc = SL.esc;
 
-const POLL_MS = 10000;   // 2026-10-15：15s->10s 对齐司机扫码（戳没变只查戳，不费流量）
+const POLL_MS = 500;     // 2026-11-02：10s->0.5s（不同平台打开「发货进度」要近实时同步；render 有指纹守卫，内容没变不重绘，戳没变只查戳不费流量）
+let pullingProg = false;  // ★ 0.5s 轮询：上一轮拉取没回就先跳过，避免并发戳查询 / 重复渲染
 
 const LITTLE = ["待确认", "货好", "装货中", "已完成"];
 
@@ -1145,7 +1153,7 @@ function render(){
 
 
 
-  const fp = PFilter + "|" + TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.bz, r.u, r.by].join(":")).join("|");
+  const fp = PFilter + "|" + TAB + "|" + ONLY + "|" + ROWS.map(r => [r.ck, r.rk, r.s, r.car, r.bz, r.u, r.by, r.cx].join(":")).join("|");
 
   if (rendered && fp === lastFp) return;       // 内容没变就不重绘（别打断现场操作）
 
@@ -1191,6 +1199,8 @@ function rowHtml(r){
 
   const s = Math.min(3, r.s || 0), car = r.car || 0;
 
+  const cancelled = !!(r.cx || 0);   // ★ 车辆已取消（cx）：取消的不能点工序，显示「已取消」
+
   const self = /自提/.test(r.logistics || "");
 
   let track = "", lbls = "";
@@ -1229,21 +1239,25 @@ function rowHtml(r){
 
   const lkUndo = SL.opBlock(ME, SL.undoOpOf({ s: (r.rs == null ? s : r.rs), car: r.car, ct: r.ct, t: r.t }));
 
-  const goHtml = s < 3
+  const goHtml = cancelled
 
-    ? (lkGo
+    ? '<button type="button" class="go cx" disabled>已取消</button>'
 
-        ? '<button type="button" class="go lock" data-lock="' + esc(lkGo) + '">🔒 ' +
+    : (s < 3
 
-          esc(SL.STEP_NAME[s + 1]) + ' —— 不是你负责的</button>'
+        ? (lkGo
 
-        : '<button type="button" class="go' + (s === 1 ? " s2" : (s === 2 ? " s3" : "")) + (needCar ? " lock" : "") +
+            ? '<button type="button" class="go lock" data-lock="' + esc(lkGo) + '">🔒 ' +
 
-          '" data-go="1"' + (needCar ? ' title="' + esc(needCar) + '"' : "") +
+              esc(SL.STEP_NAME[s + 1]) + ' —— 不是你负责的</button>'
 
-          '>点一下完成「' + esc(SL.STEP_NAME[s + 1]) + '」</button>')
+            : '<button type="button" class="go' + (s === 1 ? " s2" : (s === 2 ? " s3" : "")) + (needCar ? " lock" : "") +
 
-    : '<button type="button" class="go fin" data-go="0">已完成 ✓（再点无变化）</button>';
+              '" data-go="1"' + (needCar ? ' title="' + esc(needCar) + '"' : "") +
+
+              '>点一下完成「' + esc(SL.STEP_NAME[s + 1]) + '」</button>')
+
+        : '<button type="button" class="go fin" data-go="0">已完成 ✓（再点无变化）</button>');
 
   const tsTxt = (r.t ? "工序 <b>" + esc(SL.STEP_NAME[s]) + "</b> " + esc(SL.fmtHM(r.t)) + (r.by ? " · " + esc(r.by) : "") : "") +
 
@@ -1251,7 +1265,7 @@ function rowHtml(r){
 
                 (r.bz && r.bzt ? "　质保书 <b>" + esc(SL.fmtHM(r.bzt)) + "</b>" + (r.bzb ? " · " + esc(r.bzb) : "") : "");
 
-  return '<div class="row ' + (r.done ? "done" : "") + (r.stale && !r.done ? " late" : "") +
+  return '<div class="row ' + (cancelled ? "cx " : "") + (r.done ? "done" : "") + (r.stale && !r.done ? " late" : "") +
 
     '" data-k="' + esc(r.ck) + '" data-r="' + esc(r.rk) + '">' +
 
@@ -1273,43 +1287,65 @@ function rowHtml(r){
 
     "</div>" +
 
-    '<span class="badge s' + s + '">' + esc(SL.STEP_NAME[s]) + "</span></div>" +
+    '<span class="badge ' + (cancelled ? "cx" : ("s" + s)) + '">' + esc(cancelled ? "已取消" : SL.STEP_NAME[s]) + "</span></div>" +
 
     '<div class="steps"><div class="track">' + track + '</div><div class="lbls">' + lbls + "</div></div>" +
 
-    '<div class="acts">' + ((needCar && !lkGo) ? '<div class="needcar"><b>🚫</b><span>' + esc(needCar) +
+    '<div class="acts">' + ((needCar && !lkGo && !cancelled) ? '<div class="needcar"><b>🚫</b><span>' + esc(needCar) +
 
         '。<br>' + needHint + '</span></div>' : "") + goHtml +
 
-      (lkBz
+      (cancelled
 
-        ? '<div class="row2"><button type="button" class="lkbar" data-lock="' + esc(lkBz) +
+        ? '<div class="row2"><div class="car">' +
 
-          '">🔒 质保书 —— 不是你负责的</button></div>'
+            '<button type="button" class="act" disabled>📄 质保书未好</button>' +
 
-        : '<div class="row2"><div class="car">' +
+            '<button type="button" class="act2" disabled>✓ 质保书好了</button>' +
 
-            '<button type="button" class="' + (r.bz ? "" : "act") + '" data-bz="0">📄 质保书未好</button>' +
+          '</div></div>'
 
-            '<button type="button" class="' + (r.bz ? "act2" : "") + '" data-bz="1">✓ 质保书好了</button>' +
+        : (lkBz
 
-          '</div></div>') +
+            ? '<div class="row2"><button type="button" class="lkbar" data-lock="' + esc(lkBz) +
 
-      '<div class="row2">' + (lkCar
+              '">🔒 质保书 —— 不是你负责的</button></div>'
 
-        ? '<button type="button" class="lkbar" data-lock="' + esc(lkCar) + '">🔒 车到 —— 不是你负责的</button>'
+            : '<div class="row2"><div class="car">' +
 
-        : '<div class="car">' +
+                '<button type="button" class="' + (r.bz ? "" : "act") + '" data-bz="0">📄 质保书未好</button>' +
 
-            '<button type="button" class="' + (car ? "" : "act") + '" data-car="0">🚚 车未到</button>' +
+                '<button type="button" class="' + (r.bz ? "act2" : "") + '" data-bz="1">✓ 质保书好了</button>' +
 
-            '<button type="button" class="' + (car ? "act2" : "") + '" data-car="1">✓ 车已到</button>' +
+              '</div></div>')) +
 
-          '</div>') +
+      '<div class="row2">' + (cancelled
 
-        '<button type="button" class="undo' + (lkUndo ? " lkb" : "") + '" data-undo="1"' +
+        ? '<span class="carx">已取消</span>' +
 
-          (lkUndo ? ' data-lock="' + esc(lkUndo) + '"' : ' title="撤回最近那一次"') + '>↩</button></div>' +
+          '<button type="button" class="undo" disabled title="撤销取消请到发货计划系统的「发货进度」看板">↩</button>'
+
+        : (lkCar
+
+            ? '<button type="button" class="lkbar" data-lock="' + esc(lkCar) + '">🔒 车到 —— 不是你负责的</button>' +
+
+              '<button type="button" class="undo' + (lkUndo ? " lkb" : "") + '" data-undo="1"' +
+
+                (lkUndo ? ' data-lock="' + esc(lkUndo) + '"' : ' title="撤回最近那一次"') + '>↩</button>'
+
+            : '<div class="car">' +
+
+                '<button type="button" class="' + (car ? "" : "act") + '" data-car="0">🚚 车未到</button>' +
+
+                '<button type="button" class="' + (car ? "act2" : "") + '" data-car="1">✓ 车已到</button>' +
+
+              '</div>' +
+
+              '<button type="button" class="undo' + (lkUndo ? " lkb" : "") + '" data-undo="1"' +
+
+                (lkUndo ? ' data-lock="' + esc(lkUndo) + '"' : ' title="撤回最近那一次"') + '>↩</button>')) +
+
+        '</div>' +
 
       (tsTxt ? '<div class="ts">' + tsTxt + "</div>" : "") +
 
@@ -1649,7 +1685,7 @@ function boot(){
 
   pull();
 
-  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
+  setInterval(() => { if (!document.hidden && !pullingProg) { pullingProg = true; pull().finally(() => { pullingProg = false; }); } }, POLL_MS);
 
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
 
