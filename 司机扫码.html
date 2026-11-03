@@ -143,7 +143,9 @@ const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KE
 const KEY_PLANS_STAMP = "shipping_plans_stamp_v1", KEY_DB_STAMP = "shipping_db_stamp_v1", KEY_PROG_STAMP = "shipping_progress_stamp_v1";
 const $ = (id) => document.getElementById(id);
 const esc = SL.esc;
-const POLL_MS = 10000;
+const POLL_MS = 500;     // 2026-11-03：10s->0.5s（司机签到码要近实时；加 pullingProg 重叠守卫防堆叠）
+let pullingProg = false;  // 2026-11-03：0.5s 高频轮询重叠守卫（上一轮没回就跳过本轮），避免并发戳查询/重复渲染
+const APP_VER = "20261103a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 drv 字段同步改
 
 let RECORDS = [], PROG = {}, ROWS = [], SEARCH = "", lastFp = "";
 let DB = [], IDX = { byPair: {}, byCust: {}, byModel: {} };   // 物料库 + 送达方代码索引（保密用）
@@ -426,11 +428,16 @@ function boot(){
   loadLocal();
   if (RECORDS.length){ render(); if (window.CloudSync && CloudSync.ready()) setSync("正在刷新云端…", "warn"); }
   pull();
-  setInterval(() => { if (!document.hidden) pull(); }, POLL_MS);
+  setInterval(() => {
+    if (document.hidden) return;
+    if (pullingProg) return;                       // 0.5s 轮询：上一轮没回就跳过本轮，避免并发戳查询/重复渲染
+    pullingProg = true;
+    pull().finally(() => { pullingProg = false; });
+  }, POLL_MS);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
   window.addEventListener("online", () => pull());
   window.addEventListener("focus", () => pull());        // 窗口重新获得焦点也立刻刷新（2026-10-02）
-  if (SL.verWatch) SL.verWatch({ skip: () => isPending() });   // 线上版本自检；有没推上去的待办时不重载（2026-10-15）
+  if (SL.verWatch) SL.verWatch({ field: "drv", pageVer: APP_VER, skip: () => isPending() });   // 线上版本自检：drv 字段变则自动重载；有没推上去的待办时不重载（2026-11-03 加页面级版本，根治"改了不生效"）
   window.addEventListener("pageshow", () => pull());      // 从手机后台/bfcache 回来也立刻刷新（2026-10-02）
 }
 boot();
