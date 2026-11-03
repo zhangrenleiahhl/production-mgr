@@ -598,7 +598,41 @@
 
   tbody td:nth-child(6){padding-top:0;padding-bottom:0;}
 
-  @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after{animation:none;}}
+  /* ============ 工序更新 · 醒目提醒（2026-11-03）============
+     工人扫一下码 → 这一行的工序往前走一步 → 它会按「完成的排最前」自动从下面跳到上面。
+     原来整表是 innerHTML 重画的，行是"瞬移"的看不出动静；这里补两样东西：
+       ① 跳位动画（FLIP）：重画前量一次每行的位置，重画后再量一次，差多少就从差多少
+          滑回去 —— 于是"从下面跳到上面"的过程看得见（刚更新的那行用带回弹的曲线，更显眼）。
+       ② 金色光标：刚更新过的那一行，序号格左边立一枚金色箭头（带辉光、呼吸），
+          序号套金圈、工序流体条套金光 —— 站在屏幕前一眼就看出"这单动了"。
+     金色只出现在"刚动过"的行上（12 秒窗口），平时整屏还是原来的四色。 */
+
+  tbody td.idx{position:relative;}            /* 金色光标要立在序号格左边 */
+
+  /* 金色光标：一枚指向右边的金箭头（贴在序号格左缘），有辉光 + 轻微呼吸。
+     每行都放一个，平时透明；tr.hot 时点亮（淡入淡出靠 opacity 过渡）。 */
+  .gcur{position:absolute;left:0;top:50%;width:0;height:0;margin-top:-12px;z-index:3;
+    border-top:12px solid transparent;border-bottom:12px solid transparent;
+    border-left:18px solid #ffd166;
+    opacity:0;pointer-events:none;transition:opacity .45s ease;
+    animation:gcurGlow 1.15s ease-in-out infinite;}
+  @keyframes gcurGlow{
+    0%,100%{filter:drop-shadow(0 0 5px rgba(255,199,64,.9)) drop-shadow(0 0 12px rgba(255,160,0,.55))}
+    50%{filter:drop-shadow(0 0 14px rgba(255,224,130,1)) drop-shadow(0 0 30px rgba(255,160,0,.75))}}
+  tbody tr.hot .gcur{opacity:1;}
+
+  /* 整行镀金：序号变金 + 工序流体条套金光（过渡生效，褪去时也平滑） */
+  tbody td.idx .n{transition:color .5s ease,background .5s ease,box-shadow .5s ease;}
+  tbody tr.hot td.idx span.n{color:#2b1c00;background:#ffd166;font-weight:800;
+    box-shadow:0 0 0 2px rgba(255,240,190,.95),0 0 20px rgba(255,199,64,.95);}
+  tbody tr.hot .flw{filter:drop-shadow(0 0 9px rgba(255,199,64,.95));}
+
+  /* 跳位动画（FLIP）：--dy = 旧位置 − 新位置，补一段过渡就滑回去了 */
+  tbody tr.jump{animation:rowJump .78s cubic-bezier(.22,.9,.24,1);}
+  tbody tr.jump.hot{animation:rowJumpHot .95s cubic-bezier(.18,1.45,.32,1);}
+  @keyframes rowJump{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
+  @keyframes rowJumpHot{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
+  @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after,.gcur{animation:none} tbody tr.jump,tbody tr.jump.hot{animation:none}}
 
   /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
 
@@ -1471,9 +1505,13 @@ function rowHtml(r, i){
 
   const noCell = '<span class="no"><span class="sn">' + esc(r.no || "（无单号）") + "</span>" + plCell + "</span>";
 
-  return '<tr class="' + (r.done ? "done" : "st" + s) + '">' +
+  /* 行标识写进 data-rid：★ 这里只放**纯数字短 id**，绝不写 rk|ck
+     （门口大屏是保密版，标签属性里也不能出现客户名） */
+  const rid = ridOf(r);
 
-    '<td class="idx"><span class="n">' + (i + 1) + '</span></td>' +
+  return '<tr class="' + (r.done ? "done" : "st" + s) + '" data-rid="' + rid + '">' +
+
+    '<td class="idx"><i class="gcur"></i><span class="n">' + (i + 1) + '</span></td>' +
 
     '<td>' + stale + '<span class="cust">' + esc(r.customer) + '</span></td>' +
 
@@ -1502,6 +1540,116 @@ function rowHtml(r, i){
 }
 
 
+
+/* ---------- 工序更新 · 醒目提醒（2026-11-03）------------
+   工人扫一下码 → 这一行的工序往前走一步 → 它会按「完成的排最前」自动从下面跳到上面。
+   整表是 innerHTML 重画的，行是"瞬移"的看不出动静；这里补两样：
+     ① 跳位动画（FLIP）：重画前记下每行的位置和名次，重画后算出"它挪了多少"，
+        用 CSS animation 从旧位置滑到新位置 —— 于是"从下面跳到上面"的过程看得见。
+     ② 金色光标：刚更新过的那一行，序号格左边立一枚金色箭头，序号套金圈、工序流体条
+        套金光 —— 站在屏幕前一眼就看出"这单动了"。金色只留 12 秒。
+
+   ★ 行标识（rk|ck）只在内存里比对，**绝不写进 DOM** ——
+     门口大屏是保密版，整页不允许出现客户名（含标签属性）。DOM 上只放纯数字短 id。 */
+
+const HOT_MS = 12000;                  // 金色光标停留多久（毫秒）
+const ROW_IDS = Object.create(null);   // 行标识 → 纯数字短 id（DOM 上只出现这个）
+let ROW_SEQ = 0;
+let HOT_UNTIL = Object.create(null);   // 短 id → 金色到什么时候为止
+let HOT_TIMER = 0;                     // 收金色的定时器
+let PREV_ROW = Object.create(null);    // 短 id → 上一轮的状态签名
+
+/* 行标识（只在内存里用）：记录键 + 客户/日期组键 */
+function rowKey(r){ return r.rk + "|" + r.ck; }
+
+/* 行标识 → 纯数字短 id（同一个业务行每次渲染拿到的 id 一样，FLIP 才對得上） */
+function ridOf(r){
+  const k = rowKey(r);
+  return ROW_IDS[k] || (ROW_IDS[k] = ++ROW_SEQ);
+}
+
+/* 找出这一轮里"工序刚推进"的行 → 记下金色窗口 */
+function markHotRows(rows){
+  const now = Date.now();
+  let fresh = false;
+
+  for (let i = 0; i < rows.length; i++){
+    const r = rows[i];
+    const id = ridOf(r);
+    const sig = (r.s || 0) + ":" + (r.t || 0);
+    const was = PREV_ROW[id];
+
+    if (was !== undefined && was !== sig){ HOT_UNTIL[id] = now + HOT_MS; fresh = true; }
+
+    PREV_ROW[id] = sig;
+  }
+
+  if (fresh) scheduleHotSweep();
+}
+
+/* 金色到点自己褪去：定时清掉过期的，不用重画整表（重画会闪） */
+function scheduleHotSweep(){
+  if (HOT_TIMER) clearTimeout(HOT_TIMER);
+
+  let soonest = Infinity;
+  for (const k in HOT_UNTIL) if (HOT_UNTIL[k] < soonest) soonest = HOT_UNTIL[k];
+  if (soonest === Infinity) return;
+
+  HOT_TIMER = setTimeout(function(){
+    HOT_TIMER = 0;
+    const t = Date.now();
+    for (const k in HOT_UNTIL) if (HOT_UNTIL[k] <= t) delete HOT_UNTIL[k];
+    applyHot();
+    scheduleHotSweep();
+  }, Math.max(80, soonest - Date.now() + 40));
+}
+
+/* 把 hot 状态落到 DOM 上（只切 class，不动结构） */
+function applyHot(){
+  const trs = $("tbody").children;
+  for (let i = 0; i < trs.length; i++){
+    const tr = trs[i];
+    const id = tr.getAttribute("data-rid");
+    const on = !!(id && HOT_UNTIL[id] && HOT_UNTIL[id] > Date.now());
+    tr.classList.toggle("hot", on);
+  }
+}
+
+/* ---------- 跳位动画（FLIP） ----------
+   重画前记下每行的位置（相对表格）和名次；重画后：
+     · 名次变了 = 它"跳位"了 → 播动画，从旧位置滑到新位置；
+     · 名次没变 = 只是行高被字号微调挤了一下 → 不播（免得整屏一起抖）。
+   位移量用"旧位置 − 新位置"，落点永远精确（动画结束就落在新位置）。 */
+function snapshotRows(){
+  const trs = $("tbody").children;
+  const pos = Object.create(null);
+  for (let i = 0; i < trs.length; i++){
+    const tr = trs[i];
+    const id = tr.getAttribute("data-rid");
+    if (id) pos[id] = { top: tr.offsetTop, idx: i };
+  }
+  return pos;
+}
+
+function flipRows(rows, prev){
+  const trs = $("tbody").children;
+  if (!trs.length) return;
+
+  for (let i = 0; i < trs.length && i < rows.length; i++){
+    const tr = trs[i];
+    const id = tr.getAttribute("data-rid");
+    const was = id ? prev[id] : undefined;
+    if (!was) continue;                    // 新上屏的行：没有"旧位置"，不播
+
+    if (was.idx === i) continue;           // 名次没变 → 不播（整屏齐抖最难看）
+
+    const dy = was.top - tr.offsetTop;     // >0 = 往上跳了
+    if (Math.abs(dy) < 2) continue;
+
+    tr.style.setProperty("--dy", dy + "px");
+    tr.classList.add("jump");
+  }
+}
 
 function render(){
 
@@ -1553,6 +1701,9 @@ function render(){
 
   fitRows(rows.length);
 
+  /* 跳位动画：先把"重画前"每行的位置和名次量下来 */
+  const flipPrev = snapshotRows();
+
   $("tbody").innerHTML = rows.map((r, i) => rowHtml(r, i)).join("");
 
   fitCustNames();                             // 行出来了才知道客户名列多宽，再定名字字号
@@ -1560,6 +1711,13 @@ function render(){
   fitNoFont();                                // 单号必须完整：按实测宽度逐档降字号
 
   fitUpdFont();                               // 时间两列：单行放得下（不换行、不截断）
+
+  /* 跳位动画：跟"重画前"比一比，挪了名次的那几行滑过去 */
+  flipRows(rows, flipPrev);
+
+  /* 工序刚推进的行 → 金色光标 + 镀金（12 秒后自动褪去） */
+  markHotRows(rows);
+  applyHot();
 
   setupScroll();
 
@@ -1874,7 +2032,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261103a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261103b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
