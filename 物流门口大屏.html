@@ -653,13 +653,22 @@
   .popcard{position:fixed;left:50%;top:50%;z-index:60;will-change:transform,opacity;
     transform:translate(-50%,-50%) translate(var(--dx,0px),var(--dy,0px)) scale(.45);
     opacity:0;
-    transition:transform 1s cubic-bezier(.16,.84,.28,1),opacity .6s ease;
-    width:92vw;max-width:none;}
+    transition:transform .5s cubic-bezier(.16,.84,.28,1),opacity .5s ease;
+    width:92vw;max-width:none;
+    /* ★★ 金边 + 外部金光画在 .popcard 上（不能画在 .ctbl 上！）：
+       .ctbl 的父容器 .cwrap 是 overflow:hidden —— .ctbl 的 box-shadow（金边 + 外发光）
+       全部被它裁掉，表现为"卡片外面的金光没了"。.popcard 自己没有裁剪，画这里才出得来。
+       一次绘制、跟着元素被合成器搬运 → 依然是零重算（不像 filter:drop-shadow 每帧重做模糊）。 */
+    border-radius:16px;
+    box-shadow:0 0 0 2px rgba(255,196,80,.95),
+               0 0 30px rgba(255,150,40,.55),
+               0 0 76px rgba(255,160,45,.34),
+               0 24px 70px rgba(0,0,0,.62);}
   .popcard.lift{transform:translate(-50%,-50%) translate(var(--lx,0px),var(--ly,0px)) scale(.82);
     opacity:1;}
   .popcard.pop{transform:translate(-50%,-50%) translate(0,0) scale(1);
     opacity:1;
-    transition:transform 1s cubic-bezier(.2,.7,.25,1),opacity .6s ease;}
+    transition:transform .5s cubic-bezier(.2,.7,.25,1),opacity .5s ease;}
   .popcard.pull{transform:translate(-50%,-50%) translate(var(--px,0px),var(--py,0px)) scale(.82);
     opacity:1;
     transition:transform 1s cubic-bezier(.45,0,.7,.25),opacity .6s ease;}
@@ -681,10 +690,7 @@
      ④ 发光用 box-shadow 多层（不重算、不掉帧）。 */
   .popcard .ctbl{width:100%;border-collapse:collapse;table-layout:fixed;
     background:rgba(14,19,29,.985);border-radius:16px;overflow:hidden;
-    box-shadow:0 0 0 2px rgba(255,196,80,.95),
-               0 0 34px rgba(255,150,40,.42),
-               0 0 78px rgba(255,160,45,.22),
-               0 26px 80px rgba(0,0,0,.6);
+    box-shadow:none;   /* 金边与外部金光统一由 .popcard 承担（这里画会被 .cwrap 裁掉） */
     font-size:30px;line-height:1.3;}
   .popcard .ctbl td{font-size:inherit;vertical-align:middle;color:#ffe3a4;}
   /* 工序格（.flw）原本是 .9em，比别的格小一档 → 卡片里统一继承卡片字号，
@@ -1919,8 +1925,8 @@ function flipRows(rows, prev, cardIds){
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
 const CARD_HOLD = 5000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
-const LIFT_MS   = 1000;     // 取出第一程：从工序条斜向飞起（ms）
-const SETTLE_MS = 1000;     // 取出第二程：落定屏幕正中（★ LIFT+SETTLE=2 秒＝"飞到正中展示"共 2 秒）
+const LIFT_MS   = 500;      // 取出第一程：从工序条斜向飞起（ms）
+const SETTLE_MS = 500;      // 取出第二程：落定屏幕正中（★ LIFT+SETTLE=1 秒＝"飞到正中展示"共 1 秒）
 const CARD_KEEP = [0,1,3,4,2]; // ★ 卡片只保留这几列（序号/送达方代码/单号/工序/吨位）→ 每列空间翻倍，字号才能真放大
 const CARD_COLW = [8,30,18,28,16]; // ★ 裁列后**定制**各列宽度（与 CARD_KEEP 一一对应，单位 %）
 const CARD_FS   = 2.0;        // ★ 卡片字号放大倍数（改 font-size 重新排版渲染，不是 transform 缩放 → 像素清晰）
@@ -1928,7 +1934,7 @@ const PULL_MS   = 1000;     // 送回第一程：从正中斜向抽出
 const BACK_MS   = 1100;     // 送回第二程：落到该行跳到的新格子
 const CARD_BACK = 2100;     // 送回总时长（PULL_MS + BACK_MS）
 const CARD_GAP  = 400;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
-const POP_MS    = 2000;     // 取出总时长（LIFT_MS + SETTLE_MS）＝2 秒（飞到正中展示）
+const POP_MS    = 1000;     // 取出总时长（LIFT_MS + SETTLE_MS）＝1 秒（飞到正中展示）
 
 let cardActive = null;      // 正在播放的卡片 { id, el, row }
 let cardQueue  = [];        // 待播队列（本轮可能多行同时推进，按顺序一个一个播）
@@ -2102,7 +2108,7 @@ function startCard(item){
   }
 
   const fq = el.querySelector(".flq");
-  if (fq){ fq.style.transition = "width 2s ease"; fq.style.width = (fromPct || 0) + "%"; }
+  if (fq){ fq.style.transition = "width 1.2s ease"; fq.style.width = (fromPct || 0) + "%"; }
 
   document.body.appendChild(el);
   tr.classList.add("srcslot");              // 新格子先留金框：卡片随后要送到这里
@@ -2495,7 +2501,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104n";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104o";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
