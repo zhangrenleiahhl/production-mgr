@@ -6,22 +6,22 @@
 <title>发货计划系统</title>
 <style>
   :root{
-    --bg:#f5f7fa; --brand:var(--c-primary); --brand-d:#1e4fb0; --line:#e3e8ef; --txt:#1f2733; --muted:#7a8699; --soft:#eef4ff;
+    --bg:#f5f7fa; --brand:#2563eb; --brand-d:#1e4fb0; --line:#e3e8ef; --txt:#1f2733; --muted:#7a8699; --soft:#eef4ff;
   }
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;}
   body{font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;overflow:hidden;}
   .appbar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:4px 12px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 4px 14px rgba(31,45,77,.05);position:relative;}
   .logo{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:800;}
-  .logo .dot{width:9px;height:16px;background:var(--c-primary);border-radius:3px;display:inline-block;}
+  .logo .dot{width:9px;height:16px;background:var(--brand);border-radius:3px;display:inline-block;}
   .tabs{display:flex;gap:5px;flex-wrap:wrap;margin-left:4px;}
-  .tab{border:none;border-radius:8px;padding:4px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--c-primary-soft);color:var(--c-primary);transition:.15s;}
+  .tab{border:none;border-radius:8px;padding:4px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--soft);color:var(--brand);transition:.15s;}
   .tab:hover{background:#dfeaff;}
-  .tab.active{background:var(--c-primary);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.28);}
+  .tab.active{background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.28);}
   .btn{border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--txt);transition:.15s;}
   .btn:hover{background:#f3f6fb;}
-  .btn-primary{background:var(--c-primary);color:#fff;border-color:var(--c-primary);}
-  .btn-primary:hover{background:var(--c-primary-text);}
+  .btn-primary{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .btn-primary:hover{background:var(--brand-d);}
   .spacer{flex:1;}.appbar .spacer{order:8;}.appbar .brandLogo{order:9;}
   .frame{flex:1 1 auto;width:100%;border:none;background:#fff;display:block;}
   .toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;}
@@ -38,35 +38,35 @@
     background:linear-gradient(90deg,transparent,rgba(56,189,248,.18),transparent);
     animation:scan 2.4s linear infinite;pointer-events:none;}
   @keyframes scan{0%{left:-100%}100%{left:100%}}
-  .appbar .clock .date{color:var(--c-text-subtle);font-size:14px;font-weight:600;letter-spacing:0;text-shadow:none;}
+  .appbar .clock .date{color:#94a3b8;font-size:14px;font-weight:600;letter-spacing:0;text-shadow:none;}
   .appbar .clock .time{color:#e0f2fe;}
   .appbar .clock .sep{animation:blink 1s step-end infinite;color:#38bdf8;}
   @keyframes blink{50%{opacity:0}}
   @media (max-width:900px){.appbar .clock{display:none;}}
   /* ===== 本机存储水位（导航栏实时监控）：一眼看出还能装多少 ===== */
   .appbar .store{display:inline-flex;flex-direction:column;gap:2px;padding:3px 10px;border-radius:10px;
-    background:var(--c-surface-2);border:1px solid var(--c-border-soft);position:relative;cursor:default;flex-shrink:0;}
-  .appbar .store .row1{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--c-text-muted);white-space:nowrap;line-height:1;}
-  .appbar .store .pct{font-weight:700;font-size:13px;color:var(--c-text);font-variant-numeric:tabular-nums;}
-  .appbar .store .pct.warn{color:var(--c-warning);}
-  .appbar .store .pct.danger{color:var(--c-danger);}
+    background:#f8fafc;border:1px solid #e2e8f0;position:relative;cursor:default;flex-shrink:0;}
+  .appbar .store .row1{display:flex;align-items:baseline;gap:6px;font-size:12px;color:#64748b;white-space:nowrap;line-height:1;}
+  .appbar .store .pct{font-weight:700;font-size:13px;color:#1f2328;font-variant-numeric:tabular-nums;}
+  .appbar .store .pct.warn{color:#b45309;}
+  .appbar .store .pct.danger{color:#dc2626;}
   .appbar .store .bar{width:170px;height:7px;border-radius:999px;background:#e5e7eb;overflow:hidden;}
-  .appbar .store .bar>i{display:block;height:100%;width:0;border-radius:999px;background:var(--c-primary);transition:width .35s ease,background .35s ease;}
+  .appbar .store .bar>i{display:block;height:100%;width:0;border-radius:999px;background:#2563eb;transition:width .35s ease,background .35s ease;}
   .appbar .store .bar>i.warn{background:#f59e0b;}
-  .appbar .store .bar>i.danger{background:var(--c-danger);}
+  .appbar .store .bar>i.danger{background:#dc2626;}
   .appbar .store .pop{display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:400;background:#fff;
-    border:1px solid var(--c-border);border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.14);padding:11px 14px;
-    font-size:12.5px;color:var(--c-text-2);white-space:nowrap;min-width:230px;}
+    border:1px solid #d0d7de;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.14);padding:11px 14px;
+    font-size:12.5px;color:#334155;white-space:nowrap;min-width:230px;}
   .appbar .store:hover .pop{display:block;}
-  .appbar .store .pop .hd{font-weight:700;color:var(--c-text);margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eef2f7;}
+  .appbar .store .pop .hd{font-weight:700;color:#1f2328;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eef2f7;}
   .appbar .store .pop .li{display:flex;justify-content:space-between;gap:22px;padding:2.5px 0;}
-  .appbar .store .pop .li b{font-weight:700;color:var(--c-text);font-variant-numeric:tabular-nums;}
+  .appbar .store .pop .li b{font-weight:700;color:#1f2328;font-variant-numeric:tabular-nums;}
   .appbar .store .pop .li.total{border-top:1px solid #eef2f7;margin-top:6px;padding-top:7px;}
-  .appbar .store .pop .ft{margin-top:6px;padding-top:6px;border-top:1px solid #eef2f7;color:var(--c-text-subtle);font-size:12px;}
-  .appbar .store .pop .li .tagf{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:4px;background:#fef3c7;color:var(--c-warning);font-size:11px;font-weight:700;vertical-align:1px;}
+  .appbar .store .pop .ft{margin-top:6px;padding-top:6px;border-top:1px solid #eef2f7;color:#94a3b8;font-size:12px;}
+  .appbar .store .pop .li .tagf{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:4px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700;vertical-align:1px;}
   .appbar .store .pop .act{margin-top:8px;padding-top:8px;border-top:1px solid #eef2f7;}
-  .appbar .store .pop .act button{width:100%;height:28px;border:1px solid var(--c-danger-border);background:#fff;color:var(--c-danger);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;}
-  .appbar .store .pop .act button:hover{background:var(--c-danger-bg);border-color:#fca5a5;}
+  .appbar .store .pop .act button{width:100%;height:28px;border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;}
+  .appbar .store .pop .act button:hover{background:#fef2f2;border-color:#fca5a5;}
   @media (max-width:1280px){.appbar .store .bar{width:110px;}}
   @media (max-width:1000px){.appbar .store{display:none;}}
   /* 备份面板 */
@@ -74,13 +74,11 @@
   .bpanel.show{display:block;}
   .bpanel .ttl{font-size:12px;color:var(--muted);margin-bottom:8px;}
   .brow{margin-bottom:8px;}
-  .bbtn{display:block;width:100%;text-align:center;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--c-primary);transition:.15s;}
-  .bbtn:hover{background:var(--c-primary-soft);}
+  .bbtn{display:block;width:100%;text-align:center;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--brand);transition:.15s;}
+  .bbtn:hover{background:var(--soft);}
   .brow.toggle{font-size:13px;color:var(--txt);display:flex;align-items:center;gap:6px;}
   .brow.info{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;}
 </style>
-
-  <link rel="stylesheet" href="design-tokens.css">
 </head>
 <body>
   <div class="appbar">
@@ -103,7 +101,7 @@
     <button class="btn" id="backupBtn">💾 数据备份</button>
     <div class="bpanel" id="bpanel">
       <div class="ttl">数据备份与恢复</div>
-      <div class="brow"><button class="bbtn" id="rescueBtn" style="border-color:#fca5a5;color:var(--c-danger);">🚑 数据急救（找回误删）</button></div>
+      <div class="brow"><button class="bbtn" id="rescueBtn" style="border-color:#fca5a5;color:#dc2626;">🚑 数据急救（找回误删）</button></div>
       <div class="brow"><button class="bbtn" id="expBtn">⬇ 导出备份文件</button></div>
       <div class="brow"><label class="bbtn">⬆ 导入备份恢复<input type="file" id="impFile" accept=".json" hidden></label></div>
       <div class="brow toggle"><input type="checkbox" id="autoChk"><label for="autoChk">发布时自动备份</label></div>
