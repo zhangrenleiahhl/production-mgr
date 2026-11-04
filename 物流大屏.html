@@ -632,6 +632,11 @@
   tbody tr.jump.hot{animation:rowJumpHot .95s cubic-bezier(.18,1.45,.32,1);}
   @keyframes rowJump{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
   @keyframes rowJumpHot{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
+  /* ★ 要弹卡片的那一行：跳位放慢到与「卡片取出」同长（2.1s），缓动改平滑（去掉回弹）。
+     这样行是「随卡片动画进度一起被拉过去」，而不是自己 0.78s 弹一下就位（用户反馈：不要直接弹上去）。 */
+  tbody tr.jumpSlow{animation:rowJumpSlow var(--jumpSlowDur,2100ms) cubic-bezier(.32,.55,.28,1);}
+  tbody tr.jumpSlow.hot{animation:rowJumpSlow var(--jumpSlowDur,2100ms) cubic-bezier(.32,.55,.28,1);}
+  @keyframes rowJumpSlow{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
   @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after,.gcur{animation:none} tbody tr.jump,tbody tr.jump.hot{animation:none}}
 
   /* ============ 工序更新 · 卡片弹出动画（2026-11-04）============
@@ -1742,6 +1747,12 @@ function flipRows(rows, prev, cardIds){
     tr.style.setProperty("--dy", dy + "px");
     tr.classList.add("jump");
     // ★ 要弹卡片的行也照样跳到新名次（卡片就是从旧位置被抽出来、送到新格子的）
+    //   并且用「慢跳位」：时长与卡片取出阶段一致（2.1s）→ 行随卡片一起缓缓滑到新位置
+    if (cardIds && cardIds[id]){
+      tr.classList.add("jumpSlow");
+      // 慢跳位时长 = 卡片「取出」阶段总长（LIFT+SETTLE）→ 行与卡片严格同步推进
+      tr.style.setProperty("--jumpSlowDur", (LIFT_MS + SETTLE_MS) + "ms");
+    }
   }
 }
 
@@ -2355,7 +2366,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104i";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261104j";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
