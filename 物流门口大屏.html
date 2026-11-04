@@ -690,18 +690,76 @@
     background:linear-gradient(100deg,rgba(255,190,70,0),rgba(255,205,110,.14),rgba(255,238,180,.22),rgba(255,190,70,0));
     pointer-events:none;animation:csweep 1.7s ease-in-out infinite;}
   @keyframes csweep{0%{left:-45%}58%{left:100%}100%{left:100%}}
-  .popcard .cbanner{position:absolute;left:50%;top:0;
-    transform:translate(-50%,-100%) translateY(-8px);
-    display:flex;align-items:center;gap:14px;white-space:nowrap;
-    padding:8px 22px;border-radius:999px;font-weight:800;font-size:24px;letter-spacing:.5px;
-    color:#fff;background:linear-gradient(100deg,rgba(255,190,60,.97),rgba(255,120,20,.97));
-    border:1px solid rgba(255,226,160,.95);
-    box-shadow:0 8px 30px rgba(255,120,30,.6),0 0 26px rgba(255,180,70,.55);
-    opacity:0;transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1);}
-  .popcard.pop .cbanner{opacity:1;transform:translate(-50%,-100%) translateY(-14px);}
-  .popcard .cbanner .carrow{font-size:26px;animation:cbPulse 1.8s ease-in-out infinite;}
-  @keyframes cbPulse{0%,100%{opacity:.55;transform:translateX(0)}50%{opacity:1;transform:translateX(6px)}}
-  @media (prefers-reduced-motion:reduce){.popcard,.popcard .cbanner{transition:none}.popcard .cbanner .carrow{animation:none}.popcard .csweep{animation:none}.cspark{animation:none}}
+  /* ★★ 工序状态流转转场（2026-11-04 融入大屏工序卡片）：
+     复刻参考动画的链路：旧状态徽章（暗盘+彩环+楷体字）→ 金色爆闪 → 水墨圆形聚光灯揭示
+     → 新状态徽章 + 进度环填充 + 楷体字淡入 + 百分比。
+     状态名与百分比取真实数据（SL.STEP_NAME 与工序进度），配色沿用大屏 STEP_COLOR。 */
+  @property --r{syntax:'<length>';inherits:false;initial-value:0px;}
+  .cstage{position:relative;margin:0 auto 10px;
+    height:calc(min(clamp(160px,20vw,250px),25vh) * 1.5);}
+  .cstage-in{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(clamp(160px,20vw,250px),25vh);height:min(clamp(160px,20vw,250px),25vh);
+    display:flex;align-items:center;justify-content:center;}
+  .cbadge{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  .cbadge-new{z-index:1;}
+  .cbadge-old{z-index:3;}
+  .cbdisc{position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle at 50% 36%,rgba(34,42,60,.97),rgba(15,20,30,.98) 68%,rgba(9,13,20,.99) 100%);
+    box-shadow:0 0 0 1px rgba(255,255,255,.07),0 16px 50px rgba(0,0,0,.65);}
+  .cbring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);}
+  .cbring .cbtrack{fill:none;stroke:var(--cc);stroke-opacity:.26;stroke-width:8;}
+  .cbring .cbbar{fill:none;stroke:var(--cc);stroke-width:10;stroke-linecap:round;
+    stroke-dasharray:327;stroke-dashoffset:327;
+    filter:drop-shadow(0 0 10px var(--cc));}
+  .cbtext{position:relative;font-family:"STKaiti","KaiTi","楷体",serif;font-weight:700;
+    font-size:60px;line-height:1.05;color:#fff;letter-spacing:2px;white-space:nowrap;
+    text-shadow:0 0 16px var(--cc),0 0 44px var(--cc),0 2px 5px rgba(0,0,0,.65);opacity:0;}
+  .cbadge-old .cbtext{opacity:1;}
+  .cbpct{position:absolute;left:0;right:0;bottom:11%;text-align:center;
+    font-family:"Microsoft YaHei",sans-serif;font-weight:800;font-size:30px;color:var(--cc);
+    text-shadow:0 0 14px var(--cc),0 2px 4px rgba(0,0,0,.6);opacity:0;}
+  /* ★ 水墨聚光灯：柔和圆形暗晕，中心透出（=光斑），边缘化开成墨晕（不用硬边矩形）。
+     --r 由 @property 注册后可插值；万一浏览器不支持 @property，var(--r,420px) 会回落到
+     「洞已开满」——新徽章另有独立显现动画兜底，任何情况下内容都不会被遮死。 */
+  .cveil{position:absolute;left:50%;top:50%;z-index:2;pointer-events:none;
+    width:calc(min(clamp(160px,20vw,250px),25vh) * 1.42);height:calc(min(clamp(160px,20vw,250px),25vh) * 1.42);
+    transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(circle at 50% 50%,
+      rgba(7,10,16,0) 0,
+      rgba(7,10,16,0) var(--r,190px),
+      rgba(7,10,16,.55) calc(var(--r,190px) + 16px),
+      rgba(7,10,16,.94) calc(var(--r,190px) + 38px),
+      rgba(7,10,16,.96) 62%,
+      rgba(7,10,16,0) 100%);}
+  .cflash{position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;opacity:0;
+    width:calc(min(clamp(160px,20vw,250px),25vh) * 2.4);height:calc(min(clamp(160px,20vw,250px),25vh) * 2.4);
+    transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(circle at 50% 50%,rgba(255,252,240,.95) 0%,rgba(255,232,168,.6) 26%,rgba(255,186,70,.25) 50%,rgba(255,150,40,0) 72%);}
+  .ccap{position:absolute;left:0;right:0;bottom:0;z-index:5;text-align:center;
+    font-size:clamp(20px,1.6vw,26px);font-weight:700;letter-spacing:1px;color:#c9d4e8;
+    display:flex;align-items:center;justify-content:center;gap:10px;}
+  .ccap .car{opacity:.75;}
+  /* 时序（对齐参考视频 3 秒）：旧徽章淡入 0→0.75s、淡出 0.75→1.45s；金光爆闪 0.75→1.55s；
+     聚光灯揭示 1.4→2.25s；进度环填充 + 楷体字淡入 2.2→3.0s。 */
+  .popcard.ctrans .cbadge-old{animation:cbOld 1.45s ease-out forwards;}
+  .popcard.ctrans .cflash{animation:cbFlash .8s ease-out .75s forwards;}
+  .popcard.ctrans .cveil{animation:cbSpot .85s cubic-bezier(.2,.9,.3,1) 1.4s forwards;}
+  /* 新徽章自己的显现动画（不依赖 --r 插值：聚光灯开洞的同时它自己淡入放大，双重保险） */
+  .popcard.ctrans .cbadge-new{animation:cbReveal .85s cubic-bezier(.2,.9,.3,1) 1.4s both;}
+  .popcard.ctrans .cbadge-new .cbtext{animation:cbTxt .55s ease-out 2.2s both;}
+  .popcard.ctrans .cbadge-new .cbpct{animation:cbPct .5s ease-out 2.4s both;}
+  .popcard.ctrans .cbadge-new .cbbar{animation:cbBar .8s cubic-bezier(.2,.9,.3,1) 2.2s forwards;}
+  @keyframes cbOld{0%{opacity:0;transform:scale(.62)}52%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.12)}}
+  @keyframes cbFlash{0%{opacity:0}42%{opacity:1}100%{opacity:0}}
+  @keyframes cbSpot{from{--r:0px}to{--r:190px}}
+  @keyframes cbReveal{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}
+  @keyframes cbTxt{from{opacity:0}to{opacity:1}}
+  @keyframes cbPct{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes cbBar{from{stroke-dashoffset:327}to{stroke-dashoffset:var(--cbOff)}}
+  @media (prefers-reduced-motion:reduce){.popcard{transition:none}.popcard .csweep{animation:none}.cspark{animation:none}
+    .popcard.ctrans .cveil,.popcard.ctrans .cbadge-old,.popcard.ctrans .cflash{display:none}
+    .popcard.ctrans .cbadge-new,.popcard.ctrans .cbadge-new .cbtext,.popcard.ctrans .cbadge-new .cbpct{opacity:1}
+    .popcard.ctrans .cbadge-new .cbbar{stroke-dashoffset:var(--cbOff)}}
 
   /* 目标位金框：卡片落到的新格子上留一圈金光，一眼看出"送到这里" */
   tr.srcslot>td{box-shadow:inset 0 0 0 1px rgba(255,190,70,.9),inset 0 0 20px rgba(255,150,40,.45);
@@ -1911,14 +1969,16 @@ function flipRows(rows, prev, cardIds){
    然后弹出一张居中屏幕、最大化的悬浮卡片：
      ① 卡片从「工序变动列」被"拿出来"——起点是上一轮那一行的工序进度条（原地炸出橙金光球），
         缓慢斜向飞起（1.1s）→ 落定屏幕正中最大化（1s）；整行文字带金光、扫光掠过。
-     ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度慢慢涨到新进度（正中停留 5 秒）。
+     ② 落定正中后播「工序状态流转转场」：旧状态徽章（楷体字+彩环）→ 金色爆闪 → 水墨圆形聚光灯
+        揭示新状态 → 进度环填充到真实进度（33%/67%/100%）+ 楷体字淡入 + 百分比；
+        同时流体条从旧进度慢慢涨到新进度（正中停留 5 秒）。
      ③ 演示完，卡片从正中缓慢斜向抽出（1s）→ 落到该行「工序推进后跳到的新格子」并淡出（1.1s）。
    本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
    不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。
    播放中若 2 秒轮询又来新数据：render 会延迟到卡片结束再刷新，避免把动画打断。 */
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
-const CARD_HOLD = 5000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
+const CARD_HOLD = 7000;     // 卡片居中停留时长（ms，停留 7 秒：3 秒转场 + 3 秒看清新状态 + 1 秒余量）
 const CARD_KEEP = [0,1,3,4,2]; // ★ 卡片只保留这几列（序号/送达方代码/单号/工序/吨位）→ 列宽归一化后每列空间翻倍，字号才能真放大
 const CARD_FS   = 1.5;        // ★ 卡片字号放大倍数（改 font-size 重新排版渲染，不是 transform 缩放 → 像素清晰）
 const LIFT_MS   = 1100;     // 取出第一程：从工序条斜向飞起（ms，慢：要看清从哪出来）
@@ -1933,6 +1993,7 @@ let cardActive = null;      // 正在播放的卡片 { id, el, row }
 let cardQueue  = [];        // 待播队列（本轮可能多行同时推进，按顺序一个一个播）
 let cardTimer  = 0;
 let cardTimer2 = 0;         // 送回第二段（缩回落回原行）计时
+let cardTimer3 = 0;         // 落定后启动「工序状态流转转场」的计时
 let cardBusy   = false;     // ★ 卡片动画全程占用（含送回落位那 2 秒）：动画没播完就不许重绘表格
 let cardBackdrop = null;    // 卡片背后的全屏遮罩
 let pendingRender = false;  // 卡片播放期间，render 被推迟的标记（卡片结束后补刷）
@@ -1957,6 +2018,7 @@ function detectStepUp(rows){
 function clearCards(){
   if (cardTimer){ clearTimeout(cardTimer); cardTimer = 0; }
   if (cardTimer2){ clearTimeout(cardTimer2); cardTimer2 = 0; }
+  if (cardTimer3){ clearTimeout(cardTimer3); cardTimer3 = 0; }
   if (cardActive){
     const a = cardActive; cardActive = null;
     try { a.el.remove(); } catch(e){}
@@ -2040,11 +2102,34 @@ function startCard(item){
   const fromName = SL.STEP_NAME[item.from] || ("工序" + item.from);
   const toName   = SL.STEP_NAME[item.to]   || ("工序" + item.to);
   const fc = STEP_COLOR[item.from] || "#fff", tc = STEP_COLOR[item.to] || "#fff";
+  /* ★★ 工序状态流转转场舞台：旧状态徽章 → 金色爆闪 → 聚光灯揭示新状态（进度环 + 楷体字 + 百分比）。
+     状态名取 SL.STEP_NAME，进度环按真实工序进度填充（33%/67%/100%），配色沿用大屏 STEP_COLOR。 */
+  const arcOff = (327 * (1 - Math.max(0, Math.min(1, item.to / 3)))).toFixed(2);
   el.innerHTML =
-    '<div class="cbanner">' +
-      '<span class="cfrom" style="color:' + fc + '">' + esc(fromName) + '</span>' +
-      '<span class="carrow">▶</span>' +
-      '<span class="cto" style="color:' + tc + '">' + esc(toName) + '</span>' +
+    '<div class="cstage">' +
+      '<div class="cstage-in">' +
+        '<div class="cbadge cbadge-new" style="--cc:' + tc + '">' +
+          '<div class="cbdisc"></div>' +
+          '<svg class="cbring" viewBox="0 0 120 120">' +
+            '<circle class="cbtrack" cx="60" cy="60" r="52"></circle>' +
+            '<circle class="cbbar" cx="60" cy="60" r="52" style="--cbOff:' + arcOff + '"></circle>' +
+          '</svg>' +
+          '<div class="cbtext">' + esc(toName) + '</div>' +
+          '<div class="cbpct">' + toPct + '%</div>' +
+        '</div>' +
+        '<div class="cbadge cbadge-old" style="--cc:' + fc + '">' +
+          '<div class="cbdisc"></div>' +
+          '<svg class="cbring" viewBox="0 0 120 120">' +
+            '<circle class="cbtrack" cx="60" cy="60" r="52"></circle>' +
+          '</svg>' +
+          '<div class="cbtext">' + esc(fromName) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cveil"></div>' +
+      '<div class="cflash"></div>' +
+      '<div class="ccap"><span style="color:' + fc + '">' + esc(fromName) + '</span>' +
+        '<span class="car">→</span>' +
+        '<span style="color:' + tc + '">' + esc(toName) + '</span></div>' +
     '</div>' +
     '<div class="cwrap">' +
       '<table class="ctbl">' + (colg ? colg.outerHTML : "") +
@@ -2082,6 +2167,19 @@ function startCard(item){
   }
 
   // 流体条从"旧进度"起步，再慢慢涨到"新进度"（演示工序推进的过程，放慢到 2s）
+  /* ★ 克隆来的工序格还是**旧状态**（标签写着旧工序名、百分比是旧值）—— 改成新状态，
+     否则卡片上会出现"徽章说货好、进度条却写货待确认 0%"的自相矛盾。
+     工序格的类名 s0/s1/s2/s3 决定配色，文字 .flt、百分比 .flp 是渲染时写死的，都要换。 */
+  const flwCard = el.querySelector(".flw");
+  if (flwCard){
+    flwCard.className = "flw s" + item.to;                  // 配色换成新工序的颜色
+    const flt = flwCard.querySelector(".flt");
+    if (flt) flt.textContent = toName;                      // 工序名
+    const flp = flwCard.querySelector(".flp");
+    if (flp) flp.textContent = toPct + "%";                 // 百分比
+    flwCard.style.setProperty("--w", (toPct || 6) + "%");
+  }
+
   const fq = el.querySelector(".flq");
   if (fq){ fq.style.transition = "width 2s ease"; fq.style.width = (fromPct || 0) + "%"; }
 
@@ -2110,9 +2208,14 @@ function startCard(item){
     cardTimer2 = setTimeout(function(){
       el.classList.remove("lift");
       el.classList.add("pop");               // 取出第二程：落定屏幕正中、放大到最大
+      /* ★★ 卡片**落定之后**再播「工序状态流转转场」（cardTimer3，SETTLE_MS 后启动）：
+         旧状态徽章 → 金光爆闪 → 聚光灯揭示新状态（进度环填充 + 楷体字 + 百分比），
+         对齐参考视频的三秒链路。落定再播，转场才是"主角"，不和取出动画抢注意力。
+         ctrans 类只加一次，靠 CSS animation 一次性播放，不循环。 */
       requestAnimationFrame(function(){
         if (fq) fq.style.width = (toPct || 6) + "%";   // 流体条慢慢涨到新进度
       });
+      cardTimer3 = setTimeout(function(){ el.classList.add("ctrans"); }, SETTLE_MS);
     }, LIFT_MS);
   });
 
@@ -2476,7 +2579,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104k";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104m";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
