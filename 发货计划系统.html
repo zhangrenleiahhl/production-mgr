@@ -84,7 +84,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261029d";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261029e";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
@@ -977,21 +977,29 @@ setTimeout(function(){
 
   .ac-meta{color:#6b7280;font-size:12px;display:block;margin-top:2px;}
 
-  /* 多送达方选择弹窗 */
+  /* 多送达方选择弹窗 · 淡蓝半透明 + 背景模糊（与全站 SL.uiConfirm 同一套观感） */
 
-  .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;display:flex;align-items:center;justify-content:center;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(18,40,82,.46);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:mdlFade .18s ease-out;}
 
-  .modal-box{background:#fff;border-radius:8px;box-shadow:0 16px 48px rgba(0,0,0,.28);min-width:320px;max-width:90vw;max-height:80vh;overflow:auto;padding:18px 18px 14px;}
+  .modal-box{background:linear-gradient(180deg,#ffffff,#f1f7ff);border:1px solid #d6e6fb;border-radius:22px;
+    box-shadow:0 24px 60px rgba(28,86,190,.26),0 2px 8px rgba(28,86,190,.10);
+    min-width:320px;max-width:90vw;max-height:80vh;overflow:auto;padding:22px 20px 18px;box-sizing:border-box;
+    color:#1f2733;animation:mdlPop .24s cubic-bezier(.34,1.45,.64,1);}
 
-  .modal-title{font-size:15px;font-weight:700;color:#1f2328;margin-bottom:12px;line-height:1.4;}
+  .modal-title{font-size:16px;font-weight:800;color:#18407e;letter-spacing:.4px;margin-bottom:12px;line-height:1.4;}
 
   .modal-list{display:flex;flex-direction:column;gap:8px;}
 
-  .modal-opt{padding:11px 14px;border:1px solid #d0d7de;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:14px;text-align:left;transition:.12s;color:#1f2328;}
+  .modal-opt{padding:11px 14px;border:1px solid #cde0f8;border-radius:12px;background:#fff;cursor:pointer;font-size:14px;text-align:left;transition:.12s;color:#1f2733;}
 
-  .modal-opt:hover{background:#dbeafe;border-color:#2563eb;color:#1e3a8a;}
+  .modal-opt:hover{background:#eaf2ff;border-color:#3b82f6;color:#1e3a8a;}
 
   .modal-skip{margin-top:10px;font-size:12px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline;padding:4px 0;}
+
+  @keyframes mdlFade{from{opacity:0}to{opacity:1}}
+
+  @keyframes mdlPop{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:scale(1)}}
 
   @media(max-width:600px){.tbl{font-size:12px}.doc-head .t{font-size:16px}.wrap{padding:16px 14px 48px;}}
 
@@ -1685,7 +1693,7 @@ function snapshot(key, tag, delta){
 
 // 恢复到某份自动快照（0 = 最近一份）。恢复前会把「当前数据」也存成一份快照，可再退回来。
 
-function restoreSnapshot(idx){
+async function restoreSnapshot(idx){
 
   const list = getSnapshots(), s = list[idx|0];
 
@@ -1705,7 +1713,7 @@ function restoreSnapshot(idx){
 
     const rms  = Array.isArray(d.remove) ? d.remove : [];
 
-    if(!confirm("确定撤销「"+(s.tag||"自动")+"」这一次操作？\n（会撤掉这次新增的 "+adds.length+" 条，把这次移除的 "+rms.length+" 条放回来）\n其它记录一项都不动。\n当前数据会先自动备份一份，可再次恢复。")) return false;
+    if(!await askConfirm("确定撤销「"+(s.tag||"自动")+"」这一次操作？\n（会撤掉这次新增的 "+adds.length+" 条，把这次移除的 "+rms.length+" 条放回来）\n其它记录一项都不动。\n当前数据会先自动备份一份，可再次恢复。", { title:"撤销这一次操作？", okText:"确定撤销", cancelText:"取消" })) return false;
 
     snapshot(s.key, "恢复前");
 
@@ -1735,7 +1743,7 @@ function restoreSnapshot(idx){
 
   }
 
-  if(!confirm("确定恢复到 "+when+" 的自动快照？\n（快照内容："+(s.tag||"自动")+" · "+(s.key||"")+"）\n当前数据会先自动备份一份，可再次恢复。")) return false;
+  if(!await askConfirm("确定恢复到 "+when+" 的自动快照？\n（快照内容："+(s.tag||"自动")+" · "+(s.key||"")+"）\n当前数据会先自动备份一份，可再次恢复。", { title:"恢复到自动快照？", okText:"确定恢复", cancelText:"取消" })) return false;
 
   snapshot(s.key, "恢复前");
 
@@ -2184,7 +2192,7 @@ function findDupRecs(){
 
 }
 
-function cleanDupRecs(){
+async function cleanDupRecs(){
 
   const dups = findDupRecs();
 
@@ -2192,7 +2200,7 @@ function cleanDupRecs(){
 
   const lines = dups.map(r=>"· "+(r.no||"?")+((window.ScanLib&&window.ScanLib.planNameOf(r))?("（"+window.ScanLib.planNameOf(r)+"）"):"")+"　"+(r.publishedAt||"")).join("\n");
 
-  if(!confirm("发现 "+dups.length+" 条【同一计划员】内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？")) return;
+  if(!await askConfirm("发现 "+dups.length+" 条【同一计划员】内容完全相同的重复记录：\n\n"+lines+"\n\n将保留最新的一条，这几条重复的转入归档（可从备份文件或自动快照取回）。\n\n确定清理吗？", { title:"清理重复记录？", okText:"确定清理", cancelText:"取消" })) return;
 
   snapshot(LS_REC, "清理重复前", {mode:"delta", add:[], remove:dups});
 
@@ -2444,7 +2452,7 @@ function downloadStoreBackup(items){
 
 }
 
-function openForeignClean(){
+async function openForeignClean(){
 
   const items = foreignEntries();
 
@@ -2542,7 +2550,7 @@ function openForeignClean(){
 
   overlay.querySelector("#fcCancel").onclick = close;
 
-  overlay.querySelector("#fcOk").onclick = ()=>{
+  overlay.querySelector("#fcOk").onclick = async ()=>{
 
     const picked = [];
 
@@ -2552,11 +2560,11 @@ function openForeignClean(){
 
     const sum = picked.reduce((s,o)=>s+o.n, 0);
 
-    if(!confirm("即将清理以下 " + picked.length + " 项，共 " + storeSizeText(sum) + " 字符：\n\n"
+    if(!await askConfirm("即将清理以下 " + picked.length + " 项，共 " + storeSizeText(sum) + " 字符：\n\n"
 
       + picked.map(o=>"· " + o.label + "（" + storeSizeText(o.n) + "）").join("\n")
 
-      + "\n\n确定后会先自动导出备份文件到你的下载目录，再删除。\n发货系统自己的数据不受影响。\n\n确定清理吗？")) return;
+      + "\n\n确定后会先自动导出备份文件到你的下载目录，再删除。\n发货系统自己的数据不受影响。\n\n确定清理吗？", { title:"清理占用空间？", okText:"确定清理", cancelText:"取消" })) return;
 
     const fname = downloadStoreBackup(picked);
 
@@ -5245,7 +5253,7 @@ function visibleRows(){ return [...$("tbody").children].filter(r=>!r.classList.c
 
 function allRows(){ return [...$("tbody").children].filter(r=>!r.classList.contains("subtotal")&&!r.classList.contains("isolation-band")&&!r.classList.contains("date-fold-placeholder")); }   // 全部数据行（含折叠隐藏），用于删除/撤回等结构性操作
 
-function delRow(tr){
+async function delRow(tr){
 
   if(!tr || !tr.parentNode) return;
 
@@ -5259,7 +5267,7 @@ function delRow(tr){
 
   const customer=tr.querySelector('[data-f="customer"]')?.value?.trim()||"";
 
-  if(!confirm(`确认删除第 ${idx+1} 行${model?"（型号："+model+"）":""}？\n删除后可通过「撤回」按钮或 Ctrl+Z 恢复。`)) return;
+  if(!await askConfirm(`确认删除第 ${idx+1} 行${model?"（型号："+model+"）":""}？\n删除后可通过「撤回」按钮或 Ctrl+Z 恢复。`, { title:"删除这一行？", okText:"删除", cancelText:"取消" })) return;
 
   const data=collectRowData(tr);
 
@@ -5351,7 +5359,7 @@ function rowIsBlank(tr){
 
 }
 
-function cleanEmptyRows(){
+async function cleanEmptyRows(){
 
   const list=allRows();
 
@@ -5359,7 +5367,7 @@ function cleanEmptyRows(){
 
   if(!blanks.length){ toast("没有空白行，当前数据都是有效的 ✓"); return; }
 
-  if(!confirm(`检测到 ${blanks.length} 行空白行（送达方、型号、发货数量等全都没填），确认一键删除？\n\n删除后可通过「撤回」按钮或 Ctrl+Z 一次性恢复。`)) return;
+  if(!await askConfirm(`检测到 ${blanks.length} 行空白行（送达方、型号、发货数量等全都没填），确认一键删除？\n\n删除后可通过「撤回」按钮或 Ctrl+Z 一次性恢复。`, { title:"一键删除空白行？", okText:"删除", cancelText:"取消" })) return;
 
   const positions=blanks.map(tr=>({data:collectRowData(tr), atIndex:list.indexOf(tr)}));
 
@@ -7295,6 +7303,23 @@ $("shipDate").addEventListener("input",()=>{ syncDocHead(); $("planNo").value=ge
 
 // ===================== 发布：文本存档 + 同步到发货员链接（不再截图下载） =====================
 
+/* ★ 统一确认弹窗：优先用全站统一的「淡蓝半透明 + 背景模糊」弹窗（SL.uiConfirm），
+   不可用时才退回浏览器原生 confirm。返回 Promise<boolean>，调用点用 await。
+   （浏览器原生 confirm 是白底系统弹窗，样式不可控、也和全站观感不一致） */
+function askConfirm(msg, opt){
+  return new Promise(function(res){
+    var S = window.ScanLib;
+    if(S && S.uiConfirm){
+      var o = Object.assign({}, opt||{});
+      o.onCancel = function(){ res(false); };
+      try{ S.uiConfirm(String(msg==null?"":msg), function(){ res(true); }, o); }catch(e){ res(false); }
+      return;
+    }
+    var ok = false; try{ ok = window.confirm(String(msg==null?"":msg)); }catch(e){ ok = false; }
+    res(ok);
+  });
+}
+
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
 
 // 复制到剪贴板（优先 navigator.clipboard，老环境/iframe/本地文件回退到 execCommand）
@@ -7546,7 +7571,7 @@ function fingerprintRows(rows){
 
 }
 
-function publish(){
+async function publish(){
 
   flushRefresh();   // 先把待处理的全表刷新跑完，确保发布读到的是最新值
 
@@ -7772,7 +7797,7 @@ function publish(){
 
   if(__staleRemark.length){
 
-    const __okStale=confirm("发现 "+__staleRemark.length+" 行时效要求里的到货日期早于发货日期，多半是复制上期计划带来的旧内容：\n\n"+__staleRemark.slice(0,10).join("\n")+(__staleRemark.length>10?"\n…等共 "+__staleRemark.length+" 行":"")+"\n\n「确定」＝核对无误仍要发布　　「取消」＝先回去改时效要求");
+    const __okStale=await askConfirm("发现 "+__staleRemark.length+" 行时效要求里的到货日期早于发货日期，多半是复制上期计划带来的旧内容：\n\n"+__staleRemark.slice(0,10).join("\n")+(__staleRemark.length>10?"\n…等共 "+__staleRemark.length+" 行":"")+"\n\n「确定」＝核对无误仍要发布　　「取消」＝先回去改时效要求", { title:"时效要求里的日期有问题", okText:"仍要发布", cancelText:"取消" });
 
     if(!__okStale){ toast("已停止发布：请先把时效要求里的旧到货日期改掉"); return; }
 
@@ -7852,13 +7877,13 @@ function publish(){
 
     const nos = dup.map(r=>r.no).join("、");
 
-    if(!confirm("⚠ 这批内容与已发布的计划单（"+nos+"）完全相同。\n\n确定要再次发布吗？\n（如为修改后重发，请先改动内容或换一个单号）")) return;
+    if(!await askConfirm("⚠ 这批内容与已发布的计划单（"+nos+"）完全相同。\n\n确定要再次发布吗？\n（如为修改后重发，请先改动内容或换一个单号）", { title:"内容与已发布的单完全相同", okText:"仍然发布", cancelText:"取消" })) return;
 
   }
 
-  if(rows.some(r=>!r.model || !r.qty) && !confirm("存在「型号」或「数量」为空行，仍要发布？")) return;
+  if(rows.some(r=>!r.model || !r.qty) && !await askConfirm("存在「型号」或「数量」为空行，仍要发布？", { title:"有型号或数量为空的行", okText:"仍然发布", cancelText:"取消" })) return;
 
-  if(!confirm("确认发布已勾选的 "+rows.length+" 行？")) return;
+  if(!await askConfirm("确认发布已勾选的 "+rows.length+" 行？", { title:"确认发布", okText:"发布", cancelText:"取消" })) return;
 
   // ===== 内容防重（第二道）：同日同计划员、内容与已有单基本相同 → 提供「替换旧单」 =====
 
@@ -7910,7 +7935,7 @@ function publish(){
 
     const _lines=_similar.map(s=>"· "+(s.rec.no||"?")+"（"+(s.rec.date||"")+" 发布，"+s.oldN+" 行，其中 "+s.hit+" 行与本次相同）").join("\n");
 
-    if(confirm("⚠ 发现已发布的单与本次内容基本相同（同一天、同一计划员）：\n\n"+_lines+"\n\n再发布会两份并存，大屏会成对显示重复。\n\n【确定】＝替换：这几张旧单转入归档（可找回），只保留这次这份\n【取消】＝不替换")){
+    if(await askConfirm("⚠ 发现已发布的单与本次内容基本相同（同一天、同一计划员）：\n\n"+_lines+"\n\n再发布会两份并存，大屏会成对显示重复。\n\n【确定】＝替换：这几张旧单转入归档（可找回），只保留这次这份\n【取消】＝不替换", { title:"发现近似重复的单", okText:"替换旧单", cancelText:"不替换" })){
 
       snapshot(LS_REC, "发布替换近似重复单前", {mode:"delta", add:[], remove:_similar.map(s=>s.rec)});
 
@@ -7926,7 +7951,7 @@ function publish(){
 
     }
 
-    else if(!confirm("不替换旧单、两份并存发布吗？\n（两份都会上大屏，各显示一条；若只是想改几行，请取消后回表格改完再发）")) return;
+    else if(!await askConfirm("不替换旧单、两份并存发布吗？\n（两份都会上大屏，各显示一条；若只是想改几行，请取消后回表格改完再发）", { title:"两份并存发布？", okText:"两份并存", cancelText:"取消" })) return;
 
   }
 
