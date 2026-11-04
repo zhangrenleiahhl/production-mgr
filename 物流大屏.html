@@ -648,27 +648,28 @@
      起点/终点由 JS 按实际屏幕坐标写入 CSS 变量：
        --dx/--dy = 起点（旧位置的工序条）　--lx/--ly = 斜向飞起点
        --bx/--by = 终点（行跳到的新格子）　　--px/--py = 斜向抽出点 */
+  /* ★★ 流畅与超清（2026-11-04）：
+     ① 去掉 filter:drop-shadow(...) —— 它在每次 transform 过渡的**每一帧**都要重新栅格化
+        一大圈高斯模糊（半径 90px、双层），4K 大屏上这是掉帧的主因。发光改由 .ctbl 的
+        box-shadow 承担：一次性绘制、跟着元素一起被合成器搬运，飞行全程零重算。
+     ② 去掉 transition 里的 filter 项（不再有 filter 可过渡）。
+     ③ 宽度交给 JS 写内联（要铺满屏宽，max-width:1500px 会把它掐住 → 这里放开）。 */
   .popcard{position:fixed;left:50%;top:50%;z-index:60;will-change:transform,opacity;
     transform:translate(-50%,-50%) translate(var(--dx,0px),var(--dy,0px)) scale(.45);
     opacity:0;
-    transition:transform 1.1s cubic-bezier(.16,.84,.28,1),opacity .6s ease,filter 1.1s ease;
-    filter:drop-shadow(0 0 0 rgba(255,150,40,0));
-    width:92vw;max-width:1500px;}
+    transition:transform 1s cubic-bezier(.16,.84,.28,1),opacity .6s ease;
+    width:92vw;max-width:none;}
   .popcard.lift{transform:translate(-50%,-50%) translate(var(--lx,0px),var(--ly,0px)) scale(.82);
-    opacity:1;
-    filter:drop-shadow(0 0 90px rgba(255,150,40,.9)) drop-shadow(0 0 26px rgba(255,205,90,.95));}
+    opacity:1;}
   .popcard.pop{transform:translate(-50%,-50%) translate(0,0) scale(1);
     opacity:1;
-    transition:transform 1s cubic-bezier(.2,.7,.25,1),opacity .6s ease,filter 1s ease;
-    filter:drop-shadow(0 0 72px rgba(255,160,45,.72)) drop-shadow(0 0 22px rgba(255,210,100,.9));}
+    transition:transform 1s cubic-bezier(.2,.7,.25,1),opacity .6s ease;}
   .popcard.pull{transform:translate(-50%,-50%) translate(var(--px,0px),var(--py,0px)) scale(.82);
     opacity:1;
-    transition:transform 1s cubic-bezier(.45,0,.7,.25),opacity .6s ease,filter 1s ease;
-    filter:drop-shadow(0 0 80px rgba(255,150,40,.85)) drop-shadow(0 0 24px rgba(255,205,90,.9));}
+    transition:transform 1s cubic-bezier(.45,0,.7,.25),opacity .6s ease;}
   .popcard.back{transform:translate(-50%,-50%) translate(var(--bx,0px),var(--by,0px)) scale(.45);
     opacity:0;
-    transition:transform 1.1s cubic-bezier(.5,0,.75,.2),opacity 1s ease,filter 1.1s ease;
-    filter:drop-shadow(0 0 0 rgba(255,150,40,0));}
+    transition:transform 1.1s cubic-bezier(.5,0,.75,.2),opacity 1s ease;}
   /* 起点光球：卡片被"抽出来"的那一下，进度条位置炸出一团橙金光 */
   .cspark{position:fixed;z-index:61;width:26px;height:26px;margin:-13px 0 0 -13px;
     border-radius:50%;pointer-events:none;
@@ -676,15 +677,25 @@
     animation:cspark .8s ease-out forwards;}
   @keyframes cspark{0%{transform:scale(.2);opacity:.95}55%{transform:scale(3.2);opacity:.55}100%{transform:scale(5);opacity:0}}
   .popcard .cwrap{position:relative;border-radius:18px;overflow:hidden;}
+  /* ★ 超清三处改动（2026-11-04）：
+     ① 卡片底改「实色」：原来 rgba(18,14,8,.96) 半透明 + backdrop-filter:blur(3px)，
+        把下面被遮罩糊掉的表格透进卡片里 → 整张卡重影发糊。现在接近不透明、无模糊。
+     ② 去掉文字发光 text-shadow：光晕会吃掉字的边缘，看着像"像素差"。金色靠颜色本身。
+     ③ 扫光从 .5~.8 压到 .14~.22：原来那道白亮斜带正压在文字上，那一段字看不清。
+     ④ 发光用 box-shadow 多层（不重算、不掉帧）。 */
   .popcard .ctbl{width:100%;border-collapse:collapse;table-layout:fixed;
-    background:rgba(18,14,8,.96);border-radius:18px;overflow:hidden;
-    box-shadow:0 0 0 2px rgba(255,196,80,.95),0 0 46px rgba(255,150,40,.55),0 26px 80px rgba(0,0,0,.6);
-    backdrop-filter:blur(3px);
+    background:rgba(14,19,29,.985);border-radius:16px;overflow:hidden;
+    box-shadow:0 0 0 2px rgba(255,196,80,.95),
+               0 0 34px rgba(255,150,40,.42),
+               0 0 78px rgba(255,160,45,.22),
+               0 26px 80px rgba(0,0,0,.6);
     font-size:30px;line-height:1.3;}
-  .popcard .ctbl td{font-size:inherit;vertical-align:middle;
-    color:#ffe3a4;text-shadow:0 0 14px rgba(255,165,45,.95),0 0 3px rgba(255,228,155,.95);}
+  .popcard .ctbl td{font-size:inherit;vertical-align:middle;color:#ffe3a4;}
+  /* 工序格（.flw）原本是 .9em，比别的格小一档 → 卡片里统一继承卡片字号，
+     工序状态是卡片的主角，字号不该比客户名小。 */
+  .popcard .ctbl .flw{font-size:inherit;}
   .popcard .csweep{position:absolute;top:0;left:-45%;width:45%;height:100%;
-    background:linear-gradient(100deg,rgba(255,190,70,0),rgba(255,205,110,.5),rgba(255,238,180,.8),rgba(255,190,70,0));
+    background:linear-gradient(100deg,rgba(255,190,70,0),rgba(255,205,110,.14),rgba(255,238,180,.22),rgba(255,190,70,0));
     pointer-events:none;animation:csweep 1.7s ease-in-out infinite;}
   @keyframes csweep{0%{left:-45%}58%{left:100%}100%{left:100%}}
   .popcard .cbanner{position:absolute;left:50%;top:0;
@@ -705,8 +716,10 @@
     background:rgba(255,160,45,.10);}
 
   /* 卡片背后的全屏遮罩：暗化 + 模糊，把后面表格完全隔开，卡片干净浮现（动画出来后才出现） */
-  .cbackdrop{position:fixed;inset:0;z-index:55;background:rgba(5,9,15,.62);
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  /* ★ 流畅（2026-11-04）：去掉全屏 backdrop-filter:blur(8px) —— 卡片飞行时整屏内容
+     每帧都要重新做 8px 高斯模糊（大屏分辨率下极贵，直接掉帧）。改用纯半透明暗幕，
+     视觉上照样把后面的表格隔开，代价只是一张静态图层。 */
+  .cbackdrop{position:fixed;inset:0;z-index:55;background:rgba(5,9,15,.78);
     opacity:0;transition:opacity 1s ease;pointer-events:none;}
   .cbackdrop.show{opacity:1;}
   @media (prefers-reduced-motion:reduce){.cbackdrop{transition:none}}
@@ -1758,13 +1771,17 @@ function flipRows(rows, prev, cardIds){
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
 const CARD_HOLD = 5000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
-const LIFT_MS   = 1100;     // 取出第一程：从工序条斜向飞起（ms，慢：要看清从哪出来）
-const SETTLE_MS = 1000;     // 取出第二程：落定屏幕正中
+const LIFT_MS   = 1000;     // 取出第一程：从工序条斜向飞起（ms）
+const SETTLE_MS = 1000;     // 取出第二程：落定屏幕正中（★ LIFT+SETTLE=2 秒＝"飞到正中展示"共 2 秒）
+const CARD_KEEP = [0,1,4,5,3]; // ★ 卡片只保留这几列（序号/客户/单号/工序/吨位）→ 每列空间翻倍，字号才能真放大
+const CARD_COLW = [6,34,18,26,16]; // ★ 裁列后**定制**各列宽度（与 CARD_KEEP 一一对应，单位 %）。
+                                    //   不再按原比例归一化 —— 原比例里客户只占 15/55，放大后仍不够放长客户名。
+const CARD_FS   = 2.0;        // ★ 卡片字号放大倍数（改 font-size 重新排版渲染，不是 transform 缩放 → 像素清晰）
 const PULL_MS   = 1000;     // 送回第一程：从正中斜向抽出
 const BACK_MS   = 1100;     // 送回第二程：落到该行跳到的新格子
 const CARD_BACK = 2100;     // 送回总时长（PULL_MS + BACK_MS）
 const CARD_GAP  = 400;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
-const POP_MS    = 2100;     // 取出总时长（LIFT_MS + SETTLE_MS）
+const POP_MS    = 2000;     // 取出总时长（LIFT_MS + SETTLE_MS）＝2 秒（飞到正中展示）
 
 let cardActive = null;      // 正在播放的卡片 { id, el, row }
 let cardQueue  = [];        // 待播队列（本轮可能多行同时推进，按顺序一个一个播）
@@ -1861,7 +1878,15 @@ function startCard(item){
   const srcTbl = $("tbl");
   const colg = srcTbl.querySelector("colgroup");
   const el = document.createElement("div");
-  el.className = "popcard";                  // 居中 + 最大化交给 CSS（left/top/width 不写内联）
+  el.className = "popcard";                  // 居中交给 CSS（left/top），宽度/字号下面按需算
+
+  /* ★ 尺寸：卡片铺满屏宽（比原表更宽也行），字号靠改 font-size 放大 → 浏览器按新字号
+     **重新排版渲染**，像素清晰、文字完整；**不用 transform:scale**（那才是「放大后像素差、
+     文字被截断」的根源 —— 缩放是重采样，文字边缘会被插值糊掉）。
+     列宽全是百分比 → 卡片变宽，列同比变宽 → 原本放不下的文字这次能显示全。 */
+  const baseFs = parseFloat(getComputedStyle(srcTbl).fontSize) || 16;
+  el.style.width = Math.max(320, vw - 48) + "px";
+  el.style.maxWidth = "none";
   el.style.setProperty("--dx", (sx - cx) + "px");
   el.style.setProperty("--dy", (sy - cy) + "px");
   el.style.setProperty("--lx", ((sx - cx) * 0.62 - 40) + "px");   // 斜向飞起点：再往上/往左偏一点
@@ -1881,6 +1906,52 @@ function startCard(item){
         '<tbody>' + tr.innerHTML + '</tbody></table>' +
       '<div class="csweep"></div>' +          // 整行扫过的橙金高光（模仿抽卡光爆）
     '</div>';
+
+  /* ★ 裁列：只留关键列（客户/单号/工序/吨位…），并把它们的宽度归一化 → 每列空间翻倍，
+     字号就能真正放大到 CARD_FS 倍而**不被截断**；同时字号是改 font-size 重新排版渲染的，
+     不是缩放 → 像素清晰。 */
+  const ctbl0 = el.querySelector(".ctbl");
+  if (ctbl0){
+    /* ★ 裁列 + **按目标顺序重排**（thead / tbody / colgroup 三者必须同步，否则表头与数据错位）：
+       CARD_KEEP 写的是"要保留的原列号"，重排后的顺序以 CARD_KEEP 数组顺序为准
+       （内部屏 = 序号·客户·单号·工序·吨位），CARD_COLW 与之一一对应。
+       ★ 之前只做"删列"不重排，保留下来的是原序（序号·客户·吨位·单号·工序），
+         列宽按 CARD_COLW 依次发下去就**错位**了（工序格只拿到 16% → 文字挤爆）。 */
+    const cg = ctbl0.querySelector("colgroup");
+    if (cg){
+      const cols = [...cg.querySelectorAll("col")];
+      const picked = CARD_KEEP.map(i=>cols[i]).filter(Boolean);
+      cols.forEach(c=>c.remove());
+      picked.forEach((c,i)=>{ c.style.width = (CARD_COLW[i] != null ? CARD_COLW[i] : 20) + "%"; cg.appendChild(c); });
+    }
+    const ths = [...ctbl0.querySelectorAll("thead > tr > th")];
+    if (ths.length){
+      const pickedTh = CARD_KEEP.map(i=>ths[i]).filter(Boolean);
+      ths.forEach(t=>t.remove());
+      const trh = ctbl0.querySelector("thead > tr");
+      pickedTh.forEach(t=>trh.appendChild(t));
+    }
+    const tds = [...ctbl0.querySelectorAll("tbody > tr > td")];
+    if (tds.length){
+      const pickedTd = CARD_KEEP.map(i=>tds[i]).filter(Boolean);
+      tds.forEach(t=>t.remove());
+      const trb = ctbl0.querySelector("tbody > tr");
+      pickedTd.forEach(t=>trb.appendChild(t));
+    }
+    ctbl0.style.fontSize = (baseFs * CARD_FS).toFixed(2) + "px";
+    // ★ 克隆过来的单元格里带着原表算好的内联 font-size（客户名自适应等）→ 会压过卡片新字号。
+    //   这里清掉，让它们统一继承卡片字号（真正放大）；放不下的长文本再逐档微缩兜底。
+    ctbl0.querySelectorAll("td, td *").forEach(n=>{ if(n.style && n.style.fontSize) n.style.fontSize = ""; });
+    // 统一字号：非工序列的文本一律继承卡片字号（工序条内部保留它自己的设计字号）
+    ctbl0.querySelectorAll("td > *").forEach(n=>{ if(!n.closest(".flw")) n.style.fontSize = "inherit"; });
+    ctbl0.querySelectorAll("td").forEach(td=>{
+      const cell = td.querySelector(".cust") || td.firstElementChild;
+      if(!cell || !cell.clientWidth) return;
+      let fs = parseFloat(getComputedStyle(cell).fontSize) || (baseFs * CARD_FS);
+      let guard = 0;
+      while(cell.scrollWidth > cell.clientWidth + 1 && fs > 13 && guard++ < 20){ fs -= 1; cell.style.fontSize = fs + "px"; }
+    });
+  }
 
   // 流体条从"旧进度"起步，再慢慢涨到"新进度"（演示工序推进的过程；时长随本次节奏一起缩放）
   const fq = el.querySelector(".flq");
@@ -2355,7 +2426,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104i";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261104n";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
