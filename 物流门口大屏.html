@@ -664,6 +664,13 @@
   @keyframes cbPulse{0%,100%{opacity:.55;transform:translateX(0)}50%{opacity:1;transform:translateX(6px)}}
   @media (prefers-reduced-motion:reduce){.popcard,.popcard .cbanner{transition:none}.popcard .cbanner .carrow{animation:none}}
 
+  /* 卡片背后的全屏遮罩：暗化 + 模糊，把后面表格完全隔开，卡片干净浮现（动画出来后才出现） */
+  .cbackdrop{position:fixed;inset:0;z-index:55;background:rgba(5,9,15,.62);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    opacity:0;transition:opacity 1s ease;pointer-events:none;}
+  .cbackdrop.show{opacity:1;}
+  @media (prefers-reduced-motion:reduce){.cbackdrop{transition:none}}
+
   /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
 
      旧的 .pill 状态徽章跟着状态列一起移除（不留死样式） */
@@ -674,7 +681,7 @@
 
   .car.on{color:var(--green);} .car.off{color:var(--amber);font-weight:700;}
 
-  tr.done .car.off{color:#94a3b8;font-weight:600;}
+  tr.done .car.off{color:var(--c-text-subtle);font-weight:600;}
 
   .carx{color:#ff4d4f;font-weight:800;letter-spacing:1px;}
 
@@ -688,7 +695,7 @@
 
   .bzoff{color:var(--amber);font-weight:700;}
 
-  tr.done .bzoff{color:#94a3b8;font-weight:600;}
+  tr.done .bzoff{color:var(--c-text-subtle);font-weight:600;}
 
   /* 时间两列（工序更新 7 / 车辆更新 8，2026-09-24 换位后）绝不换行也绝不被切：
 
@@ -760,6 +767,8 @@
 
 </style>
 
+
+  <link rel="stylesheet" href="design-tokens.css">
 </head>
 
 <body>
@@ -1852,14 +1861,15 @@ function flipRows(rows, prev, cardIds){
    播放中若 2 秒轮询又来新数据：render 会延迟到卡片结束再刷新，避免把动画打断。 */
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
-const CARD_HOLD = 2400;     // 卡片居中弹出后停留、演示"上一步→下一步"的时长（ms，放慢）
+const CARD_HOLD = 5000;     // 卡片居中弹出后停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
 const CARD_BACK = 1000;     // 卡片渐变落回的时长（ms，须与 CSS .popcard transition 对齐，放慢）
 const CARD_GAP  = 400;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
 const POP_MS    = 1000;     // 卡片弹出（放大）耗时，须与 CSS .popcard transition 时长一致
 
 let cardActive = null;      // 正在播放的卡片 { id, el, row }
-let cardQueue  = [];        // 待播队列（本轮可能多行同时推进）
+let cardQueue  = [];        // 待播队列（本轮可能多行同时推进，按顺序一个一个播）
 let cardTimer  = 0;
+let cardBackdrop = null;    // 卡片背后的全屏遮罩
 let pendingRender = false;  // 卡片播放期间，render 被推迟的标记（卡片结束后补刷）
 const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
 
@@ -1886,6 +1896,7 @@ function clearCards(){
     try { a.el.remove(); } catch(e){}
     if (a.row) a.row.style.visibility = "";
   }
+  if (cardBackdrop){ try { cardBackdrop.remove(); } catch(e){} cardBackdrop = null; }
   cardQueue.length = 0;
 }
 
@@ -1944,6 +1955,13 @@ function startCard(item){
   tr.style.visibility = "hidden";          // 原行隐身；卡片居中盖住它，淡出后它已在正中
   cardActive = { id: item.id, el: el, row: tr };
 
+  // 全屏遮罩：把后面表格完全隔开（动画出现后才浮现），让卡片干净突出
+  const bd = document.createElement("div");
+  bd.className = "cbackdrop";
+  document.body.appendChild(bd);
+  cardBackdrop = bd;
+  requestAnimationFrame(function(){ bd.classList.add("show"); });
+
   requestAnimationFrame(function(){
     el.classList.add("pop");                 // 弹出（居中放大 + 阴影 + 横幅淡入）
     requestAnimationFrame(function(){
@@ -1960,9 +1978,11 @@ function endCard(){
   if (a.row) a.row.style.visibility = "";    // 原行先显形（金色高亮此刻接上）
   a.el.classList.remove("pop");              // 卡片缩回 + 淡出，像落回表格那一行
   a.el.style.opacity = "0";
+  if (cardBackdrop){ cardBackdrop.classList.remove("show"); }  // 遮罩同步淡出
   cardTimer = setTimeout(function(){
     try { a.el.remove(); } catch(e){}
-    if (cardQueue.length) pumpCards();        // 还有排队的就接着播
+    if (cardBackdrop){ try { cardBackdrop.remove(); } catch(e){} cardBackdrop = null; }
+    if (cardQueue.length) pumpCards();        // 还有排队的就接着播（按序一个一个）
     else {                                    // 最后一张播完
       resumeScroll();                          // 恢复自动滚动
       if (pendingRender){ pendingRender = false; render(); }  // 播放期间积压的刷新现在补上
@@ -2285,7 +2305,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104c";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
