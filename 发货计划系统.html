@@ -14,6 +14,19 @@
 <link rel="preconnect" href="https://zxnxvbghsfwsikyncbus.supabase.co" crossorigin>
 <link rel="dns-prefetch" href="https://zxnxvbghsfwsikyncbus.supabase.co">
 
+<!-- 性能（2026-11-04）：8 个外部脚本原本是"解析到一个、下载一个、执行一个"，
+     弱网/手机 4G 上等于 8 个串行 RTT（其中 supabase.min.js 就有 212KB）→ 进系统明显慢。
+     这里用 preload 让它们在 <head> 一开始就**并行下载**，执行顺序完全不变（preload 不改变 defer/同步语义），
+     总耗时从"逐个往返"变成"一次下载完再逐个执行"。 -->
+<link rel="preload" as="script" href="supabase.min.js?v=lib&amp;h=8c36ed69">
+<link rel="preload" as="script" href="cloud-config.js?v=20260920a&amp;h=4faf2f0d">
+<link rel="preload" as="script" href="cloud-sync.js?v=20261026a&amp;h=03fc2c35">
+<link rel="preload" as="script" href="auth.js?v=20260930a&amp;h=9d9fdae3">
+<link rel="preload" as="script" href="staff-config.js?v=20260924c&amp;h=3f18049c">
+<link rel="preload" as="script" href="staff-admin.js?v=20260924a&amp;h=9326b285">
+<link rel="preload" as="script" href="brand.js?v=3&amp;h=97e1b625">
+<!-- scan-lib.js 故意不 preload：全站契约要求它在本页只被引用一次（?v= 整串唯一，手机缓存按整串命中），见 test_page_syntax 的版本一致性断言 -->
+
 <script src="supabase.min.js?v=lib&h=8c36ed69"></script>
 
 <script src="cloud-config.js?v=20260920a&h=4faf2f0d"></script>
@@ -84,16 +97,19 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261029e";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261029g";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
-   DOM ready 后 2.5s 查 .topbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
-   会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。 */
+   DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
+   会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
+   ★ 2026-11-04：这里原来只查 .topbar。实测本页面里 .topbar 元素**是存在的**（真浏览器 hasTopbar=true），
+     所以它并不是"进系统慢"的根因；但导航栏类名在不同版本间换过（.appbar / .topbar），
+     只认一个容易在改名后误判成"文件截断"而白刷一次 → 现在两个都认，谁在都不误判。 */
 (function(){try{
   var K="_blankwd_v1",n=0;
   try{ n=parseInt(sessionStorage.getItem(K)||"0",10)||0; }catch(e){}
   document.addEventListener("DOMContentLoaded",function(){
     setTimeout(function(){
-      if(document.querySelector(".topbar")){ try{ sessionStorage.removeItem(K); }catch(e){} return; }
+      if(document.querySelector(".topbar")||document.querySelector(".appbar")){ try{ sessionStorage.removeItem(K); }catch(e){} return; }
       if(n>=2) return;
       try{ sessionStorage.setItem(K,String(n+1)); }catch(e){}
       location.reload();
@@ -2912,20 +2928,20 @@ function touchStorageMeter(){
 
 // 顶部吸附位置：工具栏钉在导航栏下方，表头再钉在工具栏下方（高度变化时自动重算）
 
+/* ★ 节流：ResizeObserver 在表格重排/自适应时会连续触发十几次，
+   每次都读 offsetHeight（强制同步布局）→ 累计几十毫秒。改成 rAF 合并，一帧只算一次。 */
+let __topbarRaf=0;
 function syncTopbarOffset(){
-
-  const ab=$("appbar"), tb=document.querySelector(".topbar");
-
-  if(!tb) return;
-
-  const ah = ab ? ab.offsetHeight : 0;
-
-  tb.style.top = ah + "px";
-
-  // --head-top = 导航栏高度 + 工具栏高度，供 .tbl thead th 的 sticky 使用
-
-  document.documentElement.style.setProperty("--head-top", (ah + tb.offsetHeight) + "px");
-
+  if(__topbarRaf) return;
+  __topbarRaf=requestAnimationFrame(function(){
+    __topbarRaf=0;
+    const ab=$("appbar"), tb=document.querySelector(".topbar");
+    if(!tb) return;
+    const ah = ab ? ab.offsetHeight : 0;
+    tb.style.top = ah + "px";
+    // --head-top = 导航栏高度 + 工具栏高度，供 .tbl thead th 的 sticky 使用
+    document.documentElement.style.setProperty("--head-top", (ah + tb.offsetHeight) + "px");
+  });
 }
 
 syncTopbarOffset();
@@ -4664,7 +4680,7 @@ function bindSubTonInput(inp){
 
       if(_SL0 && _SL0.uiAlert){ _SL0.uiAlert("客户吨位只能填数字（可带小数点），请重新填写。",{title:"格式不对",icon:'⚠️'}); }
 
-      else { alert("客户吨位只能填数字（可带小数点），请重新填写。"); }
+      else { askAlert("客户吨位只能填数字（可带小数点），请重新填写。", { title:"格式不对", icon:"⚠️" }); }
 
       inp.value=old; return;
 
@@ -7320,6 +7336,22 @@ function askConfirm(msg, opt){
   });
 }
 
+/* ★ 统一提示弹窗：优先用全站统一的「淡蓝半透明 + 背景模糊」弹窗（SL.uiAlert），
+   不可用时才退回浏览器原生 alert。返回 Promise，调用点用 await。 */
+function askAlert(msg, opt){
+  return new Promise(function(res){
+    var S = window.ScanLib;
+    if(S && S.uiAlert){
+      var o = Object.assign({}, opt||{});
+      try{ S.uiAlert(String(msg==null?"":msg), o); }catch(e){}
+      res(true);
+      return;
+    }
+    try{ window.alert(String(msg==null?"":msg)); }catch(e){}
+    res(true);
+  });
+}
+
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
 
 // 复制到剪贴板（优先 navigator.clipboard，老环境/iframe/本地文件回退到 execCommand）
@@ -7598,7 +7630,7 @@ async function publish(){
       const _msg="一次只能发布【同一天】的发货计划。\n\n本次勾选了 "+checkedTrs.length+" 行，却涉及 "+_dts.size+" 个发货日期：\n\n  "+_list.join("\n  ")+"\n\n请只勾选同一天的行再发布；\n若想把不同日期的行统一改到同一天，可先点工具栏「📅 批量改日期」再发布。";
       const _SL=window.ScanLib;
       if(_SL && _SL.uiAlert) _SL.uiAlert(_msg, { title:"不能发布：日期不一致", icon:"🚫", okText:"知道了" });
-      else alert(_msg);
+      else askAlert(_msg, { title:"不能发布：日期不一致", icon:"🚫", okText:"知道了" });
       return;
     }
   }
@@ -7763,7 +7795,7 @@ async function publish(){
 
     toast("⚠ 必填项未填，无法发布");
 
-    alert("以下必填项未填写，请补全后再发布：\n\n"+miss.slice(0,15).join("\n")+(miss.length>15?"\n…等共 "+miss.length+" 处":""));
+    await askAlert("以下必填项未填写，请补全后再发布：\n\n"+miss.slice(0,15).join("\n")+(miss.length>15?"\n…等共 "+miss.length+" 处":""), { title:"必填项未填写", icon:"⚠️", okText:"知道了" });
 
     return;
 
