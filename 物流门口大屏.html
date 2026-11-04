@@ -629,6 +629,36 @@
   @keyframes rowJumpHot{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
   @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after,.gcur{animation:none} tbody tr.jump,tbody tr.jump.hot{animation:none}}
 
+  /* ============ 工序更新 · 卡片弹出动画（2026-11-04）============
+     工人扫一下码 → 这一行工序往前走一步 → 这一行从表格里"拎出来"变一张悬浮卡片：
+       ① 卡片与表格里它的最终位置完全对齐，带阴影/金边/轻微放大，像被拎起来；
+       ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度涨到新进度；
+       ③ 演示完，卡片渐变缩回、落回表格里它的最终位置（"完成多排最前"此刻已就位）。
+     本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
+     不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。 */
+
+  .popcard{position:fixed;left:0;top:0;z-index:60;will-change:transform,opacity;
+    transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .5s ease,filter .5s ease;
+    filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));}
+  .popcard.pop{transform:translateY(-10px) scale(1.035);
+    filter:drop-shadow(0 22px 46px rgba(0,0,0,.65));}
+  .popcard .ctbl{width:100%;border-collapse:collapse;table-layout:fixed;
+    background:rgba(13,19,29,.94);border-radius:12px;overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,209,102,.55),0 18px 50px rgba(0,0,0,.55);
+    backdrop-filter:blur(2px);}
+  .popcard .cbanner{position:absolute;left:50%;top:0;
+    transform:translate(-50%,-100%) translateY(-6px);
+    display:flex;align-items:center;gap:10px;white-space:nowrap;
+    padding:5px 14px;border-radius:999px;font-weight:800;font-size:14px;letter-spacing:.5px;
+    color:#fff;background:linear-gradient(100deg,rgba(255,199,64,.95),rgba(255,150,0,.95));
+    border:1px solid rgba(255,240,190,.9);
+    box-shadow:0 6px 22px rgba(255,150,0,.45);
+    opacity:0;transition:opacity .42s ease,transform .42s cubic-bezier(.2,.8,.2,1);}
+  .popcard.pop .cbanner{opacity:1;transform:translate(-50%,-100%) translateY(-10px);}
+  .popcard .cbanner .carrow{font-size:16px;animation:cbPulse 1s ease-in-out infinite;}
+  @keyframes cbPulse{0%,100%{opacity:.55;transform:translateX(0)}50%{opacity:1;transform:translateX(4px)}}
+  @media (prefers-reduced-motion:reduce){.popcard,.popcard .cbanner{transition:none}.popcard .cbanner .carrow{animation:none}}
+
   /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
 
      旧的 .pill 状态徽章跟着状态列一起移除（不留死样式） */
@@ -825,7 +855,7 @@
 
     <span class="k" id="missNote"></span>
 
-    <span class="k" style="margin-left:auto">送达方仅显示代码 · 不显示物流 · 每 0.5 秒自动刷新 · 夜间 23:30–7:30 暂停省流量 · 超出一屏自动慢速滚动</span>
+    <span class="k" style="margin-left:auto">送达方仅显示代码 · 不显示物流 · 每 2 秒自动刷新 · 夜间 23:30–7:30 暂停省流量 · 超出一屏自动慢速滚动</span>
 
   </div>
 
@@ -865,10 +895,10 @@ const $ = (id) => document.getElementById(id);
 
 const esc = SL.esc, raw = SL.raw;
 
-const POLL_MS = 500;     // 2026-11-03：5s->0.5s 用户要求白天近乎实时上屏（戳没变只查戳，不费流量；加 pullingProg 重叠守卫防堆叠）
+const POLL_MS = 2000;    // 2026-11-04：0.5s->2s（用户要求统一刷新频率；戳没变只查戳，不费流量；加 pullingProg 重叠守卫防堆叠）
 
 /* 夜间 23:30–次日 7:30 停刷省流量（2026-11-02）：该时段完全不轮询云端，
-   屏幕保持进入夜间前最后状态；白天（7:30–23:29）仍每 0.5 秒刷新。
+   屏幕保持进入夜间前最后状态；白天（7:30–23:29）仍每 2 秒刷新。
    凌晨 4 点的 reload 保留（清内存/拾取新发布），其后的轮询仍受本闸门约束。 */
 function nightPaused(){
   const d = new Date(), h = d.getHours(), m = d.getMinutes();
@@ -1716,7 +1746,7 @@ function ridOf(r){
 }
 
 /* 找出这一轮里"工序刚推进"的行 → 记下金色窗口 */
-function markHotRows(rows){
+function markHotRows(rows, cardIds){
   const now = Date.now();
   let fresh = false;
 
@@ -1729,6 +1759,13 @@ function markHotRows(rows){
     if (was !== undefined && was !== sig){ HOT_UNTIL[id] = now + HOT_MS; fresh = true; }
 
     PREV_ROW[id] = sig;
+  }
+
+  // 工序往前走的行 → 排队弹卡片（detectStepUp 已算好 from/to）
+  if (cardIds){
+    for (const id in cardIds){
+      if (HOT_UNTIL[id]) cardQueue.push({ id: id, from: cardIds[id].from, to: cardIds[id].to });
+    }
   }
 
   if (fresh) scheduleHotSweep();
@@ -1778,13 +1815,14 @@ function snapshotRows(){
   return pos;
 }
 
-function flipRows(rows, prev){
+function flipRows(rows, prev, cardIds){
   const trs = $("tbody").children;
   if (!trs.length) return;
 
   for (let i = 0; i < trs.length && i < rows.length; i++){
     const tr = trs[i];
     const id = tr.getAttribute("data-rid");
+    if (cardIds && cardIds[id]) continue;   // 这一轮要弹卡片的行：跳位交给卡片，不重复播
     const was = id ? prev[id] : undefined;
     if (!was) continue;                    // 新上屏的行：没有"旧位置"，不播
 
@@ -1797,6 +1835,121 @@ function flipRows(rows, prev){
     tr.classList.add("jump");
   }
 }
+
+/* ---------- 工序更新 · 卡片弹出动画（2026-11-04）------------
+   工人扫一下码 → 这一行工序往前走一步 → 这一行从表格里"拎出来"变成一张悬浮卡片：
+     ① 卡片与表格里它的最终位置完全对齐，带阴影/金边/轻微放大，像被拎起来（金边呼应金色高亮）；
+     ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度涨到新进度；
+     ③ 演示完，卡片渐变缩回、落回表格里它的最终位置（"完成多排最前"此刻已经就位）。
+   本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
+   不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。 */
+
+const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
+const CARD_HOLD = 1100;     // 卡片弹出后停留、演示"上一步→下一步"的时长（ms）
+const CARD_BACK = 520;      // 卡片渐变落回表格的时长（ms，与 CSS transition 对齐）
+const CARD_GAP  = 260;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
+
+let cardActive = null;      // 正在播放的卡片 { id, el, row }
+let cardQueue  = [];        // 待播队列（本轮可能多行同时推进）
+let cardTimer  = 0;
+const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+/* 识别本轮里"工序往前走"的行：和上一轮 PREV_ROW 比，step 变大即算 */
+function detectStepUp(rows){
+  const map = Object.create(null);
+  for (let i = 0; i < rows.length; i++){
+    const r = rows[i];
+    const id = ridOf(r);
+    const was = PREV_ROW[id];
+    if (was === undefined) continue;
+    const wasStep = parseInt(String(was).split(":")[0], 10) || 0;
+    const cur = r.s || 0;
+    if (cur > wasStep) map[id] = { from: wasStep, to: cur };
+  }
+  return map;
+}
+
+/* 重绘前清掉上一张还在播的卡片（行节点会被 innerHTML 替换，这里只撤卡片本体） */
+function clearCards(){
+  if (cardTimer){ clearTimeout(cardTimer); cardTimer = 0; }
+  if (cardActive){
+    const a = cardActive; cardActive = null;
+    try { a.el.remove(); } catch(e){}
+    if (a.row) a.row.style.visibility = "";
+  }
+  cardQueue.length = 0;
+}
+
+/* 一轮多张时：上一张播完再播下一张，避免叠在一起 */
+function pumpCards(){
+  if (reduceMotion){ cardQueue.length = 0; return; }
+  if (cardActive) return;                  // 上一张还在播，等它结束再取
+  const item = cardQueue.shift();
+  if (!item){ resumeScroll(); return; }
+  startCard(item);
+}
+
+function startCard(item){
+  const tr = $("tbody").querySelector('tr[data-rid="' + item.id + '"]');
+  if (!tr){ pumpCards(); return; }          // 行不在了（极端情况），跳过这张
+  const rect = tr.getBoundingClientRect();
+  const fromPct = Math.round((item.from / 3) * 100);
+  const toPct   = Math.round((item.to   / 3) * 100);
+
+  // 克隆表格（same colgroup + 同一行），卡片视觉与表格行完全一致
+  const srcTbl = $("tbl");
+  const colg = srcTbl.querySelector("colgroup");
+  const el = document.createElement("div");
+  el.className = "popcard";
+  el.style.left = rect.left + "px";
+  el.style.top  = rect.top + "px";
+  el.style.width  = rect.width + "px";
+  el.style.height = rect.height + "px";
+
+  const fromName = SL.STEP_NAME[item.from] || ("工序" + item.from);
+  const toName   = SL.STEP_NAME[item.to]   || ("工序" + item.to);
+  const fc = STEP_COLOR[item.from] || "#fff", tc = STEP_COLOR[item.to] || "#fff";
+  el.innerHTML =
+    '<div class="cbanner">' +
+      '<span class="cfrom" style="color:' + fc + '">' + esc(fromName) + '</span>' +
+      '<span class="carrow">▶</span>' +
+      '<span class="cto" style="color:' + tc + '">' + esc(toName) + '</span>' +
+    '</div>' +
+    '<table class="ctbl">' + (colg ? colg.outerHTML : "") +
+      '<tbody>' + tr.innerHTML + '</tbody></table>';
+
+  // 流体条从"旧进度"起步，再涨到"新进度"（演示工序推进的过程）
+  const fq = el.querySelector(".flq");
+  if (fq){ fq.style.transition = "width .9s ease"; fq.style.width = (fromPct || 0) + "%"; }
+
+  document.body.appendChild(el);
+  tr.style.visibility = "hidden";          // 原行隐身，看着像被卡片拎起来了
+  cardActive = { id: item.id, el: el, row: tr };
+  pauseScrollNoReset();                     // 卡片播放期间暂停自动滚动，避免错位
+
+  requestAnimationFrame(function(){
+    el.classList.add("pop");                 // 弹出（放大 + 阴影 + 横幅淡入）
+    requestAnimationFrame(function(){
+      if (fq) fq.style.width = (toPct || 6) + "%";   // 流体条涨到新进度
+    });
+  });
+
+  cardTimer = setTimeout(endCard, 460 + CARD_HOLD);   // 弹起(0.45s) + 停留演示
+}
+
+function endCard(){
+  if (!cardActive) return;
+  const a = cardActive; cardActive = null;
+  if (a.row) a.row.style.visibility = "";    // 原行先显形（金色高亮此刻接上）
+  a.el.classList.remove("pop");              // 卡片缩回 + 淡出，像落回表格那一行
+  a.el.style.opacity = "0";
+  cardTimer = setTimeout(function(){
+    try { a.el.remove(); } catch(e){}
+    if (cardQueue.length) pumpCards();        // 还有排队的就接着播
+    else resumeScroll();                      // 否则恢复滚动
+  }, CARD_BACK);
+}
+
 
 function render(){
 
@@ -1844,6 +1997,8 @@ function render(){
 
   rendered = true;
 
+  clearCards();          // 上一张卡片（若还在播）先撤掉，避免和新一轮重排错位
+
   fitRows(rows.length);
 
   /* 跳位动画：先把"重画前"每行的位置和名次量下来 */
@@ -1861,12 +2016,18 @@ function render(){
 
   updateMissNote();
 
-  /* 跳位动画：跟"重画前"比一比，挪了名次的那几行滑过去 */
-  flipRows(rows, flipPrev);
+  /* 这一轮里"工序往前走"的行 → 先识别出来：它们要弹卡片，不参与普通跳位 */
+  const cardIds = detectStepUp(rows);
+
+  /* 跳位动画：跟"重画前"比一比，挪了名次的那几行滑过去（弹卡片的行跳过，由卡片接管） */
+  flipRows(rows, flipPrev, cardIds);
 
   /* 工序刚推进的行 → 金色光标 + 镀金（12 秒后自动褪去） */
-  markHotRows(rows);
+  markHotRows(rows, cardIds);
   applyHot();
+
+  /* 弹卡片：把"工序推进"的行拎出来变悬浮卡，演示"上一步 ▶ 下一步"后落回位置 */
+  pumpCards();
 
   setupScroll();
 
@@ -1948,6 +2109,8 @@ function stopScroll(){
 
 function setupScroll(){
 
+  if (cardActive) return;                        // 卡片播放期间不抢滚动（由卡片自己暂停）
+
   const max = boxEl.scrollHeight - boxEl.clientHeight;
 
   if (max <= 4){ stopScroll(); return; }
@@ -1959,6 +2122,14 @@ function setupScroll(){
   sc.raf = requestAnimationFrame(scrollStep);
 
 }
+
+
+
+/* 暂停滚动但**不**把滚动条弹回顶部（截图/卡片动画期间用，结束后由 resumeScroll 恢复） */
+
+function pauseScrollNoReset(){ sc.on = false; if (sc.raf) cancelAnimationFrame(sc.raf); sc.raf = 0; }
+
+function resumeScroll(){ if (boxEl.scrollHeight - boxEl.clientHeight > 4) setupScroll(); }
 
 
 
@@ -2085,7 +2256,7 @@ function boot(){
   setInterval(() => {
     if (document.hidden) return;
     if (nightPaused()){ setSync("🌙 夜间 23:30–7:30 省流量 · 已暂停刷新", "ok"); return; }
-    if (pullingProg) return;                       // 0.5s 轮询：上一轮没回就跳过本轮，避免并发戳查询/重复渲染
+    if (pullingProg) return;                       // 2s 轮询：上一轮没回就跳过本轮，避免并发戳查询/重复渲染
     pullingProg = true;
     pull().finally(() => { pullingProg = false; });
   }, POLL_MS);
@@ -2093,7 +2264,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261103b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
