@@ -656,9 +656,9 @@ const $ = (id) => document.getElementById(id);
 
 const esc = SL.esc;
 
-const POLL_MS = 500;     // 2026-11-02：10s->0.5s（不同平台打开「发货进度」要近实时同步；render 有指纹守卫，内容没变不重绘，戳没变只查戳不费流量）
-let pullingProg = false;  // ★ 0.5s 轮询：上一轮拉取没回就先跳过，避免并发戳查询 / 重复渲染
-const APP_VER = "20261103a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 scan 字段同步改
+const POLL_MS = 2000;    // 2026-11-04：0.5s->2s（用户要求统一刷新频率；render 有指纹守卫，内容没变不重绘，戳没变只查戳不费流量）
+let pullingProg = false;  // ★ 2s 轮询：上一轮拉取没回就先跳过，避免并发戳查询 / 重复渲染
+const APP_VER = "20261104a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 scan 字段同步改
 
 const LITTLE = ["待确认", "货好", "装货中", "已完成"];
 
