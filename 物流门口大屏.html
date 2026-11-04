@@ -637,14 +637,17 @@
      本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
      不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。 */
 
-  /* 卡片：直接居中在屏幕正中并最大化（与行原位置脱钩），演示完淡出露出已居中的真实行 */
+  /* 卡片：从「锁定行」被"拿出来"——缩小偏下、透明起步，放大升起、带光晕飞到屏幕正中最大化；
+     演示完再"送回去"——缩回落入行位置、淡出（取出/送回都走这段 transform，形成轨迹） */
   .popcard{position:fixed;left:50%;top:50%;z-index:60;will-change:transform,opacity;
-    transform:translate(-50%,-50%) scale(1);
-    transition:transform 1s cubic-bezier(.2,.8,.2,1),opacity 1s ease,filter 1s ease;
-    filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));
+    transform:translate(-50%,-50%) translate(6%,18%) scale(0.45);
+    opacity:0;
+    transition:transform 1s cubic-bezier(.18,.7,.2,1),opacity .7s ease,filter 1s ease;
+    filter:drop-shadow(0 0 0 rgba(255,209,102,0));
     width:92vw;max-width:1500px;}
-  .popcard.pop{transform:translate(-50%,-50%) scale(1.05);
-    filter:drop-shadow(0 34px 80px rgba(0,0,0,.7));}
+  .popcard.pop{transform:translate(-50%,-50%) translate(0,0) scale(1);
+    opacity:1;
+    filter:drop-shadow(0 0 70px rgba(255,209,102,.55));}
   .popcard .ctbl{width:100%;border-collapse:collapse;table-layout:fixed;
     background:rgba(13,19,29,.96);border-radius:18px;overflow:hidden;
     box-shadow:0 0 0 2px rgba(255,209,102,.7),0 26px 80px rgba(0,0,0,.6);
@@ -1851,9 +1854,9 @@ function flipRows(rows, prev, cardIds){
 /* ---------- 工序更新 · 卡片弹出动画（2026-11-04 改：居中最大化 + 放慢）------------
    工人扫一下码 → 这一行工序往前走一步 → 不管大屏当前滚到哪，先把这一行"快速滚到视口正中"锁定，
    然后弹出一张居中屏幕、最大化的悬浮卡片：
-     ① 卡片直接居中在屏幕正中并最大化（与行原位置脱钩），带阴影/金边/放大；
+     ① 卡片从锁定行被"拿出来"——缩小偏下、透明起步，放大升起、带光晕飞到屏幕正中最大化（取出轨迹）；
      ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度慢慢涨到新进度；
-     ③ 演示完，卡片渐变淡出，露出已经被锁定在正中、镀金高亮的真实行。
+     ③ 演示完，卡片缩回落入行位置、淡出（送回轨迹，与取出反向），露出已经被锁定在正中、镀金高亮的真实行。
    本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
    不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。
    播放中若 2 秒轮询又来新数据：render 会延迟到卡片结束再刷新，避免把动画打断。 */
@@ -1950,7 +1953,7 @@ function startCard(item){
   if (fq){ fq.style.transition = "width 2s ease"; fq.style.width = (fromPct || 0) + "%"; }
 
   document.body.appendChild(el);
-  tr.style.visibility = "hidden";          // 原行隐身；卡片居中盖住它，淡出后它已在正中
+  tr.style.visibility = "hidden";          // 原行隐身；卡片从它位置被"拿出来"，结束后落回这里
   cardActive = { id: item.id, el: el, row: tr };
 
   // 全屏遮罩：把后面表格完全隔开（动画出现后才浮现），让卡片干净突出
@@ -1958,10 +1961,11 @@ function startCard(item){
   bd.className = "cbackdrop";
   document.body.appendChild(bd);
   cardBackdrop = bd;
-  requestAnimationFrame(function(){ bd.classList.add("show"); });
 
+  void el.offsetWidth;                      // 强制重排：先锁定「基础态（缩小、偏下、透明）」，下一帧再放大，确保取出轨迹能演出来
   requestAnimationFrame(function(){
-    el.classList.add("pop");                 // 弹出（居中放大 + 阴影 + 横幅淡入）
+    bd.classList.add("show");
+    el.classList.add("pop");                 // 取出：从行位置放大升起、带光晕飞到屏幕正中（演示完再缩回落入行，即送回轨迹）
     requestAnimationFrame(function(){
       if (fq) fq.style.width = (toPct || 6) + "%";   // 流体条慢慢涨到新进度
     });
@@ -1974,8 +1978,7 @@ function endCard(){
   if (!cardActive) return;
   const a = cardActive; cardActive = null;
   if (a.row) a.row.style.visibility = "";    // 原行先显形（金色高亮此刻接上）
-  a.el.classList.remove("pop");              // 卡片缩回 + 淡出，像落回表格那一行
-  a.el.style.opacity = "0";
+  a.el.classList.remove("pop");              // 送回：缩回落入行位置、淡出（与取出反向的轨迹，行已在正中锁定）
   if (cardBackdrop){ cardBackdrop.classList.remove("show"); }  // 遮罩同步淡出
   cardTimer = setTimeout(function(){
     try { a.el.remove(); } catch(e){}
@@ -2303,7 +2306,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104c";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104d";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
