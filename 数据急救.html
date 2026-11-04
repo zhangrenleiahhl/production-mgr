@@ -5,47 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>数据急救工具</title>
 <style>
-  :root{--brand:#2563eb;--ok:#16a34a;--err:#dc2626;--warn:#ca8a04;--bg:#f8fafc;--card:#fff;--line:#e2e8f0;}
+  :root{--brand:var(--c-primary);--ok:#16a34a;--err:var(--c-danger);--warn:#ca8a04;--bg:var(--c-surface-2);--card:#fff;--line:var(--c-border-soft);}
   body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);margin:0;padding:20px;line-height:1.6;}
   .wrap{max-width:800px;margin:0 auto;}
   h1{font-size:22px;color:#1e293b;margin-bottom:6px;}
-  .sub{color:#64748b;font-size:13px;margin-bottom:20px;}
+  .sub{color:var(--c-text-muted);font-size:13px;margin-bottom:20px;}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,.04);}
-  h2{font-size:16px;color:#334155;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
-  .btn{background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer;}
+  h2{font-size:16px;color:var(--c-text-2);margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .btn{background:var(--c-primary);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer;}
   .btn:hover{opacity:.92;}
-  .btn2{background:#f1f5f9;color:#334155;border:1px solid var(--line);}
+  .btn2{background:var(--c-surface-3);color:var(--c-text-2);border:1px solid var(--line);}
   .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
-  th{color:#64748b;font-weight:600;width:30%;}
+  th{color:var(--c-text-muted);font-weight:600;width:30%;}
   td{word-break:break-all;font-family:monospace;}
   .tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;}
   .tag-ok{background:#dcfce7;color:var(--ok);}
   .tag-err{background:#fee2e2;color:var(--err);}
   .tag-warn{background:#fef9c3;color:var(--warn);}
-  .log{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:260px;overflow:auto;margin-top:12px;}
-  .empty{color:#94a3b8;font-style:italic;}
+  .log{background:#0f172a;color:var(--c-border-soft);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:260px;overflow:auto;margin-top:12px;}
+  .empty{color:var(--c-text-subtle);font-style:italic;}
   /* ⑤ 一键找回 */
-  #rescueTable th{width:auto;color:#64748b;}
+  #rescueTable th{width:auto;color:var(--c-text-muted);}
   #rescueTable th:last-child,#rescueTable td:last-child{width:84px;text-align:right;}
   #rescueTable td.what{font-family:inherit;color:#1e293b;font-weight:600;}
-  #rescueTable td.note{font-family:inherit;color:#64748b;}
-  #rescueTable td.num{font-family:monospace;color:#64748b;white-space:nowrap;}
+  #rescueTable td.note{font-family:inherit;color:var(--c-text-muted);}
+  #rescueTable td.num{font-family:monospace;color:var(--c-text-muted);white-space:nowrap;}
   #rescueTable tr.bakrow td.what{border-left:3px solid #f59e0b;padding-left:8px;}
-  #rescueTable tr.snaprow td.what{border-left:3px solid var(--brand);padding-left:8px;}
-  .mini{background:#f1f5f9;color:#334155;border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;}
-  .mini:hover{background:#e2e8f0;}
+  #rescueTable tr.snaprow td.what{border-left:3px solid var(--c-primary);padding-left:8px;}
+  .mini{background:var(--c-surface-3);color:var(--c-text-2);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;}
+  .mini:hover{background:var(--c-border-soft);}
   .rst-ok{color:var(--ok);font-weight:600;}
   .rst-warn{color:var(--warn);font-weight:600;}
   /* ⑥ 从备份文件找回被误删的发布记录 */
-  #rpTable th{width:auto;color:#64748b;}
+  #rpTable th{width:auto;color:var(--c-text-muted);}
   #rpTable th:first-child,#rpTable td:first-child{width:34px;text-align:center;}
   #rpTable td.what{font-family:inherit;color:#1e293b;font-weight:600;}
-  #rpTable td.note{font-family:inherit;color:#64748b;}
+  #rpTable td.note{font-family:inherit;color:var(--c-text-muted);}
   #rpTable tr.rpdel td.what{border-left:3px solid var(--warn);padding-left:8px;}
-  #rpTable tr.rparch td.what{border-left:3px solid #94a3b8;padding-left:8px;}
+  #rpTable tr.rparch td.what{border-left:3px solid var(--c-text-subtle);padding-left:8px;}
 </style>
+
+  <link rel="stylesheet" href="design-tokens.css">
 </head>
 <body>
 <div class="wrap">
@@ -71,7 +73,7 @@
 
   <div class="card">
     <h2>③ 导入备份恢复</h2>
-    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">如果你之前导出过 .json 备份文件，选下面导入，可恢复到当前浏览器。</p>
+    <p style="font-size:13px;color:var(--c-text-muted);margin:0 0 10px;">如果你之前导出过 .json 备份文件，选下面导入，可恢复到当前浏览器。</p>
     <label class="btn" style="display:inline-block;cursor:pointer;">
       选择备份文件 (.json)
       <input type="file" id="bkFile" accept=".json" hidden>
@@ -81,25 +83,25 @@
 
   <div class="card">
     <h2>④ 手动写入云端数据（急救用）</h2>
-    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">如果云端有数据但本地没有，拉取后会自动写入本地。拉取成功请刷新原系统页面。</p>
+    <p style="font-size:13px;color:var(--c-text-muted);margin:0 0 10px;">如果云端有数据但本地没有，拉取后会自动写入本地。拉取成功请刷新原系统页面。</p>
     <button class="btn btn2" id="refreshBtn">刷新本页重新扫描</button>
   </div>
 
   <div class="card">
     <h2>⑤ 一键找回（自动快照 / 覆盖留底）</h2>
-    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">
+    <p style="font-size:13px;color:var(--c-text-muted);margin:0 0 10px;">
       系统在「发布 / 删除发布记录 / 清理重复 / 导入备份 / 云端覆盖本机」<b>之前</b>会自动留一份存档（滚动保留最近 3 份）；
       云端数据覆盖本机前也会把它存成一份「留底」。下面列出所有能找到的存档，点「找回」即可。
       <br><b>找回是"只增不减"的</b>：把存档里的内容并回来，你现在有的东西不会被删掉。恢复前会自动下载一份本机当前数据当保险。
     </p>
-    <div id="rescueInfo" style="font-size:13px;color:#64748b;margin-bottom:8px;"></div>
+    <div id="rescueInfo" style="font-size:13px;color:var(--c-text-muted);margin-bottom:8px;"></div>
     <table id="rescueTable"><tr><td class="empty">正在读取…</td></tr></table>
     <div id="rescueResult" style="margin-top:10px;font-size:13px;"></div>
   </div>
 
   <div class="card">
     <h2>⑥ 找回被误删的发布记录</h2>
-    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">
+    <p style="font-size:13px;color:var(--c-text-muted);margin:0 0 10px;">
       这是一个"被删掉的发布计划"回收站。下面会自动列出<b>系统里现在没有、但归档区/云端归档或备份文件里还在</b>的发布计划。
       <br><b>找回是"只增不减"的</b>：你现在有的记录一条都不会被删；恢复时会同时解除这些单子的<b>「删除标记」</b>
       —— 不解除的话下次同步又会被删一次，等于白找回。
@@ -112,7 +114,7 @@
       </label>
       <button class="btn btn2" id="rpReload">重新扫描</button>
     </div>
-    <div id="rpInfo" style="font-size:13px;color:#64748b;margin:10px 0;"></div>
+    <div id="rpInfo" style="font-size:13px;color:var(--c-text-muted);margin:10px 0;"></div>
     <table id="rpTable"><tr><td class="empty">正在读取…</td></tr></table>
     <div style="margin-top:10px;">
       <button class="btn" id="rpDo" style="display:none;">找回勾选的记录</button>
@@ -640,7 +642,7 @@ function rpRender(){
     return '<tr class="'+(x.del?'rpdel':'rparch')+'">'
       + '<td><input type="checkbox" class="rpck" data-i="'+i+'"'+(x.del?' checked':'')+'></td>'
       + '<td class="what">'+rEsc(rec.no||'（无单号）')
-        + '<br><span style="color:#64748b;font-weight:400">'+rEsc(custs.slice(0,3).join('、'))+(custs.length>3?(' 等 '+custs.length+' 个'):'')+'</span></td>'
+        + '<br><span style="color:var(--c-text-muted);font-weight:400">'+rEsc(custs.slice(0,3).join('、'))+(custs.length>3?(' 等 '+custs.length+' 个'):'')+'</span></td>'
       + '<td class="note">计划员 '+rEsc(rec.planner||'—')+' ｜ 操作人 '+rEsc(rec.operator||'—')
         + '<br>发货 '+rEsc(rpShipDate(rec))+' ｜ 共 '+rs.length+' 行 ｜ 数量 '+rEsc(rec.sumQty)+'</td>'
       + '<td class="note">发布 '+rEsc(rec.publishedAt||'')+'</td>'
