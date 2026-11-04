@@ -10,7 +10,7 @@
     --card:rgba(255,255,255,.042);
     --line:rgba(120,180,255,.15); --line-hi:rgba(130,210,255,.45);
     --txt:#e8f0ff; --muted:#7890b0; --dim:#55688a;
-    --cyan:#22d3ee; --blue:#3b82f6; --violet:#a855f7; --pink:#f472b6;
+    --cyan:#22d3ee; --blue:var(--c-primary); --violet:#a855f7; --pink:#f472b6;
     --green:#34d399; --orange:#fb923c; --red:#f87171;
     --glow:0 0 24px rgba(34,211,238,.32);
   }
@@ -184,11 +184,11 @@
   .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;}
   .col .v{font-size:10.5px;font-weight:800;color:#9fe0ff;margin-bottom:5px;white-space:nowrap;}
   .col .bar{width:100%;max-width:38px;border-radius:5px 5px 0 0;min-height:3px;position:relative;
-            background:linear-gradient(180deg,#22d3ee,#2563eb);
+            background:linear-gradient(180deg,#22d3ee,var(--c-primary));
             box-shadow:0 0 16px rgba(34,211,238,.45);animation:up .9s cubic-bezier(.2,.8,.3,1) both;}
   @keyframes up{from{height:0 !important;opacity:.3}}
-  .col.today .bar{background:linear-gradient(180deg,#fbbf24,#ea580c);box-shadow:0 0 16px rgba(251,146,60,.5);}
-  .col.past  .bar{background:linear-gradient(180deg,#fb7185,#dc2626);box-shadow:0 0 16px rgba(248,113,113,.5);}
+  .col.today .bar{background:linear-gradient(180deg,#fbbf24,var(--c-orange));box-shadow:0 0 16px rgba(251,146,60,.5);}
+  .col.past  .bar{background:linear-gradient(180deg,#fb7185,var(--c-danger));box-shadow:0 0 16px rgba(248,113,113,.5);}
   .col .d{font-size:10.5px;color:var(--dim);margin-top:7px;white-space:nowrap;}
   .col.today .d{color:var(--orange);font-weight:800;text-shadow:0 0 10px rgba(251,146,60,.6);}
   .legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:12px;flex-wrap:wrap;}
@@ -335,6 +335,8 @@
   body.fs .wrap{max-width:100%;padding:18px 30px 46px;}
   body.fs .grid3{grid-template-columns:360px 1fr 1fr;}
 </style>
+
+  <link rel="stylesheet" href="design-tokens.css">
 </head>
 <body data-page-node-id="AvbmYBE1AfqzAI3JnHYtOZ">
 <div class="wrap" data-page-node-id="w5DXDwAo1cnnEvpo33jvYp">
@@ -378,9 +380,9 @@
       <h2 data-page-node-id="P6moik8u23TR2b3MDkeOM6"><i data-page-node-id="OKYCrosISAdRwn6JIx6zjt"></i>发货日期分布 <span class="tag" data-page-node-id="Iok5FnbRzR0JxZB2KMnbZc">吨位 · 按日期</span></h2>
       <div id="dateChart" data-page-node-id="5Hu99MvMlsczeWJAtHxc7e"></div>
       <div class="legend" data-page-node-id="X7MD8yEItSOkepcCa7y1mE">
-        <span data-page-node-id="b4Em3o1fJflPW9i53kTvEQ"><i style="background:#dc2626;box-shadow:0 0 8px #dc2626" data-page-node-id="nudnaVOpPza7ATRhS9e24o"></i>今天及之前（滞后）</span>
-        <span data-page-node-id="5xpKTyKpTgZ6OAGjh1RTXb"><i style="background:#ea580c;box-shadow:0 0 8px #ea580c" data-page-node-id="QEh9edGXT2zfvMuO6Oe2Rj"></i>明天（当日计划）</span>
-        <span data-page-node-id="ofu62P3vEdhVsmfxoYnQpq"><i style="background:#3b82f6;box-shadow:0 0 8px #3b82f6" data-page-node-id="7tOASxPWpnSucVK81TI5eA"></i>后天及以后（待发）</span>
+        <span data-page-node-id="b4Em3o1fJflPW9i53kTvEQ"><i style="background:var(--c-danger);box-shadow:0 0 8px var(--c-danger)" data-page-node-id="nudnaVOpPza7ATRhS9e24o"></i>今天及之前（滞后）</span>
+        <span data-page-node-id="5xpKTyKpTgZ6OAGjh1RTXb"><i style="background:var(--c-orange);box-shadow:0 0 8px var(--c-orange)" data-page-node-id="QEh9edGXT2zfvMuO6Oe2Rj"></i>明天（当日计划）</span>
+        <span data-page-node-id="ofu62P3vEdhVsmfxoYnQpq"><i style="background:var(--c-primary);box-shadow:0 0 8px var(--c-primary)" data-page-node-id="7tOASxPWpnSucVK81TI5eA"></i>后天及以后（待发）</span>
       </div>
     </div>
   </section>
