@@ -2285,7 +2285,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104c";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
