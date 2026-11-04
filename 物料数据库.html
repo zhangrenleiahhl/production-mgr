@@ -24,7 +24,7 @@
 
     --bg:#f5f7fa; --card:#ffffff; --line:#e3e8ef; --txt:#1f2733;
 
-    --muted:#7a8699; --brand:var(--c-primary); --brand-d:#1e4fb0;
+    --muted:#7a8699; --brand:#2563eb; --brand-d:#1e4fb0;
 
     --red:#d92d20; --soft:#eef4ff;
 
@@ -38,7 +38,7 @@
 
   h1{font-size:22px;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
 
-  h1 .dot{width:10px;height:22px;background:var(--c-primary);border-radius:3px;display:inline-block;}
+  h1 .dot{width:10px;height:22px;background:var(--brand);border-radius:3px;display:inline-block;}
 
   .sub{color:var(--muted);font-size:13px;margin-bottom:14px;}
 
@@ -46,23 +46,23 @@
 
   .nav-link{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);color:var(--txt);transition:.15s;box-shadow:0 2px 6px rgba(31,45,77,.04);}
 
-  .nav-link:hover{background:var(--c-primary-soft);color:var(--c-primary);}
+  .nav-link:hover{background:var(--soft);color:var(--brand);}
 
-  .nav-link.active{background:var(--c-primary);color:#fff;border-color:var(--c-primary);box-shadow:0 4px 12px rgba(37,99,235,.28);}
+  .nav-link.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 4px 12px rgba(37,99,235,.28);}
 
   /* ===== 云端同步状态 + 手机自适应 ===== */
 
-  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;background:var(--c-surface-3);color:var(--c-text-muted);border:1px solid var(--line);white-space:nowrap;}
+  .cloud-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#f1f5f9;color:#64748b;border:1px solid var(--line);white-space:nowrap;}
 
-  .cloud-pill.ok{background:#e7f8ee;color:var(--c-pt-north);border-color:#bbe7c9;}
+  .cloud-pill.ok{background:#e7f8ee;color:#15803d;border-color:#bbe7c9;}
 
   .cloud-pill.err{background:#fdecea;color:#d92d20;border-color:#f3c7c2;}
 
-  .cloud-pill.sync{background:#eef4ff;color:var(--c-primary);border-color:#c5d8ff;}
+  .cloud-pill.sync{background:#eef4ff;color:#2563eb;border-color:#c5d8ff;}
 
-  .cloud-pill.warn{background:var(--c-warning-bg);color:var(--c-warning);border-color:var(--c-warning-border);}
+  .cloud-pill.warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
 
-  .cloud-pill.off{background:var(--c-surface-3);color:var(--c-text-subtle);}
+  .cloud-pill.off{background:#f1f5f9;color:#94a3b8;}
 
   @media (max-width:820px){
 
@@ -88,15 +88,15 @@
 
   .card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 
-  .card h2 .tag{font-size:11px;background:var(--c-primary-soft);color:var(--c-primary);padding:2px 8px;border-radius:20px;font-weight:600;}
+  .card h2 .tag{font-size:11px;background:var(--soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600;}
 
   .hint{font-size:12px;color:var(--muted);}
 
   .btn{border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-weight:600;transition:.15s;}
 
-  .btn-primary{background:var(--c-primary);color:#fff;} .btn-primary:hover{background:var(--c-primary-text);}
+  .btn-primary{background:var(--brand);color:#fff;} .btn-primary:hover{background:var(--brand-d);}
 
-  .btn-ghost{background:var(--c-primary-soft);color:var(--c-primary);} .btn-ghost:hover{background:#dfeaff;}
+  .btn-ghost{background:var(--soft);color:var(--brand);} .btn-ghost:hover{background:#dfeaff;}
 
   .btn-line{background:#fff;color:var(--txt);border:1px solid var(--line);} .btn-line:hover{background:#f3f6fb;}
 
@@ -116,7 +116,7 @@
 
   .tbl td input{border:1px solid transparent;background:transparent;width:100%;padding:6px 6px;text-align:center;border-radius:6px;font-size:13px;outline:none;}
 
-  .tbl td input:focus{border-color:var(--c-primary);background:#fafcff;}
+  .tbl td input:focus{border-color:var(--brand);background:#fafcff;}
 
   .tbl tr:hover td{background:#fafcff;}
 
@@ -140,7 +140,7 @@
 
   .pwd-box input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:10px;outline:none;background:#fafbfc;color:#1f2733;}
 
-  .pwd-box input:focus{border-color:var(--c-primary);background:#fff;}
+  .pwd-box input:focus{border-color:var(--brand);background:#fff;}
 
   .pwd-err{color:var(--red);font-size:12px;min-height:16px;margin:0 0 6px;}
 
@@ -154,7 +154,7 @@
 
   .db-search input{flex:1;max-width:340px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;outline:none;background:#fafbfc;color:#1f2733;}
 
-  .db-search input:focus{border-color:var(--c-primary);background:#fff;}
+  .db-search input:focus{border-color:var(--brand);background:#fff;}
 
   .db-search .hint{color:var(--muted);font-size:12px;}
 
@@ -166,11 +166,11 @@
 
   .db-pager button{border:1px solid var(--line);background:#fff;color:var(--txt);border-radius:8px;padding:6px 11px;font-size:13px;cursor:pointer;}
 
-  .db-pager button:hover:not(:disabled){border-color:var(--c-primary);color:var(--c-primary);background:var(--c-primary-soft);}
+  .db-pager button:hover:not(:disabled){border-color:var(--brand);color:var(--brand);background:var(--soft);}
 
   .db-pager button:disabled{opacity:.45;cursor:not-allowed;}
 
-  .db-pager button.cur{background:var(--c-primary);border-color:var(--c-primary);color:#fff;font-weight:700;}
+  .db-pager button.cur{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700;}
 
   .db-pager select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--txt);cursor:pointer;}
 
@@ -194,8 +194,6 @@
 
 <meta name="apple-mobile-web-app-title" content="发货计划">
 
-
-  <link rel="stylesheet" href="design-tokens.css">
 </head>
 
 <body>
@@ -222,9 +220,9 @@
 
     <h2>物料清单 <span class="tag" id="dbCount">0 条</span>
 
-      <span class="tag" id="lockTag" style="background:#fff4e5;color:var(--c-warning);">🔒 修改需密码</span>
+      <span class="tag" id="lockTag" style="background:#fff4e5;color:#b45309;">🔒 修改需密码</span>
 
-      <span class="tag" id="codeWarn" style="display:none;background:#fff7e0;color:var(--c-warning);border:1px solid #f6d48a;cursor:pointer;" title="点一下看是哪些送达方">⚠ 未编代码</span>
+      <span class="tag" id="codeWarn" style="display:none;background:#fff7e0;color:#b45309;border:1px solid #f6d48a;cursor:pointer;" title="点一下看是哪些送达方">⚠ 未编代码</span>
 
       <span class="hint">（字段：物料编码 / 型号 / 单重 / 一箱多少件 / 客户 / 送达方代码 / 物流 / 备注；按型号或编码匹配）</span></h2>
 
