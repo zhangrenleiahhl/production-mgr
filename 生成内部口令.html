@@ -7,7 +7,7 @@
 <script src="scan-lib.js?v=20261030a"></script>
 <script src="staff-config.js?v=20260924c"></script>
 <style>
-  :root{--blue:var(--c-primary);--line:#dbe1ea;--txt:#111827;--muted:#5b6676;--bg:#eef1f6;}
+  :root{--blue:#2563eb;--line:#dbe1ea;--txt:#111827;--muted:#5b6676;--bg:#eef1f6;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--txt);
@@ -18,13 +18,13 @@
   .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;
     box-shadow:0 1px 3px rgba(15,23,42,.06);}
   .card h2{font-size:15px;margin:0 0 10px;font-weight:800;}
-  label{display:block;font-size:13px;font-weight:700;color:var(--c-text-2);margin:10px 0 5px;}
+  label{display:block;font-size:13px;font-weight:700;color:#334155;margin:10px 0 5px;}
   input{width:100%;padding:10px 12px;font-size:15px;border:1px solid var(--line);border-radius:8px;
     font-family:inherit;background:#fbfcfe;}
   input:focus{outline:none;border-color:var(--blue);background:#fff;}
   .row{display:flex;gap:10px;}.row>div{flex:1;}
   button{margin-top:16px;width:100%;padding:12px;font-size:16px;font-weight:800;border:none;border-radius:9px;
-    background:linear-gradient(135deg,var(--c-primary),var(--c-primary-hover));color:#fff;cursor:pointer;font-family:inherit;}
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-family:inherit;}
   button:active{transform:translateY(1px);}
   button.sec{background:#fff;color:var(--muted);border:1px solid var(--line);}
   #out{display:none;margin-top:14px;}
@@ -32,17 +32,15 @@
   .line{background:#0f172a;color:#a5f3fc;padding:12px 13px;border-radius:8px;font-family:Consolas,Menlo,monospace;
     font-size:12.5px;word-break:break-all;line-height:1.65;white-space:pre-wrap;}
   .tip{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.7;}
-  .tip b{color:var(--c-warning);}
-  .warn{background:var(--c-warning-bg);border:1px solid var(--c-warning-border);border-radius:9px;padding:11px 13px;font-size:12.5px;
+  .tip b{color:#b45309;}
+  .warn{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:11px 13px;font-size:12.5px;
     color:#92400e;line-height:1.75;margin-top:12px;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th,td{border-bottom:1px solid #eef2f7;padding:7px 6px;text-align:left;}
   th{color:var(--muted);font-weight:700;font-size:12.5px;}
-  td.mono{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:var(--c-text-muted);word-break:break-all;}
+  td.mono{font-family:Consolas,Menlo,monospace;font-size:11.5px;color:#64748b;word-break:break-all;}
   ol{margin:0;padding-left:20px;}ol li{margin-bottom:6px;}
 </style>
-
-  <link rel="stylesheet" href="design-tokens.css">
 </head>
 <body>
 <div class="wrap">
