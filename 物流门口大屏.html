@@ -647,7 +647,7 @@
   .popcard{position:fixed;left:50%;top:50%;z-index:60;will-change:transform,opacity;
     transform:translate(-50%,-50%) translate(var(--dx,0px),var(--dy,0px)) scale(.45);
     opacity:0;
-    transition:transform var(--popDur,1.1s) cubic-bezier(.16,.84,.28,1),opacity .55s ease,filter var(--popDur,1.1s) ease;
+    transition:transform 1.1s cubic-bezier(.16,.84,.28,1),opacity .6s ease,filter 1.1s ease;
     filter:drop-shadow(0 0 0 rgba(255,150,40,0));
     width:92vw;max-width:1500px;}
   .popcard.lift{transform:translate(-50%,-50%) translate(var(--lx,0px),var(--ly,0px)) scale(.82);
@@ -655,15 +655,15 @@
     filter:drop-shadow(0 0 90px rgba(255,150,40,.9)) drop-shadow(0 0 26px rgba(255,205,90,.95));}
   .popcard.pop{transform:translate(-50%,-50%) translate(0,0) scale(1);
     opacity:1;
-    transition:transform var(--settleDur,1s) cubic-bezier(.2,.7,.25,1),opacity .55s ease,filter var(--settleDur,1s) ease;
+    transition:transform 1s cubic-bezier(.2,.7,.25,1),opacity .6s ease,filter 1s ease;
     filter:drop-shadow(0 0 72px rgba(255,160,45,.72)) drop-shadow(0 0 22px rgba(255,210,100,.9));}
   .popcard.pull{transform:translate(-50%,-50%) translate(var(--px,0px),var(--py,0px)) scale(.82);
     opacity:1;
-    transition:transform var(--pullDur,1s) cubic-bezier(.45,0,.7,.25),opacity .55s ease,filter var(--pullDur,1s) ease;
+    transition:transform 1s cubic-bezier(.45,0,.7,.25),opacity .6s ease,filter 1s ease;
     filter:drop-shadow(0 0 80px rgba(255,150,40,.85)) drop-shadow(0 0 24px rgba(255,205,90,.9));}
   .popcard.back{transform:translate(-50%,-50%) translate(var(--bx,0px),var(--by,0px)) scale(.45);
     opacity:0;
-    transition:transform var(--backDur,1.1s) cubic-bezier(.5,0,.75,.2),opacity .9s ease,filter var(--backDur,1.1s) ease;
+    transition:transform 1.1s cubic-bezier(.5,0,.75,.2),opacity 1s ease,filter 1.1s ease;
     filter:drop-shadow(0 0 0 rgba(255,150,40,0));}
   /* 起点光球：卡片被"抽出来"的那一下，进度条位置炸出一团橙金光 */
   .cspark{position:fixed;z-index:61;width:26px;height:26px;margin:-13px 0 0 -13px;
@@ -1812,10 +1812,9 @@ function markHotRows(rows, cardIds){
   }
 
   // 工序往前走的行 → 排队弹卡片（detectStepUp 已算好 from/to）
-  // ★ 队列上限 MAX_CARDS：一次推进很多个工序时不再排长队（超出的行仍有金色高亮，变动照样看得见）
   if (cardIds){
     for (const id in cardIds){
-      if (HOT_UNTIL[id] && cardQueue.length < MAX_CARDS){
+      if (HOT_UNTIL[id]){
         cardQueue.push({ id: id, from: cardIds[id].from, to: cardIds[id].to });
       }
     }
@@ -1914,20 +1913,12 @@ const BACK_MS   = 1100;     // 送回第二程：落到该行跳到的新格子
 const CARD_BACK = 2100;     // 送回总时长（PULL_MS + BACK_MS）
 const CARD_GAP  = 400;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
 const POP_MS    = 2100;     // 取出总时长（LIFT_MS + SETTLE_MS）
-/* ★ 同时多个工序推进时的"防卡死"策略（2026-11-04）：
-   卡片是严格串行播的（一个播完才下一个），单张约 9.2 秒。
-   一次推进 5 个工序 → 最后一张要等 46 秒，看起来就是"卡住了"。
-   所以：① 按当前队列长度给每张卡片动态压缩时长（挤的时候快放，队列清空后自动恢复慢速）；
-        ② 队列最多排 MAX_CARDS 张，超出的不再排队（那些行仍有金色高亮，变动照样看得见）。 */
-const MAX_CARDS = 3;        // 同时最多播几张卡片（其余靠金色高亮表达）
-const FAST_SCALE = 0.62;    // 队列≥3 时轨迹段的压缩系数
-const FAST_HOLD  = 1400;    // 队列≥3 时的停留时长（ms）
-const MID_HOLD   = 2600;    // 队列=2 时的停留时长（ms）
 
 let cardActive = null;      // 正在播放的卡片 { id, el, row }
 let cardQueue  = [];        // 待播队列（本轮可能多行同时推进，按顺序一个一个播）
 let cardTimer  = 0;
 let cardTimer2 = 0;         // 送回第二段（缩回落回原行）计时
+let cardBusy   = false;     // ★ 卡片动画全程占用（含送回落位那 2 秒）：动画没播完就不许重绘表格
 let cardBackdrop = null;    // 卡片背后的全屏遮罩
 let pendingRender = false;  // 卡片播放期间，render 被推迟的标记（卡片结束后补刷）
 const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
@@ -1966,7 +1957,16 @@ function pumpCards(){
   if (cardActive) return;                  // 上一张还在播，等它结束再取
   const item = cardQueue.shift();
   if (!item){ resumeScroll(); return; }
-  startCard(item);
+  // ★ 兜底：卡片启动若抛错，必须把 cardBusy 放开、把这张拆掉、继续下一张
+  //   （否则 cardBusy 永远为 true → 表格再也不重绘 → 整屏像"卡住"）
+  try{ startCard(item); }
+  catch(e){
+    try{ console.error('[bigscreen-card] start failed, skipped:', e && e.message ? e.message : e); }catch(_){}
+    cardBusy = false;
+    try{ if (cardActive && cardActive.el) cardActive.el.remove(); }catch(_){}
+    cardActive = null;
+    pumpCards();
+  }
 }
 
 /* 把某行快速滚到视口正中（不管当前滚到哪；卡片播放前先锁定目标行，保证看得见） */
@@ -1991,14 +1991,8 @@ function startCard(item){
   if (!tr){ pumpCards(); return; }          // 行不在了（极端情况），跳过这张
   pauseScrollNoReset();                      // 先停自动滚动，下面要锁行
   ensureRowVisible(tr);                      // ★ 锁定这一行（保证在视野里；它要停在新格子，不强行居中）
+  cardBusy = true;                           // ★ 占住：直到 endCard 真正收尾才释放
 
-  /* ★ 按队列长度定本次卡片的时长：挤的时候整体加速，别让"同时点多个"排成长队 */
-  const N = cardQueue.length + 1;            // 队列长度（含本张）
-  const fast = N >= 3;
-  const tm = fast
-    ? { lift: Math.round(LIFT_MS*FAST_SCALE), settle: Math.round(SETTLE_MS*FAST_SCALE),
-        hold: FAST_HOLD, pull: Math.round(PULL_MS*FAST_SCALE), back: Math.round(BACK_MS*FAST_SCALE) }
-    : { lift: LIFT_MS, settle: SETTLE_MS, hold: (N === 2 ? MID_HOLD : CARD_HOLD), pull: PULL_MS, back: BACK_MS };
 
   /* ★ 起点 = 旧位置那一行的「工序变动列」（进度条中心），按滚动差换算到当前视口 */
   const vw = window.innerWidth, vh = window.innerHeight;
@@ -2038,17 +2032,11 @@ function startCard(item){
 
   // 流体条从"旧进度"起步，再慢慢涨到"新进度"（演示工序推进的过程，放慢到 2s）
   const fq = el.querySelector(".flq");
-  if (fq){ fq.style.transition = "width " + (tm.hold + tm.settle) + "ms ease"; fq.style.width = (fromPct || 0) + "%"; }
-
-  // CSS 过渡时长由本次节奏决定（挤的时候整体加速，视觉与计时严格对齐）
-  el.style.setProperty("--popDur", (tm.lift/1000) + "s");
-  el.style.setProperty("--settleDur", (tm.settle/1000) + "s");
-  el.style.setProperty("--pullDur", (tm.pull/1000) + "s");
-  el.style.setProperty("--backDur", (tm.back/1000) + "s");
+  if (fq){ fq.style.transition = "width 2s ease"; fq.style.width = (fromPct || 0) + "%"; }
 
   document.body.appendChild(el);
   tr.classList.add("srcslot");              // 新格子先留金框：卡片随后要送到这里
-  cardActive = { id: item.id, el: el, row: tr, tm: tm };
+  cardActive = { id: item.id, el: el, row: tr };
 
   // 起点光球：进度条位置炸出橙金光，像"这一格被抽出来了"
   const sp = document.createElement("div");
@@ -2074,10 +2062,10 @@ function startCard(item){
       requestAnimationFrame(function(){
         if (fq) fq.style.width = (toPct || 6) + "%";   // 流体条慢慢涨到新进度
       });
-    }, tm.lift);
+    }, LIFT_MS);
   });
 
-  cardTimer = setTimeout(endCard, tm.lift + tm.settle + tm.hold);   // 取出 + 停留演示
+  cardTimer = setTimeout(endCard, POP_MS + CARD_HOLD);   // 取出 + 停留演示
 }
 
 function endCard(){
@@ -2100,7 +2088,6 @@ function endCard(){
   a.el.classList.remove("pop");
   a.el.classList.add("pull");                // 送回第一程：从正中斜向抽出（慢动作，看得出回哪去）
   if (cardBackdrop){ cardBackdrop.classList.remove("show"); }  // 遮罩同步淡出
-  const tm = a.tm || { pull: PULL_MS, back: BACK_MS };   // 本次的节奏（可能因排队而加速）
   cardTimer = setTimeout(function(){
     a.el.classList.remove("pull");
     a.el.classList.add("back");              // 送回第二程：落到新格子并淡出
@@ -2108,18 +2095,22 @@ function endCard(){
       try { a.el.remove(); } catch(e){}
       if (a.row) a.row.classList.remove("srcslot");   // 新格子的金框撤掉（镀金高亮仍在）
       if (cardBackdrop){ try { cardBackdrop.remove(); } catch(e){} cardBackdrop = null; }
+      cardBusy = false;                         // ★ 卡片彻底收尾，才允许重绘表格
       if (cardQueue.length) pumpCards();        // 还有排队的就接着播（按序一个一个）
       else {                                    // 最后一张播完
         resumeScroll();                          // 恢复自动滚动
         if (pendingRender){ pendingRender = false; render(); }  // 播放期间积压的刷新现在补上
       }
-    }, tm.back);
-  }, tm.pull);
+    }, BACK_MS);
+  }, PULL_MS);
 }
 
 
 function render(){
-  if (cardActive){ pendingRender = true; return; }   // 卡片正在播：推迟本轮重绘，等它结束再刷新（避免 2s 轮询把动画打断）
+  if (cardBusy){ pendingRender = true; return; }   // ★ 卡片正在播（含送回落位）：推迟本轮重绘，等它彻底结束再刷新。
+  //   ★ 2026-11-04 修「卡片卡在表格上」：原来这里只判 cardActive，而 endCard 一开头就把 cardActive 置空，
+  //   卡片却还要播 2 秒送回 → 这 2 秒里 render 插进来 → 表格重画把目标行替换掉 →
+  //   旧卡片终点算成 (0,0) 飞到左上角卡住，同时新卡片又起一张 → 两张卡片叠在表格上。
 
   rows = SL.boardRows(RECORDS, PROG);
 
@@ -2434,7 +2425,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104h";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104i";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
