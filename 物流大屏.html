@@ -680,16 +680,18 @@
     background:radial-gradient(circle,rgba(255,238,180,.95),rgba(255,160,45,.75) 45%,rgba(255,120,20,0) 72%);
     animation:cspark .8s ease-out forwards;}
   @keyframes cspark{0%{transform:scale(.2);opacity:.95}55%{transform:scale(3.2);opacity:.55}100%{transform:scale(5);opacity:0}}
-  .popcard .cwrap{position:relative;border-radius:18px;overflow:hidden;}
+  .popcard .cwrap{position:relative;border-radius:16px;overflow:hidden;}
+  /* ★ 卡片底改「实色」：原来半透明 + backdrop-filter 会把下面被遮罩模糊的表格透上来 → 整张卡发糊、重影。
+     现在用接近不透明的深色底，不用 backdrop-filter → 文字锐利、像素干净。 */
   .popcard .ctbl{width:100%;border-collapse:collapse;table-layout:fixed;
-    background:rgba(18,14,8,.96);border-radius:18px;overflow:hidden;
-    box-shadow:0 0 0 2px rgba(255,196,80,.95),0 0 46px rgba(255,150,40,.55),0 26px 80px rgba(0,0,0,.6);
-    backdrop-filter:blur(3px);
+    background:rgba(14,19,29,.985);border-radius:16px;overflow:hidden;
+    box-shadow:0 0 0 2px rgba(255,196,80,.95),0 22px 60px rgba(0,0,0,.6);
     font-size:30px;line-height:1.3;}
-  .popcard .ctbl td{font-size:inherit;vertical-align:middle;
-    color:#ffe3a4;text-shadow:0 0 14px rgba(255,165,45,.95),0 0 3px rgba(255,228,155,.95);}
+  /* ★ 去掉文字发光（text-shadow）——它把字边缘糊掉，看着像"像素差"；金色靠颜色本身，不再靠光晕 */
+  .popcard .ctbl td{font-size:inherit;vertical-align:middle;color:#ffe3a4;}
+  /* ★ 扫光压到很淡（原来 .5~.8 的白亮斜带正压在文字上 → 那一段字看不清） */
   .popcard .csweep{position:absolute;top:0;left:-45%;width:45%;height:100%;
-    background:linear-gradient(100deg,rgba(255,190,70,0),rgba(255,205,110,.5),rgba(255,238,180,.8),rgba(255,190,70,0));
+    background:linear-gradient(100deg,rgba(255,190,70,0),rgba(255,205,110,.14),rgba(255,238,180,.22),rgba(255,190,70,0));
     pointer-events:none;animation:csweep 1.7s ease-in-out infinite;}
   @keyframes csweep{0%{left:-45%}58%{left:100%}100%{left:100%}}
   .popcard .cbanner{position:absolute;left:50%;top:0;
@@ -1769,6 +1771,8 @@ function flipRows(rows, prev, cardIds){
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
 const CARD_HOLD = 5000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
+const CARD_KEEP = [0,1,4,5,3]; // ★ 卡片只保留这几列（序号/客户/单号/工序/吨位）→ 列宽归一化后每列空间翻倍，字号才能真放大
+const CARD_FS   = 1.5;        // ★ 卡片字号放大倍数（改 font-size 重新排版渲染，不是 transform 缩放 → 像素清晰）
 const LIFT_MS   = 1100;     // 取出第一程：从工序条斜向飞起（ms，慢：要看清从哪出来）
 const SETTLE_MS = 1000;     // 取出第二程：落定屏幕正中
 const PULL_MS   = 1000;     // 送回第一程：从正中斜向抽出
@@ -1872,7 +1876,14 @@ function startCard(item){
   const srcTbl = $("tbl");
   const colg = srcTbl.querySelector("colgroup");
   const el = document.createElement("div");
-  el.className = "popcard";                  // 居中 + 最大化交给 CSS（left/top/width 不写内联）
+  el.className = "popcard";                  // 居中交给 CSS（left/top），宽度/字号下面按原表等比算
+
+  /* ★ 尺寸：卡片铺满屏宽（比表格更宽也行），字号靠改 font-size 放大 → 浏览器按新字号重新排版渲染，
+     像素清晰、文字完整；**不用 transform:scale**（那才是「放大后像素差、文字被截断」的根源）。
+     列宽全是百分比 → 卡片变宽，列同比变宽 → 放不下的文字这次能显示全。 */
+  const baseFs = parseFloat(getComputedStyle(srcTbl).fontSize) || 16;
+  el.style.width = Math.max(320, vw - 48) + "px";
+  el.style.maxWidth = "none";
   el.style.setProperty("--dx", (sx - cx) + "px");
   el.style.setProperty("--dy", (sy - cy) + "px");
   el.style.setProperty("--lx", ((sx - cx) * 0.62 - 40) + "px");   // 斜向飞起点：再往上/往左偏一点
@@ -1893,7 +1904,36 @@ function startCard(item){
       '<div class="csweep"></div>' +          // 整行扫过的橙金高光（模仿抽卡光爆）
     '</div>';
 
-  // 流体条从"旧进度"起步，再慢慢涨到"新进度"（演示工序推进的过程；时长随本次节奏一起缩放）
+  /* ★ 裁列：只留关键列（客户/单号/工序/吨位…），并把它们的宽度归一化 → 每列空间翻倍，
+     字号就能真正放大到 CARD_FS 倍而**不被截断**；同时字号是改 font-size 重新排版渲染的，不是缩放 → 像素清晰。 */
+  const ctbl0 = el.querySelector(".ctbl");
+  if (ctbl0){
+    const cg = ctbl0.querySelector("colgroup");
+    if (cg){
+      const cols = [...cg.querySelectorAll("col")];
+      const keep = cols.filter((c,i)=>CARD_KEEP.indexOf(i) >= 0);
+      const sum = keep.reduce((s,c)=>s+(parseFloat(c.style.width)||0),0) || 1;
+      keep.forEach(c=>{ c.style.width = (((parseFloat(c.style.width)||0)/sum)*100).toFixed(3) + "%"; });
+      cols.forEach((c,i)=>{ if(CARD_KEEP.indexOf(i) < 0) c.remove(); });
+    }
+    const tds = [...ctbl0.querySelectorAll("tbody > tr > td")];
+    tds.forEach((td,i)=>{ if(CARD_KEEP.indexOf(i) < 0) td.remove(); });
+    ctbl0.style.fontSize = (baseFs * CARD_FS).toFixed(2) + "px";
+    // ★ 克隆过来的单元格里带着原表算好的内联 font-size（客户名自适应等）→ 会压过卡片新字号。
+    //   这里清掉，让它们统一继承卡片字号（真正放大）；放不下的长文本再逐档微缩兜底。
+    ctbl0.querySelectorAll("td, td *").forEach(n=>{ if(n.style && n.style.fontSize) n.style.fontSize = ""; });
+    // 统一字號：非工序列的文本一律继承卡片字号（工序条内部保留它自己的设计字号）
+    ctbl0.querySelectorAll("td > *").forEach(n=>{ if(!n.closest(".flw")) n.style.fontSize = "inherit"; });
+    ctbl0.querySelectorAll("td").forEach(td=>{
+      const el = td.querySelector(".cust") || td.firstElementChild;
+      if(!el || !el.clientWidth) return;
+      let fs = parseFloat(getComputedStyle(el).fontSize) || (baseFs * CARD_FS);
+      let guard = 0;
+      while(el.scrollWidth > el.clientWidth + 1 && fs > 13 && guard++ < 20){ fs -= 1; el.style.fontSize = fs + "px"; }
+    });
+  }
+
+  // 流体条从"旧进度"起步，再慢慢涨到"新进度"（演示工序推进的过程）
   const fq = el.querySelector(".flq");
   if (fq){ fq.style.transition = "width 2s ease"; fq.style.width = (fromPct || 0) + "%"; }
 
@@ -2366,7 +2406,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104j";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261104k";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
