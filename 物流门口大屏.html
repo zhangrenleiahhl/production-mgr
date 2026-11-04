@@ -637,26 +637,31 @@
      本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
      不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。 */
 
-  .popcard{position:fixed;left:0;top:0;z-index:60;will-change:transform,opacity;
-    transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .5s ease,filter .5s ease;
-    filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));}
-  .popcard.pop{transform:translateY(-10px) scale(1.035);
-    filter:drop-shadow(0 22px 46px rgba(0,0,0,.65));}
+  /* 卡片：直接居中在屏幕正中并最大化（与行原位置脱钩），演示完淡出露出已居中的真实行 */
+  .popcard{position:fixed;left:50%;top:50%;z-index:60;will-change:transform,opacity;
+    transform:translate(-50%,-50%) scale(1);
+    transition:transform 1s cubic-bezier(.2,.8,.2,1),opacity 1s ease,filter 1s ease;
+    filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));
+    width:92vw;max-width:1500px;}
+  .popcard.pop{transform:translate(-50%,-50%) scale(1.05);
+    filter:drop-shadow(0 34px 80px rgba(0,0,0,.7));}
   .popcard .ctbl{width:100%;border-collapse:collapse;table-layout:fixed;
-    background:rgba(13,19,29,.94);border-radius:12px;overflow:hidden;
-    box-shadow:0 0 0 1px rgba(255,209,102,.55),0 18px 50px rgba(0,0,0,.55);
-    backdrop-filter:blur(2px);}
+    background:rgba(13,19,29,.96);border-radius:18px;overflow:hidden;
+    box-shadow:0 0 0 2px rgba(255,209,102,.7),0 26px 80px rgba(0,0,0,.6);
+    backdrop-filter:blur(3px);
+    font-size:30px;line-height:1.3;}
+  .popcard .ctbl td{font-size:inherit;vertical-align:middle;}
   .popcard .cbanner{position:absolute;left:50%;top:0;
-    transform:translate(-50%,-100%) translateY(-6px);
-    display:flex;align-items:center;gap:10px;white-space:nowrap;
-    padding:5px 14px;border-radius:999px;font-weight:800;font-size:14px;letter-spacing:.5px;
-    color:#fff;background:linear-gradient(100deg,rgba(255,199,64,.95),rgba(255,150,0,.95));
+    transform:translate(-50%,-100%) translateY(-8px);
+    display:flex;align-items:center;gap:14px;white-space:nowrap;
+    padding:8px 22px;border-radius:999px;font-weight:800;font-size:24px;letter-spacing:.5px;
+    color:#fff;background:linear-gradient(100deg,rgba(255,199,64,.96),rgba(255,150,0,.96));
     border:1px solid rgba(255,240,190,.9);
-    box-shadow:0 6px 22px rgba(255,150,0,.45);
-    opacity:0;transition:opacity .42s ease,transform .42s cubic-bezier(.2,.8,.2,1);}
-  .popcard.pop .cbanner{opacity:1;transform:translate(-50%,-100%) translateY(-10px);}
-  .popcard .cbanner .carrow{font-size:16px;animation:cbPulse 1s ease-in-out infinite;}
-  @keyframes cbPulse{0%,100%{opacity:.55;transform:translateX(0)}50%{opacity:1;transform:translateX(4px)}}
+    box-shadow:0 8px 28px rgba(255,150,0,.5);
+    opacity:0;transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1);}
+  .popcard.pop .cbanner{opacity:1;transform:translate(-50%,-100%) translateY(-14px);}
+  .popcard .cbanner .carrow{font-size:26px;animation:cbPulse 1.8s ease-in-out infinite;}
+  @keyframes cbPulse{0%,100%{opacity:.55;transform:translateX(0)}50%{opacity:1;transform:translateX(6px)}}
   @media (prefers-reduced-motion:reduce){.popcard,.popcard .cbanner{transition:none}.popcard .cbanner .carrow{animation:none}}
 
   /* 状态列已删（2026-09-21）：工序状态只由「行底色 + 左色条 + 工序流体条」表达，
@@ -1836,22 +1841,26 @@ function flipRows(rows, prev, cardIds){
   }
 }
 
-/* ---------- 工序更新 · 卡片弹出动画（2026-11-04）------------
-   工人扫一下码 → 这一行工序往前走一步 → 这一行从表格里"拎出来"变成一张悬浮卡片：
-     ① 卡片与表格里它的最终位置完全对齐，带阴影/金边/轻微放大，像被拎起来（金边呼应金色高亮）；
-     ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度涨到新进度；
-     ③ 演示完，卡片渐变缩回、落回表格里它的最终位置（"完成多排最前"此刻已经就位）。
+/* ---------- 工序更新 · 卡片弹出动画（2026-11-04 改：居中最大化 + 放慢）------------
+   工人扫一下码 → 这一行工序往前走一步 → 不管大屏当前滚到哪，先把这一行"快速滚到视口正中"锁定，
+   然后弹出一张居中屏幕、最大化的悬浮卡片：
+     ① 卡片直接居中在屏幕正中并最大化（与行原位置脱钩），带阴影/金边/放大；
+     ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度慢慢涨到新进度；
+     ③ 演示完，卡片渐变淡出，露出已经被锁定在正中、镀金高亮的真实行。
    本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
-   不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。 */
+   不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。
+   播放中若 2 秒轮询又来新数据：render 会延迟到卡片结束再刷新，避免把动画打断。 */
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
-const CARD_HOLD = 1100;     // 卡片弹出后停留、演示"上一步→下一步"的时长（ms）
-const CARD_BACK = 520;      // 卡片渐变落回表格的时长（ms，与 CSS transition 对齐）
-const CARD_GAP  = 260;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
+const CARD_HOLD = 2400;     // 卡片居中弹出后停留、演示"上一步→下一步"的时长（ms，放慢）
+const CARD_BACK = 1000;     // 卡片渐变落回的时长（ms，须与 CSS .popcard transition 对齐，放慢）
+const CARD_GAP  = 400;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
+const POP_MS    = 1000;     // 卡片弹出（放大）耗时，须与 CSS .popcard transition 时长一致
 
 let cardActive = null;      // 正在播放的卡片 { id, el, row }
 let cardQueue  = [];        // 待播队列（本轮可能多行同时推进）
 let cardTimer  = 0;
+let pendingRender = false;  // 卡片播放期间，render 被推迟的标记（卡片结束后补刷）
 const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
 
 /* 识别本轮里"工序往前走"的行：和上一轮 PREV_ROW 比，step 变大即算 */
@@ -1889,10 +1898,23 @@ function pumpCards(){
   startCard(item);
 }
 
+/* 把某行快速滚到视口正中（不管当前滚到哪；卡片播放前先锁定目标行，保证看得见） */
+function centerRow(tr){
+  if (!boxEl) return;
+  const max = boxEl.scrollHeight - boxEl.clientHeight;
+  if (max <= 0) return;                      // 内容没溢出，本就全看见，不用滚
+  const bRect = boxEl.getBoundingClientRect();
+  const rRect = tr.getBoundingClientRect();
+  let target = boxEl.scrollTop + (rRect.top - bRect.top) - (boxEl.clientHeight - rRect.height) / 2;
+  target = Math.max(0, Math.min(max, target));
+  boxEl.scrollTop = target;                  // 瞬时锁定（快）
+}
+
 function startCard(item){
   const tr = $("tbody").querySelector('tr[data-rid="' + item.id + '"]');
   if (!tr){ pumpCards(); return; }          // 行不在了（极端情况），跳过这张
-  const rect = tr.getBoundingClientRect();
+  pauseScrollNoReset();                      // 先停自动滚动，下面要锁行
+  centerRow(tr);                             // ★ 不管滚到哪，先把这一行快速滚到视口正中锁定
   const fromPct = Math.round((item.from / 3) * 100);
   const toPct   = Math.round((item.to   / 3) * 100);
 
@@ -1900,11 +1922,7 @@ function startCard(item){
   const srcTbl = $("tbl");
   const colg = srcTbl.querySelector("colgroup");
   const el = document.createElement("div");
-  el.className = "popcard";
-  el.style.left = rect.left + "px";
-  el.style.top  = rect.top + "px";
-  el.style.width  = rect.width + "px";
-  el.style.height = rect.height + "px";
+  el.className = "popcard";                  // 居中 + 最大化交给 CSS（left/top/width 不写内联）
 
   const fromName = SL.STEP_NAME[item.from] || ("工序" + item.from);
   const toName   = SL.STEP_NAME[item.to]   || ("工序" + item.to);
@@ -1918,23 +1936,22 @@ function startCard(item){
     '<table class="ctbl">' + (colg ? colg.outerHTML : "") +
       '<tbody>' + tr.innerHTML + '</tbody></table>';
 
-  // 流体条从"旧进度"起步，再涨到"新进度"（演示工序推进的过程）
+  // 流体条从"旧进度"起步，再慢慢涨到"新进度"（演示工序推进的过程，放慢到 2s）
   const fq = el.querySelector(".flq");
-  if (fq){ fq.style.transition = "width .9s ease"; fq.style.width = (fromPct || 0) + "%"; }
+  if (fq){ fq.style.transition = "width 2s ease"; fq.style.width = (fromPct || 0) + "%"; }
 
   document.body.appendChild(el);
-  tr.style.visibility = "hidden";          // 原行隐身，看着像被卡片拎起来了
+  tr.style.visibility = "hidden";          // 原行隐身；卡片居中盖住它，淡出后它已在正中
   cardActive = { id: item.id, el: el, row: tr };
-  pauseScrollNoReset();                     // 卡片播放期间暂停自动滚动，避免错位
 
   requestAnimationFrame(function(){
-    el.classList.add("pop");                 // 弹出（放大 + 阴影 + 横幅淡入）
+    el.classList.add("pop");                 // 弹出（居中放大 + 阴影 + 横幅淡入）
     requestAnimationFrame(function(){
-      if (fq) fq.style.width = (toPct || 6) + "%";   // 流体条涨到新进度
+      if (fq) fq.style.width = (toPct || 6) + "%";   // 流体条慢慢涨到新进度
     });
   });
 
-  cardTimer = setTimeout(endCard, 460 + CARD_HOLD);   // 弹起(0.45s) + 停留演示
+  cardTimer = setTimeout(endCard, POP_MS + CARD_HOLD);   // 弹起 + 停留演示
 }
 
 function endCard(){
@@ -1946,12 +1963,16 @@ function endCard(){
   cardTimer = setTimeout(function(){
     try { a.el.remove(); } catch(e){}
     if (cardQueue.length) pumpCards();        // 还有排队的就接着播
-    else resumeScroll();                      // 否则恢复滚动
+    else {                                    // 最后一张播完
+      resumeScroll();                          // 恢复自动滚动
+      if (pendingRender){ pendingRender = false; render(); }  // 播放期间积压的刷新现在补上
+    }
   }, CARD_BACK);
 }
 
 
 function render(){
+  if (cardActive){ pendingRender = true; return; }   // 卡片正在播：推迟本轮重绘，等它结束再刷新（避免 2s 轮询把动画打断）
 
   rows = SL.boardRows(RECORDS, PROG);
 
@@ -2264,7 +2285,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261104b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
