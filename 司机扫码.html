@@ -143,9 +143,9 @@ const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KE
 const KEY_PLANS_STAMP = "shipping_plans_stamp_v1", KEY_DB_STAMP = "shipping_db_stamp_v1", KEY_PROG_STAMP = "shipping_progress_stamp_v1";
 const $ = (id) => document.getElementById(id);
 const esc = SL.esc;
-const POLL_MS = 500;     // 2026-11-03：10s->0.5s（司机签到码要近实时；加 pullingProg 重叠守卫防堆叠）
-let pullingProg = false;  // 2026-11-03：0.5s 高频轮询重叠守卫（上一轮没回就跳过本轮），避免并发戳查询/重复渲染
-const APP_VER = "20261103a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 drv 字段同步改
+const POLL_MS = 2000;    // 2026-11-04：0.5s->2s（用户要求统一刷新频率；加 pullingProg 重叠守卫防堆叠）
+let pullingProg = false;  // 2026-11-04：2s 高频轮询重叠守卫（上一轮没回就跳过本轮），避免并发戳查询/重复渲染
+const APP_VER = "20261104a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 drv 字段同步改
 
 let RECORDS = [], PROG = {}, ROWS = [], SEARCH = "", lastFp = "";
 let DB = [], IDX = { byPair: {}, byCust: {}, byModel: {} };   // 物料库 + 送达方代码索引（保密用）
@@ -430,7 +430,7 @@ function boot(){
   pull();
   setInterval(() => {
     if (document.hidden) return;
-    if (pullingProg) return;                       // 0.5s 轮询：上一轮没回就跳过本轮，避免并发戳查询/重复渲染
+    if (pullingProg) return;                       // 2s 轮询：上一轮没回就跳过本轮，避免并发戳查询/重复渲染
     pullingProg = true;
     pull().finally(() => { pullingProg = false; });
   }, POLL_MS);
