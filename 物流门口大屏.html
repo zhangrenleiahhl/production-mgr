@@ -1982,6 +1982,7 @@ let cardQueue  = [];        // 待播队列（本轮可能多行同时推进，�
 let cardTimer  = 0;
 let cardTimer2 = 0;         // 送回第二段（缩回落回原行）计时
 let cardBusy   = false;     // ★ 卡片动画全程占用（含送回落位那 2 秒）：动画没播完就不许重绘表格
+let cardSeek   = false;     // ★ 正在「快速滚动定位」目标行：这段时间自动滚动也别来抢
 let cardBackdrop = null;    // 卡片背后的全屏遮罩
 let pendingRender = false;  // 卡片播放期间，render 被推迟的标记（卡片结束后补刷）
 const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
@@ -2032,29 +2033,116 @@ function pumpCards(){
   }
 }
 
-/* 把某行快速滚到视口正中（不管当前滚到哪；卡片播放前先锁定目标行，保证看得见） */
-/* ★ 锁定这一行：保证它在视野里即可，**不强行居中**——
-   它要停在"工序推进后跳到的新格子"上，卡片随后会送到那个位置 */
-function ensureRowVisible(tr){
-  if (!boxEl) return 0;
+/* ---------- ★ 快速滚动定位（2026-11-06） ----------
+   大屏正滚着的时候，"工序变了"的那个客户往往根本不在画面里。
+   以前是「一步跳过去」（画面闪一下，客户来不及看到自己在哪儿）；
+   现在改成「滚动条快速滑过去」——**滑到位了再开始卡片动画**，
+   送回时也一样：先定位到目标行再落位（否则卡片飞到屏幕外，等于白演）。 */
+const SEEK_MIN_MS = 200;    // 定位最短也要这么长（一眼能看清"在滚"）
+const SEEK_MAX_MS = 560;    // 再远也不超过这么久（不能拖沓）
+
+/* 取「跳位动画结束后」的最终位置：FLIP 跳位期间行身上挂着 translateY，
+   直接量 rect 量到的是半路位置 → 定位会差一点。这里把当前位移减掉。 */
+function rowFinalRect(tr){
+  const r = tr.getBoundingClientRect();
+  let ty = 0;
+  try{
+    const tf = window.getComputedStyle(tr).transform;
+    if (tf && tf !== "none"){
+      const m = tf.match(/matrix\(([^)]+)\)/);
+      if (m){
+        const p = m[1].split(",").map(Number);
+        if (p.length >= 6 && isFinite(p[5])) ty = p[5];   // matrix(a,b,c,d,e,f)：f = translateY
+      }
+    }
+  }catch(e){}
+  return { top: r.top - ty, bottom: r.bottom - ty, height: r.height };
+}
+
+/* 算出「让这一行刚好进画面」要滚到哪儿；已经在画面里 → 返回 null（不用滚） */
+function rowSeekTarget(tr){
+  if (!boxEl || !tr) return null;
   const bRect = boxEl.getBoundingClientRect();
-  const rRect = tr.getBoundingClientRect();
+  const fr = rowFinalRect(tr);
   const max = Math.max(0, boxEl.scrollHeight - boxEl.clientHeight);
   let target = boxEl.scrollTop;
-  if (rRect.top < bRect.top + 4)              target = boxEl.scrollTop + (rRect.top - bRect.top) - 8;
-  else if (rRect.bottom > bRect.bottom - 4)   target = boxEl.scrollTop + (rRect.bottom - bRect.bottom) + 8;
+  if (fr.top < bRect.top + 4)              target = boxEl.scrollTop + (fr.top - bRect.top) - 8;
+  else if (fr.bottom > bRect.bottom - 4)   target = boxEl.scrollTop + (fr.bottom - bRect.bottom) + 8;
+  else return null;                            // 已经在画面里 → 不用定位
   target = Math.max(0, Math.min(max, target));
-  const delta = target - boxEl.scrollTop;
-  if (delta) boxEl.scrollTop = target;
-  return delta;                                // 滚动量：供起点旧坐标修正
+  if (Math.abs(target - boxEl.scrollTop) < 1) return null;
+  return target;
+}
+
+/* 把滚动条快速滑到 target，**滑完**才回调 cb（没定位到位绝不开演） */
+function seekScrollTo(target, cb){
+  const from = boxEl.scrollTop;
+  const dist = Math.abs(target - from);
+  if (dist < 1){ cb(); return; }               // 本来就到位了
+  const now = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  const dur = Math.max(SEEK_MIN_MS, Math.min(SEEK_MAX_MS, 130 + dist * 0.5));
+  const t0 = now();
+  const raf = (typeof requestAnimationFrame === "function") ? requestAnimationFrame
+           : function(cb2){ return setTimeout(function(){ cb2(0); }, 16); };
+  const caf = (typeof cancelAnimationFrame === "function") ? cancelAnimationFrame
+           : function(id){ clearTimeout(id); };
+  let rafId = 0, bail = 0, done = false;
+  const finish = function(){
+    if (done) return;
+    done = true;
+    if (rafId) caf(rafId);
+    if (bail) clearTimeout(bail);
+    try { boxEl.scrollTop = target; } catch(e){}
+    try { cb(); } catch(e){ console.error('[bigscreen-card] 定位完成回调出错:', e && e.message ? e.message : e); }
+  };
+  const step = function(){
+    if (done) return;
+    const p = Math.min(1, (now() - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);           // easeOutCubic：起步快、末尾稳
+    boxEl.scrollTop = from + (target - from) * e;
+    if (p >= 1) finish();
+    else rafId = raf(step);
+  };
+  rafId = raf(step);
+  bail = setTimeout(finish, dur + 300);        // 兜底：万一 rAF 掉了也一定往下走
+}
+
+/* 定位某一行；到位（或本来就在画面里）后回调 cb */
+function seekRowIntoView(tr, cb){
+  const target = rowSeekTarget(tr);
+  if (target == null){ cb(); return; }
+  seekScrollTo(target, cb);
 }
 
 function startCard(item){
   const tr = $("tbody").querySelector('tr[data-rid="' + item.id + '"]');
   if (!tr){ pumpCards(); return; }          // 行不在了（极端情况），跳过这张
-  pauseScrollNoReset();                      // 先停自动滚动，下面要锁行
-  ensureRowVisible(tr);                      // ★ 锁定这一行（保证在视野里；它要停在新格子，不强行居中）
-  cardBusy = true;                           // ★ 占住：直到 endCard 真正收尾才释放
+  cardBusy = true;                           // ★ 先占住：定位期间也不许重绘（行引用必须保持有效）
+  pauseScrollNoReset();                      // 先停自动滚动，下面要定位
+  cardSeek = true;                           // ★ 定位中：自动滚动别来抢
+  /* ★ 关键（2026-11-06）：客户不在画面里时，**先快速滚动定位到这一行，定位到位再开始动画**
+     —— 原来是一步跳过去（客户根本来不及看到自己在哪儿），现在改成看得见的"滚动条滑过去"，
+        滑到位了卡片才起飞。送回时同理（见 endCard）。 */
+  seekRowIntoView(tr, function(){
+    cardSeek = false;
+    if (!tr.isConnected){                   // 极端情况：定位期间这一行被换掉了 → 放弃这张
+      cardBusy = false;
+      pumpCards();
+      return;
+    }
+    try { playCard(item, tr); }
+    catch(e){
+      console.error('[bigscreen-card] 卡片启动失败，已跳过:', e && e.message ? e.message : e);
+      cardBusy = false;
+      try { if (cardActive && cardActive.el) cardActive.el.remove(); }catch(_){}
+      cardActive = null;
+      pumpCards();
+    }
+  });
+}
+
+/* 定位完成 → 真正开始演卡片（从工序变动列取出 → 飞向屏幕正中 → 落回新格子） */
+function playCard(item, tr){
 
 
   /* ★ 起点 = 旧位置那一行的「工序变动列」（进度条中心），按滚动差换算到当前视口 */
@@ -2303,39 +2391,55 @@ function fireBurst(){
 
 function endCard(){
   if (!cardActive) return;
-  const a = cardActive; cardActive = null;
+  const a = cardActive;
 
-  /* ★ 终点 = 该行「工序推进后跳到的新格子」：FLIP 跳位已结束，此刻的 rect 就是最终位置 */
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const cx = vw / 2, cy = vh / 2;
-  let bx = 0, by = 0;
-  if (a.row){
-    const nr = a.row.getBoundingClientRect();
-    bx = (nr.left + nr.width / 2) - cx;
-    by = (nr.top + nr.height / 2) - cy;
+  /* ★ 送回阶段（2026-11-06）：目标行不在画面里时，**先快速滚动定位到它，定位到位再落位**
+     —— 否则卡片会飞到屏幕外看不见，送回等于白演。 */
+  const doBack = function(){
+    if (cardActive === a) cardActive = null;
+    /* ★ 终点 = 该行「工序推进后跳到的新格子」：FLIP 跳位已结束，此刻的 rect 就是最终位置 */
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cx = vw / 2, cy = vh / 2;
+    let bx = 0, by = 0;
+    if (a.row && a.row.isConnected){
+      const nr = a.row.getBoundingClientRect();
+      bx = (nr.left + nr.width / 2) - cx;
+      by = (nr.top + nr.height / 2) - cy;
+    }
+    a.el.style.setProperty("--bx", bx + "px");
+    a.el.style.setProperty("--by", by + "px");
+    a.el.style.setProperty("--px", (bx * 0.5 - 20) + "px");   // 斜向抽出点：朝新格子方向
+    a.el.style.setProperty("--py", (by * 0.5 - 70) + "px");
+    a.el.classList.remove("pop");
+    a.el.classList.add("pull");                // 送回第一程：从正中斜向抽出（慢动作，看得出回哪去）
+    if (cardBackdrop){ cardBackdrop.classList.remove("show"); }  // 遮罩同步淡出
+    cardTimer = setTimeout(function(){
+      a.el.classList.remove("pull");
+      a.el.classList.add("back");              // 送回第二程：落到新格子并淡出
+      cardTimer2 = setTimeout(function(){
+        try { a.el.remove(); } catch(e){}
+        if (a.row) a.row.classList.remove("srcslot");   // 新格子的金框撤掉（镀金高亮仍在）
+        if (cardBackdrop){ try { cardBackdrop.remove(); } catch(e){} cardBackdrop = null; }
+        cardBusy = false;                         // ★ 卡片彻底收尾，才允许重绘表格
+        if (cardQueue.length) pumpCards();        // 还有排队的就接着播（按序一个一个）
+        else {                                    // 最后一张播完
+          resumeScroll();                          // 恢复自动滚动
+          if (pendingRender){ pendingRender = false; render(); }  // 播放期间积压的刷新现在补上
+        }
+      }, BACK_MS);
+    }, PULL_MS);
+  };
+
+  if (a.row && a.row.isConnected){
+    cardSeek = true;
+    pauseScrollNoReset();
+    seekRowIntoView(a.row, function(){
+      cardSeek = false;
+      doBack();
+    });
+  } else {
+    doBack();
   }
-  a.el.style.setProperty("--bx", bx + "px");
-  a.el.style.setProperty("--by", by + "px");
-  a.el.style.setProperty("--px", (bx * 0.5 - 20) + "px");   // 斜向抽出点：朝新格子方向
-  a.el.style.setProperty("--py", (by * 0.5 - 70) + "px");
-  a.el.classList.remove("pop");
-  a.el.classList.add("pull");                // 送回第一程：从正中斜向抽出（慢动作，看得出回哪去）
-  if (cardBackdrop){ cardBackdrop.classList.remove("show"); }  // 遮罩同步淡出
-  cardTimer = setTimeout(function(){
-    a.el.classList.remove("pull");
-    a.el.classList.add("back");              // 送回第二程：落到新格子并淡出
-    cardTimer2 = setTimeout(function(){
-      try { a.el.remove(); } catch(e){}
-      if (a.row) a.row.classList.remove("srcslot");   // 新格子的金框撤掉（镀金高亮仍在）
-      if (cardBackdrop){ try { cardBackdrop.remove(); } catch(e){} cardBackdrop = null; }
-      cardBusy = false;                         // ★ 卡片彻底收尾，才允许重绘表格
-      if (cardQueue.length) pumpCards();        // 还有排队的就接着播（按序一个一个）
-      else {                                    // 最后一张播完
-        resumeScroll();                          // 恢复自动滚动
-        if (pendingRender){ pendingRender = false; render(); }  // 播放期间积压的刷新现在补上
-      }
-    }, BACK_MS);
-  }, PULL_MS);
 }
 
 
@@ -2503,7 +2607,7 @@ function stopScroll(){
 
 function setupScroll(){
 
-  if (cardActive) return;                        // 卡片播放期间不抢滚动（由卡片自己暂停）
+  if (cardBusy || cardActive || cardSeek) return;   // 卡片播放/定位期间不抢滚动（由卡片自己暂停）
 
   const max = boxEl.scrollHeight - boxEl.clientHeight;
 
@@ -2658,7 +2762,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261105h";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261106a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
