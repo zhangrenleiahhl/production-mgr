@@ -682,6 +682,42 @@
     background:radial-gradient(circle,rgba(255,238,180,.95),rgba(255,160,45,.75) 45%,rgba(255,120,20,0) 72%);
     animation:cspark .8s ease-out forwards;}
   @keyframes cspark{0%{transform:scale(.2);opacity:.95}55%{transform:scale(3.2);opacity:.55}100%{transform:scale(5);opacity:0}}
+  /* ===== 金光爆（2026-11-05）=====
+     参照三国「寻访」抽卡特效：卡片落到正中的瞬间，从卡片位置炸开一圈**金色放射光芒**
+     （射线 + 火焰云雾），卡片同时白热闪一下；光芒散尽后回落成厚实的燃烧金晕。
+     性能要点（4K 大屏不掉帧）：
+       ① .cburst 只动 transform / opacity —— 光芒是 conic 渐变 + 径向遮罩，一次绘制后
+          被合成器搬运，全程不重算高斯模糊（不像 filter:drop-shadow 每帧重做模糊）；
+       ② 卡片白热用独立子层 .cflash（will-change:opacity），同样只动 opacity；
+       ③ 常态金晕仍由 .popcard 的多层 box-shadow 承担（同样一次绘制）。 */
+  .cburst{position:fixed;left:50%;top:50%;z-index:59;pointer-events:none;opacity:0;
+    width:72vmax;height:72vmax;margin:-36vmax 0 0 -36vmax;
+    transform:scale(.30,.10) rotate(-6deg);
+    background:
+      repeating-conic-gradient(from 0deg at 50% 50%,
+        rgba(255,240,192,.62) 0deg 1.6deg, rgba(255,188,80,.28) 1.6deg 4.6deg,
+        rgba(255,150,40,.08) 4.6deg 7.6deg, rgba(255,150,40,0) 7.6deg 12.5deg),
+      radial-gradient(ellipse at 50% 50%,
+        rgba(255,255,250,1) 0%, rgba(255,245,200,.94) 10%, rgba(255,208,115,.66) 26%,
+        rgba(255,162,58,.32) 45%, rgba(255,122,22,.12) 63%, rgba(255,110,15,0) 79%);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 50%,#000 0%,#000 22%,rgba(0,0,0,.60) 43%,rgba(0,0,0,.20) 61%,transparent 77%);
+    mask-image:radial-gradient(ellipse at 50% 50%,#000 0%,#000 22%,rgba(0,0,0,.60) 43%,rgba(0,0,0,.20) 61%,transparent 77%);
+    will-change:transform,opacity;}
+  @keyframes cburstGo{
+    0%{opacity:0;transform:scale(.26,.09) rotate(-16deg);}
+    14%{opacity:1;transform:scale(.60,.26) rotate(-6deg);}
+    50%{opacity:.88;transform:scale(1.30,.58) rotate(4deg);}
+    100%{opacity:0;transform:scale(1.88,.86) rotate(13deg);}}
+  .cburst.go{animation:cburstGo .95s cubic-bezier(.12,.72,.22,1) .35s forwards;}
+  /* 卡片白热闪：独立子层 + will-change:opacity → 只动 opacity，不触发卡片整层重绘 */
+  .popcard .cflash{position:absolute;inset:0;border-radius:16px;z-index:2;pointer-events:none;opacity:0;
+    background:linear-gradient(180deg,rgba(255,252,236,.92),rgba(255,208,112,.82));
+    box-shadow:inset 0 0 70px 22px rgba(255,246,206,.95);
+    will-change:opacity;}
+  .popcard .cflash.go{animation:cflash .58s cubic-bezier(.2,.6,.3,1) .35s forwards;}
+  @keyframes cflash{0%{opacity:0}28%{opacity:.84}100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){.cburst{display:none}.popcard .cflash.go{animation:none}}
+
   .popcard .cwrap{position:relative;border-radius:18px;overflow:hidden;}
   /* ★ 超清三处改动（2026-11-04）：
      ① 卡片底改「实色」：原来 rgba(18,14,8,.96) 半透明 + backdrop-filter:blur(3px)，
@@ -2067,7 +2103,8 @@ function startCard(item){
       '<table class="ctbl">' + (colg ? colg.outerHTML : "") +
         '<tbody>' + tr.innerHTML + '</tbody></table>' +
       '<div class="csweep"></div>' +          // 整行扫过的橙金高光（模仿抽卡光爆）
-    '</div>';
+    '</div>' +
+    '<div class="cflash"></div>';             // ★ 金光爆：卡片白热闪一层（只动 opacity，不重绘卡片）
 
   // 流体条从"旧进度"起步，再慢慢涨到"新进度"（演示工序推进的过程，放慢到 2s）
   /* ★ 裁列：只留关键列（客户/单号/工序/吨位…），并把它们的宽度归一化 → 每列空间翻倍，
@@ -2144,6 +2181,10 @@ function startCard(item){
     cardTimer2 = setTimeout(function(){
       el.classList.remove("lift");
       el.classList.add("pop");               // 取出第二程：落定屏幕正中、放大到最大
+      /* ★ 金光爆（2026-11-05）：卡片白热闪一下 + 从卡片位置炸开一圈金色放射光芒 */
+      const cfEl = el.querySelector(".cflash");
+      if (cfEl) cfEl.classList.add("go");
+      fireBurst();
       requestAnimationFrame(function(){
         if (fq) fq.style.width = (toPct || 6) + "%";   // 流体条慢慢涨到新进度
       });
@@ -2151,6 +2192,20 @@ function startCard(item){
   });
 
   cardTimer = setTimeout(endCard, POP_MS + CARD_HOLD);   // 取出 + 停留演示
+}
+
+/* ★ 金光爆（2026-11-05）：参照三国「寻访」抽卡特效 —— 卡片落到正中的瞬间，从卡片位置
+   炸开一圈**金色放射光芒**（射线 + 火焰云雾），卡片同时白热闪一下。
+   光芒是独立的 fixed 层（z-index 在遮罩之上、卡片之下），只动 transform/opacity：
+   conic 渐变一次绘制后被合成器搬运，全程不重算高斯模糊 → 4K 大屏也不掉帧。 */
+function fireBurst(){
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const b = document.createElement("div");
+  b.className = "cburst";
+  document.body.appendChild(b);
+  void b.offsetWidth;                       // 先落位，下一帧再起播，保证动画从头走
+  b.classList.add("go");
+  setTimeout(function(){ try { b.remove(); } catch(e){} }, 1200);
 }
 
 function endCard(){
@@ -2510,7 +2565,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261105c";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261105e";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
