@@ -630,6 +630,9 @@
   /* 跳位动画（FLIP）：--dy = 旧位置 − 新位置，补一段过渡就滑回去了 */
   tbody tr.jump{animation:rowJump .78s cubic-bezier(.22,.9,.24,1);}
   tbody tr.jump.hot{animation:rowJumpHot .95s cubic-bezier(.18,1.45,.32,1);}
+  /* ★ 按住不放（2026-11-05）：要弹卡片的行先钉在旧位置不动，等屏幕滚动锁定到它之后才松手跳位
+     —— 原来重画完就立刻跳，屏幕还在滚动，观众根本没看见「装货中→已完成」这一跳 */
+  tbody tr.jumphold{transform:translateY(var(--dy,0px));}
   @keyframes rowJump{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
   @keyframes rowJumpHot{from{transform:translateY(var(--dy,0px))}to{transform:translateY(0)}}
   @media (prefers-reduced-motion:reduce){.flq::before,.flq::after,.flnx,.flnx2,.flnx::after,.flw.s0::after,.flw.s1::after,.flw.s2::after,.gcur{animation:none} tbody tr.jump,tbody tr.jump.hot{animation:none}}
@@ -1800,8 +1803,34 @@ function flipRows(rows, prev, cardIds){
     if (Math.abs(dy) < 2) continue;
 
     tr.style.setProperty("--dy", dy + "px");
-    tr.classList.add("jump");
-    // ★ 要弹卡片的行也照样跳到新名次（卡片就是从旧位置被抽出来、送到新格子的）
+    /* ★ 2026-11-05：要弹卡片的行**先按住不跳** —— 等屏幕滚动锁定到它之后（startCard 的定位回调里）
+       再松手，让「装货中→已完成」这一跳当着观众的面发生；别的行照旧直接跳。 */
+    if (!reduceMotion && cardIds && cardIds[id]) tr.classList.add("jumphold");
+    else tr.classList.add("jump");
+  }
+}
+
+/* ★ 松手（2026-11-05）：把「按住」的行放出去 —— 它从旧位置滑到新名次。
+   时机＝屏幕已经滚动锁定到它之后（startCard 的定位回调里调用）。 */
+function releaseJump(id){
+  let tr = null;
+  try { tr = $("tbody").querySelector('tr[data-rid="' + id + '"]'); } catch(e){}
+  if (!tr) return;
+  if (tr.classList.contains("jumphold")){
+    tr.classList.remove("jumphold");
+    tr.classList.add("jump");             // 从旧位置滑到新名次（接着 .hot 的跳位曲线）
+  }
+}
+
+/* 兜底：卡片被清掉/出错时，别让按住的行永远钉在旧位置 */
+function releaseAllJumps(){
+  const trs = $("tbody").children;
+  for (let i = 0; i < trs.length; i++){
+    const tr = trs[i];
+    if (tr.classList.contains("jumphold")){
+      tr.classList.remove("jumphold");
+      tr.classList.add("jump");
+    }
   }
 }
 
@@ -1866,6 +1895,7 @@ function clearCards(){
   }
   if (cardBackdrop){ try { cardBackdrop.remove(); } catch(e){} cardBackdrop = null; }
   cardQueue.length = 0;
+  releaseAllJumps();                      // ★ 兜底：别让「按住」的行永远钉在旧位置
 }
 
 /* 一轮多张时：上一张播完再播下一张，避免叠在一起 */
@@ -1899,16 +1929,20 @@ const SEEK_MAX_MS = 560;    // 再远也不超过这么久（不能拖沓）
 function rowFinalRect(tr){
   const r = tr.getBoundingClientRect();
   let ty = 0;
-  try{
-    const tf = window.getComputedStyle(tr).transform;
-    if (tf && tf !== "none"){
-      const m = tf.match(/matrix\(([^)]+)\)/);
-      if (m){
-        const p = m[1].split(",").map(Number);
-        if (p.length >= 6 && isFinite(p[5])) ty = p[5];   // matrix(a,b,c,d,e,f)：f = translateY
+  /* ★ 按住中的行：transform 是钉死的旧位置 → **不减**，定位就锁在它现在的位置（观众看得见它）。
+     正在跳位的行：transform 是动画中的位移 → 减掉它，量它跳完之后的落点。 */
+  if (!tr.classList.contains("jumphold")){
+    try{
+      const tf = window.getComputedStyle(tr).transform;
+      if (tf && tf !== "none"){
+        const m = tf.match(/matrix\(([^)]+)\)/);
+        if (m){
+          const p = m[1].split(",").map(Number);
+          if (p.length >= 6 && isFinite(p[5])) ty = p[5];   // matrix(a,b,c,d,e,f)：f = translateY
+        }
       }
-    }
-  }catch(e){}
+    }catch(e){}
+  }
   return { top: r.top - ty, bottom: r.bottom - ty, height: r.height };
 }
 
@@ -1983,6 +2017,9 @@ function startCard(item){
       pumpCards();
       return;
     }
+    /* ★ 锁定到位了 → 现在才让这一行跳到新名次：「装货中→已完成」这一跳当着观众的面发生；
+       卡片同时从它原来的位置起飞（位置正好对得上那一行）。 */
+    releaseJump(item.id);
     try { playCard(item, tr); }
     catch(e){
       console.error('[bigscreen-card] 卡片启动失败，已跳过:', e && e.message ? e.message : e);
@@ -2693,7 +2730,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261105j";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261105k";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
