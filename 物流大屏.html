@@ -694,32 +694,28 @@
           被合成器搬运，全程不重算高斯模糊（不像 filter:drop-shadow 每帧重做模糊）；
        ② 卡片白热用独立子层 .cflash（will-change:opacity），同样只动 opacity；
        ③ 常态金晕仍由 .popcard 的多层 box-shadow 承担（同样一次绘制）。 */
+  /* ★ 金光爆（2026-11-05 改版·火焰花瓣）：
+     目标形态（照参考图）：**中心白热 + 外围一圈柔软的火焰花瓣**——花瓣长短不一、边缘带烟缕，
+     像一朵金色的火在炸开；不再是硬邦邦的直线射线（那版被压扁后会变成一条难看的横向光束）。
+     做法：启动空闲时用 canvas **一次性**画一张火焰贴图，爆发时 drawImage 复用；
+     动画全程只动 transform/opacity（贴图是静态位图，由合成器搬运）→ 4K 大屏依然不掉帧。 */
   .cburst{position:fixed;left:50%;top:50%;z-index:59;pointer-events:none;opacity:0;
-    width:72vmax;height:72vmax;margin:-36vmax 0 0 -36vmax;
-    transform:scale(.30,.10) rotate(-6deg);
-    background:
-      repeating-conic-gradient(from 0deg at 50% 50%,
-        rgba(255,240,192,.62) 0deg 1.6deg, rgba(255,188,80,.28) 1.6deg 4.6deg,
-        rgba(255,150,40,.08) 4.6deg 7.6deg, rgba(255,150,40,0) 7.6deg 12.5deg),
-      radial-gradient(ellipse at 50% 50%,
-        rgba(255,255,250,1) 0%, rgba(255,245,200,.94) 10%, rgba(255,208,115,.66) 26%,
-        rgba(255,162,58,.32) 45%, rgba(255,122,22,.12) 63%, rgba(255,110,15,0) 79%);
-    -webkit-mask-image:radial-gradient(ellipse at 50% 50%,#000 0%,#000 22%,rgba(0,0,0,.60) 43%,rgba(0,0,0,.20) 61%,transparent 77%);
-    mask-image:radial-gradient(ellipse at 50% 50%,#000 0%,#000 22%,rgba(0,0,0,.60) 43%,rgba(0,0,0,.20) 61%,transparent 77%);
+    width:64vmax;height:64vmax;margin:-32vmax 0 0 -32vmax;
+    transform:scale(.32) rotate(-8deg);
     will-change:transform,opacity;}
   @keyframes cburstGo{
-    0%{opacity:0;transform:scale(.26,.09) rotate(-16deg);}
-    14%{opacity:1;transform:scale(.60,.26) rotate(-6deg);}
-    50%{opacity:.88;transform:scale(1.30,.58) rotate(4deg);}
-    100%{opacity:0;transform:scale(1.88,.86) rotate(13deg);}}
+    0%{opacity:0;transform:scale(.30) rotate(-14deg);}
+    16%{opacity:1;transform:scale(.70) rotate(-5deg);}
+    52%{opacity:.92;transform:scale(1.16) rotate(3deg);}
+    100%{opacity:0;transform:scale(1.66) rotate(12deg);}}
   .cburst.go{animation:cburstGo .95s cubic-bezier(.12,.72,.22,1) .1s forwards;}
   /* 卡片白热闪：独立子层 + will-change:opacity → 只动 opacity，不触发卡片整层重绘 */
   .popcard .cflash{position:absolute;inset:0;border-radius:16px;z-index:2;pointer-events:none;opacity:0;
     background:linear-gradient(180deg,rgba(255,252,236,.92),rgba(255,208,112,.82));
     box-shadow:inset 0 0 70px 22px rgba(255,246,206,.95);
     will-change:opacity;}
-  .popcard .cflash.go{animation:cflash .58s cubic-bezier(.2,.6,.3,1) .1s forwards;}
-  @keyframes cflash{0%{opacity:0}28%{opacity:.84}100%{opacity:0}}
+  .popcard .cflash.go{animation:cflash .5s cubic-bezier(.2,.6,.3,1) .1s forwards;}
+  @keyframes cflash{0%{opacity:0}28%{opacity:.6}100%{opacity:0}}
   @media (prefers-reduced-motion:reduce){.cburst{display:none}.popcard .cflash.go{animation:none}}
 
   .popcard .cwrap{position:relative;border-radius:18px;overflow:hidden;}
@@ -2051,10 +2047,107 @@ function startCard(item){
    炸开一圈**金色放射光芒**（射线 + 火焰云雾），卡片同时白热闪一下。
    光芒是独立的 fixed 层（z-index 在遮罩之上、卡片之下），只动 transform/opacity：
    conic 渐变一次绘制后被合成器搬运，全程不重算高斯模糊 → 4K 大屏也不掉帧。 */
+/* ★ 火焰贴图（2026-11-05）：照参考图画出「中心白热 + 一圈柔软火焰花瓣」的形态。
+   —— 花瓣长短不一、角度带抖动、边缘化成火舌的软边，整体像一朵金色的火。
+   —— 只画一次（canvas 一次性绘制），之后每次爆发直接 drawImage 复用；不碰 filter/blur 动画 → 零重算。 */
+let FLAME_TEX = null;
+function buildFlameTex(){
+  const S = 1800;   // 贴图分辨率：4K 大屏上火焰铺到 ~2450px，1800 够清晰（生成仅 ~1ms）
+  const raw = document.createElement("canvas");
+  raw.width = S; raw.height = S;
+  const g = raw.getContext("2d");
+  const cx = S / 2, cy = S / 2;
+  g.globalCompositeOperation = "lighter";        // 加色混合 → 火焰叠加更炽
+  // ① 火焰花瓣（主体）：根部白热 → 中段金黄 → 尖端橙 → 全透。
+  //    ★ 花瓣之间**必须留黑缝**——这是"火焰"和"直线射线"最大的区别：
+  //      之前铺了一层大范围柔光，结果整个糊成一个橙色圆盘，花瓣全看不见了。
+  const N = 14;
+  const petals = [];
+  for(let i = 0; i < N; i++){
+    petals.push({
+      ang: (i / N) * Math.PI * 2 + (Math.random() - 0.5) * 0.18,   // 角度抖动，不呆板
+      len: S * (0.30 + Math.random() * 0.17),                        // 花瓣长短不一
+      wid: S * (0.042 + Math.random() * 0.034),                      // 花瓣胖瘦不一
+    });
+  }
+  for(const p of petals){
+    g.save();
+    g.translate(cx, cy); g.rotate(p.ang);
+    const lg = g.createLinearGradient(0, 0, p.len, 0);
+    lg.addColorStop(0,    "rgba(255,255,252,1)");
+    lg.addColorStop(0.07, "rgba(255,247,208,.95)");
+    lg.addColorStop(0.26, "rgba(255,203,92,.66)");
+    lg.addColorStop(0.55, "rgba(255,158,42,.30)");
+    lg.addColorStop(0.82, "rgba(255,116,20,.09)");
+    lg.addColorStop(1,    "rgba(255,110,20,0)");
+    g.fillStyle = lg;
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.bezierCurveTo(p.len * 0.20, -p.wid * 1.05, p.len * 0.70, -p.wid * 0.55, p.len, 0);
+    g.bezierCurveTo(p.len * 0.70, p.wid * 0.55, p.len * 0.20, p.wid * 1.05, 0, 0);
+    g.fill();
+    g.restore();
+  }
+  // ② 每瓣再叠一条更细更亮的"火芯"：让火舌中段有炽白高光
+  for(const p of petals){
+    g.save();
+    g.translate(cx, cy); g.rotate(p.ang + (Math.random() - 0.5) * 0.05);
+    const l2 = p.len * (0.55 + Math.random() * 0.30);
+    const w2 = p.wid * 0.34;
+    const lg = g.createLinearGradient(0, 0, l2, 0);
+    lg.addColorStop(0,   "rgba(255,255,255,.80)");
+    lg.addColorStop(0.3, "rgba(255,240,190,.42)");
+    lg.addColorStop(1,   "rgba(255,200,110,0)");
+    g.fillStyle = lg;
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.bezierCurveTo(l2 * 0.25, -w2, l2 * 0.75, -w2 * 0.5, l2, 0);
+    g.bezierCurveTo(l2 * 0.75, w2 * 0.5, l2 * 0.25, w2, 0, 0);
+    g.fill();
+    g.restore();
+  }
+  // ③ 中心白热核（小而炽）
+  const core = g.createRadialGradient(cx, cy, 0, cx, cy, S * 0.065);
+  core.addColorStop(0,   "rgba(255,255,255,.95)");
+  core.addColorStop(0.4, "rgba(255,244,200,.62)");
+  core.addColorStop(1,   "rgba(255,210,120,0)");
+  g.fillStyle = core; g.fillRect(0, 0, S, S);
+  // ④ 整体柔化：一次性模糊（不是每帧）→ 把生硬边缘化成火舌的软边
+  const out = document.createElement("canvas");
+  out.width = S; out.height = S;
+  const o = out.getContext("2d");
+  o.filter = "blur(" + Math.round(S * 0.009) + "px)";
+  o.drawImage(raw, 0, 0);
+  o.filter = "none";
+  // ⑤ 模糊后再补一次白热核，保持炽白中心
+  const core2 = o.createRadialGradient(cx, cy, 0, cx, cy, S * 0.038);
+  core2.addColorStop(0,   "rgba(255,255,255,.92)");
+  core2.addColorStop(0.5, "rgba(255,248,220,.38)");
+  core2.addColorStop(1,   "rgba(255,230,160,0)");
+  o.fillStyle = core2; o.fillRect(0, 0, S, S);
+  return out;
+}
+
+/* 页面空闲时先把贴图画好，爆发时零延迟 */
+(function(){
+  const warm = function(){
+    try { if(!FLAME_TEX) FLAME_TEX = buildFlameTex(); }
+    catch(e){ console.warn('[flame] build failed:', e && e.message, e && e.stack); }
+    try { window.FLAME_TEX = FLAME_TEX; } catch(e){}
+    try { window.buildFlameTex = buildFlameTex; } catch(e){ console.warn('[flame] expose failed:', e && e.message); }
+  };
+  // ★ 用 setTimeout 而不是 requestIdleCallback：本页有 3 秒轮询 + rAF 循环，浏览器几乎从不满闲，
+  //   rIC 迟迟不触发 → 贴图到第一次爆发时才现画（会卡一下）。setTimeout 是确定性的。
+  setTimeout(warm, 700);
+})();
+
 function fireBurst(){
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const b = document.createElement("div");
+  if (!FLAME_TEX) { try { FLAME_TEX = buildFlameTex(); } catch(e){ return; } }
+  const b = document.createElement("canvas");
   b.className = "cburst";
+  b.width = FLAME_TEX.width; b.height = FLAME_TEX.height;
+  b.getContext("2d").drawImage(FLAME_TEX, 0, 0);
   document.body.appendChild(b);
   void b.offsetWidth;                       // 先落位，下一帧再起播，保证动画从头走
   b.classList.add("go");
@@ -2496,7 +2589,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261105h";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261105i";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
