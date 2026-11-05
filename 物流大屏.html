@@ -1886,7 +1886,7 @@ function pumpCards(){
   }
 }
 
-/* ---------- ★ 快速滚动定位（2026-11-06） ----------
+/* ---------- ★ 快速滚动定位（2026-11-05） ----------
    大屏正滚着的时候，"工序变了"的那个客户往往根本不在画面里。
    以前是「一步跳过去」（画面闪一下，客户来不及看到自己在哪儿）；
    现在改成「滚动条快速滑过去」——**滑到位了再开始卡片动画**，
@@ -1973,7 +1973,7 @@ function startCard(item){
   cardBusy = true;                           // ★ 先占住：定位期间也不许重绘（行引用必须保持有效）
   pauseScrollNoReset();                      // 先停自动滚动，下面要定位
   cardSeek = true;                           // ★ 定位中：自动滚动别来抢
-  /* ★ 关键（2026-11-06）：客户不在画面里时，**先快速滚动定位到这一行，定位到位再开始动画**
+  /* ★ 关键（2026-11-05）：客户不在画面里时，**先快速滚动定位到这一行，定位到位再开始动画**
      —— 原来是一步跳过去（客户根本来不及看到自己在哪儿），现在改成看得见的"滚动条滑过去"，
         滑到位了卡片才起飞。送回时同理（见 endCard）。 */
   seekRowIntoView(tr, function(){
@@ -2246,7 +2246,7 @@ function endCard(){
   if (!cardActive) return;
   const a = cardActive;
 
-  /* ★ 送回阶段（2026-11-06）：目标行不在画面里时，**先快速滚动定位到它，定位到位再落位**
+  /* ★ 送回阶段（2026-11-05）：目标行不在画面里时，**先快速滚动定位到它，定位到位再落位**
      —— 否则卡片会飞到屏幕外看不见，送回等于白演。 */
   const doBack = function(){
     if (cardActive === a) cardActive = null;
@@ -2693,7 +2693,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261106a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261105j";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
