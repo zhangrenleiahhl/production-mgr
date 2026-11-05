@@ -922,7 +922,7 @@
 
     <span class="k" id="missNote"></span>
 
-    <span class="k" style="margin-left:auto">送达方仅显示代码 · 不显示物流 · 每 2 秒自动刷新 · 夜间 23:30–7:30 暂停省流量 · 超出一屏自动慢速滚动</span>
+    <span class="k" style="margin-left:auto">送达方仅显示代码 · 不显示物流 · 每 3 秒自动刷新 · 夜间 23:30–7:30 暂停省流量 · 超出一屏自动慢速滚动</span>
 
   </div>
 
@@ -962,10 +962,10 @@ const $ = (id) => document.getElementById(id);
 
 const esc = SL.esc, raw = SL.raw;
 
-const POLL_MS = 2000;    // 2026-11-04：0.5s->2s（用户要求统一刷新频率；戳没变只查戳，不费流量；加 pullingProg 重叠守卫防堆叠）
+const POLL_MS = 3000;    // 2026-11-05：2s->3s（用户要求刷新频率改为 3 秒；戳没变只查戳，不费流量；加 pullingProg 重叠守卫防堆叠）
 
 /* 夜间 23:30–次日 7:30 停刷省流量（2026-11-02）：该时段完全不轮询云端，
-   屏幕保持进入夜间前最后状态；白天（7:30–23:29）仍每 2 秒刷新。
+   屏幕保持进入夜间前最后状态；白天（7:30–23:29）仍每 3 秒刷新。
    凌晨 4 点的 reload 保留（清内存/拾取新发布），其后的轮询仍受本闸门约束。 */
 function nightPaused(){
   const d = new Date(), h = d.getHours(), m = d.getMinutes();
@@ -1921,7 +1921,7 @@ function flipRows(rows, prev, cardIds){
      ③ 演示完，卡片从正中缓慢斜向抽出（1s）→ 落到该行「工序推进后跳到的新格子」并淡出（1.1s）。
    本屏保密：卡片只含「送达方代码」、绝不出现客户名（克隆的就是表格里那一行）。
    不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。
-   播放中若 2 秒轮询又来新数据：render 会延迟到卡片结束再刷新，避免把动画打断。 */
+   播放中若 3 秒轮询又来新数据：render 会延迟到卡片结束再刷新，避免把动画打断。 */
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
 const CARD_HOLD = 5000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
@@ -2493,7 +2493,7 @@ function boot(){
   setInterval(() => {
     if (document.hidden) return;
     if (nightPaused()){ setSync("🌙 夜间 23:30–7:30 省流量 · 已暂停刷新", "ok"); return; }
-    if (pullingProg) return;                       // 2s 轮询：上一轮没回就跳过本轮，避免并发戳查询/重复渲染
+    if (pullingProg) return;                       // 3s 轮询：上一轮没回就跳过本轮，避免并发戳查询/重复渲染
     pullingProg = true;
     pull().finally(() => { pullingProg = false; });
   }, POLL_MS);
@@ -2501,7 +2501,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104o";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261105a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
