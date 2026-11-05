@@ -1779,8 +1779,8 @@ const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
 const CARD_HOLD = 5000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
 const LIFT_MS   = 500;      // 取出第一程：从工序条斜向飞起（ms）
 const SETTLE_MS = 500;      // 取出第二程：落定屏幕正中（★ LIFT+SETTLE=1 秒＝"飞到正中展示"共 1 秒）
-const CARD_KEEP = [0,1,4,5,3]; // ★ 卡片只保留这几列（序号/客户/单号/工序/吨位）→ 每列空间翻倍，字号才能真放大
-const CARD_COLW = [6,34,18,26,16]; // ★ 裁列后**定制**各列宽度（与 CARD_KEEP 一一对应，单位 %）。
+const CARD_KEEP = [0,1,2,4,5,3]; // ★ 卡片只保留这几列（序号/客户/送达方代码/单号/工序/吨位）→ 每列空间翻倍，字号才能真放大
+const CARD_COLW = [6,20,16,20,28,10]; // ★ 裁列后**定制**各列宽度（与 CARD_KEEP 一一对应，单位 %）。
                                     //   不再按原比例归一化 —— 原比例里客户只占 15/55，放大后仍不够放长客户名。
 const CARD_FS   = 2.0;        // ★ 卡片字号放大倍数（改 font-size 重新排版渲染，不是 transform 缩放 → 像素清晰）
 const PULL_MS   = 1000;     // 送回第一程：从正中斜向抽出
@@ -1920,7 +1920,7 @@ function startCard(item){
   if (ctbl0){
     /* ★ 裁列 + **按目标顺序重排**（thead / tbody / colgroup 三者必须同步，否则表头与数据错位）：
        CARD_KEEP 写的是"要保留的原列号"，重排后的顺序以 CARD_KEEP 数组顺序为准
-       （内部屏 = 序号·客户·单号·工序·吨位），CARD_COLW 与之一一对应。
+       （内部屏 = 序号·客户·送达方代码·单号·工序·吨位），CARD_COLW 与之一一对应。
        ★ 之前只做"删列"不重排，保留下来的是原序（序号·客户·吨位·单号·工序），
          列宽按 CARD_COLW 依次发下去就**错位**了（工序格只拿到 16% → 文字挤爆）。 */
     const cg = ctbl0.querySelector("colgroup");
@@ -2432,7 +2432,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261104o";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261105a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
