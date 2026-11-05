@@ -1814,14 +1814,14 @@ function flipRows(rows, prev, cardIds){
    然后弹出一张居中屏幕、最大化的悬浮卡片：
      ① 卡片从「工序变动列」被"拿出来"——起点是上一轮那一行的工序进度条（原地炸出橙金光球），
         缓慢斜向飞起（0.25s）→ 落定屏幕正中最大化（0.25s）；整行文字带金光、扫光掠过。
-     ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度慢慢涨到新进度（正中停留 5 秒）。
+     ② 卡片顶部横幅演示「上一工序 ▶ 下一工序」，流体条从旧进度慢慢涨到新进度（正中停留 1 秒）。
      ③ 演示完，卡片从正中缓慢斜向抽出（1s）→ 落到该行「工序推进后跳到的新格子」并淡出（1.1s）。
    保密屏卡片只含代码、绝不出现客户名（克隆的就是表格里那一行，门口屏本就不显名字）。
    不支持动画（prefers-reduced-motion）时只保留金色高亮、不弹卡片。
    播放中若 3 秒轮询又来新数据：render 会延迟到卡片结束再刷新，避免把动画打断。 */
 
 const STEP_COLOR = { 0:"#ff5d5d", 1:"#38c8d8", 2:"#ffb454", 3:"#3ddc97" };
-const CARD_HOLD = 5000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 5 秒）
+const CARD_HOLD = 1000;     // 卡片居中停留、演示"上一步→下一步"的时长（ms，停留 1 秒）
 const LIFT_MS   = 250;      // 取出第一程：从工序条斜向飞起（ms）
 const SETTLE_MS = 250;      // 取出第二程：落定屏幕正中（★ LIFT+SETTLE=0.5 秒＝"飞到正中展示"共 0.5 秒）
 const CARD_KEEP = [0,1,2,4,5,3]; // ★ 卡片只保留这几列（序号/客户/送达方代码/单号/工序/吨位）→ 每列空间翻倍，字号才能真放大
@@ -2496,7 +2496,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261105g";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261105h";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
