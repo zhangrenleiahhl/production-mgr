@@ -660,11 +660,11 @@
        全部被它裁掉，表现为"卡片外面的金光没了"。.popcard 自己没有裁剪，画这里才出得来。
        一次绘制、跟着元素被合成器搬运 → 依然是零重算（不像 filter:drop-shadow 每帧重做模糊）。 */
     border-radius:16px;
-    box-shadow:0 0 0 2px rgba(255,216,92,.98),
-               0 0 0 7px rgba(255,170,50,.40),
-               0 0 42px rgba(255,150,40,.72),
-               0 0 100px rgba(255,160,45,.52),
-               0 24px 70px rgba(0,0,0,.62);}
+    box-shadow:0 0 0 3px rgba(255,222,110,1),
+               0 0 0 11px rgba(255,168,45,.45),
+               0 0 60px rgba(255,150,40,.80),
+               0 0 140px rgba(255,160,45,.60),
+               0 26px 78px rgba(0,0,0,.66);}
   .popcard.lift{transform:translate(-50%,-50%) translate(var(--lx,0px),var(--ly,0px)) scale(.82);
     opacity:1;}
   .popcard.pop{transform:translate(-50%,-50%) translate(0,0) scale(1);
@@ -690,7 +690,7 @@
      ③ 扫光从 .5~.8 压到 .14~.22：原来那道白亮斜带正压在文字上，那一段字看不清。
      ④ 发光用 box-shadow 多层（不重算、不掉帧）。 */
   .popcard .ctbl{width:100%;border-collapse:collapse;table-layout:fixed;
-    background:rgba(14,19,29,.985);border-radius:16px;overflow:hidden;
+    background:#0e131d;border-radius:16px;overflow:hidden;
     box-shadow:none;   /* 金边与外部金光统一由 .popcard 承担（这里画会被 .cwrap 裁掉） */
     font-size:30px;line-height:1.3;}
   .popcard .ctbl td{font-size:inherit;vertical-align:middle;color:#ffe3a4;white-space:normal;overflow:visible;text-overflow:clip;}
@@ -710,6 +710,14 @@
     box-shadow:0 8px 30px rgba(255,120,30,.6),0 0 26px rgba(255,180,70,.55);
     opacity:0;transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1);}
   .popcard.pop .cbanner{opacity:1;transform:translate(-50%,-100%) translateY(-14px);}
+  /* ★ 横幅工序名对比度（2026-11-05）：横幅底是橙金渐变，而工序名用的就是工序色
+     —— 从「货待确认」推进时是**红字(#ff5d5d)压橙底**，两者直接融成一片看不见；
+     外圈金光越厚、周围越橙，就越难分辨。
+     这里给两个工序名各垫一块深色底片 + 重投影：红/青/琥珀/绿四种工序色都压得住。 */
+  .popcard .cbanner .cfrom,.popcard .cbanner .cto{
+    padding:1px 12px;border-radius:999px;background:rgba(6,9,14,.72);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 2px 10px rgba(0,0,0,.6);
+    text-shadow:0 1px 4px rgba(0,0,0,.95);}
   .popcard .cbanner .carrow{font-size:26px;animation:cbPulse 1.8s ease-in-out infinite;}
   @keyframes cbPulse{0%,100%{opacity:.55;transform:translateX(0)}50%{opacity:1;transform:translateX(6px)}}
   @media (prefers-reduced-motion:reduce){.popcard,.popcard .cbanner{transition:none}.popcard .cbanner .carrow{animation:none}.popcard .csweep{animation:none}.cspark{animation:none}}
@@ -2502,7 +2510,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261105b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261105c";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
