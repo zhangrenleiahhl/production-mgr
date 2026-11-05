@@ -8,7 +8,8 @@
 /* 宿主系统集成：线上版本号，防浏览器一直缓存旧版「订单管理」页。
    · 本地 file:// 双击不跳转，方便离线看效果
    · 主站 iframe 已带 _t= 时间戳，不重复刷新 */
-var APP_VER="20261105b";
+var APP_VER="20261105c";
+if(window.top!==window.self) document.documentElement.classList.add("in-frame");
 (function(){
   if(location.protocol==="file:") return;
   if(location.hash.indexOf("no_reload")>=0) return;
@@ -59,6 +60,12 @@ var APP_VER="20261105b";
   .appbar .hostback { display:inline-flex;align-items:center;height:23px;padding:0 10px;margin-right:2px;border-radius:6px;background:rgba(255,255,255,.16);color:#fff;text-decoration:none;font-size:11px;font-weight:700;white-space:nowrap;transition:background .15s; }
   .appbar .hostback:hover { background:rgba(255,255,255,.32); }
   .appbar .hostback:focus-visible { outline:2px solid #fff;outline-offset:2px; }
+
+  /* ===== 被主站 iframe 嵌入时的兜底 =====
+     旧版外壳会用 inline style 隐藏 .appbar；而本页页签按 44px 顶栏做 sticky 定位，
+     顶栏一消失就会顶部留白并遮住整排工具栏。这里强制保留顶栏（!important 覆盖 inline）。 */
+  html.in-frame .appbar { display:flex !important; }
+  html.in-frame .tabs { top:44px; }
 
   /* ===== 顶栏 ===== */
   .appbar { height:44px; background:linear-gradient(100deg,var(--c-primary-700),var(--c-primary-500)); color:#fff; display:flex; align-items:center; padding:0 var(--sp-5); gap:var(--sp-3); box-shadow:var(--sh-md); position:sticky; top:0; z-index:60; }

@@ -397,10 +397,16 @@
     try{
       const src=frame.contentWindow.location.pathname.split("/").pop();
       if(src && PAGES.indexOf(src)>=0) switchTo(src);
-      const nav=frame.contentDocument.querySelector(".nav");
-      if(nav) nav.style.display="none";
-      const bar=frame.contentDocument.querySelector(".appbar");
-      if(bar) bar.style.display="none";
+      /* 新版「订单管理」自带完整功能顶栏（返回入口 / 登录人 / 锁定状态），
+         且页签按 44px 顶栏做 sticky 定位；隐藏后会顶部留白并遮住整排工具栏。
+         旧页面仍按原逻辑隐藏自带导航。 */
+      var pageName=src; try{ pageName=decodeURIComponent(src); }catch(_){}
+      if(pageName!=="订单管理系统.html"){
+        const nav=frame.contentDocument.querySelector(".nav");
+        if(nav) nav.style.display="none";
+        const bar=frame.contentDocument.querySelector(".appbar");
+        if(bar) bar.style.display="none";
+      }
       // 发布时自动备份：在子页面挂载钩子
       if(localStorage.getItem("auto_backup")==="1") frame.contentWindow.__clientBackup=downloadBackup;
       else frame.contentWindow.__clientBackup=null;
