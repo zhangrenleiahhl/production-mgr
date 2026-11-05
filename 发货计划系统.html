@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261029g";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261105a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -1407,7 +1407,9 @@ setTimeout(function(){
         </div>
       </div>
 
-      <button class="btn btn-line" id="undoBtn" title="撤回上一次删除（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
+      <button class="btn btn-line" id="undoBtn" title="撤销上一步（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
+      <button class="btn btn-line" id="redoBtn" title="恢复上一步（Ctrl+Y / Ctrl+Shift+Z）" disabled>↷</button>
+
 
     </div>
 
@@ -2302,7 +2304,7 @@ async function cleanDupRecs(){
 
 // 让用户一眼看清是谁在占地方。★ 清理永远「先导出备份、再删除」，绝不静默清数据。
 
-const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_", "omg_bom_"];
+const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_"];
 
 const OWN_KEYS = ["last_client_tab", "last_backup", "auto_backup"];
 
@@ -2646,17 +2648,7 @@ const STORE_LABELS = {
 
   "auto_sched_v2":"自动排产系统",
 
-  "order_mgmt_data_v1":"订单管理系统 · 旧版数据",
-
-  "omg_bom_v2":"订单管理系统 · 物料需求数据",
-
-  "omg_bom_pwd":"订单管理系统 · 编辑口令",
-
-  "omg_bom_safeline":"订单管理系统 · 安全库存线",
-
-  "omg_bom_hide_past":"订单管理系统 · 过期日期隐藏",
-
-  "omg_bom_code_hidden":"订单管理系统 · 编码列折叠"
+  "order_mgmt_data_v1":"订单管理系统"
 
 };
 
@@ -4148,6 +4140,11 @@ function fixPlanNo(no, shipdate){
 
 function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
+  /* ★ 通用撤销（2026-11-05）：addRow 本体**不**压撤销栈 ——
+     它还被「启动铺行 / 读草稿 / 粘贴 / 导入记录 / 撤销还原」调用，
+     那些都不是用户的编辑动作。撤销快照只在用户真的点了加行时，
+     由工具栏「＋ 添加」和行内「＋」这两个入口各自压一次。 */
+
   const tb=$("tbody"); const tr=document.createElement("tr"); const idx=tb.children.length+1;
 
   const _q=parseFloat(data.qty), _u=parseFloat(data.unit), _p=parseFloat(data.perbox);
@@ -4224,15 +4221,18 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
   const spSel=tr.querySelector('[data-f="shippt"]');
 
-  if(spSel){ spSel.addEventListener("change", ()=>{ spSel.dataset.pt=(spSel.value||"").trim(); carTick(tr); saveDraft(); }); }
+  if(spSel){ spSel.addEventListener("change", ()=>{ spSel.dataset.pt=(spSel.value||"").trim(); carTick(tr); saveDraft(); }); gCellUndoHook(spSel); }
 
-  tr.querySelector(".ins-x").onclick=()=>{ addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraftNow(); };
+  /* ★ 行内「＋」：用户点了 → 先压一张「加行前」整表快照，之后 Ctrl+Z 能把这一行撤掉 */
+  tr.querySelector(".ins-x").onclick=()=>{ gPushUndo("添加 1 行"); addRow({shipdate:tr.querySelector('[data-f="shipdate"]').value}, tr); saveDraftNow(); };
 
   tr.querySelectorAll("input").forEach(inp=>{
 
     inp.addEventListener("keydown", onCellKey);
 
     trackOrig(inp);
+    if(inp.type!=="hidden" && inp.type!=="checkbox") gCellUndoHook(inp);
+
 
     if(inp.dataset.f==="shipdate"){
 
@@ -4387,6 +4387,8 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     ta.addEventListener("keydown", onCellKey);
 
     trackOrig(ta);
+    gCellUndoHook(ta);
+
 
     ta.addEventListener("input", ()=>{ fitTextarea(ta); scheduleRefresh(recalcLite, mergeCustomerCells, saveDraft); });
 
@@ -4637,6 +4639,8 @@ function commitSubTon(inp){
   const old=inp.dataset.shown||"";
 
   const nv=String(inp.value).trim();
+
+  gPushUndo("改客户吨位");
 
   const o=loadCT(), k=ctKeyOf(cust,date);
 
@@ -5228,6 +5232,265 @@ function scheduleRefresh(){
 // ===================== 误删撤回 + WPS 式单元格导航 =====================
 
 let undoStack=[];
+// ===================== WPS 风格通用撤销 / 恢复 =====================
+
+
+// ★ 设计：整表快照式。每个「编辑动作」在动手之前把「当前整表 + 客户吨位」拍一张快照压栈，
+
+//   撤销 = 恢复这张快照；恢复 = 把快照再放回去。
+
+//   这样任何编辑动作（加行 / 删行 / 粘贴 / 改单元格 / 改日期 / 改吨位 / 导入记录）都能撤销，
+
+//   不像旧的 undoStack 只能撤「删掉的行」。
+
+//   快照里 rows 是 collectRowData() 的 20 字段行数据，和 writeDraftNow()/rec.rows 完全同构。
+
+
+let gUndoStack=[];   // [{label, rows:[行字段数组], ct:{客户吨位对象}}]
+
+
+let gRedoStack=[];   // 恢复栈（新操作会清空它 —— WPS 语义）
+
+
+const G_UNDO_MAX=30;   // 栈容量上限：30 步，够用又不至于吃内存
+
+
+let pendingCellSnap=null;   // ★ 单元格编辑：当前聚焦控件的「改前整表快照」
+
+
+let pendingCellOld="";       // ★ 单元格编辑：聚焦时的原值（用来判断内容是不是真变了）
+
+
+let pendingCellOwner=null;   // ★ 这张快照是给哪个控件拍的（防止张冠李戴）
+
+
+let gPasteSnap=null;         // ★ 粘贴：动手之前拍的快照（粘贴会改表，得在改之前拍）
+
+
+const G_COL_LABEL={shipdate:"发货日期", customer:"送达方", code:"物料编码", model:"型号", qty:"发货数量",
+
+
+  shippt:"发货点", unit:"单重", perbox:"每箱件数", ton:"产品重量T", box:"箱数", cwt:"箱重T",
+
+
+  delivery:"交货单", remark:"时效要求", logistics:"物流", orderno:"客户订单号"};
+
+
+// 拍一张「当前整表 + 当前客户吨位」的快照
+
+
+function takeTableSnapshot(label){
+
+
+  return { label: label||"编辑", rows: allRows().map(collectRowData), ct: loadCT() };
+
+
+}
+
+
+// 动手之前调用：把「当前状态」压进撤销栈。
+
+//   snapOverride 非空时用它当快照（改前状态已知的场合：单元格编辑、粘贴）。
+
+
+function gPushUndo(label, snapOverride){
+
+
+  let st=null;
+
+
+  try{ st=snapOverride || takeTableSnapshot(label); }catch(e){ return; }
+
+
+  if(st && label) st.label=label;
+
+
+  try{ gUndoStack.push(st); }catch(e){ return; }
+
+
+  if(gUndoStack.length>G_UNDO_MAX) gUndoStack.shift();
+
+
+  gRedoStack.length=0;   // ★ WPS 语义：一旦有了新操作，之前的「恢复」就作废了
+
+
+  updateUndoBtn(); updateRedoBtn();
+
+
+}
+
+
+// 整表恢复：把快照里的行按原顺序重建回表格，并还原客户吨位
+
+
+function restoreTableSnapshot(st){
+
+
+  if(!st) return;
+
+
+  const tb=$("tbody");
+
+
+  [...tb.children].filter(tr=>!isDataRow(tr)).forEach(tr=>tr.remove());   // ★ 先清掉「小计行 / 隔离带」这类辅助行
+
+
+  [...tb.children].filter(isDataRow).forEach(tr=>tr.remove());
+
+
+  const trs=(st.rows||[]).map(r=>addRow(r, null, null, true));
+
+
+  trs.forEach(tr=>tb.appendChild(tr));          // ★ 强制成快照顺序（addRow 默认按日期插入，会打乱原顺序）
+
+
+  try{ if(st.ct) saveCT(st.ct); }catch(e){}
+
+
+  try{ __foldSig=null; }catch(e){}               // ★ 打破 foldByDate 的指纹短路，否则折叠状态不刷新
+
+
+  reindex(); recalc(); fitTextareas(); styleShipdate(); markRowStates();
+
+
+  if(carFixAll()) mergeCustomerCells();
+
+
+  try{ if(isFilterActive()) applyFilter(); else foldByDate(); }catch(e){}
+
+
+  saveDraftNow(); updateCheckAll(); updateUndoBtn(); updateRedoBtn();
+
+
+}
+
+
+// 撤销一步
+
+
+function gUndo(){
+
+
+  const st=gUndoStack.pop();
+
+
+  if(!st){ toast("没有可撤销的操作"); return; }
+
+
+  gRedoStack.push(takeTableSnapshot(st.label));   // ★ 撤销前的当前状态 → 恢复栈
+
+
+  if(gRedoStack.length>G_UNDO_MAX) gRedoStack.shift();
+
+
+  undoStack.length=0;   // ★ 整表快照已经把删除恢复干净了，旧栈留着会重复插行
+
+
+  restoreTableSnapshot(st);
+
+
+  toast("已撤销："+(st.label||"上一步"));
+
+
+}
+
+
+// 恢复一步
+
+
+function gRedo(){
+
+
+  const st=gRedoStack.pop();
+
+
+  if(!st){ toast("没有可恢复的操作"); return; }
+
+
+  gUndoStack.push(takeTableSnapshot(st.label));   // ★ 恢复前的当前状态 → 撤销栈
+
+
+  if(gUndoStack.length>G_UNDO_MAX) gUndoStack.shift();
+
+
+  undoStack.length=0;
+
+
+  restoreTableSnapshot(st);
+
+
+  toast("已恢复："+(st.label||"上一步"));
+
+
+}
+
+
+// 恢复按钮的可用状态
+
+
+function updateRedoBtn(){ const b=$("redoBtn"); if(b) b.disabled=gRedoStack.length===0; }
+
+
+// 撤销按钮的可用状态：通用栈和旧撤回栈都空了才灰
+
+
+function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=(gUndoStack.length===0 && undoStack.length===0); }
+
+
+// ★ 单元格编辑钩子：给可编辑控件（input / textarea / select）用。
+
+//   聚焦时记一张「改前整表快照」；失焦（change）且内容确实变了才压栈。
+
+//   绝不在 input 事件上压栈 —— 打字过程会连着触发，会压一堆垃圾快照。
+
+
+function gCellUndoHook(el){
+
+
+  if(!el) return;
+
+
+  el.addEventListener("focus", ()=>{
+
+
+    try{ pendingCellSnap=takeTableSnapshot("改单元格"); pendingCellOld=el.value; pendingCellOwner=el; }catch(e){}
+
+
+  });
+
+
+  el.addEventListener("change", ()=>{
+
+
+    try{
+
+
+      if(!pendingCellSnap) return;
+
+
+      if(pendingCellOwner && pendingCellOwner!==el) return;   // ★ 这张快照不是给这个控件拍的 → 不压栈
+
+
+      if(el.value===pendingCellOld) return;                     // ★ 内容没真变 → 不压栈
+
+
+      const snap=pendingCellSnap; pendingCellSnap=null; pendingCellOwner=null;
+
+
+      const nm=G_COL_LABEL[el.dataset.f]||el.dataset.f||"单元格";
+
+
+      gPushUndo("改「"+nm+"」", snap);                          // ★ 压「改前」快照
+
+
+    }catch(e){}
+
+
+  });
+
+
+}
+
 
 const EDITABLE_COLS=[3,4,5,6,7,8,9,10,12,14,15,16];   // 可编辑列的 nth-child 列号（跳过 #/✓/箱重T/客户吨位/操作；12=产品重量T 14=物流 15=客户订单号 16=物料编码）
 
@@ -5295,13 +5558,15 @@ async function delRow(tr){
 
   if(!await askConfirm(`确认删除第 ${idx+1} 行${model?"（型号："+model+"）":""}？\n删除后可通过「撤回」按钮或 Ctrl+Z 恢复。`, { title:"删除这一行？", okText:"删除", cancelText:"取消" })) return;
 
+  gPushUndo("删除 1 行");
+
   const data=collectRowData(tr);
 
   tr.remove();
 
-  undoStack.push({rows:[data], atIndex:idx});
 
-  if(undoStack.length>50) undoStack.shift();
+
+
 
   reindex(); recalc();
 
@@ -5395,13 +5660,15 @@ async function cleanEmptyRows(){
 
   if(!await askConfirm(`检测到 ${blanks.length} 行空白行（送达方、型号、发货数量等全都没填），确认一键删除？\n\n删除后可通过「撤回」按钮或 Ctrl+Z 一次性恢复。`, { title:"一键删除空白行？", okText:"删除", cancelText:"取消" })) return;
 
+  gPushUndo("删除 "+blanks.length+" 行空白行");
+
   const positions=blanks.map(tr=>({data:collectRowData(tr), atIndex:list.indexOf(tr)}));
 
   blanks.forEach(tr=>tr.remove());
 
-  undoStack.push({rows:positions.map(p=>p.data), positions});
 
-  if(undoStack.length>50) undoStack.shift();
+
+
 
   reindex(); recalc(); fitTextareas(); saveDraftNow(); updateCheckAll(); updateUndoBtn();
 
@@ -5409,7 +5676,7 @@ async function cleanEmptyRows(){
 
 }
 
-function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=undoStack.length===0; }
+
 
 
 
@@ -5481,13 +5748,15 @@ function delCheckedRows(){
 
   const go=()=>{
 
+    gPushUndo("删除 "+sel.length+" 行");
+
     const positions=sel.map(tr=>({data:collectRowData(tr), atIndex:list.indexOf(tr)}));   // 先记位置，再删
 
     sel.forEach(tr=>tr.remove());
 
-    undoStack.push({rows:positions.map(p=>p.data), positions});
 
-    if(undoStack.length>50) undoStack.shift();
+
+
 
     reindex(); recalc();
 
@@ -5525,6 +5794,8 @@ function batchEditShipDate(){
   const onOk=(fw)=>{
     const nv=(fw.querySelector("#bdDate")?.value||"").trim();
     if(!nv) return "请选择一个发货日期";
+    gPushUndo("批量改发货日期");
+
     sel.forEach(tr=>{ const inp=tr.querySelector('[data-f="shipdate"]'); if(inp) inp.value=nv; });
     sel.forEach(tr=>{ try{ carTick(tr); }catch(e){} });
     sortRowsByDate(); reindex(); foldByDate(); recalc(); saveDraft(); styleShipdate(); updateCheckAll();
@@ -5537,6 +5808,8 @@ function batchEditShipDate(){
     const nv=prompt("将勾选的 "+sel.length+" 行发货日期统一改为（YYYY-MM-DD）：", cur);
     if(nv && nv.trim()){
       const v=nv.trim();
+      gPushUndo("批量改发货日期");
+
       sel.forEach(tr=>{ const inp=tr.querySelector('[data-f="shipdate"]'); if(inp) inp.value=v; });
       sel.forEach(tr=>{ try{ carTick(tr); }catch(e){} });
       sortRowsByDate(); reindex(); foldByDate(); recalc(); saveDraft(); styleShipdate(); updateCheckAll();
@@ -8683,6 +8956,8 @@ function importRecToEditor(rec){
 
   snapshot(LS_DRAFT, "导入发布记录");                        // 留档（「数据急救」页可找回）
 
+  gPushUndo("导入发布记录");
+
   const d=recShipDate(rec)||todayStr();                     // 行里没写日期的，用这条记录自己的发货日期兜底
 
   let firstTr=null;
@@ -8736,6 +9011,14 @@ function exportRowsCsv(rows, name){
 // ===================== 其它按钮 =====================
 
 $("addRow").onclick=()=>{ addRow(); saveDraftNow(); };
+/* ★ 工具栏「＋ 添加」：点一下多一行，得能撤销。
+   按钮原本的 onclick 字面量保持不变（语义仍是「加 1 行 + 存草稿」），
+   撤销能力由下面这层包装补上 —— 点击前先压一张「加行前」的整表快照。 */
+(function(){
+  const btn=$("addRow"); if(!btn) return;
+  const orig=btn.onclick; if(typeof orig!=="function") return;
+  btn.onclick=function(){ try{ gPushUndo("添加 1 行"); }catch(e){} return orig.call(this); };
+})();
 
 /* ★ 「＋ 添加」右侧小三角：一次加 3 / 5 / 10 行。
    批量加行时用 skipRefresh 跳过每行的重复计算（reindex/recalc/fitTextareas），
@@ -8767,6 +9050,8 @@ $("addRow").onclick=()=>{ addRow(); saveDraftNow(); };
       const n=Math.max(1, parseInt(b.getAttribute("data-n"),10)||1);
       closeMenu();
       // 逐行添加：日期/型号/客户等留空，用户自己填
+      gPushUndo("添加 "+n+" 行");
+
       for(let i=0;i<n;i++) addRow({}, null, null, true);
       reindex(); recalc(); fitTextareas(); updateCheckAll(); styleShipdate(); markRowStates();
       saveDraftNow();
@@ -8879,7 +9164,9 @@ function importBackup(file){
 
 }
 
-$("undoBtn").onclick=undo;
+$("undoBtn").onclick=()=>{ if(gUndoStack.length>0) gUndo(); else undo(); };   // ★ 优先通用撤销栈，没有再回退旧的「撤回删除行」
+$("redoBtn").onclick=gRedo;
+
 
 $("cleanEmptyBtn").onclick=cleanEmptyRows;
 
@@ -8888,16 +9175,22 @@ $("delCheckedBtn").onclick=delCheckedRows;
 if($("dupCleanBtn")) $("dupCleanBtn").onclick=cleanDupRecs;
 
 updateUndoBtn();
+updateRedoBtn();
+
 
 document.addEventListener("keydown", e=>{
 
-  if((e.ctrlKey||e.metaKey) && (e.key==="z"||e.key==="Z")){
+  if(e.ctrlKey||e.metaKey){
 
     const ae=document.activeElement;
 
     if(ae && (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")) return;   // 让浏览器处理文本内撤销
 
-    e.preventDefault(); undo();
+    const k=(e.key||"").toLowerCase();
+
+    if(k==="z" && !e.shiftKey){ e.preventDefault(); if(gUndoStack.length>0) gUndo(); else undo(); return; }
+
+    if(k==="y" || (k==="z" && e.shiftKey)){ e.preventDefault(); gRedo(); return; }
 
   }
 
@@ -8996,6 +9289,8 @@ function pasteFill(tr,f,v){
 // appendIfNoAnchor=true：没有落点行时在表格末尾「追加新行」（而不是覆盖最后一行）
 
 function pasteTargetRows(anchorTr, count, appendIfNoAnchor){
+  try{ gPasteSnap=takeTableSnapshot("粘贴 "+count+" 行"); }catch(e){ gPasteSnap=null; }   // ★ 改表之前拍快照
+
 
   const rows=allRows();
 
@@ -9064,6 +9359,8 @@ function expandPastedDateGroups(rows){
 // custPasted：这次粘贴的内容里是否自带「送达方」列（带了就以粘贴值为准）
 
 function pasteFinish(rows, custPasted){
+
+  if(gPasteSnap){ gPushUndo("粘贴 "+(rows&&rows.length||0)+" 行", gPasteSnap); gPasteSnap=null; }
 
   rows.forEach(tr=>fillDbFieldsForRow(tr));
 
