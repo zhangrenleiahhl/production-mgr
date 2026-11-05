@@ -2302,7 +2302,7 @@ async function cleanDupRecs(){
 
 // 让用户一眼看清是谁在占地方。★ 清理永远「先导出备份、再删除」，绝不静默清数据。
 
-const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_"];
+const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_", "omg_bom_"];
 
 const OWN_KEYS = ["last_client_tab", "last_backup", "auto_backup"];
 
@@ -2646,7 +2646,17 @@ const STORE_LABELS = {
 
   "auto_sched_v2":"自动排产系统",
 
-  "order_mgmt_data_v1":"订单管理系统"
+  "order_mgmt_data_v1":"订单管理系统 · 旧版数据",
+
+  "omg_bom_v2":"订单管理系统 · 物料需求数据",
+
+  "omg_bom_pwd":"订单管理系统 · 编辑口令",
+
+  "omg_bom_safeline":"订单管理系统 · 安全库存线",
+
+  "omg_bom_hide_past":"订单管理系统 · 过期日期隐藏",
+
+  "omg_bom_code_hidden":"订单管理系统 · 编码列折叠"
 
 };
 
