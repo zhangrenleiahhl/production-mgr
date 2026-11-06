@@ -683,9 +683,13 @@
   .popcard.pull{transform:translate(-50%,-50%) translate(var(--px,0px),var(--py,0px)) scale(.82);
     opacity:1;
     transition:transform 1s cubic-bezier(.45,0,.7,.25),opacity .6s ease;}
-  .popcard.back{transform:translate(-50%,-50%) translate(var(--bx,0px),var(--by,0px)) scale(.45);
-    opacity:0;
-    transition:transform 1.1s cubic-bezier(.5,0,.75,.2),opacity 1s ease;}
+  /* ★ 送回分两拍（2026-11-06）：先稳稳落到新格子、停一下让人看清落在哪一行，再淡出。
+     原来 .back 一挂上就 opacity→0，卡片一边飞一边透明，飞到位时早没了 →「看不见」。 */
+  .popcard.back{transform:translate(-50%,-50%) translate(var(--bx,0px),var(--by,0px)) scale(.62);
+    opacity:1;
+    transition:transform .62s cubic-bezier(.3,.7,.25,1);
+    animation:cardLandFade 1.34s linear forwards;}
+  @keyframes cardLandFade{0%,68%{opacity:1}100%{opacity:0}}
   /* 起点光球：卡片被"抽出来"的那一下，进度条位置炸出一团橙金光 */
   .cspark{position:fixed;z-index:61;width:26px;height:26px;margin:-13px 0 0 -13px;
     border-radius:50%;pointer-events:none;
@@ -1867,7 +1871,8 @@ const CARD_COLW = [6,18,14,24,26,12]; // ★ 裁列后**定制**各列宽度（�
                                     //   不再按原比例归一化 —— 原比例里客户只占 15/55，放大后仍不够放长客户名。
 const CARD_FS   = 2.0;        // ★ 卡片字号放大倍数（改 font-size 重新排版渲染，不是 transform 缩放 → 像素清晰）
 const PULL_MS   = 1000;     // 送回第一程：从正中斜向抽出
-const BACK_MS   = 1100;     // 送回第二程：落到该行跳到的新格子
+const BACK_MS   = 1340;     // 送回第二程：落到新格子(620ms) + 停住(380ms) + 淡出(340ms)
+// ★ 与 CSS .popcard.back 的 cardLandFade 1.34s 对齐：落到位后先不透明地停一下，最后才淡出。
 const CARD_BACK = 2100;     // 送回总时长（PULL_MS + BACK_MS）
 const CARD_GAP  = 400;      // 一轮多行同时推进时，卡片之间的错峰间隔（ms）
 const POP_MS    = 500;     // 取出总时长（LIFT_MS + SETTLE_MS）＝0.5 秒（飞到正中展示）
@@ -2007,10 +2012,37 @@ function seekScrollTo(target, cb){
   bail = setTimeout(finish, dur + 300);        // 兜底：万一 rAF 掉了也一定往下走
 }
 
-/* 定位某一行；到位（或本来就在画面里）后回调 cb */
-function seekRowIntoView(tr, cb){
-  const target = rowSeekTarget(tr);
+/* ★ 送回专用定位（2026-11-06）：工序推进后这一行通常跳到表格最前几名，
+   而屏幕还停在自动滚动的中间位置 —— 必须先把滚动条拉上去（前几名就是「拉到顶」），
+   卡片才有一个看得见的落点。与 rowSeekTarget 不同：这里**无条件滚到位**，
+   不因为「差得少 / 判定已在画面里」就短路。 */
+function rowBackTarget(tr){
+  if (!boxEl || !tr) return null;
+  const bRect = boxEl.getBoundingClientRect();
+  const fr = rowFinalRect(tr);
+  const max = Math.max(0, boxEl.scrollHeight - boxEl.clientHeight);
+  const rowH = Math.max(18, fr.height || 24);
+  /* 行在「内容坐标」里的位置（与滚动无关） */
+  const contentY = fr.top - bRect.top + boxEl.scrollTop;
+  /* 让这一行落在可视区靠上 1/4 处；排在表格前段时自然被 clamp 到 0 ＝ 拉到顶 */
+  let target = contentY - Math.max(rowH * 2, bRect.height * 0.22);
+  return Math.max(0, Math.min(max, Math.round(target)));
+}
+
+/* 定位某一行；到位（或本来就在画面里）后回调 cb。
+   mode === "back"：送回专用，强制拉到目标行（必要时拉到顶），且等一帧布局稳定再回调。 */
+function seekRowIntoView(tr, cb, mode){
+  const back = (mode === "back");
+  const target = back ? rowBackTarget(tr) : rowSeekTarget(tr);
   if (target == null){ cb(); return; }
+  if (Math.abs(target - boxEl.scrollTop) < 1){
+    if (!back){ cb(); return; }
+    /* 已经在位也要等一帧：确保 FLIP / 滚动 settle 之后再量终点坐标 */
+    const next = (typeof requestAnimationFrame === "function") ? requestAnimationFrame
+               : function(f){ return setTimeout(function(){ f(0); }, 16); };
+    next(function(){ try { cb(); } catch(e){} });
+    return;
+  }
   seekScrollTo(target, cb);
 }
 
@@ -2308,6 +2340,14 @@ function endCard(){
       const nr = a.row.getBoundingClientRect();
       bx = (nr.left + nr.width / 2) - cx;
       by = (nr.top + nr.height / 2) - cy;
+      /* ★ 终点绝不飞出画面（2026-11-06）：夹进 .box 的可视区。
+         工序推进后这一行常跳到表格最顶，滚动若还没跟上，nr.top 是画面外的负值，
+         卡片就会往上飞出去「看不见」。 */
+      if (boxEl){
+        const br = boxEl.getBoundingClientRect();
+        const ty = Math.max(br.top + 26, Math.min(br.bottom - 26, nr.top + nr.height / 2));
+        by = ty - cy;
+      }
     }
     a.el.style.setProperty("--bx", bx + "px");
     a.el.style.setProperty("--by", by + "px");
@@ -2339,7 +2379,7 @@ function endCard(){
     seekRowIntoView(a.row, function(){
       cardSeek = false;
       doBack();
-    });
+    }, "back");                     // ★ 送回专用：先把滚动条拉到目标行（表格前段＝拉到顶）
   } else {
     doBack();
   }
@@ -2743,7 +2783,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261105l";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261106a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
