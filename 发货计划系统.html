@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261105a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261106b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -4863,6 +4863,7 @@ function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客
 // 不这么做的话，窄窗口下量出的「一行高度」会被缓存住，窗口拉宽/拉窄后长文本就一直被截断。
 
 let __fitEpoch=1, __fitSeen=0;
+let _fitDefer=0, _fitSoonPend=0, _fitSoonTas=[];
 
 function invalidateFitCache(){ __fitEpoch++; }
 
@@ -5056,7 +5057,11 @@ else if(ta.dataset.f==="model"||ta.dataset.f==="orderno"){   // 型号/订单号
 
 // 把 N 次「强制同步布局」压到 1~2 次，折叠展开后几百行也不卡
 
-function fitTextareas(force){
+function fitTextareas(force, only){
+
+  // ★ only（2026-11-06）：只测传入的 textarea。撤销/恢复时新行只有几个格，
+  //   没必要把整表都扫一遍；更重要的是别把「读 scrollHeight 触发整表重排」放在点击的同步路径里。
+  //   不传 only 时行为和原来完全一致。
 
   // ★ 性能：原来是无条件全表测量。120 行的表里光 textarea 就有 500+ 个，
 
@@ -5068,9 +5073,24 @@ function fitTextareas(force){
 
   //   最常做的「改数量 / 改箱数」根本不碰 textarea，所以这里能整段跳过（一次布局都不做）。
 
-  const tas=$("tbody").querySelectorAll("textarea");
+  const tas=(only && only.length) ? only : $("tbody").querySelectorAll("textarea");
 
   if(!tas.length) return;
+
+  // ★ 延迟模式（撤销/恢复专用，2026-11-06）：这期间任何测高都只登记、不真的读 scrollHeight。
+  //   读一次高度会强制整张 150 行表格重排（实测 100ms+），不能放在点击的同步路径里。
+  if(_fitDefer){
+    for(let i=0;i<tas.length;i++){
+      const ta=tas[i];
+      if(force || ta._fitVal!==ta.value || !ta.style.height){
+        if(!ta.style.height) ta.style.height="26px";   // 先给默认高度，画面不跳
+        ta._fitVal=ta.value;
+        _fitSoonTas.push(ta);
+      }
+    }
+    scheduleFitIdle();
+    return;
+  }
 
   // 列宽变过（窗口缩放/滚动条出现）→ 这一轮全量重测，否则旧高度会一直沿用
 
@@ -5320,50 +5340,122 @@ function gPushUndo(label, snapOverride){
 }
 
 
-// 整表恢复：把快照里的行按原顺序重建回表格，并还原客户吨位
+// 整表恢复：把快照放回表格（★ 只重建真正变化的行，其余行原样复用）
 
 
-function restoreTableSnapshot(st){
+// ★ 性能（2026-11-06）：撤销/恢复不再整表重建。
+//   旧做法：删光所有行 → 按快照重新 addRow 一遍。150 行 = 150 次 DOM 创建 + 1800 次事件绑定，
+//   而且所有 textarea 都变成"新的"，fitTextareas 被迫全表量高度（强制同步重排）——实测一次撤销 280ms。
+//   新做法：给每行算一个「内容签名」，内容没变的行直接复用原来的 DOM（事件、折叠态、筛选态、
+//   文本框高度缓存全都在），只重建真正变化的少数几行；顺序变了也只是把已有行挪一下位置。
+const G_ROW_FIELDS=["shipdate","customer","code","model","qty","shippt","unit","perbox",
+  "ton","tonManual","delivery","box","boxManual","cwt","cwtDeleted","remark",
+  "logistics","orderno","logisticsManual","noCar"];
 
-
-  if(!st) return;
-
-
-  const tb=$("tbody");
-
-
-  [...tb.children].filter(tr=>!isDataRow(tr)).forEach(tr=>tr.remove());   // ★ 先清掉「小计行 / 隔离带」这类辅助行
-
-
-  [...tb.children].filter(isDataRow).forEach(tr=>tr.remove());
-
-
-  const trs=(st.rows||[]).map(r=>addRow(r, null, null, true));
-
-
-  trs.forEach(tr=>tb.appendChild(tr));          // ★ 强制成快照顺序（addRow 默认按日期插入，会打乱原顺序）
-
-
-  try{ if(st.ct) saveCT(st.ct); }catch(e){}
-
-
-  try{ __foldSig=null; }catch(e){}               // ★ 打破 foldByDate 的指纹短路，否则折叠状态不刷新
-
-
-  reindex(); recalc(); fitTextareas(); styleShipdate(); markRowStates();
-
-
-  if(carFixAll()) mergeCustomerCells();
-
-
-  try{ if(isFilterActive()) applyFilter(); else foldByDate(); }catch(e){}
-
-
-  saveDraftNow(); updateCheckAll(); updateUndoBtn(); updateRedoBtn();
-
-
+function _sigVal(v){
+  if(v===undefined||v===null) return "~";
+  if(v===true||v===1||v==="1"||v==="true") return "T";
+  if(v===false||v===0||v==="0"||v==="false"||v==="") return "F";
+  return "S"+String(v);
+}
+function rowDataSig(r){
+  if(!r) return "";
+  let out="";
+  for(let i=0;i<G_ROW_FIELDS.length;i++) out+=_sigVal(r[G_ROW_FIELDS[i]])+"\u0001";
+  return out;
 }
 
+// ★ 撤销/恢复专用：新行的文本框先给默认高度（画面不跳），精确高度等浏览器空闲再量。
+//   量高度要读 scrollHeight，会强制整表重排；放在点击的同步路径里就是 100ms+ 的"点了没反应"。
+// 把所有待量高度的格子攒成一批，等浏览器空闲时一次量完（去重，连续撤销不会排一堆任务）
+function scheduleFitIdle(){
+  if(!_fitSoonTas.length || _fitSoonPend) return;
+  _fitSoonPend=1;
+  const run=()=>{
+    _fitSoonPend=0;
+    const list=_fitSoonTas; _fitSoonTas=[];
+    if(_fitDefer){ for(let i=0;i<list.length;i++) _fitSoonTas.push(list[i]); scheduleFitIdle(); return; }
+    try{ fitTextareas(true, list); }catch(e){}
+  };
+  if(typeof window.requestIdleCallback==="function") window.requestIdleCallback(run,{timeout:300});
+  else if(typeof window.requestAnimationFrame==="function") window.requestAnimationFrame(()=>setTimeout(run,0));
+  else setTimeout(run,0);
+}
+
+// 新建的行：先给默认高度（画面不跳），登记到空闲队列等精确校正
+function scheduleFitRows(trs){
+  try{
+    for(let i=0;i<trs.length;i++){
+      if(!trs[i]) continue;
+      const ts=trs[i].querySelectorAll("textarea");
+      for(let k=0;k<ts.length;k++){
+        const ta=ts[k];
+        if(!ta.style.height) ta.style.height="26px";   // 与页面默认行高一致，先稳住画面
+        ta._fitVal=ta.value;                            // 别让以后任何一次全表 fit 把它当"新元素"
+        _fitSoonTas.push(ta);
+      }
+    }
+    scheduleFitIdle();
+  }catch(e){}
+}
+
+function restoreTableSnapshot(st){
+  if(!st) return;
+  const tb=$("tbody");
+  [...tb.children].filter(tr=>!isDataRow(tr)).forEach(tr=>tr.remove());   // 清掉小计行 / 隔离带
+
+  const want=st.rows||[];
+  const cur=[...tb.children].filter(isDataRow);
+
+  // ① 按内容签名把现有行放进池子；签名相同 = 行里的每个字段都一样，可以直接复用 DOM
+  const pool=new Map();
+  for(let i=0;i<cur.length;i++){
+    const sig=rowDataSig(collectRowData(cur[i]));
+    const q=pool.get(sig);
+    if(q) q.push(cur[i]); else pool.set(sig,[cur[i]]);
+  }
+
+  // ② 目标快照里每一行：能复用就复用，复用不了才新建
+  const out=new Array(want.length); let made=0; const fresh=[];
+  for(let i=0;i<want.length;i++){
+    const q=pool.get(rowDataSig(want[i]));
+    if(q&&q.length){ out[i]=q.shift(); }
+    else { out[i]=addRow(want[i], null, null, true); made++; fresh.push(out[i]); }
+  }
+
+  // ③ 没被复用的旧行删掉（新建的行本来就不在 cur 里，不受影响）
+  const keep=new Set();
+  for(let i=0;i<out.length;i++) if(out[i]) keep.add(out[i]);
+  for(let i=0;i<cur.length;i++) if(!keep.has(cur[i]) && cur[i].parentNode===tb) cur[i].remove();
+
+  // ④ 按快照顺序摆好：从后往前，位置本来就对的就不动（避免无谓的 DOM 移动）
+  let anchor=null;
+  for(let i=out.length-1;i>=0;i--){
+    const tr=out[i]; if(!tr) continue;
+    if(anchor===null){ if(tb.lastElementChild!==tr) tb.appendChild(tr); }
+    else if(tr.nextElementSibling!==anchor) tb.insertBefore(tr, anchor);
+    anchor=tr;
+  }
+
+  // ⑤ 客户吨位：内容没变就不写盘、不触发云端 autoPush
+  try{ if(st.ct){ const now=loadCT(); if(JSON.stringify(now)!==JSON.stringify(st.ct)) saveCT(st.ct); } }catch(e){}
+
+  // ⑥ 刷新链：★ 不再强制清 __foldSig。
+  //   旧版整表重建后所有折叠按钮 / 合并格都没了，才必须清指纹逼 foldByDate 重画一遍；
+  //   现在未变的行是复用原 DOM 的，按钮和 rowSpan 都还在。让指纹自己判断：
+  //   分组没变 → 短路不重排（这是提速的关键）；改了客户/日期/行数 → 指纹变，自动全量刷新。
+  //   强行清指纹会让 150 行的合并单元格全部重建，读一次高度就触发整表重排，实测多花 140ms。
+  // ★ 整条刷新链放进「测高延迟模式」：改客户名/加行时 foldByDate 会重算合并单元格，
+  //   它内部那次全表 fitTextareas 曾经让恢复一步慢到 138ms。现在全部只登记、空闲时统一量。
+  _fitDefer=1;
+  try{
+    reindex(); recalc(); styleShipdate(); markRowStates();
+    if(carFixAll()) mergeCustomerCells();
+    try{ if(isFilterActive()) applyFilter(); else foldByDate(); }catch(e){}
+  }finally{ _fitDefer=0; }
+  if(fresh.length) scheduleFitRows(fresh);   // 新行也一并登记，空闲时精确校正
+  saveDraftNow(); updateCheckAll(); updateUndoBtn(); updateRedoBtn();
+}
 
 // 撤销一步
 
