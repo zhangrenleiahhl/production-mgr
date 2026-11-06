@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261106b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261106c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -1407,8 +1407,8 @@ setTimeout(function(){
         </div>
       </div>
 
-      <button class="btn btn-line" id="undoBtn" title="撤销上一步（Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
-      <button class="btn btn-line" id="redoBtn" title="恢复上一步（Ctrl+Y / Ctrl+Shift+Z）" disabled>↷</button>
+      <button class="btn btn-line" id="undoBtn" title="撤销上一步（最多 30 步，Ctrl+Z）" disabled data-page-node-id="y1HAbBdOx4HNDc2rsPeG81">↶</button>
+      <button class="btn btn-line" id="redoBtn" title="恢复上一步（最多 30 步，Ctrl+Y / Ctrl+Shift+Z）" disabled>↷</button>
 
 
     </div>
@@ -5272,7 +5272,7 @@ let gUndoStack=[];   // [{label, rows:[行字段数组], ct:{客户吨位对象}
 let gRedoStack=[];   // 恢复栈（新操作会清空它 —— WPS 语义）
 
 
-const G_UNDO_MAX=30;   // 栈容量上限：30 步，够用又不至于吃内存
+const G_UNDO_MAX=30;   // ★ 撤销/恢复最多 30 步（2026-11-06 用户口径：先试 10 步，随后改回 30 步）；两个栈共用此上限
 
 
 let pendingCellSnap=null;   // ★ 单元格编辑：当前聚焦控件的「改前整表快照」
@@ -5520,13 +5520,13 @@ function gRedo(){
 // 恢复按钮的可用状态
 
 
-function updateRedoBtn(){ const b=$("redoBtn"); if(b) b.disabled=gRedoStack.length===0; }
+function updateRedoBtn(){ const b=$("redoBtn"); if(b){ b.disabled=gRedoStack.length===0; b.title="恢复上一步（还可恢复 "+gRedoStack.length+"/"+G_UNDO_MAX+" 步，Ctrl+Y / Ctrl+Shift+Z）"; } }
 
 
 // 撤销按钮的可用状态：通用栈和旧撤回栈都空了才灰
 
 
-function updateUndoBtn(){ const b=$("undoBtn"); if(b) b.disabled=(gUndoStack.length===0 && undoStack.length===0); }
+function updateUndoBtn(){ const b=$("undoBtn"); if(b){ const n=gUndoStack.length+undoStack.length; b.disabled=(n===0); b.title="撤销上一步（还可撤销 "+n+"/"+G_UNDO_MAX+" 步，Ctrl+Z）"; } }
 
 
 // ★ 单元格编辑钩子：给可编辑控件（input / textarea / select）用。
