@@ -241,7 +241,8 @@
     /* 3. 节气当天 */
     var c = currentTerm(k);
     if (c && c.k === k) {
-      return { id: c.id, t: THEMES[c.id], level: 'festive', sub: '二十四节气 · ' + THEMES[c.id].w };
+      /* 祝语由 apply() 统一拼在 sub 后面，这里只给前缀，避免节气当天重复显示 */
+      return { id: c.id, t: THEMES[c.id], level: 'festive', sub: '二十四节气' };
     }
     /* 4. 平时：当前节气淡雅常驻 */
     if (c) {
