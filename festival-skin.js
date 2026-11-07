@@ -333,6 +333,15 @@
     'html[data-fs-dark="1"] .fs-cell{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);}',
     'html[data-fs-dark="1"] .fs-auto{background:rgba(255,255,255,.06);}',
     'html[data-fs-dark="1"] .fs-admin{background:rgba(96,165,250,.18);color:#bfdbfe;}',
+    '/* ★ 关闭后必须留一个可见的恢复入口：以前点过徽章 × 就连徽章一起消失，用户再也开不回来 */',
+    '.fs-onbtn{display:none;position:absolute;right:14px;bottom:20px;align-items:center;',
+    '  padding:6px 12px;border-radius:999px;pointer-events:auto;cursor:pointer;',
+    '  background:rgba(255,255,255,.93);border:1px solid rgba(0,0,0,.09);',
+    '  box-shadow:0 3px 14px rgba(20,28,44,.16);color:#233047;font-size:11px;font-weight:700;opacity:.72;}',
+    '.fs-onbtn:hover{opacity:1;}',
+    'html[data-fs-dark="1"] .fs-onbtn{background:rgba(14,20,31,.88);color:#eef4ff;border-color:rgba(255,255,255,.15);}',
+    'html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel{display:none!important;}',
+    'html[data-fs="off"] .fs-onbtn{display:flex!important;}',
     '@media print{.fs-root{display:none!important;}}',
     '@media (prefers-reduced-motion:reduce){.fs-bar{animation:none;}}'
   ].join('\n');
@@ -419,11 +428,13 @@
       '<div class="fs-badge" id="fsBadge" title="点击试穿其它节日皮肤">' +
       '  <span class="fs-zi" id="fsZi"></span>' +
       '  <span class="fs-txt"><b id="fsName"></b><i id="fsSub"></i></span>' +
-      '  <span class="fs-x" id="fsX" title="关闭节日皮肤">×</span>' +
+      '  <span class="fs-x" id="fsX" title="隐藏节日皮肤（右下角可重新开启）">×</span>' +
       '</div>' +
-      '<div class="fs-panel" id="fsPanel" style="display:none"></div>';
+      '<div class="fs-panel" id="fsPanel" style="display:none"></div>' +
+      '<div class="fs-onbtn" id="fsOn" title="重新开启节日皮肤">🎨 开启节日皮肤</div>';
     (document.body || document.documentElement).appendChild(root);
     document.getElementById('fsX').onclick = function (ev) { ev.stopPropagation(); turnOff(); };
+    document.getElementById('fsOn').onclick = function (ev) { ev.stopPropagation(); turnOn(); };
     document.getElementById('fsBadge').onclick = function (ev) { ev.stopPropagation(); togglePanel(); };
     root.addEventListener('click', function (ev) {
       var c = ev.target;
@@ -470,7 +481,7 @@
     h.setAttribute('data-fs-dark', isDark() ? '1' : '0');
     var s = qs('fs');
     h.setAttribute('data-fs-strength', s === 'strong' ? 'strong' : 'normal');
-    root.style.display = p ? '' : 'none';
+    root.style.display = '';   /* 关闭态也留着 root：里面藏着「开启皮肤」按钮 */
     if (!p) return;
     h.style.setProperty('--fs-c1', p.t.c1);
     h.style.setProperty('--fs-c2', p.t.c2);
@@ -483,12 +494,38 @@
     for (var i = 0; i < ds.length; i++) ds[i].style.display = deco ? 'none' : '';
   }
 
+  /* 关闭/开启要通知同页业务 UI（皮肤管理页状态栏），否则会误显示「自动模式」 */
+  function notify() {
+    try {
+      var ev = (typeof CustomEvent === 'function') ? new CustomEvent('fschange') : document.createEvent('Event');
+      if (typeof CustomEvent !== 'function') ev.initEvent('fschange', false, false);
+      document.dispatchEvent(ev);
+    } catch (e) {}
+  }
   function turnOff() {
     lsSet(KEY_OFF, '1');
     ssDel(KEY_PREVIEW);
-    if (root) root.style.display = 'none';
+    panelOpen = false;
     try { document.documentElement.setAttribute('data-fs', 'off'); } catch (e) {}
+    ensureRoot();
+    if (root) root.style.display = '';      /* 只藏装饰层，露出恢复按钮 */
+    try { var pnl = document.getElementById('fsPanel'); if (pnl) pnl.style.display = 'none'; } catch (e) {}
+    notify();
   }
+  function turnOn() {
+    lsDel(KEY_OFF);
+    /* 网址若带 ?fs=off，刷新会立刻又关掉 → 顺手把参数去掉 */
+    try {
+      if (window.history && history.replaceState && /[?&]fs=off(?:&|$)/.test(location.search)) {
+        var q = location.search.replace(/([?&])fs=off(?:&|$)/, '$1').replace(/[?&]$/, '');
+        history.replaceState(null, '', location.pathname + q + location.hash);
+      }
+    } catch (e) {}
+    lastKey = '';
+    refresh(true);
+    notify();
+  }
+  function isOff() { return lsGet(KEY_OFF) === '1'; }
 
   function refresh(force) {
     try {
@@ -521,7 +558,9 @@
     try {
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
       window.addEventListener('focus', function () { refresh(false); });
-      window.addEventListener('storage', function (ev) { if (ev && ev.key === KEY_OVR) refresh(true); });
+      window.addEventListener('storage', function (ev) {
+        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF)) { lastKey = ''; refresh(true); }
+      });
     } catch (e) {}
   }
 
@@ -530,6 +569,7 @@
     version: VER, themes: THEMES, termIds: TERM_IDS, festIds: FEST_IDS,
     holidays: HOLIDAYS, lunarFest: LUNAR_FEST, termTable: TERM_TABLE,
     pick: pick, apply: apply, refresh: refresh, turnOff: turnOff,
+    turnOn: turnOn, isOff: isOff,
     preview: preview, currentPreview: currentPreview,
     override: override, setOverride: setOverride, clearOverride: clearOverride,
     syncCloud: syncCloud, isAdmin: isAdmin, cloudKey: CLOUD_KEY,
