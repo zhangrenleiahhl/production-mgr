@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🎨 节日皮肤管理 · 仅管理员</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px 16px 96px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f4f6fb;color:#1f2328}
+  header{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#64748b;font-size:12px;margin:0;line-height:1.6}
+  .status{margin:14px 0 12px;padding:11px 14px;background:#fff;border:1px solid #e6eaf0;border-left:4px solid #1f6feb;border-radius:10px;font-size:13px;font-weight:700;box-shadow:0 4px 16px rgba(31,45,77,.05)}
+  .status small{display:block;color:#94a3b8;font-weight:400;font-size:11px;margin-top:3px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  button{height:34px;padding:0 14px;border:1px solid #d8dee9;background:#fff;border-radius:8px;font-size:13px;cursor:pointer;color:#1f2328}
+  button:hover{border-color:#93b4f5}
+  button.primary{background:#1f6feb;color:#fff;border:none;font-weight:700;box-shadow:0 4px 12px rgba(31,111,235,.25)}
+  button.primary:disabled{background:#c7d6ee;box-shadow:none;cursor:not-allowed}
+  button.ghost{background:transparent}
+  .me{margin-left:auto;color:#64748b;font-size:12px}
+  .msg{min-height:18px;font-size:12px;color:#0f7b4f;margin-bottom:4px}
+  .msg.warn{color:#b45309}.msg.err{color:#dc2626}
+  h2{font-size:13px;color:#64748b;margin:18px 0 8px;letter-spacing:.3px}
+  .cnt{color:#94a3b8;font-weight:400;font-size:11px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:9px}
+  .card{background:#fff;border:1px solid #e6eaf0;border-radius:12px;padding:9px;cursor:pointer;transition:transform .14s,box-shadow .14s,border-color .14s}
+  .card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(31,45,77,.12)}
+  .card.on{border-color:#1f6feb;box-shadow:0 0 0 2px rgba(31,111,235,.18)}
+  .sw{height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;text-shadow:0 1px 5px rgba(0,0,0,.35)}
+  .card b{display:block;font-size:13px;margin-top:7px}
+  .card small{display:block;color:#94a3b8;font-size:11px;line-height:1.35;margin-top:2px;min-height:29px}
+  .card .pick{display:none;color:#1f6feb;font-size:11px;font-weight:700;margin-top:4px}
+  .card.on .pick{display:block}
+  .tip{margin-top:20px;color:#94a3b8;font-size:12px;line-height:1.8;background:#fff;border:1px dashed #d8dee9;border-radius:10px;padding:12px 14px}
+  .tip b{color:#475569}
+  .deny{padding:56px 20px;text-align:center;color:#94a3b8;background:#fff;border:1px solid #e6eaf0;border-radius:14px;line-height:2}
+  .deny b{color:#dc2626}
+</style>
+<script src="festival-skin.js?v=20261106a&h=77d3a194" defer></script>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🎨 节日皮肤管理</h1>
+    <p class="sub">仅管理员可用。点一张卡片立即在这台电脑上试穿，觉得好看再「应用到全站」。</p>
+  </div>
+  <button class="ghost" onclick="history.back()">← 返回</button>
+</header>
+
+<div id="status" class="status">正在读取当前皮肤…</div>
+
+<div class="bar" id="bar">
+  <button class="primary" id="apply" disabled>☁ 应用到全站</button>
+  <button id="reset">↺ 恢复自动</button>
+  <button id="clearTry">✕ 结束本机试穿</button>
+  <button class="ghost" id="reload">🔄 重新读取云端</button>
+  <span class="me" id="me"></span>
+</div>
+<div id="msg" class="msg"></div>
+
+<div id="main">
+  <h2>传统节日 · 法定假日 <span class="cnt" id="c1"></span></h2>
+  <div class="grid" id="g1"></div>
+  <h2>二十四节气 <span class="cnt" id="c2"></span></h2>
+  <div class="grid" id="g2"></div>
+
+  <p class="tip">
+    <b>三种状态，别弄混：</b><br>
+    ① <b>自动</b>：按今天日期自动显示（法定假期 &gt; 传统节日 &gt; 24 节气），假期里每天都显示。<br>
+    ② <b>本机试穿</b>：点卡片后只在这台电脑的这个页面立刻变，别人和两台大屏都不受影响；点「结束本机试穿」即可清除。<br>
+    ③ <b>全站指定</b>：点「应用到全站」后保存到云端，公司所有电脑与大屏都会换上，页面开着时最多 5 分钟自动生效，也可在别的电脑点「重新读取云端」立刻生效。<br>
+    <b>恢复自动</b>会同时取消全站指定和本机试穿，回到 ①。所有页面右下角的皮肤徽章里也有本页入口（仅管理员看得到）。
+  </p>
+</div>
+
+<div id="deny" class="deny" style="display:none">⛔ <b>无权限</b><br>只有管理员才能更改节日皮肤。<br>请用管理员手机号登录后访问。</div>
+
+<script src="supabase.min.js"></script>
+<script src="cloud-config.js"></script>
+<script src="auth.js?v=20260930a"></script>
+<script src="staff-config.js?v=20260924c"></script>
+<script src="cloud-sync.js?v=20261026a"></script>
+<script>
+(function () {
+  if (window.Auth) Auth.guard();          // 未登录 → 跳登录页
+
+  var F = null, phone = '', meName = '管理员', selected = '';
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function $(id) { return document.getElementById(id); }
+  function show(txt, cls) {
+    var m = $('msg'); m.textContent = txt || ''; m.className = 'msg' + (cls ? ' ' + cls : '');
+    if (txt) { clearTimeout(show._t); show._t = setTimeout(function () { m.textContent = ''; }, 6000); }
+  }
+  function deny() {
+    ['bar', 'main', 'status'].forEach(function (id) { var e = $(id); if (e) e.style.display = 'none'; });
+    var d = $('deny'); if (d) d.style.display = 'block';
+  }
+
+  function cards(box, ids) {
+    var h = '';
+    for (var i = 0; i < ids.length; i++) {
+      var id = ids[i], t = F.themes[id];
+      if (!t) continue;
+      h += '<div class="card" data-id="' + esc(id) + '">' +
+           '<div class="sw" style="background:linear-gradient(135deg,' + esc(t.c1) + ',' + esc(t.c2) + ')">' + esc(t.z) + '</div>' +
+           '<b>' + esc(t.n) + '</b><small>' + esc(t.w) + '</small><div class="pick">✓ 已选中</div></div>';
+    }
+    box.innerHTML = h;
+    return box.querySelectorAll('.card').length;
+  }
+
+  function mark() {
+    var list = document.querySelectorAll('.card');
+    for (var i = 0; i < list.length; i++) {
+      var on = list[i].getAttribute('data-id') === selected;
+      list[i].className = on ? 'card on' : 'card';
+    }
+    var b = $('apply');
+    if (b) b.disabled = !selected;
+  }
+
+  function status() {
+    var p = F.pick(), ov = F.override(), pv = F.currentPreview(), line = '', sub = '';
+    if (pv && F.themes[pv]) {
+      line = '🖥 本机试穿：' + F.themes[pv].n;
+      sub = '只有这台电脑的这个页面变了，别人和大屏不受影响；点「应用到全站」才会发布给所有人。';
+    } else if (ov) {
+      line = '☁ 全站指定：' + F.themes[ov.id].n;
+      sub = '由 ' + (ov.name || '管理员') + ' 设置 · ' + String(ov.at || '').slice(0, 16).replace('T', ' ') + ' · 所有电脑与大屏跟随。';
+    } else {
+      line = '🔄 自动模式：' + (p ? p.t.n : '未启用');
+      sub = '按今天日期自动换肤（法定假期、传统节日、24 节气）。';
+    }
+    $('status').innerHTML = esc(line) + '<small>' + esc(sub) + '</small>';
+  }
+
+  function cloudReady() {
+    var CS = window.CloudSync;
+    if (!CS || !CS.ready || !CS.push) return null;
+    try { if (!CS.ready()) CS.init(); } catch (e) {}
+    return CS.ready() ? CS : null;
+  }
+
+  function save(id) {
+    var o = { id: id, by: phone, name: meName, at: new Date().toISOString() };
+    var CS = cloudReady();
+    function done(ok) {
+      F.setOverride(id === 'auto' ? null : o);
+      selected = id === 'auto' ? '' : id;
+      if (ok) show('✅ 已应用到全站：' + (id === 'auto' ? '恢复自动' : F.themes[id].n) + '。其它电脑与大屏最多 5 分钟自动生效。');
+      else show('⚠ 云端暂时连不上，已先保存到这台电脑；联网后请再点一次「应用到全站」。', 'warn');
+      mark(); status();
+    }
+    if (!CS) { done(false); return; }
+    try {
+      var r = CS.push(F.cloudKey, o);
+      if (r && typeof r.then === 'function') r.then(function (ok) { done(!!ok); }, function () { done(false); });
+      else done(!!r);
+    } catch (e) { done(false); }
+  }
+
+  function start() {
+    F = window.FestivalSkin;
+    var s = (window.Auth && Auth.getSession && Auth.getSession()) || null;
+    phone = s ? String(s.email || '').split('@')[0] : '';
+    var ADMIN = (window.STAFF && window.STAFF.adminPhone) || '';
+    if (!F || !s || !ADMIN || phone !== ADMIN) { deny(); return; }
+
+    var users = (window.STAFF && Array.isArray(window.STAFF.users)) ? window.STAFF.users : [];
+    for (var i = 0; i < users.length; i++) {
+      if (String(users[i].phone || '') === phone) { meName = String(users[i].name || phone); break; }
+    }
+    $('me').textContent = '当前登录：' + meName + '（管理员）';
+
+    var n1 = cards($('g1'), F.festIds), n2 = cards($('g2'), F.termIds);
+    $('c1').textContent = n1 + ' 套'; $('c2').textContent = n2 + ' 套';
+
+    $('main').addEventListener('click', function (ev) {
+      var c = ev.target;
+      while (c && c !== $('main') && (!c.getAttribute || !c.getAttribute('data-id'))) c = c.parentNode;
+      if (!c || c === $('main') || !c.getAttribute) return;
+      selected = c.getAttribute('data-id');
+      if (!F.themes[selected]) return;
+      F.preview(selected);            // 本页立即整页换肤
+      mark(); status();
+      show('🖥 正在本机试穿「' + F.themes[selected].n + '」，确认好看再点「应用到全站」。');
+    });
+
+    $('apply').onclick = function () {
+      if (!selected) { show('请先点一张皮肤卡片。', 'warn'); return; }
+      save(selected);
+    };
+    $('reset').onclick = function () { save('auto'); };
+    $('clearTry').onclick = function () {
+      F.preview('__auto'); selected = ''; mark(); status();
+      show('已结束本机试穿，回到' + (F.override() ? '全站指定皮肤' : '自动模式') + '。');
+    };
+    $('reload').onclick = function () {
+      F.syncCloud(function (changed) {
+        status(); mark();
+        show(changed ? '🔄 已读取到云端的新设置并立即生效。' : '🔄 云端设置已是最新，无需改动。');
+      });
+      show('正在读取云端设置…');
+    };
+
+    /* 打开页面时先按本机缓存显示，再悄悄校对一次云端 */
+    status(); mark();
+    F.syncCloud(function () { status(); mark(); });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
+</script>
+</body>
+</html>
