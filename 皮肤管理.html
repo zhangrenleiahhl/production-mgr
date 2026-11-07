@@ -37,7 +37,7 @@
   .deny{padding:56px 20px;text-align:center;color:#94a3b8;background:#fff;border:1px solid #e6eaf0;border-radius:14px;line-height:2}
   .deny b{color:#dc2626}
 </style>
-<script src="festival-skin.js?v=20261106a&h=77d3a194" defer></script>
+<script src="festival-skin.js?v=20261106a&h=a4d9c039" defer></script>
 </head>
 <body>
 
@@ -56,6 +56,7 @@
   <button id="reset">↺ 恢复自动</button>
   <button id="clearTry">✕ 结束本机试穿</button>
   <button class="ghost" id="reload">🔄 重新读取云端</button>
+  <button id="turnOnBtn" style="display:none;background:#fff4d6;border-color:#f0b429;color:#8a5a00;font-weight:700">🎉 开启节日皮肤</button>
   <span class="me" id="me"></span>
 </div>
 <div id="msg" class="msg"></div>
@@ -71,7 +72,8 @@
     ① <b>自动</b>：按今天日期自动显示（法定假期 &gt; 传统节日 &gt; 24 节气），假期里每天都显示。<br>
     ② <b>本机试穿</b>：点卡片后只在这台电脑的这个页面立刻变，别人和两台大屏都不受影响；点「结束本机试穿」即可清除。<br>
     ③ <b>全站指定</b>：点「应用到全站」后保存到云端，公司所有电脑与大屏都会换上，页面开着时最多 5 分钟自动生效，也可在别的电脑点「重新读取云端」立刻生效。<br>
-    <b>恢复自动</b>会同时取消全站指定和本机试穿，回到 ①。所有页面右下角的皮肤徽章里也有本页入口（仅管理员看得到）。
+    <b>恢复自动</b>会同时取消全站指定和本机试穿，回到 ①。所有页面右下角的皮肤徽章里也有本页入口（仅管理员看得到）。<br>
+    <b>补充</b>：如果整套皮肤都不显示（没有彩条、没有徽章），多半是点过徽章上的 × 把这台电脑隐藏了；状态栏会提示，点工具栏「🎉 开启节日皮肤」即可恢复。
   </p>
 </div>
 
@@ -128,7 +130,12 @@
 
   function status() {
     var p = F.pick(), ov = F.override(), pv = F.currentPreview(), line = '', sub = '';
-    if (pv && F.themes[pv]) {
+    var off = !!(F.isOff && F.isOff());
+    var ob = $('turnOnBtn'); if (ob) ob.style.display = off ? 'inline-block' : 'none';
+    if (off) {
+      line = '⏸ 这台电脑的节日皮肤已关闭';
+      sub = '配色、彩条和右下角徽章都被隐藏了（多半是点过徽章上的 ×）。点工具栏「🎉 开启节日皮肤」即可恢复。';
+    } else if (pv && F.themes[pv]) {
       line = '🖥 本机试穿：' + F.themes[pv].n;
       sub = '只有这台电脑的这个页面变了，别人和大屏不受影响；点「应用到全站」才会发布给所有人。';
     } else if (ov) {
@@ -153,6 +160,7 @@
     var CS = cloudReady();
     function done(ok) {
       F.setOverride(id === 'auto' ? null : o);
+      if (F.isOff && F.isOff() && F.turnOn) F.turnOn();   /* 应用/恢复自动时顺手打开本机皮肤 */
       selected = id === 'auto' ? '' : id;
       if (ok) show('✅ 已应用到全站：' + (id === 'auto' ? '恢复自动' : F.themes[id].n) + '。其它电脑与大屏最多 5 分钟自动生效。');
       else show('⚠ 云端暂时连不上，已先保存到这台电脑；联网后请再点一次「应用到全站」。', 'warn');
@@ -198,6 +206,12 @@
       save(selected);
     };
     $('reset').onclick = function () { save('auto'); };
+    $('turnOnBtn').onclick = function () {
+      if (F.turnOn) F.turnOn();
+      status(); mark();
+      var q = F.pick();
+      show('🎉 节日皮肤已重新开启：' + (q ? q.t.n : '自动') + '。');
+    };
     $('clearTry').onclick = function () {
       F.preview('__auto'); selected = ''; mark(); status();
       show('已结束本机试穿，回到' + (F.override() ? '全站指定皮肤' : '自动模式') + '。');
@@ -210,6 +224,8 @@
       show('正在读取云端设置…');
     };
 
+    /* 徽章 × / 一键开启等状态变化，立即重算状态栏 */
+    document.addEventListener('fschange', function () { status(); mark(); });
     /* 打开页面时先按本机缓存显示，再悄悄校对一次云端 */
     status(); mark();
     F.syncCloud(function () { status(); mark(); });
