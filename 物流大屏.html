@@ -885,7 +885,7 @@
 
 </style>
 
-  <script src="festival-skin.js?v=20261106a&h=159ea911" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=a09f56f1" defer></script>
 </head>
 
 <body>
@@ -2698,6 +2698,14 @@ async function captureScreen(btn){
     //   不给实色 html2canvas 就垫白底，整张图发白发虚「看不清」（2026-09-18 用户报）。
 
     const canvas = await html2canvas(node, { backgroundColor: "#0a0e15", scale: 2, useCORS: true, logging: false });
+
+    // ★ html2canvas 只截 .wrap，节日皮肤是 body 下的 fixed 浮层、进不了画布。
+    //   这里让皮肤脚本把彩条 / 四边染色 / 专属图案 / 插画贺卡 / 节日落款重画到 PNG 上，
+    //   这样发出去的「物流进度截图」也保留当天的节日主题。失败不影响正常导出。
+    try {
+      if (window.FestivalSkin && FestivalSkin.paintCapture)
+        await FestivalSkin.paintCapture(canvas, { cssWidth: node.getBoundingClientRect().width, dark: true });
+    } catch (e) { console.warn("节日主题叠加失败（不影响截图）", e); }
 
     canvas.toBlob(blob => {
 
