@@ -27,6 +27,7 @@
   var KEY_OFF = 'festival_skin_off_v1';
   var KEY_PREVIEW = 'festival_skin_preview_v1';
   var KEY_STRENGTH = 'festival_skin_strength_v1';    // 皮肤浓度（soft / 默认 normal / strong）
+  var KEY_CARD = 'festival_skin_card_off_v1';        // 左下角节日插画贺卡是否隐藏
   var KEY_OVR = 'festival_skin_override_local_v1';   // 本机缓存（同源所有标签页共享）
   var CLOUD_KEY = 'festival_skin_override_v1';        // 云端 app_data 键（全站统一皮肤）
 
@@ -308,6 +309,31 @@
     '.fs-deco-tl{top:-26px;left:-18px;width:210px;height:150px;}',
     '.fs-deco-br{bottom:-40px;right:-24px;width:260px;height:190px;transform:rotate(180deg);}',
     '.fs-deco svg{width:100%;height:100%;fill:none;stroke:var(--fs-c1);stroke-width:1.5;}',
+    /* ★ 节日插画贺卡：左下角，和右下角徽章 / 账号管理浮动条互不干扰 */
+    '.fs-card{position:absolute;left:14px;bottom:14px;width:176px;border-radius:12px;overflow:hidden;pointer-events:auto;cursor:zoom-in;',
+    '  background:rgba(255,255,255,.96);border:1px solid var(--fs-c1);box-shadow:0 6px 22px rgba(20,28,44,.2);',
+    '  opacity:.94;transition:opacity .3s,width .3s;}',
+    '.fs-card:hover{opacity:1;}',
+    '.fs-card-img{height:104px;background-size:cover;background-position:center;background-color:#f3efe6;',
+    '  transition:height .3s,background-image .3s;}',
+    '.fs-card-img.noimg{background-image:none!important;background:linear-gradient(135deg,var(--fs-c1),var(--fs-c2))!important;}',
+    '.fs-card-txt{padding:6px 9px 7px;display:flex;flex-direction:column;gap:1px;}',
+    '.fs-card-txt b{font-size:12px;font-weight:800;color:#233047;letter-spacing:.5px;}',
+    '.fs-card-txt i{font-style:normal;font-size:10px;color:#6b7688;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.fs-card-x{position:absolute;top:5px;right:6px;width:17px;height:17px;border-radius:50%;display:grid;place-items:center;',
+    '  background:rgba(255,255,255,.86);color:#333;font-size:12px;line-height:1;pointer-events:auto;opacity:.72;}',
+    '.fs-card-x:hover{opacity:1;}',
+    '.fs-lightbox{position:fixed;inset:0;z-index:2147483600;background:rgba(8,12,20,.84);display:none;',
+    '  align-items:center;justify-content:center;pointer-events:auto;cursor:zoom-out;}',
+    '.fs-lightbox.on{display:flex;}',
+    '.fs-lightbox img{max-width:86vw;max-height:78vh;border-radius:14px;box-shadow:0 20px 70px rgba(0,0,0,.5);border:3px solid rgba(255,255,255,.72);}',
+    '.fs-lightbox span{position:absolute;bottom:6vh;color:#fff;font-size:15px;text-shadow:0 2px 8px #000;}',
+    'html[data-fs-dark="1"] .fs-card{background:rgba(14,20,31,.9);border-color:rgba(255,255,255,.24);opacity:.9;}',
+    'html[data-fs-dark="1"] .fs-card-txt b{color:#eef4ff;}html[data-fs-dark="1"] .fs-card-txt i{color:#9db0c8;}',
+    'html[data-fs-strength="soft"] .fs-card{width:138px;opacity:.8;}',
+    'html[data-fs-strength="soft"] .fs-card-img{height:82px;}',
+    'html[data-fs-strength="strong"] .fs-card{width:210px;opacity:1;}',
+    'html[data-fs-strength="strong"] .fs-card-img{height:126px;}',
     '.fs-wm{position:absolute;right:5vw;top:auto;bottom:11vh;font-size:min(20vw,200px);line-height:.8;font-weight:900;',
     '  color:var(--fs-c1);opacity:.035;pointer-events:none;user-select:none;}',
     '.fs-panel{position:absolute;top:auto;bottom:96px;left:auto;right:14px;transform:none;width:min(94vw,620px);max-height:min(62vh,460px);',
@@ -360,9 +386,14 @@
     '  box-shadow:0 3px 14px rgba(20,28,44,.16);color:#233047;font-size:11px;font-weight:700;opacity:.72;}',
     '.fs-onbtn:hover{opacity:1;}',
     'html[data-fs-dark="1"] .fs-onbtn{background:rgba(14,20,31,.88);color:#eef4ff;border-color:rgba(255,255,255,.15);}',
-    'html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel{display:none!important;}',
+    'html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel,html[data-fs="off"] .fs-card,html[data-fs="off"] .fs-lightbox{display:none!important;}',
     'html[data-fs="off"] .fs-onbtn{display:flex!important;}',
-    '@media print{.fs-root{display:none!important;}}',
+    /* ★ 打印/导出 PDF 也保留节日主题：只隐藏交互元素，保留彩条与插画贺卡 */
+    '@media print{',
+    '  .fs-badge,.fs-panel,.fs-onbtn,.fs-x,.fs-card-x,.fs-lightbox,.fs-wm,.fs-deco,.fs-tint{display:none!important;}',
+    '  .fs-root{position:absolute;}.fs-bar{height:6px;opacity:1;box-shadow:none;}',
+    '  .fs-card{opacity:1;box-shadow:none;border:1px solid #ccc;pointer-events:none;}',
+    '}',
     '@media (prefers-reduced-motion:reduce){.fs-bar{animation:none;}}'
   ].join('\n');
 
@@ -373,6 +404,55 @@
     '<circle cx="164" cy="30" r="16"/><circle cx="164" cy="30" r="9"/>' +
     '<path d="M164 8v-8M164 60v-8M142 30h-8M194 30h-8M148 14l-6-6M186 14l6-6M148 46l-6 6M186 46l6 6"/>' +
     '</svg>';
+
+  /* ---------- 37 套节日专属线稿图案 ----------
+   * 每个节日/节气一组不同的简笔意象，替代原来所有节日共用的云纹。
+   * 供页面角落装饰、贺卡无图时的兜底、以及截图绘制共用。
+   */
+  var MOTIFS = {
+    bailu: '<path d="M42 126V34M62 126V46M82 126V30"/><path d="M42 34c-8-8-14-10-20-10M62 46c8-10 14-12 22-12M82 30c-8-8-14-10-20-10"/><circle cx="126" cy="54" r="9"/><circle cx="156" cy="74" r="7"/><circle cx="112" cy="90" r="5"/><path d="M138 26l10 7 10-7M158 20l10 7 10-7"/><path d="M8 122q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    chongyang: '<circle cx="62" cy="52" r="10"/><ellipse cx="86" cy="52" rx="7" ry="13"/><ellipse cx="78" cy="68" rx="7" ry="13"/><ellipse cx="62" cy="75" rx="7" ry="13"/><ellipse cx="46" cy="68" rx="7" ry="13"/><ellipse cx="39" cy="52" rx="7" ry="13"/><ellipse cx="45" cy="36" rx="7" ry="13"/><ellipse cx="62" cy="29" rx="7" ry="13"/><ellipse cx="78" cy="35" rx="7" ry="13"/><path d="M108 100h44l-6 18h-32z"/><path d="M116 100c0-10 6-16 14-16s14 6 14 16"/><path d="M8 124l30-22 22 14 26-20"/>',
+    chunfen: '<path d="M100 14v112M100 76l-30-30M100 60l30-30"/><circle cx="64" cy="42" r="6"/><circle cx="136" cy="26" r="6"/><circle cx="56" cy="62" r="5"/><circle cx="144" cy="52" r="5"/><path d="M116 96l10 8 10-8M138 90l10 8 10-8"/><path d="M20 118h160"/>',
+    chunjie: '<circle cx="58" cy="52" r="27"/><path d="M58 25v54M31 52h54M40 34l36 36M76 34L40 70"/><path d="M104 28c10 8 12 20 8 30M112 44l14-8M108 58l16 4"/><circle cx="118" cy="30" r="4"/><circle cx="136" cy="52" r="4"/><circle cx="112" cy="72" r="4"/><circle cx="148" cy="88" r="10"/><path d="M143 88h10M148 83v10"/>',
+    chushu: '<path d="M46 124V52"/><ellipse cx="53" cy="58" rx="4" ry="8"/><ellipse cx="39" cy="67" rx="4" ry="8"/><ellipse cx="53" cy="76" rx="4" ry="8"/><ellipse cx="39" cy="85" rx="4" ry="8"/><ellipse cx="53" cy="94" rx="4" ry="8"/><ellipse cx="39" cy="103" rx="4" ry="8"/><ellipse cx="53" cy="112" rx="4" ry="8"/><path d="M46 52l-6-12M46 52l6-12"/><path d="M100 34c10-10 22-10 32 0s16 8 24 2M96 52c14-10 28-10 40 0s18 8 26 2"/><path d="M132 88l8 6 8-6M150 82l8 6 8-6"/><path d="M8 118q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    chuxi: '<path d="M34 24h40l-4 48H38z"/><ellipse cx="54" cy="24" rx="20" ry="6"/><ellipse cx="54" cy="72" rx="20" ry="6"/><path d="M54 10L54 24"/><path d="M54 78L54 96"/><circle cx="140" cy="50" r="21"/><path d="M140 22v-8M140 86v8M113 50h-8M175 50h8M121 31l19 38M159 31l-19 38"/><path d="M128 50h24"/>',
+    dahan: '<path d="M20 12v34M38 12v24M56 12v40M74 12v28M92 12v20"/><path d="M14 12h96"/><path d="M20 46l6 12 6-12M56 52l6 12 6-12M74 40l6 12 6-12"/><path d="M112 118c16-44 34-66 56-76 10 34 12 58 0 76z"/><circle cx="140" cy="30" r="1"/><circle cx="166" cy="52" r="1"/><circle cx="120" cy="72" r="1"/>',
+    dashu: '<circle cx="70" cy="50" r="26"/><path d="M106 50L116 50"/><path d="M101 68L109 73"/><path d="M87 81L92 89"/><path d="M70 85L70 95"/><path d="M52 81L47 89"/><path d="M39 67L31 72"/><path d="M35 50L25 50"/><path d="M39 32L31 27"/><path d="M53 19L48 11"/><path d="M70 15L70 5"/><path d="M88 19L93 11"/><path d="M101 33L109 28"/><path d="M120 108c16-34 30-48 48-54 4 26 4 44-6 54z"/><path d="M120 108c16-12 30-16 42-10"/><path d="M12 122c10-8 20-8 30 0s20 8 30 0M92 122c10-8 20-8 30 0s20 8 30 0"/>',
+    daxue: '<path d="M8 118l38-52 22 26 30-42 34 44 26-24 34 48z"/><path d="M98 50l-8-14M98 50l10-12"/><path d="M146 84l-16-14-16 14M130 70V40M130 84l-16-14-16 14M130 98l-18-16-18 16M130 40v84"/><circle cx="40" cy="30" r="1"/><circle cx="76" cy="22" r="1"/><circle cx="168" cy="32" r="1"/><circle cx="110" cy="18" r="1"/><circle cx="186" cy="56" r="1"/>',
+    dongzhi: '<path d="M26 92h56a28 28 0 0 1-56 0z"/><circle cx="44" cy="86" r="7"/><circle cx="62" cy="88" r="7"/><ellipse cx="54" cy="92" rx="28" ry="6"/><circle cx="140" cy="42" r="22"/><path d="M140 12v-8M140 72v8M110 42h-8M178 42h8M118 20l-6-6M162 20l6-6M118 64l-6 6M162 64l6 6"/><path d="M104 112c10-8 20-8 30 0s20 8 30 0"/>',
+    duanwu: '<path d="M40 96l24-58 24 58z"/><path d="M40 96h48M52 72h24M64 38v58"/><path d="M112 28c14 12 18 30 12 48M124 32c-2 18 2 32 12 44M108 40c8-12 20-16 30-14"/><path d="M8 112q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/><path d="M8 126q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    guoqing: '<path d="M50 14l9 19 21 3-15 15 4 21-19-10-19 10 4-21-15-15 21-3z"/><path d="M104 22c14 6 20 18 14 32 14-8 28-4 36 6l-6 42h-44z"/><circle cx="160" cy="32" r="3"/><path d="M160 32L178 32"/><path d="M160 32L172 44"/><path d="M160 32L160 49"/><path d="M160 32L148 44"/><path d="M160 32L143 32"/><path d="M160 32L148 20"/><path d="M160 32L160 15"/><path d="M160 32L172 20"/><path d="M8 120q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    guyu: '<path d="M32 20c8 14 12 20 12 26a12 12 0 0 1-24 0c0-6 4-12 12-26z"/><circle cx="112" cy="58" r="14"/><circle cx="112" cy="58" r="24"/><ellipse cx="142" cy="58" rx="9" ry="15"/><ellipse cx="127" cy="83" rx="9" ry="15"/><ellipse cx="98" cy="83" rx="9" ry="15"/><ellipse cx="83" cy="58" rx="9" ry="15"/><ellipse cx="97" cy="33" rx="9" ry="15"/><ellipse cx="126" cy="33" rx="9" ry="15"/><path d="M112 90v34M112 104l16-12M112 110l-14-12"/><path d="M8 126q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    hanlu: '<circle cx="54" cy="50" r="9"/><ellipse cx="76" cy="50" rx="6" ry="12"/><ellipse cx="69" cy="65" rx="6" ry="12"/><ellipse cx="54" cy="71" rx="6" ry="12"/><ellipse cx="39" cy="65" rx="6" ry="12"/><ellipse cx="33" cy="50" rx="6" ry="12"/><ellipse cx="39" cy="35" rx="6" ry="12"/><ellipse cx="54" cy="29" rx="6" ry="12"/><ellipse cx="69" cy="35" rx="6" ry="12"/><circle cx="126" cy="38" r="8"/><circle cx="156" cy="62" r="6"/><path d="M112 96l14-16 6 10 10-6 4 20-22 4z"/><path d="M126 108v18"/><path d="M8 126q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    jingzhe: '<path d="M50 10l-16 36h18l-12 34 34-44H56l12-26z"/><path d="M96 100c8-10 18-10 26 0s18 10 26 0"/><path d="M100 112c8-10 18-10 26 0s18 10 26 0"/><circle cx="146" cy="44" r="12"/><circle cx="146" cy="44" r="20"/><path d="M146 24v-10M146 74v10M126 44h-10M176 44h10"/><circle cx="40" cy="108" r="1"/><circle cx="72" cy="116" r="1"/>',
+    laba: '<path d="M28 84h68a34 34 0 0 1-68 0z"/><ellipse cx="62" cy="84" rx="34" ry="8"/><path d="M46 60c-6-10 6-14 0-24M62 58c-6-10 6-14 0-24M78 60c-6-10 6-14 0-24"/><circle cx="126" cy="96" r="9"/><circle cx="148" cy="102" r="7"/><circle cx="166" cy="90" r="6"/><path d="M110 118h72"/>',
+    laodong: '<path d="M60 124V28"/><ellipse cx="71" cy="40" rx="6" ry="12"/><ellipse cx="49" cy="51" rx="6" ry="12"/><ellipse cx="71" cy="62" rx="6" ry="12"/><ellipse cx="49" cy="73" rx="6" ry="12"/><ellipse cx="71" cy="84" rx="6" ry="12"/><ellipse cx="49" cy="95" rx="6" ry="12"/><ellipse cx="71" cy="106" rx="6" ry="12"/><circle cx="140" cy="64" r="26"/><path d="M140 30L140 22"/><path d="M140 30v-10M140 98v10M106 64h-10M184 64h10M116 40l-8-8M164 40l8-8M116 88l-8 8M164 88l8 8"/><circle cx="140" cy="64" r="9"/>',
+    lichun: '<path d="M62 124V64"/><ellipse cx="46" cy="58" rx="16" ry="9"/><ellipse cx="78" cy="54" rx="16" ry="9"/><path d="M62 64l-16-6M62 60l16-6"/><path d="M112 36l10 8 10-8M136 30l10 8 10-8"/><path d="M100 92l14-10v20zM126 92l14-10v20zM152 92l14-10v20z"/><path d="M20 124h150"/>',
+    lidong: '<path d="M20 106h160M20 120h160M36 92l16 28M68 92l16 28M100 92l16 28M132 92l16 28M36 120l16-28M68 120l16-28M100 120l16-28M132 120l16-28"/><path d="M162 30c-6-10 6-14 0-24"/><path d="M162 40c-6-10 6-14 0-24"/><path d="M144 52c8-6 16-6 24 0"/>',
+    liqiu: '<path d="M62 96c-18-10-24-30-14-46 8-14 26-16 38-6 12 10 12 30 2 44z"/><path d="M62 96l-14-40M62 96l16-36M62 96l-2 26"/><path d="M112 34c14-6 26-6 38 0M108 50c18-8 32-8 46 0M116 66c12-6 24-6 34 0"/><path d="M148 92l8-12 8 12zM148 92v18"/>',
+    lixia: '<circle cx="70" cy="62" r="44"/><path d="M70 18v44M70 62l38-22"/><circle cx="70" cy="62" r="34"/><path d="M136 96c0-10 10-16 20-16s20 6 20 16z"/><circle cx="142" cy="92" r="2"/><circle cx="170" cy="92" r="2"/><path d="M8 120q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/><path d="M126 34c10-6 18-6 26 0"/>',
+    mangzhong: '<path d="M46 126V44"/><ellipse cx="54" cy="52" rx="4" ry="9"/><ellipse cx="38" cy="62" rx="4" ry="9"/><ellipse cx="54" cy="72" rx="4" ry="9"/><ellipse cx="38" cy="82" rx="4" ry="9"/><ellipse cx="54" cy="92" rx="4" ry="9"/><ellipse cx="38" cy="102" rx="4" ry="9"/><ellipse cx="54" cy="112" rx="4" ry="9"/><path d="M110 126V88M110 88l-14-12M110 88l14-12M110 100l-12-10M110 100l12-10"/><path d="M136 40l22 10-22 10z"/><path d="M136 40v20"/><path d="M8 120q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    qingming: '<path d="M28 10c6 30 4 60 0 90M42 12c8 28 6 58 2 86M56 14c10 26 8 54 4 80"/><path d="M28 34l16-8M32 52l18-8M36 70l16-8M42 20l14-6M46 40l14-6M50 60l14-6"/><path d="M96 44l-10 18M116 40l-10 18M136 44l-10 18M156 40l-10 18"/><path d="M8 118l34-24 24 16 32-26 28 20 30-18 36 20"/>',
+    qiufen: '<circle cx="140" cy="38" r="22"/><path d="M100 96c20-14 44-14 64 0M92 110c24-16 52-16 76 0M100 124c20-12 44-12 64 0"/><path d="M100 70v56M20 126h160"/><circle cx="48" cy="34" r="5"/><circle cx="62" cy="44" r="5"/><circle cx="36" cy="48" r="5"/>',
+    qixi: '<path d="M12 22c50 26 126 26 176 0M12 36c50 26 126 26 176 0M12 50c50 26 126 26 176 0"/><path d="M28 108c30-38 114-38 144 0"/><path d="M40 100c26-28 94-28 120 0"/><path d="M86 74l8-8 8 8M102 70l8-8 8 8"/><circle cx="30" cy="72" r="3"/><circle cx="170" cy="72" r="3"/><circle cx="100" cy="16" r="3"/><circle cx="60" cy="60" r="1"/><circle cx="140" cy="58" r="1"/>',
+    shuangjiang: '<path d="M56 96l-16-18 6-22 20-8 18 12-2 22-14 14z"/><path d="M56 96l-12-30M56 96l16-28M56 96V126"/><circle cx="136" cy="54" r="18"/><path d="M136 36v-8M130 36h12"/><circle cx="170" cy="88" r="1"/><circle cx="180" cy="104" r="1"/><circle cx="158" cy="108" r="1"/><circle cx="112" cy="116" r="1"/><path d="M18 130h170"/>',
+    workday: '<path d="M30 26h62v74H30zM30 46h62M46 16v18M76 16v18"/><path d="M42 62h12M62 62h12M42 78h12M62 78h12"/><path d="M112 84h44v22a12 12 0 0 1-12 12h-20a12 12 0 0 1-12-12z"/><path d="M156 90h10a8 8 0 0 1 0 16h-10"/><path d="M118 68c-4-8 4-10 0-18M134 68c-4-8 4-10 0-18"/>',
+    xiaohan: '<path d="M14 118c26-14 34-40 30-66M44 52c14-8 24-6 34 2"/><circle cx="56" cy="44" r="5"/><circle cx="74" cy="54" r="5"/><circle cx="40" cy="70" r="5"/><circle cx="66" cy="80" r="5"/><path d="M112 34l10 8 10-8M134 28l10 8 10-8"/><circle cx="150" cy="60" r="1"/><circle cx="168" cy="72" r="1"/><circle cx="128" cy="78" r="1"/><path d="M100 108h88"/>',
+    xiaoman: '<path d="M64 128V32"/><ellipse cx="73" cy="42" rx="5" ry="10"/><ellipse cx="55" cy="54" rx="5" ry="10"/><ellipse cx="73" cy="66" rx="5" ry="10"/><ellipse cx="55" cy="78" rx="5" ry="10"/><ellipse cx="73" cy="90" rx="5" ry="10"/><ellipse cx="55" cy="102" rx="5" ry="10"/><ellipse cx="73" cy="114" rx="5" ry="10"/><path d="M64 32l-8-14M64 32l8-14"/><circle cx="130" cy="52" r="10"/><circle cx="130" cy="52" r="4"/><path d="M130 36V26M130 78v10M114 52h-10M156 52h10"/><circle cx="160" cy="88" r="1"/><circle cx="148" cy="100" r="1"/><path d="M104 120h72"/>',
+    xiaoshu: '<circle cx="56" cy="54" r="36"/><path d="M56 18v36M56 54l30-18"/><path d="M116 40l22 8-8 26-22-8z"/><path d="M116 40l22 8"/><circle cx="156" cy="28" r="1"/><circle cx="172" cy="48" r="1"/><circle cx="146" cy="68" r="1"/><circle cx="178" cy="80" r="1"/><path d="M132 96c8-8 18-8 26 0"/><path d="M8 120q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    xiaoxue: '<path d="M60 20v56M32 48h56M40 28l40 40M80 28L40 68"/><path d="M60 12v-8M60 84v8M24 48h-8M104 48h8M34 22l-6-6M86 22l6-6M34 74l-6 6M86 74l6 6"/><path d="M136 108V58M136 58l-18-10M136 70l18-10"/><path d="M162 34l8 8-8 8-8-8z"/><circle cx="178" cy="66" r="1"/><circle cx="120" cy="90" r="1"/><circle cx="184" cy="96" r="1"/>',
+    xiazhi: '<circle cx="150" cy="32" r="20"/><path d="M150 4v-4M150 60v8M120 32h-8M188 32h8M128 10l-6-6M172 10l6-6M128 54l-6 6M172 54l6 6"/><path d="M60 108c-14-18-8-36 0-46 8 10 14 28 0 46z"/><path d="M36 108c-8-14-4-28 4-36 8 8 12 22 4 36zM84 108c8-14 4-28-4-36-8 8-12 22-4 36z"/><circle cx="60" cy="108" r="26"/><path d="M34 108h52"/><path d="M8 126q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/>',
+    yuandan: '<circle cx="60" cy="48" r="22"/><path d="M60 16V6M60 90v10M22 48H12M108 48h10M33 21l-7-7M87 21l7-7M33 75l-7 7M87 75l7 7"/><path d="M104 112c12 0 12-11 24-11s13 11 26 11s12-8 22-8"/>',
+    yuanxiao: '<circle cx="132" cy="38" r="24"/><path d="M108 38h-6M162 38h-6"/><path d="M28 88h64a32 32 0 0 1-64 0z"/><circle cx="48" cy="82" r="7"/><circle cx="64" cy="84" r="7"/><circle cx="78" cy="82" r="7"/><path d="M40 112l8-10 8 10M56 112l8-10 8 10"/><path d="M104 92l10-12 10 12-10 12z"/>',
+    yushui: '<path d="M40 26c8 14 12 20 12 26a12 12 0 0 1-24 0c0-6 4-12 12-26z"/><path d="M100 34c8 14 12 20 12 26a12 12 0 0 1-24 0c0-6 4-12 12-26z"/><circle cx="64" cy="96" r="14"/><circle cx="64" cy="96" r="22"/><circle cx="64" cy="96" r="30"/><path d="M132 88c10-8 18-8 26 0M138 74c8-6 16-6 22 0"/><circle cx="164" cy="110" r="4"/><circle cx="178" cy="102" r="4"/>',
+    zhongqiu: '<circle cx="96" cy="52" r="38"/><circle cx="96" cy="52" r="31"/><ellipse cx="150" cy="68" rx="7" ry="20"/><ellipse cx="164" cy="66" rx="7" ry="20"/><circle cx="154" cy="96" r="14"/><path d="M132 44l10-6M138 56l12-2M130 32l8-8"/><circle cx="52" cy="112" r="12"/><path d="M52 100v24M40 112h24"/>',
+    zhongyuan: '<circle cx="148" cy="32" r="20"/><path d="M28 92c0-16 12-26 26-26s26 10 26 52H28z"/><path d="M54 66c-6-10 2-16 0-24 10 8 12 16 6 24"/><path d="M108 92c0-14 10-22 22-22s22 8 22 22z"/><path d="M8 112q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/><path d="M8 126q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0q15 -6 31 0t31 0"/><circle cx="40" cy="30" r="1"/><circle cx="88" cy="22" r="1"/>',
+  };
+  function patternSVG(id, color) {
+    return '<svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="' +
+      (color || '#888') + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+      (MOTIFS[id] || MOTIFS.workday) + '</svg>';
+  }
 
   /* ---------- 管理员全站指定 / 本机试穿 ----------
    * 优先级：?fs=off 关闭 > 会话预览 > 管理员全站指定 > 自动日期。
@@ -443,8 +523,8 @@
     root.innerHTML =
       '<div class="fs-tint"></div>' +
       '<div class="fs-bar"></div>' +
-      '<div class="fs-deco fs-deco-tl">' + CLOUD_SVG + '</div>' +
-      '<div class="fs-deco fs-deco-br">' + CLOUD_SVG + '</div>' +
+      '<div class="fs-deco fs-deco-tl"></div>' +
+      '<div class="fs-deco fs-deco-br"></div>' +
       '<div class="fs-wm" id="fsWm"></div>' +
       '<div class="fs-badge" id="fsBadge" title="点击试穿其它节日皮肤">' +
       '  <span class="fs-zi" id="fsZi"></span>' +
@@ -452,11 +532,23 @@
       '  <span class="fs-x" id="fsX" title="隐藏节日皮肤（右下角可重新开启）">×</span>' +
       '</div>' +
       '<div class="fs-panel" id="fsPanel" style="display:none"></div>' +
-      '<div class="fs-onbtn" id="fsOn" title="重新开启节日皮肤">🎨 开启节日皮肤</div>';
+      '<div class="fs-onbtn" id="fsOn" title="重新开启节日皮肤">🎨 开启节日皮肤</div>' +
+      '<div class="fs-card" id="fsCard" title="点击放大查看节日插画">' +
+      '  <div class="fs-card-img" id="fsCardImg"></div>' +
+      '  <div class="fs-card-txt"><b id="fsCardName"></b><i id="fsCardWish"></i></div>' +
+      '  <span class="fs-card-x" id="fsCardX" title="不再显示这张贺卡">×</span>' +
+      '</div>' +
+      '<div class="fs-lightbox" id="fsLight"><img id="fsLightImg" alt=""><span id="fsLightTxt"></span></div>';
     (document.body || document.documentElement).appendChild(root);
     document.getElementById('fsX').onclick = function (ev) { ev.stopPropagation(); turnOff(); };
     document.getElementById('fsOn').onclick = function (ev) { ev.stopPropagation(); turnOn(); };
     document.getElementById('fsBadge').onclick = function (ev) { ev.stopPropagation(); togglePanel(); };
+    document.getElementById('fsCard').onclick = function (ev) {
+      if (ev && ev.target && ev.target.id === 'fsCardX') return;
+      try { document.getElementById('fsLight').className = 'fs-lightbox on'; } catch (e) {}
+    };
+    document.getElementById('fsCardX').onclick = function (ev) { ev.stopPropagation(); setCardVisible(false); };
+    document.getElementById('fsLight').onclick = function () { this.className = 'fs-lightbox'; };
     root.addEventListener('click', function (ev) {
       var c = ev.target;
       while (c && c !== root && (!c.getAttribute || !c.getAttribute('data-fs-id'))) c = c.parentNode;
@@ -509,9 +601,11 @@
     document.getElementById('fsName').textContent = p.t.n;
     document.getElementById('fsSub').textContent = p.preview ? p.sub : (p.sub + ' · ' + p.t.w);
     document.getElementById('fsWm').textContent = p.t.z;
-    var deco = p.t.g === 'none';
+    var svg = patternSVG(p.id, p.t.c1);       /* ★ 每个节日一套专属线稿，不再共用云纹 */
     var ds = root.querySelectorAll('.fs-deco');
-    for (var i = 0; i < ds.length; i++) ds[i].style.display = deco ? 'none' : '';
+    var deco = p.t.g === 'none';
+    for (var i = 0; i < ds.length; i++) { ds[i].innerHTML = svg; ds[i].style.display = deco ? 'none' : ''; }
+    setCard(p);
   }
 
   /* 关闭/开启要通知同页业务 UI（皮肤管理页状态栏），否则会误显示「自动模式」 */
@@ -559,6 +653,172 @@
     lastKey = ''; refresh(true); notify();
   }
 
+  /* ---------- 节日插画贺卡（按需只加载当天那一张） ---------- */
+  function artUrl(id) { return 'fs-' + id + '.webp'; }
+  function cardVisible() { return lsGet(KEY_CARD) !== '1'; }
+  /* 皮肤管理页自己就是 37 张插画墙，左下角再叠一张贺卡反而盖住卡片 → 本页不显示 */
+  function cardHostVisible() {
+    try {
+      var f = decodeURIComponent((location.pathname || '').split('/').pop() || '');
+      if (f === '皮肤管理.html') return false;
+    } catch (e) {}
+    return cardVisible();
+  }
+  function setCardVisible(v) {
+    if (v) lsDel(KEY_CARD); else lsSet(KEY_CARD, '1');
+    try { var c = document.getElementById('fsCard'); if (c) c.style.display = cardHostVisible() ? '' : 'none'; } catch (e) {}
+    notify();
+  }
+  var artCache = {};
+  function loadArt(url, el) {
+    el.className = 'fs-card-img'; el.style.backgroundImage = '';
+    if (artCache[url] === false) { el.className = 'fs-card-img noimg'; return; }
+    try {
+      var im = new Image();
+      im.onload = function () { artCache[url] = true; el.style.backgroundImage = 'url("' + url + '")'; };
+      im.onerror = function () { artCache[url] = false; el.className = 'fs-card-img noimg'; };
+      im.src = url;
+    } catch (e) { el.className = 'fs-card-img noimg'; }
+  }
+  function setCard(p) {
+    try {
+      var card = document.getElementById('fsCard'); if (!card) return;
+      card.style.display = cardHostVisible() ? '' : 'none';
+      var url = artUrl(p.id);
+      var ci = document.getElementById('fsCardImg'); if (ci) loadArt(url, ci);
+      document.getElementById('fsCardName').textContent = p.t.n;
+      document.getElementById('fsCardWish').textContent = p.t.w;
+      var li = document.getElementById('fsLightImg'); if (li) li.src = url;
+      var lt = document.getElementById('fsLightTxt'); if (lt) lt.textContent = p.t.n + ' · ' + p.t.w;
+    } catch (e) {}
+  }
+
+  /* ---------- 截图 / 导出 PNG 时叠加节日主题 ----------
+   * html2canvas 只截 .wrap，body 下的 fixed 浮层根本进不了画布。
+   * 所以直接在生成好的 canvas 上重画一遍：彩条 / 四边柔光 / 专属线稿 /
+   * 节日插画贺卡 / 节日名祝语 / 落款。全部同域资源，不污染 canvas。
+   */
+  function rgba(hex, a) {
+    var h = String(hex || '').replace('#', '');
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return 'rgba(128,128,128,' + a + ')';
+    return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+  }
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x+r, y);
+    ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+    ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+    ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+    ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
+  }
+  function loadImg(src) {
+    return new Promise(function (res) {
+      try {
+        var im = new Image();
+        im.onload = function () { res(im); };
+        im.onerror = function () { res(null); };
+        im.src = src;
+        if (im.complete && im.naturalWidth) res(im);
+      } catch (e) { res(null); }
+    });
+  }
+  function drawCover(ctx, im, x, y, w, h) {
+    var k = Math.max(w / im.width, h / im.height), dw = im.width*k, dh = im.height*k;
+    ctx.drawImage(im, x + (w-dw)/2, y + (h-dh)/2, dw, dh);
+  }
+  function paintCapture(canvas, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      try {
+        if (isOff()) { resolve(false); return; }
+        var p = pick();
+        if (!p || !canvas || !canvas.getContext) { resolve(false); return; }
+        var ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(false); return; }
+        /* ★★ html2canvas 返回的 canvas 上残留 scale(2,2) 之类的变换，
+           不重置的话彩条会画在顶部、贺卡却被画到画布外（只剩彩条、看不到插画）。 */
+        ctx.save();
+        try { ctx.setTransform(1, 0, 0, 1, 0, 0); } catch (e) {}
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        try { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; } catch (e) {}
+        var W = canvas.width, H = canvas.height;
+        var s = W / (opts.cssWidth || (W / 2));      /* html2canvas 的 scale，默认 2 */
+        /* ★ 表格数据少时画布可能只有 100 多像素高：整套装饰按比例缩小，
+           否则贺卡会被裁掉、四边柔光会把整张图染成一块色。 */
+        var u = s * Math.min(1, H / (360 * s));
+        var dark = !!opts.dark, c1 = p.t.c1, c2 = p.t.c2;
+        var topGlow = Math.min(130*u, H*0.18), botGlow = Math.min(100*u, H*0.14);
+        var svg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(patternSVG(p.id, c1));
+        /* 初始化失败也要把最外层 save 还回去 */
+        
+        Promise.all([loadImg(artUrl(p.id)), loadImg(svg)]).then(function (ims) {
+          try {
+            var art = ims[0], pat = ims[1];
+            var g = ctx.createLinearGradient(0, 0, W, 0);
+            g.addColorStop(0, c1); g.addColorStop(.5, c2); g.addColorStop(1, c1);
+            ctx.fillStyle = g; ctx.fillRect(0, 0, W, 9*u);              /* ① 顶部彩条 */
+            var al = dark ? .11 : .16;                                    /* ② 四边柔光 */
+            var gt = ctx.createLinearGradient(0, 0, 0, topGlow);
+            gt.addColorStop(0, rgba(c1, al)); gt.addColorStop(1, rgba(c1, 0));
+            ctx.fillStyle = gt; ctx.fillRect(0, 0, W, topGlow);
+            var gb = ctx.createLinearGradient(0, H, 0, H-botGlow);
+            gb.addColorStop(0, rgba(c2, al)); gb.addColorStop(1, rgba(c2, 0));
+            ctx.fillStyle = gb; ctx.fillRect(0, H-botGlow, W, botGlow);
+            var gl = ctx.createLinearGradient(0, 0, 28*u, 0);
+            gl.addColorStop(0, rgba(c1, al)); gl.addColorStop(1, rgba(c1, 0));
+            ctx.fillStyle = gl; ctx.fillRect(0, 0, 28*u, H);
+            var gr = ctx.createLinearGradient(W, 0, W-28*u, 0);
+            gr.addColorStop(0, rgba(c2, al)); gr.addColorStop(1, rgba(c2, 0));
+            ctx.fillStyle = gr; ctx.fillRect(W-28*u, 0, 28*u, H);
+            if (pat && H > 150*u) {                                       /* ③ 专属线稿 */
+              ctx.save(); ctx.globalAlpha = dark ? .5 : .34;
+              ctx.drawImage(pat, W-190*u, 16*u, 170*u, 119*u); ctx.restore();
+            }
+            var cw = 176*u, ih = 108*u, th = 34*u, ch = ih+th;           /* ④ 插画贺卡 */
+            var cx = 16*u, cy = Math.max(14*u, H-ch-14*u);
+            if (cy + ch > H - 6*u) cy = Math.max(6*u, H-ch-6*u);        /* 保证不被裁切 */
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,.32)'; ctx.shadowBlur = 18*u; ctx.shadowOffsetY = 5*u;
+            rr(ctx, cx, cy, cw, ch, 10*u);
+            ctx.fillStyle = dark ? 'rgba(14,20,31,.95)' : 'rgba(255,255,255,.97)'; ctx.fill();
+            ctx.restore();
+            ctx.save(); rr(ctx, cx, cy, cw, ch, 10*u); ctx.clip();
+            if (art) drawCover(ctx, art, cx, cy, cw, ih);
+            else { ctx.fillStyle = g; ctx.fillRect(cx, cy, cw, ih); }
+            ctx.fillStyle = dark ? 'rgba(14,20,31,.95)' : 'rgba(255,255,255,.97)';
+            ctx.fillRect(cx, cy+ih, cw, th);
+            ctx.fillStyle = dark ? '#eef4ff' : '#233047';
+            ctx.font = 'bold ' + Math.max(9, 13*u) + 'px "Microsoft YaHei","PingFang SC",sans-serif';
+            ctx.fillText(p.t.n, cx+10*u, cy+ih+Math.min(15*u, th*0.46));
+            ctx.fillStyle = dark ? '#9db0c8' : '#6b7688';
+            ctx.font = Math.max(8, 10*u) + 'px "Microsoft YaHei","PingFang SC",sans-serif';
+            ctx.fillText(p.t.w, cx+10*u, cy+ih+Math.min(28*u, th*0.84));
+            ctx.restore();
+            ctx.save(); rr(ctx, cx, cy, cw, ch, 10*u);
+            ctx.strokeStyle = c1; ctx.lineWidth = 1.5*u; ctx.stroke(); ctx.restore();
+            ctx.fillStyle = dark ? 'rgba(238,244,255,.85)' : 'rgba(35,48,71,.75)';   /* ⑤ 落款 */
+            ctx.font = Math.max(9, 11*u) + 'px "Microsoft YaHei","PingFang SC",sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('海立铸运通 · ' + p.t.n + ' · ' + todayK(), W-16*u, H-14*u);
+            ctx.textAlign = 'left';
+            try { ctx.restore(); } catch (e2) {}
+            resolve(true);
+          } catch (e) {
+            try { console.warn('[festival-skin] 截图节日主题绘制失败：', e && e.message); } catch (e2) {}
+            try { ctx.restore(); } catch (e2) {}
+            resolve(false);
+          }
+        });
+      } catch (e) {
+        try { console.warn('[festival-skin] 截图节日主题初始化失败：', e && e.message); } catch (e2) {}
+        try { if (ctx) ctx.restore(); } catch (e2) {}
+        resolve(false);
+      }
+    });
+  }
+
   function refresh(force) {
     try {
       var k = todayK();
@@ -591,7 +851,7 @@
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
       window.addEventListener('focus', function () { refresh(false); });
       window.addEventListener('storage', function (ev) {
-        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH)) { lastKey = ''; refresh(true); }
+        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH || ev.key === KEY_CARD)) { lastKey = ''; refresh(true); }
       });
     } catch (e) {}
   }
@@ -602,6 +862,9 @@
     holidays: HOLIDAYS, lunarFest: LUNAR_FEST, termTable: TERM_TABLE,
     pick: pick, apply: apply, refresh: refresh, turnOff: turnOff,
     turnOn: turnOn, isOff: isOff, strength: strength, setStrength: setStrength,
+    motifs: MOTIFS, patternSVG: patternSVG, artUrl: artUrl,
+    cardVisible: cardVisible, setCardVisible: setCardVisible,
+    paintCapture: paintCapture,
     preview: preview, currentPreview: currentPreview,
     override: override, setOverride: setOverride, clearOverride: clearOverride,
     syncCloud: syncCloud, isAdmin: isAdmin, cloudKey: CLOUD_KEY,
