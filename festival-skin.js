@@ -17,7 +17,7 @@
  * URL 参数（方便预览与验收）
  *  ?festival=chunjie   强制预览某个皮肤（id 见 THEMES）；?festival=auto 取消
  *  ?fs=off / on        关闭 / 重新打开皮肤（记忆在 localStorage）
- *  ?fs=strong          加强装饰（默认 normal）
+ *  ?fs=soft/normal/strong   皮肤浓度（默认 normal；皮肤管理页可切换并记忆）
  *  点击徽章文字       展开「节日/节气预览面板」，点任一格立即试穿
  * ========================================================================== */
 (function () {
@@ -26,6 +26,7 @@
   var VER = '20261106a';
   var KEY_OFF = 'festival_skin_off_v1';
   var KEY_PREVIEW = 'festival_skin_preview_v1';
+  var KEY_STRENGTH = 'festival_skin_strength_v1';    // 皮肤浓度（soft / 默认 normal / strong）
   var KEY_OVR = 'festival_skin_override_local_v1';   // 本机缓存（同源所有标签页共享）
   var CLOUD_KEY = 'festival_skin_override_v1';        // 云端 app_data 键（全站统一皮肤）
 
@@ -114,48 +115,52 @@
 
   /* ---------- 皮肤主题 ----------
    * n 名称 / z 汉字徽记 / c1 c2 主渐变 / w 祝语或物候 / g 图案组
+   * ★ 配色按节日意象定：红金＝年节、青绿＝春与清明、粽绿＝端午、月金＝中秋、
+   *   紫粉＝七夕、菊黄＝重阳、霜红＝霜降、藏蓝暖阳＝冬至……同一季内也拉开色相，
+   *   避免「冬季六个节气全是蓝」看不出换肤。
    */
   var THEMES = {
     /* 法定与传统节日 */
-    yuandan:   { n: '元旦',   z: '旦', c1: '#d64b3f', c2: '#f2b34c', w: '一元复始，万象更新', g: 'star' },
-    chuxi:     { n: '除夕',   z: '岁', c1: '#b81f2d', c2: '#f0a500', w: '辞旧迎新，阖家团圆', g: 'lantern' },
-    chunjie:   { n: '春节',   z: '福', c1: '#c62828', c2: '#f0a500', w: '新春大吉，万事如意', g: 'lantern' },
-    yuanxiao:  { n: '元宵',   z: '圆', c1: '#d33b3b', c2: '#ffb84d', w: '灯火万家，团圆美满', g: 'lantern' },
-    qingming:  { n: '清明',   z: '清', c1: '#4c8c6b', c2: '#a8cba0', w: '清风拂柳，慎终追远', g: 'willow' },
-    laodong:   { n: '劳动节', z: '勤', c1: '#d97706', c2: '#f6c453', w: '劳动最光荣', g: 'wheat' },
-    duanwu:    { n: '端午',   z: '粽', c1: '#2e7d62', c2: '#8fc7a0', w: '粽叶飘香，安康顺遂', g: 'leaf' },
-    qixi:      { n: '七夕',   z: '巧', c1: '#a4488f', c2: '#e6a6cd', w: '银河相会，乞巧祈愿', g: 'star' },
-    zhongyuan: { n: '中元',   z: '思', c1: '#5b6b8c', c2: '#9aa9c4', w: '追思怀远，灯火寄情', g: 'moon' },
-    zhongqiu:  { n: '中秋',   z: '月', c1: '#b8860b', c2: '#f2d68a', w: '花好月圆，阖家安康', g: 'moon' },
-    guoqing:   { n: '国庆',   z: '华', c1: '#c62828', c2: '#f4b942', w: '盛世华诞，举国同庆', g: 'star' },
-    chongyang: { n: '重阳',   z: '菊', c1: '#b9770e', c2: '#e8c46a', w: '登高望远，菊香敬老', g: 'chrys' },
-    laba:      { n: '腊八',   z: '暖', c1: '#8d5524', c2: '#d9a566', w: '腊八粥暖，岁岁平安', g: 'bowl' },
+    yuandan:   { n: '元旦',   z: '旦', c1: '#e0453c', c2: '#ffc95c', w: '一元复始，万象更新', g: 'star' },
+    chuxi:     { n: '除夕',   z: '岁', c1: '#b3122b', c2: '#ffcf6b', w: '辞旧迎新，阖家团圆', g: 'lantern' },
+    chunjie:   { n: '春节',   z: '福', c1: '#d81e2c', c2: '#ffd166', w: '新春大吉，万事如意', g: 'lantern' },
+    yuanxiao:  { n: '元宵',   z: '圆', c1: '#c9344b', c2: '#ffb454', w: '灯火万家，团圆美满', g: 'lantern' },
+    qingming:  { n: '清明',   z: '清', c1: '#3f8f74', c2: '#a9d6a0', w: '清风拂柳，慎终追远', g: 'willow' },
+    laodong:   { n: '劳动节', z: '勤', c1: '#e07b1a', c2: '#ffd166', w: '劳动最光荣', g: 'wheat' },
+    duanwu:    { n: '端午',   z: '粽', c1: '#1f7a5a', c2: '#8fd694', w: '粽叶飘香，安康顺遂', g: 'leaf' },
+    qixi:      { n: '七夕',   z: '巧', c1: '#8e44ad', c2: '#f0a6d2', w: '银河相会，乞巧祈愿', g: 'star' },
+    zhongyuan: { n: '中元',   z: '思', c1: '#46527a', c2: '#a9b8d8', w: '追思怀远，灯火寄情', g: 'moon' },
+    zhongqiu:  { n: '中秋',   z: '月', c1: '#c98a12', c2: '#ffe6a3', w: '花好月圆，阖家安康', g: 'moon' },
+    guoqing:   { n: '国庆',   z: '华', c1: '#d32027', c2: '#ffd54a', w: '盛世华诞，举国同庆', g: 'star' },
+    chongyang: { n: '重阳',   z: '菊', c1: '#c8860d', c2: '#f0cf7a', w: '登高望远，菊香敬老', g: 'chrys' },
+    laba:      { n: '腊八',   z: '暖', c1: '#8a5a2b', c2: '#e0b878', w: '腊八粥暖，岁岁平安', g: 'bowl' },
     workday:   { n: '调休上班', z: '勤', c1: '#6b7688', c2: '#a9b4c4', w: '今日调休上班，注意作息', g: 'none' },
     /* 二十四节气 */
-    xiaohan:   { n: '小寒', z: '寒', c1: '#3a5f8a', c2: '#a2bfd9', w: '雁北乡，寒渐深', g: 'winter' },
-    dahan:     { n: '大寒', z: '寒', c1: '#2b4f7a', c2: '#93b3d1', w: '岁末极寒，静待春归', g: 'winter' },
-    lichun:    { n: '立春', z: '春', c1: '#2f7d5b', c2: '#9ed4a8', w: '东风解冻，万物始生', g: 'spring' },
-    yushui:    { n: '雨水', z: '雨', c1: '#3c8a86', c2: '#a8d8d0', w: '天一生水，润物无声', g: 'spring' },
-    jingzhe:   { n: '惊蛰', z: '蛰', c1: '#4f8f52', c2: '#b9d98a', w: '春雷始鸣，蛰虫惊醒', g: 'spring' },
-    chunfen:   { n: '春分', z: '分', c1: '#3f8f6f', c2: '#a8d5a2', w: '昼夜均分，燕子归来', g: 'spring' },
-    guyu:      { n: '谷雨', z: '谷', c1: '#5a9b63', c2: '#c1dca0', w: '雨生百谷，春色将阑', g: 'spring' },
-    lixia:     { n: '立夏', z: '夏', c1: '#c0563f', c2: '#f0b27a', w: '蝼蝈鸣，夏木成荫', g: 'summer' },
-    xiaoman:   { n: '小满', z: '满', c1: '#c98a2e', c2: '#efd07a', w: '麦粒渐满，小得盈满', g: 'summer' },
+    xiaohan:   { n: '小寒', z: '寒', c1: '#3d6fa8', c2: '#b9d9ef', w: '雁北乡，寒渐深', g: 'winter' },
+    dahan:     { n: '大寒', z: '寒', c1: '#2b4a7d', c2: '#93b8dc', w: '岁末极寒，静待春归', g: 'winter' },
+    lichun:    { n: '立春', z: '春', c1: '#2f8f5b', c2: '#a8e0a0', w: '东风解冻，万物始生', g: 'spring' },
+    yushui:    { n: '雨水', z: '雨', c1: '#2e8f8a', c2: '#a6dcd4', w: '天一生水，润物无声', g: 'spring' },
+    jingzhe:   { n: '惊蛰', z: '蛰', c1: '#4f9a45', c2: '#c2e08a', w: '春雷始鸣，蛰虫惊醒', g: 'spring' },
+    chunfen:   { n: '春分', z: '分', c1: '#4a9c6d', c2: '#b6dda2', w: '昼夜均分，燕子归来', g: 'spring' },
+    guyu:      { n: '谷雨', z: '谷', c1: '#6aa84f', c2: '#cfe39a', w: '雨生百谷，春色将阑', g: 'spring' },
+    lixia:     { n: '立夏', z: '夏', c1: '#d24b3c', c2: '#f5a97a', w: '蝼蝈鸣，夏木成荫', g: 'summer' },
+    xiaoman:   { n: '小满', z: '满', c1: '#d19a1e', c2: '#f2d876', w: '麦粒渐满，小得盈满', g: 'summer' },
     mangzhong: { n: '芒种', z: '种', c1: '#b8862b', c2: '#e8c96a', w: '有芒之谷，可种可收', g: 'summer' },
-    xiazhi:    { n: '夏至', z: '至', c1: '#cc4f3f', c2: '#f2a65a', w: '日北至，昼最长', g: 'summer' },
-    xiaoshu:   { n: '小暑', z: '暑', c1: '#d2643f', c2: '#f4b26b', w: '温风至，荷香起', g: 'summer' },
-    dashu:     { n: '大暑', z: '炎', c1: '#c0392b', c2: '#f08a5d', w: '腐草为萤，暑气至极', g: 'summer' },
-    liqiu:     { n: '立秋', z: '秋', c1: '#b07d2b', c2: '#e3c27a', w: '凉风至，白露生', g: 'autumn' },
+    xiazhi:    { n: '夏至', z: '至', c1: '#e0522f', c2: '#ffc26b', w: '日北至，昼最长', g: 'summer' },
+    xiaoshu:   { n: '小暑', z: '暑', c1: '#e0703c', c2: '#f7bd82', w: '温风至，荷香起', g: 'summer' },
+    dashu:     { n: '大暑', z: '炎', c1: '#c92f2a', c2: '#ff9a5c', w: '腐草为萤，暑气至极', g: 'summer' },
+    liqiu:     { n: '立秋', z: '秋', c1: '#b98420', c2: '#e8cf82', w: '凉风至，白露生', g: 'autumn' },
     chushu:    { n: '处暑', z: '凉', c1: '#a97933', c2: '#ddb878', w: '暑气止，秋意来', g: 'autumn' },
-    bailu:     { n: '白露', z: '露', c1: '#8a8f6b', c2: '#d6dcc0', w: '露凝而白，鸿雁来', g: 'autumn' },
-    qiufen:    { n: '秋分', z: '分', c1: '#b08a3e', c2: '#e8cf94', w: '雷始收声，昼夜再均', g: 'autumn' },
+    bailu:     { n: '白露', z: '露', c1: '#7d9076', c2: '#dfe6cf', w: '露凝而白，鸿雁来', g: 'autumn' },
+    qiufen:    { n: '秋分', z: '分', c1: '#c69a2c', c2: '#f0dc96', w: '雷始收声，昼夜再均', g: 'autumn' },
     hanlu:     { n: '寒露', z: '寒', c1: '#9a6b2f', c2: '#d9b274', w: '露气寒冷，菊有黄华', g: 'autumn' },
-    shuangjiang:{n: '霜降', z: '霜', c1: '#8c5a3c', c2: '#d9a679', w: '霜华初降，草木黄落', g: 'autumn' },
-    lidong:    { n: '立冬', z: '冬', c1: '#3b6a9c', c2: '#9fc4e0', w: '水始冰，地始冻', g: 'winter' },
-    xiaoxue:   { n: '小雪', z: '雪', c1: '#4a7ba8', c2: '#b8d6ec', w: '虹藏不见，雪意初萌', g: 'winter' },
-    daxue:     { n: '大雪', z: '雪', c1: '#35618f', c2: '#a6c8e4', w: '积雪盈野，万物冬藏', g: 'winter' },
-    dongzhi:   { n: '冬至', z: '至', c1: '#2f5d8a', c2: '#8fb8dc', w: '一阳来复，昼渐长', g: 'winter' }
+    shuangjiang:{n: '霜降', z: '霜', c1: '#a34f32', c2: '#e0a878', w: '霜华初降，草木黄落', g: 'autumn' },
+    lidong:    { n: '立冬', z: '冬', c1: '#4066a8', c2: '#a8c4ea', w: '水始冰，地始冻', g: 'winter' },
+    xiaoxue:   { n: '小雪', z: '雪', c1: '#6a86b8', c2: '#dce9f7', w: '虹藏不见，雪意初萌', g: 'winter' },
+    daxue:     { n: '大雪', z: '雪', c1: '#2f5f96', c2: '#bcd8ee', w: '积雪盈野，万物冬藏', g: 'winter' },
+    dongzhi:   { n: '冬至', z: '至', c1: '#344f7a', c2: '#e8a06a', w: '一阳来复，昼渐长', g: 'winter' }
   };
+
   /* 节气 index → 主题 id（qingming 复用节日主题） */
   var TERM_IDS = ['xiaohan', 'dahan', 'lichun', 'yushui', 'jingzhe', 'chunfen', 'qingming', 'guyu',
     'lixia', 'xiaoman', 'mangzhong', 'xiazhi', 'xiaoshu', 'dashu',
@@ -276,30 +281,36 @@
   /* ---------- 样式（只用 --fs-* 变量，绝不碰业务变量） ---------- */
   var CSS = [
     '.fs-root{position:fixed;inset:0;z-index:2147483000;pointer-events:none;font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;}',
-    '.fs-bar{position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--fs-c1),var(--fs-c2),var(--fs-c1));background-size:200% 100%;animation:fsFlow 24s linear infinite;opacity:.72;}',
+    '.fs-bar{position:absolute;top:0;left:0;right:0;height:9px;background:linear-gradient(90deg,var(--fs-c1),var(--fs-c2),var(--fs-c1));background-size:200% 100%;animation:fsFlow 24s linear infinite;box-shadow:0 2px 16px -3px var(--fs-c1);}',
     '@keyframes fsFlow{0%{background-position:0 0}100%{background-position:200% 0}}',
-    /* ★ 徽章放右下角：顶部居中会压到 appbar / HUD（订单管理系统的搜索框、大屏的进度数字），
-       顶部只留 3~5px 贴边彩条，不遮挡任何业务内容 */
-    '.fs-badge{position:absolute;top:auto;bottom:26px;left:auto;right:14px;transform:none;display:flex;align-items:center;gap:7px;',
+    '/* ★ 四边柔光：让节日色真正上屏，但只染边缘、不改业务 DOM / 不挡点击 */',
+    '.fs-tint{position:absolute;inset:0;pointer-events:none;opacity:.16;transition:opacity .35s;',
+    '  background:linear-gradient(180deg,var(--fs-c1) 0%,transparent 100%) top center/100% 130px no-repeat,',
+    '  linear-gradient(0deg,var(--fs-c2) 0%,transparent 100%) bottom center/100% 100px no-repeat,',
+    '  linear-gradient(90deg,var(--fs-c1) 0%,transparent 100%) left center/28px 100% no-repeat,',
+    '  linear-gradient(270deg,var(--fs-c2) 0%,transparent 100%) right center/28px 100% no-repeat;}',
+    /* ★ 徽章放右下角并抬到 58px：顶部居中会压 appbar / HUD，而 staff-admin 的
+       「退出登录 / 账号管理」浮动条在 bottom:14px 高约 30px，贴太近会被徽章盖住 */
+    '.fs-badge{position:absolute;top:auto;bottom:58px;left:auto;right:14px;transform:none;display:flex;align-items:center;gap:7px;',
     '  max-width:min(92vw,460px);padding:3px 8px 3px 4px;border-radius:999px;pointer-events:auto;cursor:pointer;',
-    '  background:rgba(255,255,255,.93);border:1px solid rgba(0,0,0,.07);box-shadow:0 3px 14px rgba(20,28,44,.13);',
-    '  color:#233047;font-size:11px;line-height:1.25;white-space:nowrap;transition:opacity .25s,box-shadow .25s;}',
+    '  background:linear-gradient(135deg,var(--fs-c1),var(--fs-c2));border:1px solid rgba(255,255,255,.42);box-shadow:0 4px 18px rgba(20,28,44,.26);',
+    '  color:#fff;font-size:11px;line-height:1.25;white-space:nowrap;transition:opacity .25s,box-shadow .25s;text-shadow:0 1px 2px rgba(0,0,0,.22);}',
     '.fs-zi{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;',
-    '  background:linear-gradient(135deg,var(--fs-c1),var(--fs-c2));color:#fff;font-size:12px;font-weight:700;',
+    '  background:rgba(255,255,255,.24);color:#fff;font-size:12px;font-weight:700;',
     '  box-shadow:0 1px 4px rgba(0,0,0,.16);}',
     '.fs-txt{display:flex;flex-direction:column;min-width:0;}',
     '.fs-txt b{font-size:12px;font-weight:700;letter-spacing:.5px;}',
-    '.fs-txt i{font-style:normal;font-size:10px;opacity:.68;overflow:hidden;text-overflow:ellipsis;}',
+    '.fs-txt i{font-style:normal;font-size:10px;opacity:.92;overflow:hidden;text-overflow:ellipsis;}',
     '.fs-x{flex:0 0 auto;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;',
-    '  font-size:13px;line-height:1;opacity:.42;pointer-events:auto;}',
-    '.fs-x:hover{opacity:.9;background:rgba(0,0,0,.07);}',
+    '  font-size:13px;line-height:1;opacity:.72;pointer-events:auto;}',
+    '.fs-x:hover{opacity:1;background:rgba(255,255,255,.24);}',
     '.fs-deco{position:absolute;pointer-events:none;opacity:.13;transition:opacity .35s;}',
     '.fs-deco-tl{top:-26px;left:-18px;width:210px;height:150px;}',
     '.fs-deco-br{bottom:-40px;right:-24px;width:260px;height:190px;transform:rotate(180deg);}',
     '.fs-deco svg{width:100%;height:100%;fill:none;stroke:var(--fs-c1);stroke-width:1.5;}',
     '.fs-wm{position:absolute;right:5vw;top:auto;bottom:11vh;font-size:min(20vw,200px);line-height:.8;font-weight:900;',
     '  color:var(--fs-c1);opacity:.035;pointer-events:none;user-select:none;}',
-    '.fs-panel{position:absolute;top:auto;bottom:62px;left:auto;right:14px;transform:none;width:min(94vw,620px);max-height:min(62vh,460px);',
+    '.fs-panel{position:absolute;top:auto;bottom:96px;left:auto;right:14px;transform:none;width:min(94vw,620px);max-height:min(62vh,460px);',
     '  overflow:auto;pointer-events:auto;background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.1);',
     '  border-radius:12px;box-shadow:0 16px 46px rgba(16,24,40,.24);padding:12px;color:#233047;}',
     '.fs-panel h4{margin:2px 0 8px;font-size:12px;font-weight:700;letter-spacing:.5px;}',
@@ -315,32 +326,41 @@
     '.fs-admin:hover{background:rgba(31,111,235,.22);}',
     '.fs-auto{display:inline-block;margin:2px 0 6px;padding:4px 12px;border:1px solid var(--fs-c1);',
     '  color:var(--fs-c1);border-radius:999px;cursor:pointer;font-size:11px;background:#fff;}',
-    'html[data-fs-level="festive"] .fs-bar{height:5px;opacity:1;}',
-    'html[data-fs-level="festive"] .fs-badge{border-color:var(--fs-c2);box-shadow:0 3px 18px rgba(20,28,44,.18),0 0 0 2px rgba(255,255,255,.5) inset;}',
-    'html[data-fs-level="festive"] .fs-deco{opacity:.19;}',
-    'html[data-fs-level="festive"] .fs-wm{opacity:.05;}',
-    'html[data-fs-level="calm"] .fs-badge{opacity:.62;}',
+    'html[data-fs-level="festive"] .fs-badge{border-color:rgba(255,255,255,.62);box-shadow:0 5px 22px rgba(20,28,44,.28),0 0 0 2px rgba(255,255,255,.28) inset;}',
+    'html[data-fs-level="calm"] .fs-badge{opacity:.78;}',
     'html[data-fs-level="calm"] .fs-badge:hover{opacity:1;}',
-    'html[data-fs-level="calm"] .fs-deco{opacity:0;}',
-    'html[data-fs-level="calm"] .fs-wm{opacity:.022;}',
-    'html[data-fs-strength="strong"] .fs-deco{opacity:.3;}',
-    'html[data-fs-strength="strong"] .fs-wm{opacity:.08;}',
-    'html[data-fs-dark="1"] .fs-wm{opacity:.09;}',
-    'html[data-fs-dark="1"] .fs-badge{background:rgba(14,20,31,.88);color:#eef4ff;border-color:rgba(255,255,255,.15);box-shadow:0 3px 18px rgba(0,0,0,.5);}',
-    'html[data-fs-dark="1"] .fs-txt i{opacity:.72;}',
-    'html[data-fs-dark="1"] .fs-x:hover{background:rgba(255,255,255,.14);}',
+    '/* ★ 三档浓度：normal 为新的明显默认；soft 回到旧版淡雅；strong 更浓 */',
+    'html[data-fs-strength="soft"] .fs-bar{height:4px;opacity:.72;box-shadow:none;}',
+    'html[data-fs-strength="soft"] .fs-tint{opacity:.045;}',
+    'html[data-fs-strength="soft"] .fs-deco{opacity:.08;}',
+    'html[data-fs-strength="soft"] .fs-wm{opacity:.025;}',
+    'html[data-fs-strength="normal"] .fs-bar{height:9px;}',
+    'html[data-fs-strength="normal"] .fs-tint{opacity:.16;}',
+    'html[data-fs-strength="normal"] .fs-deco{opacity:.26;}',
+    'html[data-fs-strength="normal"] .fs-wm{opacity:.06;}',
+    'html[data-fs-strength="strong"] .fs-bar{height:14px;}',
+    'html[data-fs-strength="strong"] .fs-tint{opacity:.3;}',
+    'html[data-fs-strength="strong"] .fs-deco{opacity:.4;}',
+    'html[data-fs-strength="strong"] .fs-wm{opacity:.11;}',
+    '/* 深色大屏要收一点，避免整屏糊；特异性高于档位规则 */',
+    'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-tint{opacity:.035;}',
+    'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-tint{opacity:.11;}',
+    'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-tint{opacity:.22;}',
+    'html[data-fs-dark="1"] .fs-badge{border-color:rgba(255,255,255,.3);box-shadow:0 5px 22px rgba(0,0,0,.5);}',
+    'html[data-fs-dark="1"] .fs-txt i{opacity:.92;}',
+    'html[data-fs-dark="1"] .fs-x:hover{background:rgba(255,255,255,.24);}',
     'html[data-fs-dark="1"] .fs-panel{background:rgba(16,23,35,.97);color:#eef4ff;border-color:rgba(255,255,255,.16);}',
     'html[data-fs-dark="1"] .fs-cell{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);}',
     'html[data-fs-dark="1"] .fs-auto{background:rgba(255,255,255,.06);}',
     'html[data-fs-dark="1"] .fs-admin{background:rgba(96,165,250,.18);color:#bfdbfe;}',
     '/* ★ 关闭后必须留一个可见的恢复入口：以前点过徽章 × 就连徽章一起消失，用户再也开不回来 */',
-    '.fs-onbtn{display:none;position:absolute;right:14px;bottom:20px;align-items:center;',
+    '.fs-onbtn{display:none;position:absolute;right:14px;bottom:58px;align-items:center;',
     '  padding:6px 12px;border-radius:999px;pointer-events:auto;cursor:pointer;',
     '  background:rgba(255,255,255,.93);border:1px solid rgba(0,0,0,.09);',
     '  box-shadow:0 3px 14px rgba(20,28,44,.16);color:#233047;font-size:11px;font-weight:700;opacity:.72;}',
     '.fs-onbtn:hover{opacity:1;}',
     'html[data-fs-dark="1"] .fs-onbtn{background:rgba(14,20,31,.88);color:#eef4ff;border-color:rgba(255,255,255,.15);}',
-    'html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel{display:none!important;}',
+    'html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel{display:none!important;}',
     'html[data-fs="off"] .fs-onbtn{display:flex!important;}',
     '@media print{.fs-root{display:none!important;}}',
     '@media (prefers-reduced-motion:reduce){.fs-bar{animation:none;}}'
@@ -421,6 +441,7 @@
     root = document.createElement('div');
     root.className = 'fs-root'; root.id = 'fsRoot';
     root.innerHTML =
+      '<div class="fs-tint"></div>' +
       '<div class="fs-bar"></div>' +
       '<div class="fs-deco fs-deco-tl">' + CLOUD_SVG + '</div>' +
       '<div class="fs-deco fs-deco-br">' + CLOUD_SVG + '</div>' +
@@ -479,8 +500,7 @@
     h.setAttribute('data-fs', p ? p.id : 'none');
     h.setAttribute('data-fs-level', p ? p.level : 'calm');
     h.setAttribute('data-fs-dark', isDark() ? '1' : '0');
-    var s = qs('fs');
-    h.setAttribute('data-fs-strength', s === 'strong' ? 'strong' : 'normal');
+    h.setAttribute('data-fs-strength', strength());
     root.style.display = '';   /* 关闭态也留着 root：里面藏着「开启皮肤」按钮 */
     if (!p) return;
     h.style.setProperty('--fs-c1', p.t.c1);
@@ -526,6 +546,18 @@
     notify();
   }
   function isOff() { return lsGet(KEY_OFF) === '1'; }
+  /* ---------- 皮肤浓度 ---------- */
+  function strength() {
+    var s = qs('fs');
+    if (s === 'soft' || s === 'normal' || s === 'strong') return s;
+    var v = lsGet(KEY_STRENGTH);
+    return (v === 'soft' || v === 'strong') ? v : 'normal';
+  }
+  function setStrength(v) {
+    if (v === 'soft' || v === 'strong') lsSet(KEY_STRENGTH, v);
+    else lsDel(KEY_STRENGTH);
+    lastKey = ''; refresh(true); notify();
+  }
 
   function refresh(force) {
     try {
@@ -559,7 +591,7 @@
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
       window.addEventListener('focus', function () { refresh(false); });
       window.addEventListener('storage', function (ev) {
-        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF)) { lastKey = ''; refresh(true); }
+        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH)) { lastKey = ''; refresh(true); }
       });
     } catch (e) {}
   }
@@ -569,7 +601,7 @@
     version: VER, themes: THEMES, termIds: TERM_IDS, festIds: FEST_IDS,
     holidays: HOLIDAYS, lunarFest: LUNAR_FEST, termTable: TERM_TABLE,
     pick: pick, apply: apply, refresh: refresh, turnOff: turnOff,
-    turnOn: turnOn, isOff: isOff,
+    turnOn: turnOn, isOff: isOff, strength: strength, setStrength: setStrength,
     preview: preview, currentPreview: currentPreview,
     override: override, setOverride: setOverride, clearOverride: clearOverride,
     syncCloud: syncCloud, isAdmin: isAdmin, cloudKey: CLOUD_KEY,
