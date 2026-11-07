@@ -26,6 +26,8 @@
   var VER = '20261106a';
   var KEY_OFF = 'festival_skin_off_v1';
   var KEY_PREVIEW = 'festival_skin_preview_v1';
+  var KEY_OVR = 'festival_skin_override_local_v1';   // 本机缓存（同源所有标签页共享）
+  var CLOUD_KEY = 'festival_skin_override_v1';        // 云端 app_data 键（全站统一皮肤）
 
   /* ---------- 小工具 ---------- */
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -219,7 +221,13 @@
     if (prev && prev !== 'auto' && THEMES[prev]) {
       return { id: prev, t: THEMES[prev], level: 'festive', sub: '预览中 · 点「自动」返回', preview: true };
     }
-    /* 1. 法定假期（每天显示）/ 调休上班 */
+    /* 1. 管理员全站指定（本机试穿优先，方便先试再发） */
+    var ov = override();
+    if (ov) {
+      return { id: ov.id, t: THEMES[ov.id], level: 'festive',
+               sub: '管理员指定 · ' + (ov.name ? ov.name + ' 设置' : '全站统一'), override: ov };
+    }
+    /* 2. 法定假期（每天显示）/ 调休上班 */
     var h = findHoliday(k);
     if (h && h.workday) {
       return { id: 'workday', t: THEMES.workday, level: 'calm', sub: '今日调休上班 · ' + (THEMES[h.id] ? THEMES[h.id].n : '') };
@@ -233,18 +241,18 @@
         sub: '假期第 ' + h.day + ' 天 / 共 ' + h.total + ' 天' + extra, holiday: h
       };
     }
-    /* 2. 传统节日当天 */
+    /* 3. 传统节日当天 */
     var lf = findLunarFest(k);
     if (lf && THEMES[lf]) {
       return { id: lf, t: THEMES[lf], level: 'festive', sub: '传统节日 · ' + (lunarText(k) || '吉日') };
     }
-    /* 3. 节气当天 */
+    /* 4. 节气当天 */
     var c = currentTerm(k);
     if (c && c.k === k) {
       /* 祝语由 apply() 统一拼在 sub 后面，这里只给前缀，避免节气当天重复显示 */
       return { id: c.id, t: THEMES[c.id], level: 'festive', sub: '二十四节气' };
     }
-    /* 4. 平时：当前节气淡雅常驻 */
+    /* 5. 平时：当前节气淡雅常驻 */
     if (c) {
       var d = daysBetween(c.k, k) + 1;
       return { id: c.id, t: THEMES[c.id], level: 'calm', sub: '当前节气 · 第 ' + d + ' 天', termDays: d };
@@ -302,6 +310,9 @@
     '.fs-cell:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.12);}',
     '.fs-cell i{display:block;width:20px;height:20px;line-height:20px;margin:0 auto 3px;border-radius:50%;',
     '  color:#fff;font-style:normal;font-size:11px;font-weight:700;}',
+    '.fs-admin{display:inline-block;margin:2px 0 4px;padding:5px 12px;border-radius:8px;',
+    '  background:rgba(31,111,235,.12);color:#1f6feb;font-size:12px;font-weight:700;text-decoration:none;}',
+    '.fs-admin:hover{background:rgba(31,111,235,.22);}',
     '.fs-auto{display:inline-block;margin:2px 0 6px;padding:4px 12px;border:1px solid var(--fs-c1);',
     '  color:var(--fs-c1);border-radius:999px;cursor:pointer;font-size:11px;background:#fff;}',
     'html[data-fs-level="festive"] .fs-bar{height:5px;opacity:1;}',
@@ -321,6 +332,7 @@
     'html[data-fs-dark="1"] .fs-panel{background:rgba(16,23,35,.97);color:#eef4ff;border-color:rgba(255,255,255,.16);}',
     'html[data-fs-dark="1"] .fs-cell{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);}',
     'html[data-fs-dark="1"] .fs-auto{background:rgba(255,255,255,.06);}',
+    'html[data-fs-dark="1"] .fs-admin{background:rgba(96,165,250,.18);color:#bfdbfe;}',
     '@media print{.fs-root{display:none!important;}}',
     '@media (prefers-reduced-motion:reduce){.fs-bar{animation:none;}}'
   ].join('\n');
@@ -332,6 +344,59 @@
     '<circle cx="164" cy="30" r="16"/><circle cx="164" cy="30" r="9"/>' +
     '<path d="M164 8v-8M164 60v-8M142 30h-8M194 30h-8M148 14l-6-6M186 14l6-6M148 46l-6 6M186 46l6 6"/>' +
     '</svg>';
+
+  /* ---------- 管理员全站指定 / 本机试穿 ----------
+   * 优先级：?fs=off 关闭 > 会话预览 > 管理员全站指定 > 自动日期。
+   * 试穿只写 sessionStorage（当前标签页），全站指定写 localStorage + 云端，
+   * 同源其它标签页用 storage 事件立刻跟随。没有 CloudSync 的页面静默用本机缓存，
+   * 皮肤永远只是附加层，绝不因设置读取失败影响主页面。
+   */
+  function override() {
+    var o = null;
+    try { o = JSON.parse(lsGet(KEY_OVR) || 'null'); } catch (e) {}
+    if (!o || typeof o !== 'object' || !o.id || o.id === 'auto' || !THEMES[o.id]) return null;
+    return o;
+  }
+  function writeOverride(o) {
+    if (!o || !o.id || o.id === 'auto' || !THEMES[o.id]) lsDel(KEY_OVR);
+    else lsSet(KEY_OVR, JSON.stringify(o));
+    refresh(true);
+  }
+  function setOverride(o) { ssDel(KEY_PREVIEW); writeOverride(o); }
+  function clearOverride() { lsDel(KEY_OVR); ssDel(KEY_PREVIEW); refresh(true); }
+  function preview(id) {
+    if (!id || id === '__auto' || id === 'auto') ssDel(KEY_PREVIEW);
+    else if (THEMES[id]) ssSet(KEY_PREVIEW, id);
+    refresh(true);
+  }
+  function currentPreview() { return ssGet(KEY_PREVIEW) || ''; }
+  function isAdmin() {
+    try {
+      var s = window.Auth && window.Auth.getSession && window.Auth.getSession();
+      var phone = s && s.email ? String(s.email).split('@')[0] : '';
+      var adm = (window.STAFF && window.STAFF.adminPhone) || '16655052098';
+      return !!phone && phone === adm;
+    } catch (e) { return false; }
+  }
+  /* 只在页面已加载 CloudSync 时读云端；否则静默用本机缓存，绝不自己发网络请求 */
+  function syncCloud(done) {
+    var CS = window.CloudSync;
+    if (!CS || !CS.pullResult) { if (done) done(false); return; }
+    try { if (!CS.ready()) CS.init(); } catch (e) {}
+    if (!CS.ready()) { if (done) done(false); return; }
+    var p;
+    try { p = CS.pullResult(CLOUD_KEY); } catch (e) { if (done) done(false); return; }
+    if (!p || typeof p.then !== 'function') { if (done) done(false); return; }
+    p.then(function (r) {
+      if (!r || !r.ok) { if (done) done(false); return; }
+      var o = r.value;
+      if (typeof o === 'string') { try { o = JSON.parse(o); } catch (e) { o = null; } }
+      var wanted = (o && o.id && o.id !== 'auto' && THEMES[o.id]) ? JSON.stringify(o) : '';
+      var changed = wanted !== (lsGet(KEY_OVR) || '');
+      if (changed) writeOverride(o);      /* 不清会话预览：管理员试穿时不被云端打断 */
+      if (done) done(changed);
+    }, function () { if (done) done(false); });
+  }
 
   /* ---------- 渲染 ---------- */
   var root = null, lastKey = '', panelOpen = false;
@@ -385,7 +450,9 @@
       var id2 = TERM_IDS[j], t2 = THEMES[id2];
       s += '<div class="fs-cell" data-fs-id="' + id2 + '"><i style="background:linear-gradient(135deg,' + t2.c1 + ',' + t2.c2 + ')">' + t2.z + '</i>' + esc(t2.n) + '</div>';
     }
-    return s + '</div>';
+    s += '</div>';
+    if (isAdmin()) s += '<h4>管理</h4><a class="fs-admin" href="' + encodeURI('皮肤管理.html') + '">🎨 打开皮肤管理（管理员）</a>';
+    return s;
   }
   function togglePanel() {
     panelOpen = !panelOpen;
@@ -448,11 +515,13 @@
     /* iframe 内不画：外壳页统一显示一次，避免重复浮层 */
     try { if (window.top !== window.self) return; } catch (e) { return; }
     refresh(true);
-    /* 每 5 分钟检查一次是否跨零点（开销可忽略） */
-    setInterval(function () { refresh(false); }, 5 * 60 * 1000);
+    syncCloud();
+    /* 每 5 分钟检查跨零点 + 云端设置（只读一条几十字节的记录） */
+    setInterval(function () { syncCloud(); refresh(false); }, 5 * 60 * 1000);
     try {
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
       window.addEventListener('focus', function () { refresh(false); });
+      window.addEventListener('storage', function (ev) { if (ev && ev.key === KEY_OVR) refresh(true); });
     } catch (e) {}
   }
 
@@ -461,6 +530,9 @@
     version: VER, themes: THEMES, termIds: TERM_IDS, festIds: FEST_IDS,
     holidays: HOLIDAYS, lunarFest: LUNAR_FEST, termTable: TERM_TABLE,
     pick: pick, apply: apply, refresh: refresh, turnOff: turnOff,
+    preview: preview, currentPreview: currentPreview,
+    override: override, setOverride: setOverride, clearOverride: clearOverride,
+    syncCloud: syncCloud, isAdmin: isAdmin, cloudKey: CLOUD_KEY,
     termDay: termDay, currentTerm: currentTerm, findHoliday: findHoliday,
     findLunarFest: findLunarFest, lunarText: lunarText, isDark: isDark
   };
