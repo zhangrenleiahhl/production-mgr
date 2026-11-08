@@ -43,7 +43,7 @@
   .deny{padding:56px 20px;text-align:center;color:#94a3b8;background:#fff;border:1px solid #e6eaf0;border-radius:14px;line-height:2}
   .deny b{color:#dc2626}
 </style>
-<script src="festival-skin.js?v=20261106a&h=c32e783b" defer></script>
+<script src="festival-skin.js?v=20261106a&h=0bd3d205" defer></script>
 </head>
 <body>
 
@@ -64,7 +64,7 @@
   <button class="ghost" id="reload">🔄 重新读取云端</button>
   <button id="turnOnBtn" style="display:none;background:#fff4d6;border-color:#f0b429;color:#8a5a00;font-weight:700">🎉 开启节日皮肤</button>
   <button class="ghost" id="cardBtn" title="控制所有页面左下角的节日插画贺卡">🖼 节日贺卡：显示</button>
-  <button class="ghost" id="bgBtn" title="控制所有页面的节日插画背景（很淡，不挡数据）">🖼 插画背景：显示</button>
+  <button class="ghost" id="bgBtn" title="控制所有页面的高清节日插画背景（数据区自动压淡）">🖼 插画背景：显示</button>
   <span class="strength" id="strengthBox">浓度：
     <button class="sbtn" data-s="soft">淡雅</button>
     <button class="sbtn" data-s="normal">标准</button>
@@ -82,13 +82,13 @@
 
   <p class="tip">
     <b>三种状态，别弄混：</b><br>
-    ① <b>自动</b>：按今天日期自动显示（法定假期 &gt; 传统节日 &gt; 24 节气），假期里每天都显示。<br>
+    ① <b>自动</b>：按今天日期自动显示（法定假期 &gt; 传统节日 &gt; 24 节气），假期里每天都显示；<b>24 节气只在交节当天显示</b>，其余日子回到普通界面。<br>
     ② <b>本机试穿</b>：点卡片后只在这台电脑的这个页面立刻变，别人和两台大屏都不受影响；点「结束本机试穿」即可清除。<br>
     ③ <b>全站指定</b>：点「应用到全站」后保存到云端，公司所有电脑与大屏都会换上，页面开着时最多 5 分钟自动生效，也可在别的电脑点「重新读取云端」立刻生效。<br>
     <b>恢复自动</b>会同时取消全站指定和本机试穿，回到 ①。所有页面右下角的皮肤徽章里也有本页入口（仅管理员看得到）。<br>
     <b>浓度</b>：默认「标准」会让节日配色明显上到页面四边与顶栏；嫌淡选「醒目」，嫌花选「淡雅」，本机所有页面同步。<br>
-    <b>插画背景</b>：当天那张国风插画会以很淡的透明度融入整页背景，顶栏与表格数据区自动压淡、下半留白才显出画面，保证数字与文字清楚；觉得碍眼可点工具栏「🖼 插画背景」单独关掉（本机记忆，不影响配色与图案）。<br>
-    <b>图案与插画</b>：37 个节日/节气各有<b>一套专属线稿图案</b>和<b>一张国风插画</b>；其它页面左下角贺卡显示当天那一张，点它可放大，点 × 可隐藏（本机记忆）。本页已是完整插画墙，会自动收起贺卡以免盖住卡片。<br>
+    <b>插画背景</b>：当天那张<b>高清国风插画</b>以接近原生尺寸落在页面右下，四边羽化融入底色，画面清楚精致；顶栏与表格数据区自动压淡，保证数字与文字清楚；点工具栏「🖼 插画背景」可单独关掉（本机记忆）。<br>
+    <b>图案与插画</b>：37 个节日/节气各有<b>一套专属线稿图案</b>和<b>一张国风插画</b>；其它页面左下角放大版贺卡与页面背景共用同一张高清插画，点它可看大图，点 × 可隐藏（本机记忆）。本页 37 张缩略图走小图省流量，会自动收起贺卡以免盖住卡片；大屏「📷 截图」导出的 PNG 也用同一套高清图与透明度。<br>
     <b>截图</b>：大屏「📷 截图」导出的 PNG 会自动叠加当天节日主题（彩条、配色、专属图案、插画贺卡、节日名与落款）；打印/导出 PDF 也会保留彩条与贺卡。<br>
     <b>补充</b>：如果整套皮肤都不显示（没有彩条、没有徽章），多半是点过徽章上的 × 把这台电脑隐藏了；状态栏会提示，点工具栏「🎉 开启节日皮肤」即可恢复。
   </p>
@@ -180,7 +180,7 @@
       sub = '由 ' + (ov.name || '管理员') + ' 设置 · ' + String(ov.at || '').slice(0, 16).replace('T', ' ') + ' · 所有电脑与大屏跟随。';
     } else {
       line = '🔄 自动模式：' + (p ? p.t.n : '未启用');
-      sub = '按今天日期自动换肤（法定假期、传统节日、24 节气）。';
+      sub = '按今天日期自动换肤（法定假期、传统节日、24 节气交节当天）；其余日子为普通界面。';
     }
     $('status').innerHTML = esc(line) + '<small>' + esc(sub) + '</small>';
   }
@@ -261,7 +261,7 @@
       if (!F.setBgVisible) return;
       F.setBgVisible(!F.bgVisible());
       syncBgBtn();
-      show(F.bgVisible() ? '🖼 插画背景已显示（很淡，不影响看数据）。' : '🖼 插画背景已隐藏，贺卡与配色仍保留。');
+      show(F.bgVisible() ? '🖼 插画背景已显示（高清插画，数据区自动压淡）。' : '🖼 插画背景已隐藏，贺卡与配色仍保留。');
     };
     $('turnOnBtn').onclick = function () {
       if (F.turnOn) F.turnOn();
