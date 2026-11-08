@@ -881,12 +881,51 @@
 
   body.hidecur,body.hidecur *{cursor:none !important;}
 
+  /* ========== 📱 手机横屏模式（2026-11-08） ==========
+     手机横屏约 844×390：顶栏、页脚、字号全部压紧，一屏才装得下数据行。
+     只改密度，不动列序、数据、工序动画链路。 */
+  body.mb .wrap{padding:3px 6px 2px;}
+  body.mb .hud{padding:1px 5px;margin-bottom:2px;border-radius:8px;gap:4px;}
+  body.mb .logo{width:18px;height:18px;font-size:11px;flex:0 0 auto;}
+  body.mb .tt .t{font-size:11px;letter-spacing:0;}
+  body.mb .tt .tag{font-size:8px;padding:0 3px;}
+  body.mb .warnbadge,body.mb .secbadge{font-size:8px;padding:1px 5px;gap:2px;letter-spacing:0;}
+  body.mb .kpis{gap:3px;}
+  body.mb .kpi{padding:1px 4px;border-radius:5px;}
+  body.mb .kpi b{font-size:11px;}
+  body.mb .kpi span{font-size:7.5px;letter-spacing:0;}
+  body.mb .ctrl{gap:3px;}
+  body.mb .ctrl button{font-size:8px;padding:2px 4px;border-radius:5px;letter-spacing:0;}
+  body.mb .clock{gap:4px;}
+  body.mb .clock b{font-size:11px;}
+  body.mb .clock #cdate,body.mb .clock .sync{display:none;}
+  body.mb .box{border-radius:8px;}
+  body.mb thead th{font-size:9px;padding:2px 5px;letter-spacing:0;}
+  body.mb tbody td{padding:2px 5px;}
+  body.mb .ft{display:none;}
+  body.mb .empty b{font-size:22px;}
+  body.mb .empty em{font-size:9px;}
+  body.mb .popcard .ctbl{font-size:15px;line-height:1.2;border-radius:8px;}
+  body.mb .popcard .cbanner{font-size:12px;padding:3px 9px;gap:6px;}
+  body.mb .popcard .cbanner .cfrom,body.mb .popcard .cbanner .cto{padding:1px 5px;}
+  body.mb .popcard .cbanner .carrow{font-size:14px;}
+  /* 竖屏拿手机时提示旋转，别让用户以为大屏坏了 */
+  .mb-rotate{display:none;}
+  @media (orientation:portrait) and (max-width:900px){
+    body.mb .mb-rotate{display:flex;position:fixed;inset:0;z-index:99999;
+      background:#0b1220;color:#eaf4ff;align-items:center;justify-content:center;
+      flex-direction:column;gap:12px;font-size:16px;text-align:center;line-height:1.6;}
+    body.mb .mb-rotate small{font-size:12px;color:#9db0c8;}
+  }
+
 </style>
 
-  <script src="festival-skin.js?v=20261106a&h=df443ed0" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
 </head>
 
 <body>
+
+<div class="mb-rotate" id="mbRotate">📱 请把手机横过来看<br><small>横屏后自动进入「手机横屏」紧凑模式</small></div>
 
 <div class="wrap">
 
@@ -911,6 +950,8 @@
     <div class="ctrl">
 
       <button id="fsBtn">⛶ 全屏显示</button>
+
+      <button id="mbBtn">📱 手机横屏</button>
 
     </div>
 
@@ -1400,6 +1441,8 @@ function fmtTime(ts){
 
 function fitRows(n){
 
+  const mb = document.body.classList.contains("mb");
+
   const box = document.querySelector(".box");
 
   const thead = box ? box.querySelector("thead") : null;
@@ -1418,7 +1461,7 @@ function fitRows(n){
 
   }
 
-  avail = Math.max(160, avail);
+  avail = Math.max(mb ? 90 : 160, avail);
 
   /* ★ 2026-09-17 修（「字体还是没变大」的真凶）：**行数多到一屏放不下时，不能拿总行数去分高度**。
 
@@ -1436,17 +1479,18 @@ function fitRows(n){
 
      免得屏幕特别矮时行被顶得老高、全程都在滚。 */
 
-  const PER_MIN = Math.min(40, avail / 12);
+  const PER_MIN = Math.min(mb ? 20 : 40, avail / 12);
 
   const per = Math.max(avail / Math.max(1, n), PER_MIN);
 
-  const fs = Math.max(15, Math.min(26, Math.floor(per * 0.40)));
+  const fs = mb ? Math.max(10, Math.min(14, Math.floor(per * 0.40)))
+                : Math.max(15, Math.min(26, Math.floor(per * 0.40)));
 
   const root = document.documentElement.style;
 
   root.setProperty("--rowfs", fs + "px");
 
-  root.setProperty("--rowpad", Math.max(3, Math.floor(fs * 0.36)) + "px");
+  root.setProperty("--rowpad", Math.max(mb ? 1 : 3, Math.floor(fs * (mb ? 0.28 : 0.36))) + "px");
 
   root.setProperty("--perrow", per + "px");
 
@@ -2802,6 +2846,34 @@ function onFsChange(){
 
 /* ---------- 启动 ---------- */
 
+/* ---------- 📱 手机横屏模式（2026-11-08） ----------
+   入口：右上角「📱 手机横屏」按钮 / 网址加 ?mb=1 / 手机短边 ≤480px 自动识别。
+   只改布局密度与字号上限，不动数据、列序与工序动画链路。 */
+const MB_KEY = "dash_mobile_land_v1";
+function mbAuto(){
+  try {
+    const q = new URLSearchParams(location.search).get("mb");
+    if (q === "1") return true;
+    if (q === "0") return false;
+    const saved = localStorage.getItem(MB_KEY);
+    if (saved === "1") return true;
+    if (saved === "0") return false;
+    return Math.min(window.innerWidth, window.innerHeight) <= 480;
+  } catch(e){ return false; }
+}
+function applyMb(on, save){
+  document.body.classList.toggle("mb", !!on);
+  const b = $("mbBtn");
+  if (b){ b.textContent = on ? "📱 手机横屏：开" : "📱 手机横屏"; b.style.opacity = on ? "1" : ".72"; }
+  if (save){ try { localStorage.setItem(MB_KEY, on ? "1" : "0"); } catch(e){} }
+  try {
+    stopScroll();
+    fitRows(rows.length);
+    fitCodeFont(); fitNoFont(); fitUpdFont();
+    setupScroll();
+  } catch(e){}
+}
+
 function boot(){
 
   if (window.CloudSync){
@@ -2813,6 +2885,9 @@ function boot(){
   }
 
   loadLocal();
+
+  $("mbBtn").onclick = () => applyMb(!document.body.classList.contains("mb"), true);
+  applyMb(mbAuto(), false);
 
   $("fsBtn").onclick = toggleFs;
 
@@ -2827,6 +2902,9 @@ function boot(){
   window.addEventListener("keydown", (e) => { if (e.key === "f" || e.key === "F") toggleFs(); });
 
   window.addEventListener("resize", () => { stopScroll(); fitRows(rows.length); fitCodeFont(); fitNoFont(); fitUpdFont(); setupScroll(); });
+  window.addEventListener("orientationchange", () => {
+    try { if (localStorage.getItem(MB_KEY) === null) applyMb(mbAuto(), false); } catch(e){}
+  });
 
   // 有人手动滚了（滚轮/触屏），自动滚动让路 10 秒
 
@@ -2853,7 +2931,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261106a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261108a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
