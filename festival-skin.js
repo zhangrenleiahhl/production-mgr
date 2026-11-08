@@ -284,11 +284,23 @@
        下半部留白才让插画显出来；pointer-events:none 让点击全部穿透，绝不挡数据。 */
     /* ★ 高清插画不再 cover 拉伸：1280×798 以接近原生尺寸落在右下，线条才清楚精致；
        单个椭圆径向遮罩同时做「上淡下浓 + 四边羽化」，顶栏/表格区只留很淡一层。 */
+    /* ★ 全页极淡节日底色：「应用到全站」后整页（含左上/左半）都有节日感，
+       只染 3%~9%，不改业务 DOM、不压文字对比度；关闭/非节日/打印时隐藏。 */
+    '.fs-wash{position:absolute;inset:0;pointer-events:none;opacity:.055;transition:opacity .35s;',
+    '  background:linear-gradient(128deg,var(--fs-c1),transparent 58%),linear-gradient(308deg,var(--fs-c2),transparent 58%);}',
     '.fs-bg{position:absolute;inset:0;pointer-events:none;opacity:.26;transition:opacity .35s;',
     '  background-repeat:no-repeat;background-position:right bottom;',
     '  background-size:min(1280px,74vw) auto;',
     '  -webkit-mask-image:radial-gradient(ellipse 90% 100% at 76% 112%,#000 0%,rgba(0,0,0,.8) 30%,rgba(0,0,0,.42) 58%,rgba(0,0,0,.12) 80%,transparent 100%);',
     '  mask-image:radial-gradient(ellipse 90% 100% at 76% 112%,#000 0%,rgba(0,0,0,.8) 30%,rgba(0,0,0,.42) 58%,rgba(0,0,0,.12) 80%,transparent 100%);}',
+    /* ★ 左侧镜像淡插画：主图只在右下 74vw，1920 屏左边约 1/3 会整片留白。
+       同一张高清图翻到左下（scaleX(-1)，不放大不糊、artCache 复用不额外请求），
+       遮罩随之翻转成「左下浓、右上无」，中央数据区仍然干净。 */
+    '.fs-bg2{position:absolute;inset:0;pointer-events:none;opacity:.14;transition:opacity .35s;',
+    '  background-repeat:no-repeat;background-position:right bottom;',
+    '  background-size:min(1280px,74vw) auto;transform:scaleX(-1);',
+    '  -webkit-mask-image:radial-gradient(ellipse 72% 98% at 80% 112%,#000 0%,rgba(0,0,0,.62) 34%,rgba(0,0,0,.22) 64%,transparent 100%);',
+    '  mask-image:radial-gradient(ellipse 72% 98% at 80% 112%,#000 0%,rgba(0,0,0,.62) 34%,rgba(0,0,0,.22) 64%,transparent 100%);}',
     '.fs-bar{position:absolute;top:0;left:0;right:0;height:9px;background:linear-gradient(90deg,var(--fs-c1),var(--fs-c2),var(--fs-c1));background-size:200% 100%;animation:fsFlow 24s linear infinite;box-shadow:0 2px 16px -3px var(--fs-c1);}',
     '@keyframes fsFlow{0%{background-position:0 0}100%{background-position:200% 0}}',
     '/* ★ 四边柔光：让节日色真正上屏，但只染边缘、不改业务 DOM / 不挡点击 */',
@@ -368,23 +380,35 @@
     'html[data-fs-strength="soft"] .fs-deco{opacity:.08;}',
     'html[data-fs-strength="soft"] .fs-wm{opacity:.025;}',
     'html[data-fs-strength="soft"] .fs-bg{opacity:.14;}',
+    'html[data-fs-strength="soft"] .fs-wash{opacity:.03;}',
+    'html[data-fs-strength="soft"] .fs-bg2{opacity:.075;}',
     'html[data-fs-strength="normal"] .fs-bar{height:9px;}',
     'html[data-fs-strength="normal"] .fs-tint{opacity:.16;}',
     'html[data-fs-strength="normal"] .fs-deco{opacity:.26;}',
     'html[data-fs-strength="normal"] .fs-wm{opacity:.06;}',
     'html[data-fs-strength="normal"] .fs-bg{opacity:.26;}',
+    'html[data-fs-strength="normal"] .fs-wash{opacity:.055;}',
+    'html[data-fs-strength="normal"] .fs-bg2{opacity:.14;}',
     'html[data-fs-strength="strong"] .fs-bar{height:14px;}',
     'html[data-fs-strength="strong"] .fs-tint{opacity:.3;}',
     'html[data-fs-strength="strong"] .fs-deco{opacity:.4;}',
     'html[data-fs-strength="strong"] .fs-wm{opacity:.11;}',
     'html[data-fs-strength="strong"] .fs-bg{opacity:.40;}',
+    'html[data-fs-strength="strong"] .fs-wash{opacity:.09;}',
+    'html[data-fs-strength="strong"] .fs-bg2{opacity:.22;}',
     '/* 深色大屏要收一点，避免整屏糊；特异性高于档位规则 */',
     'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-tint{opacity:.035;}',
     'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-tint{opacity:.11;}',
     'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-tint{opacity:.22;}',
     'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-bg{opacity:.09;}',
+    'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-wash{opacity:.018;}',
+    'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-bg2{opacity:.05;}',
     'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-bg{opacity:.18;}',
+    'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-wash{opacity:.032;}',
+    'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-bg2{opacity:.09;}',
     'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-bg{opacity:.28;}',
+    'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-wash{opacity:.05;}',
+    'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-bg2{opacity:.14;}',
     'html[data-fs-dark="1"] .fs-badge{border-color:rgba(255,255,255,.3);box-shadow:0 5px 22px rgba(0,0,0,.5);}',
     'html[data-fs-dark="1"] .fs-txt i{opacity:.92;}',
     'html[data-fs-dark="1"] .fs-x:hover{background:rgba(255,255,255,.24);}',
@@ -399,16 +423,16 @@
     '  box-shadow:0 3px 14px rgba(20,28,44,.16);color:#233047;font-size:11px;font-weight:700;opacity:.72;}',
     '.fs-onbtn:hover{opacity:1;}',
     'html[data-fs-dark="1"] .fs-onbtn{background:rgba(14,20,31,.88);color:#eef4ff;border-color:rgba(255,255,255,.15);}',
-    'html[data-fs="off"] .fs-bg,html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel,html[data-fs="off"] .fs-card,html[data-fs="off"] .fs-lightbox{display:none!important;}',
+    'html[data-fs="off"] .fs-wash,html[data-fs="off"] .fs-bg2,html[data-fs="off"] .fs-bg,html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel,html[data-fs="off"] .fs-card,html[data-fs="off"] .fs-lightbox{display:none!important;}',
     'html[data-fs="off"] .fs-onbtn{display:flex!important;}',
     /* ★ 今天没有节日：不带任何节日主题，但留一枚灰色徽章当试穿入口（不误以为皮肤消失） */
     'html[data-fs="none"]{--fs-c1:#64748b;--fs-c2:#94a3b8;}',
-    'html[data-fs="none"] .fs-bg,html[data-fs="none"] .fs-bar,html[data-fs="none"] .fs-tint,html[data-fs="none"] .fs-deco,html[data-fs="none"] .fs-wm,html[data-fs="none"] .fs-card,html[data-fs="none"] .fs-lightbox,html[data-fs="none"] .fs-panel{display:none!important;}',
+    'html[data-fs="none"] .fs-wash,html[data-fs="none"] .fs-bg2,html[data-fs="none"] .fs-bg,html[data-fs="none"] .fs-bar,html[data-fs="none"] .fs-tint,html[data-fs="none"] .fs-deco,html[data-fs="none"] .fs-wm,html[data-fs="none"] .fs-card,html[data-fs="none"] .fs-lightbox,html[data-fs="none"] .fs-panel{display:none!important;}',
     'html[data-fs="none"] .fs-badge{opacity:.58;box-shadow:none;}',
     'html[data-fs="none"] .fs-badge:hover{opacity:1;}',
     /* ★ 打印/导出 PDF 也保留节日主题：只隐藏交互元素，保留彩条与插画贺卡 */
     '@media print{',
-    '  .fs-bg,.fs-badge,.fs-panel,.fs-onbtn,.fs-x,.fs-card-x,.fs-lightbox,.fs-wm,.fs-deco,.fs-tint{display:none!important;}',
+    '  .fs-wash,.fs-bg2,.fs-bg,.fs-badge,.fs-panel,.fs-onbtn,.fs-x,.fs-card-x,.fs-lightbox,.fs-wm,.fs-deco,.fs-tint{display:none!important;}',
     '  .fs-root{position:absolute;}.fs-bar{height:6px;opacity:1;box-shadow:none;}',
     '  .fs-card{opacity:1;box-shadow:none;border:1px solid #ccc;pointer-events:none;}',
     '}',
@@ -539,7 +563,9 @@
     root = document.createElement('div');
     root.className = 'fs-root'; root.id = 'fsRoot';
     root.innerHTML =
+      '<div class="fs-wash" id="fsWash"></div>' +
       '<div class="fs-bg" id="fsBg"></div>' +
+      '<div class="fs-bg2" id="fsBg2"></div>' +
       '<div class="fs-tint"></div>' +
       '<div class="fs-bar"></div>' +
       '<div class="fs-deco fs-deco-tl"></div>' +
@@ -624,6 +650,7 @@
         var s0 = document.getElementById('fsSub'); if (s0) s0.textContent = '今日无节日 · 点击试穿';
         var w0 = document.getElementById('fsWm'); if (w0) w0.textContent = '';
         var b0 = document.getElementById('fsBg'); if (b0) b0.style.backgroundImage = '';
+        var b20 = document.getElementById('fsBg2'); if (b20) b20.style.backgroundImage = '';
         var ci0 = document.getElementById('fsCardImg'); if (ci0) ci0.style.backgroundImage = '';
         var pnl0 = document.getElementById('fsPanel'); if (pnl0) pnl0.style.display = 'none';
       } catch (e) {}
@@ -745,8 +772,11 @@
   function setBgVisible(v) {
     if (v) lsDel(KEY_BG); else lsSet(KEY_BG, '1');
     try {
+      var vis = bgHostVisible() ? '' : 'none';
       var b = document.getElementById('fsBg');
-      if (b) b.style.display = bgHostVisible() ? '' : 'none';
+      if (b) b.style.display = vis;
+      var b2 = document.getElementById('fsBg2');
+      if (b2) b2.style.display = vis;
     } catch (e) {}
     notify();
   }
@@ -764,8 +794,12 @@
   function setBg(p) {
     try {
       var b = document.getElementById('fsBg'); if (!b) return;
-      b.style.display = bgHostVisible() ? '' : 'none';
+      var vis = bgHostVisible() ? '' : 'none';
+      b.style.display = vis;
+      var b2 = document.getElementById('fsBg2');
+      if (b2) b2.style.display = vis;
       loadBg(artUrlHD(p.id), b);
+      if (b2) loadBg(artUrlHD(p.id), b2);   /* 同一 URL，artCache 命中，不额外请求 */
     } catch (e) {}
   }
 
@@ -823,7 +857,13 @@
         
         Promise.all([loadImg(artUrlHD(p.id)), loadImg(svg)]).then(function (ims) {
           try {
-            var art = ims[0], pat = ims[1];
+            var art = ims[0], pat = ims[1], stgW = strength();
+            /* ⓪-a 全页极淡节日底色：与页面 .fs-wash 同档，整页（含左上）都有节日感 */
+            var washA = dark ? (stgW === 'strong' ? .05 : stgW === 'soft' ? .018 : .032)
+                             : (stgW === 'strong' ? .09 : stgW === 'soft' ? .03 : .055);
+            var wg = ctx.createLinearGradient(0, 0, W, H);
+            wg.addColorStop(0, c1); wg.addColorStop(.55, c2); wg.addColorStop(1, c1);
+            ctx.save(); ctx.globalAlpha = washA; ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H); ctx.restore();
             /* ⓪ 全页插画背景：★ 与页面 .fs-bg 用同一套参数（同一张高清图、右下原生
                尺寸、同一档透明度、同一个椭圆径向遮罩），导出 PNG 才和页面显示一致。 */
             if (art && bgHostVisible() && bgVisible()) {
@@ -852,6 +892,30 @@
                 tc.fillRect(0, ya, W, yb - ya);
                 tc.restore();
                 ctx.save(); ctx.globalAlpha = bgA; ctx.drawImage(tmp, 0, 0); ctx.restore();
+                /* ⓪-b 左侧镜像淡插画：与页面 .fs-bg2 同参数（scaleX(-1) → 左下） */
+                var tmp2 = document.createElement('canvas');
+                tmp2.width = W; tmp2.height = H;
+                var t2 = tmp2.getContext('2d');
+                if (t2) {
+                  t2.save(); t2.translate(W, 0); t2.scale(-1, 1);
+                  t2.drawImage(art, bx, by, bw, bh); t2.restore();
+                  var cx2 = W * .20, cy2 = H * 1.12, rx2 = W * .72, ry2 = H * .98;
+                  t2.save(); t2.translate(cx2, cy2); t2.scale(1, ry2 / rx2); t2.translate(-cx2, -cy2);
+                  var mg2 = t2.createRadialGradient(cx2, cy2, 0, cx2, cy2, rx2);
+                  mg2.addColorStop(0, 'rgba(0,0,0,1)');
+                  mg2.addColorStop(.34, 'rgba(0,0,0,.62)');
+                  mg2.addColorStop(.64, 'rgba(0,0,0,.22)');
+                  mg2.addColorStop(1, 'rgba(0,0,0,0)');
+                  t2.globalCompositeOperation = 'destination-in';
+                  t2.fillStyle = mg2;
+                  var ya2 = cy2 + (0 - cy2) * rx2 / ry2, yb2 = cy2 + (H - cy2) * rx2 / ry2;
+                  t2.fillRect(0, ya2, W, yb2 - ya2);
+                  t2.restore();
+                  ctx.save();
+                  ctx.globalAlpha = dark ? (stg === 'strong' ? .14 : stg === 'soft' ? .05 : .09)
+                                         : (stg === 'strong' ? .22 : stg === 'soft' ? .075 : .14);
+                  ctx.drawImage(tmp2, 0, 0); ctx.restore();
+                }
               }
             }
             var g = ctx.createLinearGradient(0, 0, W, 0);
