@@ -6,13 +6,13 @@
  *     该节日皮肤，并显示「假期第 N 天 / 共 N 天」；调休上班日单独提示。
  *  ② 传统节日：除夕/春节/元宵/端午/七夕/中元/中秋/重阳/腊八，内置
  *     2026-2030 精确公历日期表（运行时零计算，兼容老电视浏览器）。
- *  ③ 二十四节气：太阳黄经近似公式 + 2026/2027 权威表校正；节气当天醒目，
- *     平时以「当前节气」淡雅常驻，全年有中国味但不打扰生产。
- *  ④ 优先级：预览 > 法定假期 > 调休上班 > 传统节日 > 节气当天 > 当前节气。
+ *  ③ 二十四节气：太阳黄经近似公式 + 2026/2027 权威表校正；★ 只在【交节当天】
+ *     显示该节气皮肤，其余日子回到普通界面（用户口径 2026-11-08）。
+ *  ④ 优先级：预览 > 管理员指定 > 法定假期 > 调休上班 > 传统节日 > 节气当天。
  *  ⑤ 全站零依赖、零外链资源、不改动任何业务 CSS 变量、不改表格/按钮配色；
  *     所有 DOM 都是 pointer-events:none 的浮层，只有徽章与预览面板可点。
  *  ⑥  iframe 内不显示（外壳页统一显示一次，避免重复）；跨零点自动换肤；
- *     深浅主题自动适配；打印时自动隐藏；任何异常都静默降级，绝不白屏。
+ *     深浅主题自动适配；打印保留彩条与贺卡、隐藏交互徽章；异常静默降级不白屏。
  *
  * URL 参数（方便预览与验收）
  *  ?festival=chunjie   强制预览某个皮肤（id 见 THEMES）；?festival=auto 取消
@@ -259,11 +259,8 @@
       /* 祝语由 apply() 统一拼在 sub 后面，这里只给前缀，避免节气当天重复显示 */
       return { id: c.id, t: THEMES[c.id], level: 'festive', sub: '二十四节气' };
     }
-    /* 5. 平时：当前节气淡雅常驻 */
-    if (c) {
-      var d = daysBetween(c.k, k) + 1;
-      return { id: c.id, t: THEMES[c.id], level: 'calm', sub: '当前节气 · 第 ' + d + ' 天', termDays: d };
-    }
+    /* 5. 其余日子：回到普通界面，不再把「当前节气」常驻十几天。
+       ★ 用户口径 2026-11-08：二十四节气只显示交节当天一天。 */
     return null;
   }
 
@@ -285,10 +282,13 @@
     '.fs-root{position:fixed;inset:0;z-index:2147483000;pointer-events:none;font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;}',
     /* ★ 节日插画作为全页背景融入：上淡下浓。顶栏/表格在上半部只留 8%~30% 强度，
        下半部留白才让插画显出来；pointer-events:none 让点击全部穿透，绝不挡数据。 */
-    '.fs-bg{position:absolute;inset:0;pointer-events:none;opacity:.2;transition:opacity .35s;',
-    '  background-repeat:no-repeat;background-position:center bottom;background-size:cover;',
-    '  -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.22) 30%,rgba(0,0,0,.55) 62%,#000 100%);',
-    '  mask-image:linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.22) 30%,rgba(0,0,0,.55) 62%,#000 100%);}',
+    /* ★ 高清插画不再 cover 拉伸：1280×798 以接近原生尺寸落在右下，线条才清楚精致；
+       单个椭圆径向遮罩同时做「上淡下浓 + 四边羽化」，顶栏/表格区只留很淡一层。 */
+    '.fs-bg{position:absolute;inset:0;pointer-events:none;opacity:.26;transition:opacity .35s;',
+    '  background-repeat:no-repeat;background-position:right bottom;',
+    '  background-size:min(1280px,74vw) auto;',
+    '  -webkit-mask-image:radial-gradient(ellipse 90% 100% at 76% 112%,#000 0%,rgba(0,0,0,.8) 30%,rgba(0,0,0,.42) 58%,rgba(0,0,0,.12) 80%,transparent 100%);',
+    '  mask-image:radial-gradient(ellipse 90% 100% at 76% 112%,#000 0%,rgba(0,0,0,.8) 30%,rgba(0,0,0,.42) 58%,rgba(0,0,0,.12) 80%,transparent 100%);}',
     '.fs-bar{position:absolute;top:0;left:0;right:0;height:9px;background:linear-gradient(90deg,var(--fs-c1),var(--fs-c2),var(--fs-c1));background-size:200% 100%;animation:fsFlow 24s linear infinite;box-shadow:0 2px 16px -3px var(--fs-c1);}',
     '@keyframes fsFlow{0%{background-position:0 0}100%{background-position:200% 0}}',
     '/* ★ 四边柔光：让节日色真正上屏，但只染边缘、不改业务 DOM / 不挡点击 */',
@@ -317,11 +317,11 @@
     '.fs-deco-br{bottom:-40px;right:-24px;width:260px;height:190px;transform:rotate(180deg);}',
     '.fs-deco svg{width:100%;height:100%;fill:none;stroke:var(--fs-c1);stroke-width:1.5;}',
     /* ★ 节日插画贺卡：左下角，和右下角徽章 / 账号管理浮动条互不干扰 */
-    '.fs-card{position:absolute;left:14px;bottom:14px;width:176px;border-radius:12px;overflow:hidden;pointer-events:auto;cursor:zoom-in;',
+    '.fs-card{position:absolute;left:14px;bottom:14px;width:224px;border-radius:12px;overflow:hidden;pointer-events:auto;cursor:zoom-in;',
     '  background:rgba(255,255,255,.96);border:1px solid var(--fs-c1);box-shadow:0 6px 22px rgba(20,28,44,.2);',
     '  opacity:.94;transition:opacity .3s,width .3s;}',
     '.fs-card:hover{opacity:1;}',
-    '.fs-card-img{height:104px;background-size:cover;background-position:center;background-color:#f3efe6;',
+    '.fs-card-img{height:140px;background-size:cover;background-position:center;background-color:#f3efe6;',
     '  transition:height .3s,background-image .3s;}',
     '.fs-card-img.noimg{background-image:none!important;background:linear-gradient(135deg,var(--fs-c1),var(--fs-c2))!important;}',
     '.fs-card-txt{padding:6px 9px 7px;display:flex;flex-direction:column;gap:1px;}',
@@ -337,10 +337,10 @@
     '.fs-lightbox span{position:absolute;bottom:6vh;color:#fff;font-size:15px;text-shadow:0 2px 8px #000;}',
     'html[data-fs-dark="1"] .fs-card{background:rgba(14,20,31,.9);border-color:rgba(255,255,255,.24);opacity:.9;}',
     'html[data-fs-dark="1"] .fs-card-txt b{color:#eef4ff;}html[data-fs-dark="1"] .fs-card-txt i{color:#9db0c8;}',
-    'html[data-fs-strength="soft"] .fs-card{width:138px;opacity:.8;}',
-    'html[data-fs-strength="soft"] .fs-card-img{height:82px;}',
-    'html[data-fs-strength="strong"] .fs-card{width:210px;opacity:1;}',
-    'html[data-fs-strength="strong"] .fs-card-img{height:126px;}',
+    'html[data-fs-strength="soft"] .fs-card{width:176px;opacity:.8;}',
+    'html[data-fs-strength="soft"] .fs-card-img{height:110px;}',
+    'html[data-fs-strength="strong"] .fs-card{width:264px;opacity:1;}',
+    'html[data-fs-strength="strong"] .fs-card-img{height:168px;}',
     '.fs-wm{position:absolute;right:5vw;top:auto;bottom:11vh;font-size:min(20vw,200px);line-height:.8;font-weight:900;',
     '  color:var(--fs-c1);opacity:.035;pointer-events:none;user-select:none;}',
     '.fs-panel{position:absolute;top:auto;bottom:96px;left:auto;right:14px;transform:none;width:min(94vw,620px);max-height:min(62vh,460px);',
@@ -367,24 +367,24 @@
     'html[data-fs-strength="soft"] .fs-tint{opacity:.045;}',
     'html[data-fs-strength="soft"] .fs-deco{opacity:.08;}',
     'html[data-fs-strength="soft"] .fs-wm{opacity:.025;}',
-    'html[data-fs-strength="soft"] .fs-bg{opacity:.1;}',
+    'html[data-fs-strength="soft"] .fs-bg{opacity:.14;}',
     'html[data-fs-strength="normal"] .fs-bar{height:9px;}',
     'html[data-fs-strength="normal"] .fs-tint{opacity:.16;}',
     'html[data-fs-strength="normal"] .fs-deco{opacity:.26;}',
     'html[data-fs-strength="normal"] .fs-wm{opacity:.06;}',
-    'html[data-fs-strength="normal"] .fs-bg{opacity:.2;}',
+    'html[data-fs-strength="normal"] .fs-bg{opacity:.26;}',
     'html[data-fs-strength="strong"] .fs-bar{height:14px;}',
     'html[data-fs-strength="strong"] .fs-tint{opacity:.3;}',
     'html[data-fs-strength="strong"] .fs-deco{opacity:.4;}',
     'html[data-fs-strength="strong"] .fs-wm{opacity:.11;}',
-    'html[data-fs-strength="strong"] .fs-bg{opacity:.34;}',
+    'html[data-fs-strength="strong"] .fs-bg{opacity:.40;}',
     '/* 深色大屏要收一点，避免整屏糊；特异性高于档位规则 */',
     'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-tint{opacity:.035;}',
     'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-tint{opacity:.11;}',
     'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-tint{opacity:.22;}',
-    'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-bg{opacity:.05;}',
-    'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-bg{opacity:.1;}',
-    'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-bg{opacity:.17;}',
+    'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-bg{opacity:.09;}',
+    'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-bg{opacity:.18;}',
+    'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-bg{opacity:.28;}',
     'html[data-fs-dark="1"] .fs-badge{border-color:rgba(255,255,255,.3);box-shadow:0 5px 22px rgba(0,0,0,.5);}',
     'html[data-fs-dark="1"] .fs-txt i{opacity:.92;}',
     'html[data-fs-dark="1"] .fs-x:hover{background:rgba(255,255,255,.24);}',
@@ -401,6 +401,11 @@
     'html[data-fs-dark="1"] .fs-onbtn{background:rgba(14,20,31,.88);color:#eef4ff;border-color:rgba(255,255,255,.15);}',
     'html[data-fs="off"] .fs-bg,html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel,html[data-fs="off"] .fs-card,html[data-fs="off"] .fs-lightbox{display:none!important;}',
     'html[data-fs="off"] .fs-onbtn{display:flex!important;}',
+    /* ★ 今天没有节日：不带任何节日主题，但留一枚灰色徽章当试穿入口（不误以为皮肤消失） */
+    'html[data-fs="none"]{--fs-c1:#64748b;--fs-c2:#94a3b8;}',
+    'html[data-fs="none"] .fs-bg,html[data-fs="none"] .fs-bar,html[data-fs="none"] .fs-tint,html[data-fs="none"] .fs-deco,html[data-fs="none"] .fs-wm,html[data-fs="none"] .fs-card,html[data-fs="none"] .fs-lightbox,html[data-fs="none"] .fs-panel{display:none!important;}',
+    'html[data-fs="none"] .fs-badge{opacity:.58;box-shadow:none;}',
+    'html[data-fs="none"] .fs-badge:hover{opacity:1;}',
     /* ★ 打印/导出 PDF 也保留节日主题：只隐藏交互元素，保留彩条与插画贺卡 */
     '@media print{',
     '  .fs-bg,.fs-badge,.fs-panel,.fs-onbtn,.fs-x,.fs-card-x,.fs-lightbox,.fs-wm,.fs-deco,.fs-tint{display:none!important;}',
@@ -608,7 +613,22 @@
     h.setAttribute('data-fs-dark', isDark() ? '1' : '0');
     h.setAttribute('data-fs-strength', strength());
     root.style.display = '';   /* 关闭态也留着 root：里面藏着「开启皮肤」按钮 */
-    if (!p) return;
+    if (!p) {
+      /* 非节日：撤掉全部节日装饰，只留一枚低调的中性徽章当试穿入口，
+         免得用户以为皮肤又消失了；点它仍可打开预览面板试穿。 */
+      try {
+        h.style.removeProperty('--fs-c1'); h.style.removeProperty('--fs-c2');
+        panelOpen = false;
+        var z0 = document.getElementById('fsZi'); if (z0) z0.textContent = '🎨';
+        var n0 = document.getElementById('fsName'); if (n0) n0.textContent = '节日皮肤';
+        var s0 = document.getElementById('fsSub'); if (s0) s0.textContent = '今日无节日 · 点击试穿';
+        var w0 = document.getElementById('fsWm'); if (w0) w0.textContent = '';
+        var b0 = document.getElementById('fsBg'); if (b0) b0.style.backgroundImage = '';
+        var ci0 = document.getElementById('fsCardImg'); if (ci0) ci0.style.backgroundImage = '';
+        var pnl0 = document.getElementById('fsPanel'); if (pnl0) pnl0.style.display = 'none';
+      } catch (e) {}
+      return;
+    }
     h.style.setProperty('--fs-c1', p.t.c1);
     h.style.setProperty('--fs-c2', p.t.c2);
     document.getElementById('fsZi').textContent = p.t.z;
@@ -669,7 +689,11 @@
   }
 
   /* ---------- 节日插画贺卡（按需只加载当天那一张） ---------- */
+  /* 640×402 小图：皮肤管理页 37 张缩略图，避免大图占内存 */
   function artUrl(id) { return 'fs-' + id + '.webp'; }
+  /* ★ 1280×798 高清版：页面背景 / 贺卡 / 导出截图共用一张。
+     640 小图铺到 1920 大屏会被放大 3 倍糊掉，高清版才「清楚精致」。 */
+  function artUrlHD(id) { return 'fs-' + id + '-hd.webp'; }
   function cardVisible() { return lsGet(KEY_CARD) !== '1'; }
   /* 皮肤管理页自己就是 37 张插画墙，左下角再叠一张贺卡反而盖住卡片 → 本页不显示 */
   function cardHostVisible() {
@@ -699,7 +723,7 @@
     try {
       var card = document.getElementById('fsCard'); if (!card) return;
       card.style.display = cardHostVisible() ? '' : 'none';
-      var url = artUrl(p.id);
+      var url = artUrlHD(p.id);
       var ci = document.getElementById('fsCardImg'); if (ci) loadArt(url, ci);
       document.getElementById('fsCardName').textContent = p.t.n;
       document.getElementById('fsCardWish').textContent = p.t.w;
@@ -741,7 +765,7 @@
     try {
       var b = document.getElementById('fsBg'); if (!b) return;
       b.style.display = bgHostVisible() ? '' : 'none';
-      loadBg(artUrl(p.id), b);
+      loadBg(artUrlHD(p.id), b);
     } catch (e) {}
   }
 
@@ -805,15 +829,38 @@
         var svg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(patternSVG(p.id, c1));
         /* 初始化失败也要把最外层 save 还回去 */
         
-        Promise.all([loadImg(artUrl(p.id)), loadImg(svg)]).then(function (ims) {
+        Promise.all([loadImg(artUrlHD(p.id)), loadImg(svg)]).then(function (ims) {
           try {
             var art = ims[0], pat = ims[1];
-            /* ⓪ 全页插画背景：和页面 .fs-bg 呼应；alpha 再收一档保护导出图里的数据 */
-            if (art) {
-              ctx.save();
-              ctx.globalAlpha = dark ? .045 : .07;
-              drawCover(ctx, art, 0, 0, W, H);
-              ctx.restore();
+            /* ⓪ 全页插画背景：★ 与页面 .fs-bg 用同一套参数（同一张高清图、右下原生
+               尺寸、同一档透明度、同一个椭圆径向遮罩），导出 PNG 才和页面显示一致。 */
+            if (art && bgHostVisible() && bgVisible()) {
+              var stg = strength();
+              var bgA = dark ? (stg === 'strong' ? .28 : stg === 'soft' ? .09 : .18)
+                             : (stg === 'strong' ? .40 : stg === 'soft' ? .14 : .26);
+              var bw = Math.min(1280 * u, W * .74), bh = bw * (art.height / art.width);
+              var bx = W - bw, by = H - bh;
+              var tmp = document.createElement('canvas');
+              tmp.width = W; tmp.height = H;
+              var tc = tmp.getContext('2d');
+              if (tc) {
+                tc.drawImage(art, bx, by, bw, bh);
+                /* 椭圆径向遮罩：先按 ry/rx 压扁坐标系，再画圆形渐变 */
+                var cx = W * .76, cy = H * 1.12, rx = W * .9, ry = H * 1.0;
+                tc.save(); tc.translate(cx, cy); tc.scale(1, ry / rx); tc.translate(-cx, -cy);
+                var mg = tc.createRadialGradient(cx, cy, 0, cx, cy, rx);
+                mg.addColorStop(0, 'rgba(0,0,0,1)');
+                mg.addColorStop(.30, 'rgba(0,0,0,.8)');
+                mg.addColorStop(.58, 'rgba(0,0,0,.42)');
+                mg.addColorStop(.80, 'rgba(0,0,0,.12)');
+                mg.addColorStop(1, 'rgba(0,0,0,0)');
+                tc.globalCompositeOperation = 'destination-in';
+                tc.fillStyle = mg;
+                var ya = cy + (0 - cy) * rx / ry, yb = cy + (H - cy) * rx / ry;
+                tc.fillRect(0, ya, W, yb - ya);
+                tc.restore();
+                ctx.save(); ctx.globalAlpha = bgA; ctx.drawImage(tmp, 0, 0); ctx.restore();
+              }
             }
             var g = ctx.createLinearGradient(0, 0, W, 0);
             g.addColorStop(0, c1); g.addColorStop(.5, c2); g.addColorStop(1, c1);
@@ -835,7 +882,7 @@
               ctx.save(); ctx.globalAlpha = dark ? .5 : .34;
               ctx.drawImage(pat, W-190*u, 16*u, 170*u, 119*u); ctx.restore();
             }
-            var cw = 176*u, ih = 108*u, th = 34*u, ch = ih+th;           /* ④ 插画贺卡 */
+            var cw = 224*u, ih = 140*u, th = 38*u, ch = ih+th;           /* ④ 插画贺卡（与页面同尺寸） */
             var cx = 16*u, cy = Math.max(14*u, H-ch-14*u);
             if (cy + ch > H - 6*u) cy = Math.max(6*u, H-ch-6*u);        /* 保证不被裁切 */
             ctx.save();
@@ -921,7 +968,7 @@
     holidays: HOLIDAYS, lunarFest: LUNAR_FEST, termTable: TERM_TABLE,
     pick: pick, apply: apply, refresh: refresh, turnOff: turnOff,
     turnOn: turnOn, isOff: isOff, strength: strength, setStrength: setStrength,
-    motifs: MOTIFS, patternSVG: patternSVG, artUrl: artUrl,
+    motifs: MOTIFS, patternSVG: patternSVG, artUrl: artUrl, artUrlHD: artUrlHD,
     cardVisible: cardVisible, setCardVisible: setCardVisible,
     bgVisible: bgVisible, setBgVisible: setBgVisible,
     paintCapture: paintCapture,
