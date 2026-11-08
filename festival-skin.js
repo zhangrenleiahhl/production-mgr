@@ -28,7 +28,8 @@
   var KEY_PREVIEW = 'festival_skin_preview_v1';
   var KEY_STRENGTH = 'festival_skin_strength_v1';    // 皮肤浓度（soft / 默认 normal / strong）
   var KEY_CARD = 'festival_skin_card_off_v1';        // 左下角节日插画贺卡是否隐藏
-  var KEY_BG = 'festival_skin_bg_off_v1';            // 全页插画背景是否隐藏
+  var KEY_BG = 'festival_skin_bg_off_v1';            // 旧键：历史「隐藏」标记（兼容）
+  var KEY_BG_ON = 'festival_skin_bg_on_v1';          // ★ 默认关闭插画背景，只有显式打开才铺
   var KEY_OVR = 'festival_skin_override_local_v1';   // 本机缓存（同源所有标签页共享）
   var CLOUD_KEY = 'festival_skin_override_v1';        // 云端 app_data 键（全站统一皮肤）
 
@@ -310,10 +311,20 @@
     '  linear-gradient(270deg,var(--fs-c2) 0%,transparent 100%) right center/28px 100% no-repeat;}',
     /* ★ 徽章放右下角并抬到 58px：顶部居中会压 appbar / HUD，而 staff-admin 的
        「退出登录 / 账号管理」浮动条在 bottom:14px 高约 30px，贴太近会被徽章盖住 */
-    '.fs-badge{position:absolute;top:auto;bottom:58px;left:auto;right:14px;transform:none;display:flex;align-items:center;gap:7px;',
-    '  max-width:min(92vw,460px);padding:3px 8px 3px 4px;border-radius:999px;pointer-events:auto;cursor:pointer;',
+    /* ★ 2026-11-08「还是挡字了」：右下角长胶囊压住表格最后几行右侧数据。
+       默认收成 30px 小圆章（只留节日汉字），鼠标移上 / 点开面板才展开成完整胶囊。 */
+    '.fs-badge{position:absolute;top:auto;bottom:58px;left:auto;right:14px;transform:none;display:flex;align-items:center;justify-content:center;gap:7px;',
+    '  width:30px;height:30px;padding:0;overflow:hidden;border-radius:50%;pointer-events:auto;cursor:pointer;',
     '  background:linear-gradient(135deg,var(--fs-c1),var(--fs-c2));border:1px solid rgba(255,255,255,.42);box-shadow:0 4px 18px rgba(20,28,44,.26);',
     '  color:#fff;font-size:11px;line-height:1.25;white-space:nowrap;transition:opacity .25s,box-shadow .25s;text-shadow:0 1px 2px rgba(0,0,0,.22);}',
+    /* ★ 折叠规则必须写在 .fs-badge 规则「闭合之后」：早于 } 会被吞成无效声明，
+       结果就是圆章宽度生效、文字却没被藏起来（真 Edge 探针抓到过）。 */
+    '.fs-badge .fs-txt,.fs-badge .fs-x{display:none;}',
+    /* ★ 只用 .on（点开面板）展开，不用 :hover：鼠标移上就变宽会把 × 挪到光标下，
+       用户本来想点徽章试穿，结果点到「隐藏节日皮肤」（真 Edge 探针复现）。 */
+    '.fs-badge.on{width:auto;height:auto;max-width:min(92vw,460px);padding:3px 8px 3px 4px;border-radius:999px;overflow:visible;}',
+    '.fs-badge.on .fs-txt{display:flex;}',
+    '.fs-badge.on .fs-x{display:grid;}',
     '.fs-zi{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;',
     '  background:rgba(255,255,255,.24);color:#fff;font-size:12px;font-weight:700;',
     '  box-shadow:0 1px 4px rgba(0,0,0,.16);}',
@@ -624,6 +635,8 @@
   }
   function togglePanel() {
     panelOpen = !panelOpen;
+    var bgB = document.getElementById('fsBadge');
+    if (bgB) bgB.className = panelOpen ? 'fs-badge on' : 'fs-badge';
     var p = document.getElementById('fsPanel');
     if (!p) return;
     if (panelOpen && !p.innerHTML) p.innerHTML = panelHTML();
@@ -632,6 +645,8 @@
 
   function apply(p) {
     ensureRoot();
+    var bSync = document.getElementById('fsBadge');
+    if (bSync) bSync.className = panelOpen ? 'fs-badge on' : 'fs-badge';
     var h = document.documentElement;
     h.setAttribute('data-fs', p ? p.id : 'none');
     h.setAttribute('data-fs-level', p ? p.level : 'calm');
@@ -652,6 +667,7 @@
         var b20 = document.getElementById('fsBg2'); if (b20) b20.style.backgroundImage = '';
         var ci0 = document.getElementById('fsCardImg'); if (ci0) ci0.style.backgroundImage = '';
         var pnl0 = document.getElementById('fsPanel'); if (pnl0) pnl0.style.display = 'none';
+        var bg0 = document.getElementById('fsBadge'); if (bg0) bg0.className = 'fs-badge';
       } catch (e) {}
       return;
     }
@@ -759,7 +775,9 @@
   }
 
   /* ---------- 全页插画背景（与贺卡共用同一张图、同一份缓存） ---------- */
-  function bgVisible() { return lsGet(KEY_BG) !== '1'; }
+  /* ★ 2026-11-08 二次反馈「还是挡字了」：哪怕只在底部一条渐入，表格最后几行仍被压。
+     所以业务页默认完全不铺插画线条；想看高清插画，用皮肤管理页的开关或左下角贺卡。 */
+  function bgVisible() { return lsGet(KEY_BG_ON) === '1' && lsGet(KEY_BG) !== '1'; }
   /* 皮肤管理页本身是 37 张插画墙，再叠一层背景只会显乱 → 本页不铺 */
   function bgHostVisible() {
     try {
@@ -769,7 +787,8 @@
     return bgVisible();
   }
   function setBgVisible(v) {
-    if (v) lsDel(KEY_BG); else lsSet(KEY_BG, '1');
+    if (v) { lsDel(KEY_BG); lsSet(KEY_BG_ON, '1'); }
+    else { lsDel(KEY_BG_ON); lsSet(KEY_BG, '1'); }
     try {
       var vis = bgHostVisible() ? '' : 'none';
       var b = document.getElementById('fsBg');
@@ -987,7 +1006,7 @@
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
       window.addEventListener('focus', function () { refresh(false); });
       window.addEventListener('storage', function (ev) {
-        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH || ev.key === KEY_CARD || ev.key === KEY_BG)) { lastKey = ''; refresh(true); }
+        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH || ev.key === KEY_CARD || ev.key === KEY_BG || ev.key === KEY_BG_ON)) { lastKey = ''; refresh(true); }
       });
     } catch (e) {}
   }
