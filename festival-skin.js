@@ -28,6 +28,7 @@
   var KEY_PREVIEW = 'festival_skin_preview_v1';
   var KEY_STRENGTH = 'festival_skin_strength_v1';    // 皮肤浓度（soft / 默认 normal / strong）
   var KEY_CARD = 'festival_skin_card_off_v1';        // 左下角节日插画贺卡是否隐藏
+  var KEY_BG = 'festival_skin_bg_off_v1';            // 全页插画背景是否隐藏
   var KEY_OVR = 'festival_skin_override_local_v1';   // 本机缓存（同源所有标签页共享）
   var CLOUD_KEY = 'festival_skin_override_v1';        // 云端 app_data 键（全站统一皮肤）
 
@@ -282,6 +283,12 @@
   /* ---------- 样式（只用 --fs-* 变量，绝不碰业务变量） ---------- */
   var CSS = [
     '.fs-root{position:fixed;inset:0;z-index:2147483000;pointer-events:none;font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;}',
+    /* ★ 节日插画作为全页背景融入：上淡下浓。顶栏/表格在上半部只留 8%~30% 强度，
+       下半部留白才让插画显出来；pointer-events:none 让点击全部穿透，绝不挡数据。 */
+    '.fs-bg{position:absolute;inset:0;pointer-events:none;opacity:.2;transition:opacity .35s;',
+    '  background-repeat:no-repeat;background-position:center bottom;background-size:cover;',
+    '  -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.22) 30%,rgba(0,0,0,.55) 62%,#000 100%);',
+    '  mask-image:linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.22) 30%,rgba(0,0,0,.55) 62%,#000 100%);}',
     '.fs-bar{position:absolute;top:0;left:0;right:0;height:9px;background:linear-gradient(90deg,var(--fs-c1),var(--fs-c2),var(--fs-c1));background-size:200% 100%;animation:fsFlow 24s linear infinite;box-shadow:0 2px 16px -3px var(--fs-c1);}',
     '@keyframes fsFlow{0%{background-position:0 0}100%{background-position:200% 0}}',
     '/* ★ 四边柔光：让节日色真正上屏，但只染边缘、不改业务 DOM / 不挡点击 */',
@@ -360,18 +367,24 @@
     'html[data-fs-strength="soft"] .fs-tint{opacity:.045;}',
     'html[data-fs-strength="soft"] .fs-deco{opacity:.08;}',
     'html[data-fs-strength="soft"] .fs-wm{opacity:.025;}',
+    'html[data-fs-strength="soft"] .fs-bg{opacity:.1;}',
     'html[data-fs-strength="normal"] .fs-bar{height:9px;}',
     'html[data-fs-strength="normal"] .fs-tint{opacity:.16;}',
     'html[data-fs-strength="normal"] .fs-deco{opacity:.26;}',
     'html[data-fs-strength="normal"] .fs-wm{opacity:.06;}',
+    'html[data-fs-strength="normal"] .fs-bg{opacity:.2;}',
     'html[data-fs-strength="strong"] .fs-bar{height:14px;}',
     'html[data-fs-strength="strong"] .fs-tint{opacity:.3;}',
     'html[data-fs-strength="strong"] .fs-deco{opacity:.4;}',
     'html[data-fs-strength="strong"] .fs-wm{opacity:.11;}',
+    'html[data-fs-strength="strong"] .fs-bg{opacity:.34;}',
     '/* 深色大屏要收一点，避免整屏糊；特异性高于档位规则 */',
     'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-tint{opacity:.035;}',
     'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-tint{opacity:.11;}',
     'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-tint{opacity:.22;}',
+    'html[data-fs-dark="1"][data-fs-strength="soft"] .fs-bg{opacity:.05;}',
+    'html[data-fs-dark="1"][data-fs-strength="normal"] .fs-bg{opacity:.1;}',
+    'html[data-fs-dark="1"][data-fs-strength="strong"] .fs-bg{opacity:.17;}',
     'html[data-fs-dark="1"] .fs-badge{border-color:rgba(255,255,255,.3);box-shadow:0 5px 22px rgba(0,0,0,.5);}',
     'html[data-fs-dark="1"] .fs-txt i{opacity:.92;}',
     'html[data-fs-dark="1"] .fs-x:hover{background:rgba(255,255,255,.24);}',
@@ -386,11 +399,11 @@
     '  box-shadow:0 3px 14px rgba(20,28,44,.16);color:#233047;font-size:11px;font-weight:700;opacity:.72;}',
     '.fs-onbtn:hover{opacity:1;}',
     'html[data-fs-dark="1"] .fs-onbtn{background:rgba(14,20,31,.88);color:#eef4ff;border-color:rgba(255,255,255,.15);}',
-    'html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel,html[data-fs="off"] .fs-card,html[data-fs="off"] .fs-lightbox{display:none!important;}',
+    'html[data-fs="off"] .fs-bg,html[data-fs="off"] .fs-bar,html[data-fs="off"] .fs-tint,html[data-fs="off"] .fs-deco,html[data-fs="off"] .fs-wm,html[data-fs="off"] .fs-badge,html[data-fs="off"] .fs-panel,html[data-fs="off"] .fs-card,html[data-fs="off"] .fs-lightbox{display:none!important;}',
     'html[data-fs="off"] .fs-onbtn{display:flex!important;}',
     /* ★ 打印/导出 PDF 也保留节日主题：只隐藏交互元素，保留彩条与插画贺卡 */
     '@media print{',
-    '  .fs-badge,.fs-panel,.fs-onbtn,.fs-x,.fs-card-x,.fs-lightbox,.fs-wm,.fs-deco,.fs-tint{display:none!important;}',
+    '  .fs-bg,.fs-badge,.fs-panel,.fs-onbtn,.fs-x,.fs-card-x,.fs-lightbox,.fs-wm,.fs-deco,.fs-tint{display:none!important;}',
     '  .fs-root{position:absolute;}.fs-bar{height:6px;opacity:1;box-shadow:none;}',
     '  .fs-card{opacity:1;box-shadow:none;border:1px solid #ccc;pointer-events:none;}',
     '}',
@@ -521,6 +534,7 @@
     root = document.createElement('div');
     root.className = 'fs-root'; root.id = 'fsRoot';
     root.innerHTML =
+      '<div class="fs-bg" id="fsBg"></div>' +
       '<div class="fs-tint"></div>' +
       '<div class="fs-bar"></div>' +
       '<div class="fs-deco fs-deco-tl"></div>' +
@@ -605,6 +619,7 @@
     var ds = root.querySelectorAll('.fs-deco');
     var deco = p.t.g === 'none';
     for (var i = 0; i < ds.length; i++) { ds[i].innerHTML = svg; ds[i].style.display = deco ? 'none' : ''; }
+    setBg(p);
     setCard(p);
   }
 
@@ -693,6 +708,43 @@
     } catch (e) {}
   }
 
+  /* ---------- 全页插画背景（与贺卡共用同一张图、同一份缓存） ---------- */
+  function bgVisible() { return lsGet(KEY_BG) !== '1'; }
+  /* 皮肤管理页本身是 37 张插画墙，再叠一层背景只会显乱 → 本页不铺 */
+  function bgHostVisible() {
+    try {
+      var f = decodeURIComponent((location.pathname || '').split('/').pop() || '');
+      if (f === '皮肤管理.html') return false;
+    } catch (e) {}
+    return bgVisible();
+  }
+  function setBgVisible(v) {
+    if (v) lsDel(KEY_BG); else lsSet(KEY_BG, '1');
+    try {
+      var b = document.getElementById('fsBg');
+      if (b) b.style.display = bgHostVisible() ? '' : 'none';
+    } catch (e) {}
+    notify();
+  }
+  function loadBg(url, el) {
+    el.style.backgroundImage = '';
+    if (artCache[url] === false) return;                 /* 图挂了就干脆不铺，绝不出现破图 */
+    if (artCache[url] === true) { el.style.backgroundImage = 'url("' + url + '")'; return; }
+    try {
+      var im = new Image();
+      im.onload = function () { artCache[url] = true; el.style.backgroundImage = 'url("' + url + '")'; };
+      im.onerror = function () { artCache[url] = false; };
+      im.src = url;
+    } catch (e) {}
+  }
+  function setBg(p) {
+    try {
+      var b = document.getElementById('fsBg'); if (!b) return;
+      b.style.display = bgHostVisible() ? '' : 'none';
+      loadBg(artUrl(p.id), b);
+    } catch (e) {}
+  }
+
   /* ---------- 截图 / 导出 PNG 时叠加节日主题 ----------
    * html2canvas 只截 .wrap，body 下的 fixed 浮层根本进不了画布。
    * 所以直接在生成好的 canvas 上重画一遍：彩条 / 四边柔光 / 专属线稿 /
@@ -756,6 +808,13 @@
         Promise.all([loadImg(artUrl(p.id)), loadImg(svg)]).then(function (ims) {
           try {
             var art = ims[0], pat = ims[1];
+            /* ⓪ 全页插画背景：和页面 .fs-bg 呼应；alpha 再收一档保护导出图里的数据 */
+            if (art) {
+              ctx.save();
+              ctx.globalAlpha = dark ? .045 : .07;
+              drawCover(ctx, art, 0, 0, W, H);
+              ctx.restore();
+            }
             var g = ctx.createLinearGradient(0, 0, W, 0);
             g.addColorStop(0, c1); g.addColorStop(.5, c2); g.addColorStop(1, c1);
             ctx.fillStyle = g; ctx.fillRect(0, 0, W, 9*u);              /* ① 顶部彩条 */
@@ -851,7 +910,7 @@
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
       window.addEventListener('focus', function () { refresh(false); });
       window.addEventListener('storage', function (ev) {
-        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH || ev.key === KEY_CARD)) { lastKey = ''; refresh(true); }
+        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH || ev.key === KEY_CARD || ev.key === KEY_BG)) { lastKey = ''; refresh(true); }
       });
     } catch (e) {}
   }
@@ -864,6 +923,7 @@
     turnOn: turnOn, isOff: isOff, strength: strength, setStrength: setStrength,
     motifs: MOTIFS, patternSVG: patternSVG, artUrl: artUrl,
     cardVisible: cardVisible, setCardVisible: setCardVisible,
+    bgVisible: bgVisible, setBgVisible: setBgVisible,
     paintCapture: paintCapture,
     preview: preview, currentPreview: currentPreview,
     override: override, setOverride: setOverride, clearOverride: clearOverride,
