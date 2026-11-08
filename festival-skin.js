@@ -280,27 +280,26 @@
   /* ---------- 样式（只用 --fs-* 变量，绝不碰业务变量） ---------- */
   var CSS = [
     '.fs-root{position:fixed;inset:0;z-index:2147483000;pointer-events:none;font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;}',
-    /* ★ 节日插画作为全页背景融入：上淡下浓。顶栏/表格在上半部只留 8%~30% 强度，
-       下半部留白才让插画显出来；pointer-events:none 让点击全部穿透，绝不挡数据。 */
-    /* ★ 高清插画不再 cover 拉伸：1280×798 以接近原生尺寸落在右下，线条才清楚精致；
-       单个椭圆径向遮罩同时做「上淡下浓 + 四边羽化」，顶栏/表格区只留很淡一层。 */
-    /* ★ 全页极淡节日底色：「应用到全站」后整页（含左上/左半）都有节日感，
-       只染 3%~9%，不改业务 DOM、不压文字对比度；关闭/非节日/打印时隐藏。 */
+    /* ★ 2026-11-08 用户口径「挡字了」：椭圆径向遮罩覆盖面太大，两张高清插画
+       （右下主图 + 左侧镜像）铺到了表格数据区，细小的 10px 数字被图案线条压住。
+       改为「底部一条渐入」：页面上方 2/3 完全透明（数据区零插画），只有屏幕
+       底部约 1/3 才由淡到清地显出插画；整页节日感交给 .fs-wash 极淡底色、
+       顶部彩条与左下角贺卡，pointer-events:none 保证点击全部穿透。 */
+    /* ★ 高清插画仍以 1280×798 原生尺寸落在右下，不 cover 拉伸，线条才清楚精致。 */
     '.fs-wash{position:absolute;inset:0;pointer-events:none;opacity:.055;transition:opacity .35s;',
     '  background:linear-gradient(128deg,var(--fs-c1),transparent 58%),linear-gradient(308deg,var(--fs-c2),transparent 58%);}',
     '.fs-bg{position:absolute;inset:0;pointer-events:none;opacity:.26;transition:opacity .35s;',
     '  background-repeat:no-repeat;background-position:right bottom;',
     '  background-size:min(1280px,74vw) auto;',
-    '  -webkit-mask-image:radial-gradient(ellipse 90% 100% at 76% 112%,#000 0%,rgba(0,0,0,.8) 30%,rgba(0,0,0,.42) 58%,rgba(0,0,0,.12) 80%,transparent 100%);',
-    '  mask-image:radial-gradient(ellipse 90% 100% at 76% 112%,#000 0%,rgba(0,0,0,.8) 30%,rgba(0,0,0,.42) 58%,rgba(0,0,0,.12) 80%,transparent 100%);}',
-    /* ★ 左侧镜像淡插画：主图只在右下 74vw，1920 屏左边约 1/3 会整片留白。
-       同一张高清图翻到左下（scaleX(-1)，不放大不糊、artCache 复用不额外请求），
-       遮罩随之翻转成「左下浓、右上无」，中央数据区仍然干净。 */
+    '  -webkit-mask-image:linear-gradient(180deg,transparent 0%,transparent 66%,rgba(0,0,0,.22) 74%,rgba(0,0,0,.72) 88%,#000 100%);',
+    '  mask-image:linear-gradient(180deg,transparent 0%,transparent 66%,rgba(0,0,0,.22) 74%,rgba(0,0,0,.72) 88%,#000 100%);}',
+    /* ★ 左侧镜像淡插画：同一张高清图翻到左下（scaleX(-1)，不放大不糊、
+       artCache 复用不额外请求）。遮罩同样只在底部渐入，上半屏数据区干净。 */
     '.fs-bg2{position:absolute;inset:0;pointer-events:none;opacity:.14;transition:opacity .35s;',
     '  background-repeat:no-repeat;background-position:right bottom;',
     '  background-size:min(1280px,74vw) auto;transform:scaleX(-1);',
-    '  -webkit-mask-image:radial-gradient(ellipse 72% 98% at 80% 112%,#000 0%,rgba(0,0,0,.62) 34%,rgba(0,0,0,.22) 64%,transparent 100%);',
-    '  mask-image:radial-gradient(ellipse 72% 98% at 80% 112%,#000 0%,rgba(0,0,0,.62) 34%,rgba(0,0,0,.22) 64%,transparent 100%);}',
+    '  -webkit-mask-image:linear-gradient(180deg,transparent 0%,transparent 70%,rgba(0,0,0,.18) 80%,rgba(0,0,0,.70) 100%);',
+    '  mask-image:linear-gradient(180deg,transparent 0%,transparent 70%,rgba(0,0,0,.18) 80%,rgba(0,0,0,.70) 100%);}',
     '.fs-bar{position:absolute;top:0;left:0;right:0;height:9px;background:linear-gradient(90deg,var(--fs-c1),var(--fs-c2),var(--fs-c1));background-size:200% 100%;animation:fsFlow 24s linear infinite;box-shadow:0 2px 16px -3px var(--fs-c1);}',
     '@keyframes fsFlow{0%{background-position:0 0}100%{background-position:200% 0}}',
     '/* ★ 四边柔光：让节日色真正上屏，但只染边缘、不改业务 DOM / 不挡点击 */',
@@ -864,8 +863,9 @@
             var wg = ctx.createLinearGradient(0, 0, W, H);
             wg.addColorStop(0, c1); wg.addColorStop(.55, c2); wg.addColorStop(1, c1);
             ctx.save(); ctx.globalAlpha = washA; ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H); ctx.restore();
-            /* ⓪ 全页插画背景：★ 与页面 .fs-bg 用同一套参数（同一张高清图、右下原生
-               尺寸、同一档透明度、同一个椭圆径向遮罩），导出 PNG 才和页面显示一致。 */
+            /* ⓪ 插画背景：★ 与页面 .fs-bg 用同一套参数（同一张高清图、右下原生
+               尺寸、同一档透明度、同一条「底部渐入」遮罩），导出 PNG 才和页面一致，
+               且同样不会压住表格数据区。 */
             if (art && bgHostVisible() && bgVisible()) {
               var stg = strength();
               var bgA = dark ? (stg === 'strong' ? .28 : stg === 'soft' ? .09 : .18)
@@ -877,20 +877,17 @@
               var tc = tmp.getContext('2d');
               if (tc) {
                 tc.drawImage(art, bx, by, bw, bh);
-                /* 椭圆径向遮罩：先按 ry/rx 压扁坐标系，再画圆形渐变 */
-                var cx = W * .76, cy = H * 1.12, rx = W * .9, ry = H * 1.0;
-                tc.save(); tc.translate(cx, cy); tc.scale(1, ry / rx); tc.translate(-cx, -cy);
-                var mg = tc.createRadialGradient(cx, cy, 0, cx, cy, rx);
-                mg.addColorStop(0, 'rgba(0,0,0,1)');
-                mg.addColorStop(.30, 'rgba(0,0,0,.8)');
-                mg.addColorStop(.58, 'rgba(0,0,0,.42)');
-                mg.addColorStop(.80, 'rgba(0,0,0,.12)');
-                mg.addColorStop(1, 'rgba(0,0,0,0)');
+                /* 底部一条渐入遮罩：与页面 .fs-bg 的 linear-gradient 完全同档，
+                   上方 2/3 透明 → 表格数据区零插画，只有底边显出清晰插画。 */
+                var vg = tc.createLinearGradient(0, 0, 0, H);
+                vg.addColorStop(0, 'rgba(0,0,0,0)');
+                vg.addColorStop(.66, 'rgba(0,0,0,0)');
+                vg.addColorStop(.74, 'rgba(0,0,0,.22)');
+                vg.addColorStop(.88, 'rgba(0,0,0,.72)');
+                vg.addColorStop(1, 'rgba(0,0,0,1)');
                 tc.globalCompositeOperation = 'destination-in';
-                tc.fillStyle = mg;
-                var ya = cy + (0 - cy) * rx / ry, yb = cy + (H - cy) * rx / ry;
-                tc.fillRect(0, ya, W, yb - ya);
-                tc.restore();
+                tc.fillStyle = vg;
+                tc.fillRect(0, 0, W, H);
                 ctx.save(); ctx.globalAlpha = bgA; ctx.drawImage(tmp, 0, 0); ctx.restore();
                 /* ⓪-b 左侧镜像淡插画：与页面 .fs-bg2 同参数（scaleX(-1) → 左下） */
                 var tmp2 = document.createElement('canvas');
@@ -899,18 +896,14 @@
                 if (t2) {
                   t2.save(); t2.translate(W, 0); t2.scale(-1, 1);
                   t2.drawImage(art, bx, by, bw, bh); t2.restore();
-                  var cx2 = W * .20, cy2 = H * 1.12, rx2 = W * .72, ry2 = H * .98;
-                  t2.save(); t2.translate(cx2, cy2); t2.scale(1, ry2 / rx2); t2.translate(-cx2, -cy2);
-                  var mg2 = t2.createRadialGradient(cx2, cy2, 0, cx2, cy2, rx2);
-                  mg2.addColorStop(0, 'rgba(0,0,0,1)');
-                  mg2.addColorStop(.34, 'rgba(0,0,0,.62)');
-                  mg2.addColorStop(.64, 'rgba(0,0,0,.22)');
-                  mg2.addColorStop(1, 'rgba(0,0,0,0)');
+                  var vg2 = t2.createLinearGradient(0, 0, 0, H);
+                  vg2.addColorStop(0, 'rgba(0,0,0,0)');
+                  vg2.addColorStop(.70, 'rgba(0,0,0,0)');
+                  vg2.addColorStop(.80, 'rgba(0,0,0,.18)');
+                  vg2.addColorStop(1, 'rgba(0,0,0,.70)');
                   t2.globalCompositeOperation = 'destination-in';
-                  t2.fillStyle = mg2;
-                  var ya2 = cy2 + (0 - cy2) * rx2 / ry2, yb2 = cy2 + (H - cy2) * rx2 / ry2;
-                  t2.fillRect(0, ya2, W, yb2 - ya2);
-                  t2.restore();
+                  t2.fillStyle = vg2;
+                  t2.fillRect(0, 0, W, H);
                   ctx.save();
                   ctx.globalAlpha = dark ? (stg === 'strong' ? .14 : stg === 'soft' ? .05 : .09)
                                          : (stg === 'strong' ? .22 : stg === 'soft' ? .075 : .14);
