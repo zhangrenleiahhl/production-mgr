@@ -781,13 +781,6 @@
     if (isNaN(n)) return 'rgba(128,128,128,' + a + ')';
     return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
   }
-  function rr(ctx, x, y, w, h, r) {
-    ctx.beginPath(); ctx.moveTo(x+r, y);
-    ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
-    ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
-    ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
-    ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
-  }
   function loadImg(src) {
     return new Promise(function (res) {
       try {
@@ -799,10 +792,9 @@
       } catch (e) { res(null); }
     });
   }
-  function drawCover(ctx, im, x, y, w, h) {
-    var k = Math.max(w / im.width, h / im.height), dw = im.width*k, dh = im.height*k;
-    ctx.drawImage(im, x + (w-dw)/2, y + (h-dh)/2, dw, dh);
-  }
+  /* ★ 导出 PNG 不画左下角插画贺卡（用户口径 2026-11-08）：贺卡会压住表格
+     第一列底部的数据。页面本身与打印/导出 PDF 仍保留贺卡；这里只保留
+     ⓪ 全页插画背景、① 彩条、② 柔光、③ 专属线稿、⑤ 右下落款，主题依旧完整。 */
   function paintCapture(canvas, opts) {
     opts = opts || {};
     return new Promise(function (resolve) {
@@ -822,7 +814,7 @@
         var W = canvas.width, H = canvas.height;
         var s = W / (opts.cssWidth || (W / 2));      /* html2canvas 的 scale，默认 2 */
         /* ★ 表格数据少时画布可能只有 100 多像素高：整套装饰按比例缩小，
-           否则贺卡会被裁掉、四边柔光会把整张图染成一块色。 */
+           否则四边柔光会把整张图染成一块色、图案与落款溢出画布。 */
         var u = s * Math.min(1, H / (360 * s));
         var dark = !!opts.dark, c1 = p.t.c1, c2 = p.t.c2;
         var topGlow = Math.min(130*u, H*0.18), botGlow = Math.min(100*u, H*0.14);
@@ -882,28 +874,9 @@
               ctx.save(); ctx.globalAlpha = dark ? .5 : .34;
               ctx.drawImage(pat, W-190*u, 16*u, 170*u, 119*u); ctx.restore();
             }
-            var cw = 224*u, ih = 140*u, th = 38*u, ch = ih+th;           /* ④ 插画贺卡（与页面同尺寸） */
-            var cx = 16*u, cy = Math.max(14*u, H-ch-14*u);
-            if (cy + ch > H - 6*u) cy = Math.max(6*u, H-ch-6*u);        /* 保证不被裁切 */
-            ctx.save();
-            ctx.shadowColor = 'rgba(0,0,0,.32)'; ctx.shadowBlur = 18*u; ctx.shadowOffsetY = 5*u;
-            rr(ctx, cx, cy, cw, ch, 10*u);
-            ctx.fillStyle = dark ? 'rgba(14,20,31,.95)' : 'rgba(255,255,255,.97)'; ctx.fill();
-            ctx.restore();
-            ctx.save(); rr(ctx, cx, cy, cw, ch, 10*u); ctx.clip();
-            if (art) drawCover(ctx, art, cx, cy, cw, ih);
-            else { ctx.fillStyle = g; ctx.fillRect(cx, cy, cw, ih); }
-            ctx.fillStyle = dark ? 'rgba(14,20,31,.95)' : 'rgba(255,255,255,.97)';
-            ctx.fillRect(cx, cy+ih, cw, th);
-            ctx.fillStyle = dark ? '#eef4ff' : '#233047';
-            ctx.font = 'bold ' + Math.max(9, 13*u) + 'px "Microsoft YaHei","PingFang SC",sans-serif';
-            ctx.fillText(p.t.n, cx+10*u, cy+ih+Math.min(15*u, th*0.46));
-            ctx.fillStyle = dark ? '#9db0c8' : '#6b7688';
-            ctx.font = Math.max(8, 10*u) + 'px "Microsoft YaHei","PingFang SC",sans-serif';
-            ctx.fillText(p.t.w, cx+10*u, cy+ih+Math.min(28*u, th*0.84));
-            ctx.restore();
-            ctx.save(); rr(ctx, cx, cy, cw, ch, 10*u);
-            ctx.strokeStyle = c1; ctx.lineWidth = 1.5*u; ctx.stroke(); ctx.restore();
+            /* ④ 左下角插画贺卡：★ 导出 PNG 不再绘制（用户口径 2026-11-08）。
+               贺卡会压住表格第一列底部的数据；页面本身与打印/PDF 仍保留贺卡。
+               左下角让给业务数据，背景插画/彩条/柔光/线稿/落款照常绘制。 */
             ctx.fillStyle = dark ? 'rgba(238,244,255,.85)' : 'rgba(35,48,71,.75)';   /* ⑤ 落款 */
             ctx.font = Math.max(9, 11*u) + 'px "Microsoft YaHei","PingFang SC",sans-serif';
             ctx.textAlign = 'right';
