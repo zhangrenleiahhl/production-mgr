@@ -116,34 +116,56 @@
       <div class="brow info" id="lastBk">尚未导出过备份</div>
     </div>
   </div>
-  <iframe id="frame" class="frame" src="发货计划系统.html"></iframe>
+  <iframe id="frame" class="frame" src="about:blank"></iframe>
+  <iframe id="frame2" class="frame" style="display:none"></iframe>
   <div class="toast" id="toast"></div>
 
 <script>
   const frame=document.getElementById("frame");
+  const frame2=document.getElementById("frame2");
   const tabs=document.querySelectorAll(".tab");
   const $=id=>document.getElementById(id);
   const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
   const PAGES=[...tabs].map(t=>t.dataset.page);
+  /* ★ 2026-11-09 性能：原来每次切标签都给 iframe 加 _t=Date.now() 强制整页重载，
+     387KB 的发货计划系统要反复下载+解析+执行（冷启动甚至加载 2 次，实测 837ms / 4 个长任务）。现在：
+     ① 双 iframe 常驻复用（主=发货计划/手机版，辅=其余 4 页），切回来只切显示、零重载；
+     ② URL 用「会话戳」_s=：新开浏览器会话必换戳拿最新页面，同一会话内戳不变 → 缓存/复用生效，
+        不需要人工 bump 版本号（★ 这正是原来 _t=Date.now() 每次都强制回源的病根）；
+     ③ 冷启动先算好目标页再加载一次，不再「预载 + switchTo 重载」。 */
+  let SHELL_STAMP="";
+  try{
+    SHELL_STAMP=sessionStorage.getItem("pm_shell_stamp")||"";
+    if(!SHELL_STAMP){ SHELL_STAMP=String(Date.now()); sessionStorage.setItem("pm_shell_stamp",SHELL_STAMP); }
+  }catch(e){ SHELL_STAMP=String(Date.now()); }
+  const isMain=p=>p.indexOf("发货计划系统.html")===0;
+  let curPage="";
+  function curFrame(){ return (frame2 && frame2.style.display!=="none") ? frame2 : frame; }
   function switchTo(page){
-    // 加时间戳防止 iframe 缓存旧页面
-    const sep=page.includes("?")?"&":"?";
-    frame.src=page+sep+"_t="+Date.now();
+    const target=isMain(page)?frame:frame2, other=isMain(page)?frame2:frame;
+    const reused=target.getAttribute("data-page")===page;
+    if(!reused){                                        // ★ 同一页绝不重新设置 src
+      target.setAttribute("data-page",page);
+      target.src=page+(page.includes("?")?"&":"?")+"_s="+SHELL_STAMP;
+    }
+    target.style.display="block"; other.style.display="none";
+    curPage=page;
     tabs.forEach(t=>t.classList.toggle("active",t.dataset.page===page));
     try{ if(page!=="数据急救.html") localStorage.setItem("last_client_tab",page); }catch(e){}   // 急救页只是工具页，别让它成为"上次打开的页"
+    /* ★ 复用 iframe 后页面不再重载：主动派发一次 focus，触发子页已有的「切回来刷新数据」
+       逻辑（发货计划：物料库拉最新；仪表盘：render 重绘），避免看到别的页改过的旧数据。 */
+    if(reused){ try{ target.contentWindow.dispatchEvent(new Event("focus")); }catch(e){} }
   }
+  function syncTabOnly(page){ tabs.forEach(t=>t.classList.toggle("active",t.dataset.page===page)); }
   tabs.forEach(t=>t.addEventListener("click",()=>switchTo(t.dataset.page)));
-  try{
-    const last=localStorage.getItem("last_client_tab");
-    if(last && PAGES.indexOf(last)>=0) switchTo(last);
-  }catch(e){}
-  /* ★ 手机上第一次打开：默认进「📱 手机版」（用户上次主动选过别的页就不覆盖） */
-  try{
-    var last0 = localStorage.getItem("last_client_tab");
-    if((!last0 || PAGES.indexOf(last0) < 0) && Math.min(innerWidth, innerHeight) <= 480){
-      switchTo("发货计划系统.html?m=1");
-    }
-  }catch(e){}
+  /* ★ 冷启动只加载一次：先算出目标页，再交给 switchTo */
+  (function(){
+    let last="", start="发货计划系统.html";
+    try{ last=localStorage.getItem("last_client_tab")||""; }catch(e){}
+    if(last && PAGES.indexOf(last)>=0) start=last;
+    else if(Math.min(innerWidth,innerHeight)<=480) start="发货计划系统.html?m=1";  // 手机首次默认进手机版（用户上次主动选过别的页就不覆盖）
+    switchTo(start);
+  })();
 
   // ===================== 本机存储水位（与发货计划页同一套口径）=====================
   const STORE_LIMIT = 5242880;
@@ -270,13 +292,13 @@
       if(!btn||btn.getAttribute("data-store-act")!=="clean-foreign") return;
       e.preventDefault();
       const call=()=>{ try{
-        if(typeof frame.contentWindow.openForeignClean==="function"){ frame.contentWindow.openForeignClean(); return true; }
+        const w=curFrame().contentWindow;
+        if(typeof w.openForeignClean==="function"){ w.openForeignClean(); return true; }
       }catch(err){} return false; };
       if(!call()){
         toast("正在打开「发货计划」页，请把鼠标移到「本机存储」上再点一次");
-        const done=()=>{ frame.removeEventListener("load",done); setTimeout(()=>{ if(!call()) toast("请把鼠标移到「本机存储」上再点一次清理"); },400); };
-        frame.addEventListener("load",done);
         switchTo("发货计划系统.html");
+        setTimeout(()=>{ if(!call()) toast("请把鼠标移到「本机存储」上再点一次清理"); },700);
       }
     });
   })();
@@ -391,7 +413,7 @@
       });
       try{ invalidateStoreCache(); updateStorageMeter(); }catch(e){}   // 刚写入 → 缓存作废再刷新
       toast("已导入 "+n+" 项"+(added?("，其中新增 "+added+" 条"):"")+"，正在刷新…");
-      setTimeout(()=>{ try{ frame.contentWindow.location.reload(); }catch(e){ frame.src=frame.src; } },600);
+      setTimeout(()=>{ try{ curFrame().contentWindow.location.reload(); }catch(e){ const f=curFrame(); f.src=f.src; } },600);
     };
     r.readAsText(file);
   }
@@ -407,20 +429,23 @@
   if(localStorage.getItem("last_backup")) $("lastBk").textContent="上次备份："+localStorage.getItem("last_backup");
 
   // 子页面跳转同步 + 隐藏自带导航 + 挂载自动备份钩子
-  frame.addEventListener("load",()=>{
+  function onFrameLoad(ev){
+    const fr=ev.currentTarget;
     try{
-      const src=frame.contentWindow.location.pathname.split("/").pop();
-      if(src && PAGES.indexOf(src)>=0) switchTo(src);
-      const nav=frame.contentDocument.querySelector(".nav");
-      if(nav) nav.style.display="none";
-      const bar=frame.contentDocument.querySelector(".appbar");
-      if(bar) bar.style.display="none";
+      const w=fr.contentWindow, d=fr.contentDocument;
+      const src=decodeURIComponent(w.location.pathname.split("/").pop()||"");
+      let hl=src;
+      try{ if(w.location.search.indexOf("m=1")>=0) hl="发货计划系统.html?m=1"; }catch(e){}
+      if(PAGES.indexOf(hl)>=0) syncTabOnly(hl);   // ★ 只同步高亮：原来 switchTo(src) 会把手机版误切回电脑版，还可能触发重载循环
+      const nav=d.querySelector(".nav"); if(nav) nav.style.display="none";
+      const bar=d.querySelector(".appbar"); if(bar) bar.style.display="none";
       // 发布时自动备份：在子页面挂载钩子
-      if(localStorage.getItem("auto_backup")==="1") frame.contentWindow.__clientBackup=downloadBackup;
-      else frame.contentWindow.__clientBackup=null;
+      w.__clientBackup = localStorage.getItem("auto_backup")==="1" ? downloadBackup : null;
     }catch(e){}
     try{ updateStorageMeter(); }catch(e){}
-  });
+  }
+  frame.addEventListener("load",onFrameLoad);
+  frame2.addEventListener("load",onFrameLoad);
 
   function toast(msg){const el=$("toast");el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),1800);}
 </script>
