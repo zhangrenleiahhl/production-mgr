@@ -7,13 +7,14 @@
 <script>
 /* 宿主系统集成：线上版本号，防浏览器一直缓存旧版「订单管理」页。
    · 本地 file:// 双击不跳转，方便离线看效果
-   · 主站 iframe 已带 _t= 时间戳，不重复刷新 */
-var APP_VER="20261105c";
+   · 主站 iframe 已带 _s= 会话戳，不重复刷新（★ 2026-11-09 性能：省掉一次整页重载） */
+var APP_VER="20261109c";
 if(window.top!==window.self) document.documentElement.classList.add("in-frame");
 (function(){
   if(location.protocol==="file:") return;
   if(location.hash.indexOf("no_reload")>=0) return;
   if(/_t=/.test(location.search)) return;
+  if(/[?&]_s=/.test(location.search)) return;   /* 外壳已带会话戳：不再二次重定向 */
   var u=location.href.replace(/[?&]_t=[^&]*/,"");
   location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);
 })();
