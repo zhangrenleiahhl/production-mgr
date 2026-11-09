@@ -6,7 +6,7 @@
 
 <meta charset="UTF-8" data-page-node-id="7wbyOSER2C51d8XTbnssqA">
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="HKoTCyrOsDYJJS5jftuh1D">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover" data-page-node-id="HKoTCyrOsDYJJS5jftuh1D">
 
 <title>发货计划系统</title>
 
@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261106c";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261109a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -1348,9 +1348,60 @@ setTimeout(function(){
 <meta name="apple-mobile-web-app-title" content="发货计划">
 
   <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
+
+<!-- ★ 2026-11-09 手机版：不复制 385KB 页面，同一套「加行/复制/发布/撤销/云端同步」代码只切布局。
+     数据仍是 shipping_plans_v1 等键 + CloudSync，登录同一账号即与电脑版同一份数据。 -->
+<script>
+(function(){
+  try{
+    var q = new URLSearchParams(location.search).get("m");
+    var saved = localStorage.getItem("ship_mobile_v1");
+    var on = (q === "1") || (q !== "0" && saved !== "0" &&
+              (saved === "1" || Math.min(innerWidth, innerHeight) <= 480));
+    if (on) document.documentElement.className += " shipm";
+  }catch(e){}
+})();
+</script>
+<style>
+/* ===== 手机版布局（html.shipm）===== */
+.mbar{display:none;}
+html.shipm .mbar{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:7px 10px;background:linear-gradient(90deg,#1e3a8a,#2563eb);color:#fff;
+  font-size:12px;line-height:1.35;position:sticky;top:0;z-index:300;
+  box-shadow:0 2px 8px rgba(15,23,42,.18);}
+html.shipm .mbar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+html.shipm .mbar button{flex:0 0 auto;background:rgba(255,255,255,.18);color:#fff;
+  border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;}
+html.shipm .wrap{padding:6px 4px 48px;}
+/* 本页自带 .appbar + .tabs：390px 下 flex-wrap 会把 logo/标签挤成竖排，改成整条横向滑动 */
+html.shipm .appbar{top:34px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  gap:6px;padding:4px 6px;}
+html.shipm .appbar>*{flex:0 0 auto;white-space:nowrap;}
+html.shipm .appbar .tabs{flex-wrap:nowrap;gap:4px;margin-left:2px;}
+html.shipm .appbar .tab{padding:3px 7px;font-size:12px;white-space:nowrap;}
+html.shipm .appbar .logo{font-size:13px;white-space:nowrap;}
+html.shipm .topbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;gap:6px;}
+html.shipm .topbar>*{flex:0 0 auto;}
+html.shipm .toolbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;}
+html.shipm .toolbar>*{flex:0 0 auto;}
+/* 17 列完整保留：横向拖动查看，不做卡片裁剪，编辑/发布/撤销一个不少 */
+html.shipm .doc{overflow-x:auto!important;-webkit-overflow-scrolling:touch;max-width:100%;}
+html.shipm .tbl{min-width:1360px;font-size:13px;}
+html.shipm .tbl thead th{top:0;}
+/* iOS 输入框 <16px 聚焦会自动放大页面，干扰双指缩放 → 手机档统一 16px */
+html.shipm .tbl td input,html.shipm .tbl td textarea,html.shipm .tbl td select{font-size:16px;}
+html.shipm .tbl td textarea{line-height:1.35;}
+html.shipm .card{padding:10px 8px;}
+html.shipm .doc-head .t{font-size:16px;}
+</style>
 </head>
 
 <body data-page-node-id="4fFYxxpjT3p7fKOAOYlX5n">
+<div class="mbar" id="mBar">
+  <span>📱 <b>手机版</b> · <span id="mUser">同一账号，与电脑版实时同步</span></span>
+  <button type="button" id="mDesk">🖥 电脑版</button>
+</div>
+
 
 <div class="wrap" data-page-node-id="FidnSL9YObjQpW6utUTEtZ">
 
@@ -11087,6 +11138,24 @@ else updateOpStatus();
 
 </div>
 
+
+<script>
+/* 手机版状态条：把「按账号同步」讲清楚（登录态由 auth.js 的 Auth.guard() 把关）。 */
+(function(){
+  var bar = document.getElementById("mBar"); if (!bar) return;
+  try{
+    var s = (window.Auth && Auth.getSession) ? Auth.getSession() : null;
+    var nm = s ? (s.name || s.phone || s.email || "") : "";
+    if (nm) document.getElementById("mUser").textContent = "当前账号 " + nm + " · 与电脑版实时同步";
+  }catch(e){}
+  document.getElementById("mDesk").onclick = function(){
+    try{ localStorage.setItem("ship_mobile_v1", "0"); }catch(e){}
+    var u = new URL(location.href);
+    u.searchParams.set("m", "0"); u.searchParams.delete("_t");
+    location.href = u.toString();
+  };
+})();
+</script>
 <script src="brand.js?v=3&h=97e1b625"></script>
 
 </body>
