@@ -65,6 +65,7 @@
     --cyan:#38c8d8; --green:#3ddc97; --amber:#ffb454; --red:#ff5d5d; --blue:#5b8def;
 
     --rows:14;
+    --z:1;                 /* 🔍 放大缩小倍数（2026-11-09） */
 
   }
 
@@ -920,6 +921,15 @@
     body.mb .mb-rotate small{font-size:12px;color:#9db0c8;}
   }
 
+
+/* ===== 🔍 放大缩小（2026-11-09）=====
+   用户口径：只用双指捏合 / 键盘 + - 0 / Ctrl+滚轮，不加页面按钮。
+   ★★ 绝不整页 zoom：整页 zoom 会把 FLIP 的 --dy、卡片的 --dx/--dy 坐标一起放大，
+      工序动画与送回会错位。这里只放大「字号 + 顶栏/页脚」，几何与 transform 保持 1:1。 */
+/* 顶栏/页脚**不** zoom：flex 一行放大后 KPI/按钮/时钟会互相重叠（真 Edge 截图实测）。
+   放大只作用于表格主体：表头字号 + 行字号 --rowfs + 行距 --rowpad。 */
+thead th{font-size:calc(12.5px * var(--z,1));}
+body.mb thead th{font-size:calc(9px * var(--z,1));}
 </style>
 
   <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
@@ -1439,14 +1449,16 @@ function fitRows(n){
 
   const mb = document.body.classList.contains("mb");
 
+  const z0 = (typeof zoomGet === "function") ? zoomGet() : 1;   /* 🔍 缩放倍数 */
+
   const vh = window.innerHeight;
 
   const avail = Math.max(mb ? 110 : 200, vh - (mb ? 76 : (document.body.classList.contains("fs") ? 192 : 172)));
 
   const per = avail / Math.max(1, n);
 
-  const fs = mb ? Math.max(10, Math.min(14, Math.floor(per * 0.52)))
-                : Math.max(15, Math.min(26, Math.floor(per * 0.52)));
+  const fs = (mb ? Math.max(10, Math.min(14, Math.floor(per * 0.52)))
+                : Math.max(15, Math.min(26, Math.floor(per * 0.52)))) * z0;
 
   document.documentElement.style.setProperty("--rowfs", fs + "px");
 
@@ -2783,6 +2795,86 @@ async function captureScreen(btn){
 
 /* ---------- 启动 ---------- */
 
+
+/* ---------- 🔍 放大缩小（2026-11-09）----------
+   入口：键盘 + / - / 0（0=复位）、Ctrl(⌘)+滚轮、手机双指捏合；比例记到 dash_zoom_v1。
+   ★ 不设页面按钮（用户口径）；比例只作用于字号与顶栏，不动工序动画的坐标体系。 */
+const ZOOM_KEY = "dash_zoom_v1";
+const ZOOM_MIN = 0.7, ZOOM_MAX = 1.8;
+let _zoom = null;
+function zoomGet(){
+  if (_zoom !== null) return _zoom;
+  try {
+    const v = parseFloat(localStorage.getItem(ZOOM_KEY));
+    _zoom = isFinite(v) && v > 0 ? Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v)) : 1;
+  } catch(e){ _zoom = 1; }
+  return _zoom;
+}
+function zoomTip(z){
+  let t = $("zoomTip");
+  if (!t){
+    t = document.createElement("div"); t.id = "zoomTip";
+    t.style.cssText = "position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9999;" +
+      "padding:6px 14px;border-radius:999px;background:rgba(8,14,24,.86);color:#fff;" +
+      "font-size:13px;pointer-events:none;transition:opacity .25s;";
+    document.body.appendChild(t);
+  }
+  t.textContent = "🔍 " + Math.round(z * 100) + "%";
+  t.style.opacity = "1";
+  clearTimeout(zoomTip._t);
+  zoomTip._t = setTimeout(() => { t.style.opacity = "0"; }, 900);
+}
+function zoomSet(v, save, quiet){
+  const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(v * 100) / 100));
+  _zoom = z;
+  document.documentElement.style.setProperty("--z", z);
+  if (save){ try { localStorage.setItem(ZOOM_KEY, String(z)); } catch(e){} }
+  try {
+    fitRows(rows.length);
+    fitCustNames(); fitNoFont(); fitUpdFont();;
+  } catch(e){}
+  if (!quiet) zoomTip(z);
+  return z;
+}
+function zoomBy(d){ return zoomSet(zoomGet() + d, true); }
+function bindZoom(){
+  window.addEventListener("keydown", (e) => {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;      // Ctrl+± 交给浏览器原生缩放
+    if (e.key === "+" || e.key === "=" || e.key === "NumpadAdd"){ zoomBy(0.1); e.preventDefault(); }
+    else if (e.key === "-" || e.key === "_" || e.key === "NumpadSubtract"){ zoomBy(-0.1); e.preventDefault(); }
+    else if (e.key === "0"){ zoomSet(1, true); e.preventDefault(); }
+  });
+  window.addEventListener("wheel", (e) => {
+    if (!(e.ctrlKey || e.metaKey || e.altKey)) return;   // 普通滚轮留给表格滚动
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 0.1 : -0.1);
+  }, { passive: false });
+  /* 双指捏合：手机横屏看大屏时用；preventDefault 防止浏览器原生缩放叠一层 */
+  let pd = 0, pz = 1;
+  window.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2){
+      pd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                      e.touches[0].clientY - e.touches[1].clientY);
+      pz = zoomGet();
+    } else pd = 0;
+  }, { passive: true });
+  window.addEventListener("touchmove", (e) => {
+    if (e.touches.length !== 2 || pd <= 0) return;
+    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                         e.touches[0].clientY - e.touches[1].clientY);
+    e.preventDefault();
+    zoomSet(pz * (d / pd), false, true);                 // 捏合中不写盘，松手再存
+  }, { passive: false });
+  window.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2 && pd > 0){
+      pd = 0;
+      try { localStorage.setItem(ZOOM_KEY, String(zoomGet())); } catch(err){}
+      zoomTip(zoomGet());
+    }
+  }, { passive: true });
+}
+
 /* ---------- 📱 手机横屏模式（2026-11-08） ----------
    入口：右上角「📱 手机横屏」按钮 / 网址加 ?mb=1 / 手机短边 ≤480px 自动识别。
    只改布局密度与字号上限，不动数据、列序与工序动画链路。 */
@@ -2825,6 +2917,8 @@ function boot(){
 
   $("mbBtn").onclick = () => applyMb(!document.body.classList.contains("mb"), true);
   applyMb(mbAuto(), false);
+  bindZoom();                       /* 🔍 键盘/滚轮/双指缩放 */
+  zoomSet(zoomGet(), false, true); /* 恢复上次的缩放比例，启动时不弹提示 */
 
   $("fsBtn").onclick = toggleFs;
 
@@ -2870,7 +2964,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261108a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261109a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
