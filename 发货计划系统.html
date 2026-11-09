@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261109a";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261109b";(function(){var q=location.search;if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -1350,7 +1350,9 @@ setTimeout(function(){
   <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
 
 <!-- ★ 2026-11-09 手机版：不复制 385KB 页面，同一套「加行/复制/发布/撤销/云端同步」代码只切布局。
-     数据仍是 shipping_plans_v1 等键 + CloudSync，登录同一账号即与电脑版同一份数据。 -->
+     数据仍是 shipping_plans_v1 等键 + CloudSync，登录同一账号即与电脑版同一份数据。
+     ★ 2026-11-09 二次反馈：默认极简（导航/次要工具/浮层收起）+ 页面内真实缩放（--shipz），
+       不再只靠浏览器原生 user-scalable（部分手机浏览器捏合无效）。 -->
 <script>
 (function(){
   try{
@@ -1393,13 +1395,52 @@ html.shipm .tbl td input,html.shipm .tbl td textarea,html.shipm .tbl td select{f
 html.shipm .tbl td textarea{line-height:1.35;}
 html.shipm .card{padding:10px 8px;}
 html.shipm .doc-head .t{font-size:16px;}
+
+/* ★★ 2026-11-09 用户二次反馈「手机版太杂了，不能缩小」
+   ① 只靠 viewport user-scalable 的浏览器原生捏合，在部分手机/横屏浏览器上不生效
+      → 改为页面内自己算比例写 --shipz：双指捏合 / 键盘 +-0 / Ctrl 滚轮 / 状态条点击循环
+   ② 默认极简：收起页面自带导航、次要工具按钮、账号浮条与节日浮层
+      → 次要项不删除，点状态条「⋯」展开（class showmore），功能一个不少 */
+html.shipm{--shipz:1;}
+html.shipm .macts{display:flex;align-items:center;gap:5px;flex:0 0 auto;}
+html.shipm .macts button{padding:3px 8px;min-width:26px;text-align:center;}
+html.shipm #mScale{font-variant-numeric:tabular-nums;min-width:44px;}
+/* 收起页面自带的 6 个 tab / logo / 本机存储 / 时钟：手机版入口在首页，不需要第二套导航 */
+html.shipm .appbar{display:none!important;}
+html.shipm .mbar{padding:4px 8px;min-height:0;font-size:calc(11px * var(--shipz,1));}
+html.shipm .mbar button{font-size:calc(11px * var(--shipz,1));padding:3px 8px;}
+html.shipm .wrap{padding:4px 3px 26px;}
+html.shipm .doc-head{display:none;}
+html.shipm .card{padding:6px 4px;}
+/* 工具栏默认只留 添加/撤销/恢复/发布；其余打上 data-mm 后收起，点「⋯」再展开 */
+html.shipm .topbar{padding:3px 4px;gap:4px;min-height:0;}
+html.shipm .topbar .btn{font-size:calc(11px * var(--shipz,1));padding:calc(3px * var(--shipz,1)) calc(7px * var(--shipz,1));}
+html.shipm .topbar [data-mm="1"]{display:none!important;}
+html.shipm.showmore .topbar [data-mm="1"]{display:inline-block!important;}
+html.shipm.showmore .topbar div[data-mm="1"]{display:flex!important;}
+/* 账号管理浮条 / 节日徽章、贺卡、恢复按钮：默认收起，展开「⋯」时才出现 */
+html.shipm #staffAdminBar{display:none!important;}
+html.shipm.showmore #staffAdminBar{display:flex!important;}
+html.shipm .fs-badge,html.shipm .fs-onbtn,html.shipm .fs-card,html.shipm .fs-panel{display:none!important;}
+html.shipm.showmore .fs-badge,html.shipm.showmore .fs-onbtn{display:flex!important;}
+/* 缩放作用于表格：列宽、字号、输入字体同比变化，一屏能看到更多列 */
+html.shipm .tbl{min-width:calc(1360px * var(--shipz,1));font-size:calc(13px * var(--shipz,1));}
+html.shipm .tbl td input,html.shipm .tbl td textarea,html.shipm .tbl td select{font-size:calc(16px * var(--shipz,1));}
+html.shipm .tbl thead th{top:28px;}
+/* 发布记录卡片：手机版默认收起，点「⋯」再看（避免下方一大块空白） */
+html.shipm [data-mm-rec="1"]{display:none!important;}
+html.shipm.showmore [data-mm-rec="1"]{display:block!important;}
 </style>
 </head>
 
 <body data-page-node-id="4fFYxxpjT3p7fKOAOYlX5n">
 <div class="mbar" id="mBar">
   <span>📱 <b>手机版</b> · <span id="mUser">同一账号，与电脑版实时同步</span></span>
-  <button type="button" id="mDesk">🖥 电脑版</button>
+  <div class="macts">
+    <button type="button" id="mScale" title="显示比例：点一下循环 100/90/80/70/60%，也可双指捏合、键盘 +-0、Ctrl+滚轮">100%</button>
+    <button type="button" id="mMore" title="展开/收起更多工具">⋯</button>
+    <button type="button" id="mDesk" title="切回电脑版">🖥</button>
+  </div>
 </div>
 
 
@@ -11154,6 +11195,88 @@ else updateOpStatus();
     u.searchParams.set("m", "0"); u.searchParams.delete("_t");
     location.href = u.toString();
   };
+
+  /* ===== 页面内缩放 + 极简折叠（只在 shipm 生效，电脑版零影响） ===== */
+  if (!document.documentElement.classList.contains("shipm")) return;
+  var root = document.documentElement;
+  var SHIP_ZOOM_KEY = "ship_zoom_v1";
+  var z = 1;
+  try { var _z = parseFloat(localStorage.getItem(SHIP_ZOOM_KEY)); if (_z >= .5 && _z <= 1.5) z = _z; } catch(e){}
+  function zclamp(v){ return Math.max(.5, Math.min(1.5, Math.round(v * 100) / 100)); }
+  function zapply(){
+    root.style.setProperty("--shipz", z);
+    var b = document.getElementById("mScale");
+    if (b) b.textContent = Math.round(z * 100) + "%";
+    try { localStorage.setItem(SHIP_ZOOM_KEY, String(z)); } catch(e){}
+  }
+  zapply();
+
+  /* 次要工具按钮：只打标记，不删 DOM，JS 绑定全部保留 */
+  ["delCheckedBtn","batchDateBtn","toggleFolded","togglePast","copyModelCode",
+   "progBoardBtn","dashAnalyzeLink","codesBtn","dashLink","dashInnerLink",
+   "cleanEmptyBtn","dayGapColor","dbStatus","plannerWrap","foldedDates","backupFile",
+   "clearFilter","filterCount"].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.setAttribute("data-mm", "1");
+  });
+  var _gap = document.getElementById("dayGapColor");
+  if (_gap && _gap.parentElement) _gap.parentElement.setAttribute("data-mm", "1");
+  /* 工具栏白名单：除「添加组（含撤销/恢复）」与「发布」外全部收起，
+     连没有 id 的色块 / 同步按钮 / 筛选框一起收干净，点「⋯」再展开 */
+  Array.prototype.forEach.call(document.querySelectorAll(".topbar > *"), function(el){
+    if (el.id === "publish" || el.querySelector("#addRow")) return;
+    el.setAttribute("data-mm", "1");
+  });
+  var _recs = document.getElementById("records");
+  if (_recs && _recs.parentElement) _recs.parentElement.setAttribute("data-mm-rec", "1");
+  Array.prototype.forEach.call(document.querySelectorAll(".topbar .filter-group"), function(el){
+    el.setAttribute("data-mm", "1");
+  });
+
+  var _more = document.getElementById("mMore");
+  if (_more) _more.onclick = function(){
+    var on = root.classList.toggle("showmore");
+    _more.textContent = on ? "✕" : "⋯";
+  };
+  var _scale = document.getElementById("mScale");
+  if (_scale) _scale.onclick = function(){
+    var steps = [1, .9, .8, .7, .6];
+    var i = -1;
+    for (var k = 0; k < steps.length; k++) if (Math.abs(steps[k] - z) < .001) { i = k; break; }
+    z = steps[(i + 1) % steps.length];
+    zapply();
+  };
+
+  /* 双指捏合：自己算距离比例，不依赖浏览器 viewport 缩放（部分浏览器捏合无效） */
+  function zdist(t){
+    var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  var _pd = 0, _pz = 1;
+  document.addEventListener("touchstart", function(e){
+    if (e.touches.length === 2) { _pd = zdist(e.touches); _pz = z; }
+  }, { passive: true });
+  document.addEventListener("touchmove", function(e){
+    if (e.touches.length === 2 && _pd > 0) {
+      var nz = zclamp(_pz * (zdist(e.touches) / _pd));
+      if (nz !== z) { z = nz; zapply(); }
+      e.preventDefault();               /* 阻止浏览器自己再缩一次，避免双重缩放 */
+    }
+  }, { passive: false });
+  document.addEventListener("touchend", function(e){
+    if (e.touches.length < 2) _pd = 0;
+  }, { passive: true });
+
+  /* 电脑预览：键盘 + / - / 0 与 Ctrl+滚轮 */
+  document.addEventListener("keydown", function(e){
+    if (/input|textarea|select/i.test(e.target.tagName || "")) return;
+    if (e.key === "+" || e.key === "=") { z = zclamp(z + .1); zapply(); e.preventDefault(); }
+    else if (e.key === "-" || e.key === "_") { z = zclamp(z - .1); zapply(); e.preventDefault(); }
+    else if (e.key === "0") { z = 1; zapply(); e.preventDefault(); }
+  });
+  document.addEventListener("wheel", function(e){
+    if (!e.ctrlKey) return;
+    z = zclamp(z + (e.deltaY < 0 ? .1 : -.1)); zapply(); e.preventDefault();
+  }, { passive: false });
 })();
 </script>
 <script src="brand.js?v=3&h=97e1b625"></script>
