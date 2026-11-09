@@ -78,6 +78,12 @@
   .bbtn:hover{background:var(--soft);}
   .brow.toggle{font-size:13px;color:var(--txt);display:flex;align-items:center;gap:6px;}
   .brow.info{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;}
+/* 窄屏：入口太多时横向滑动，别把顶栏挤爆（手机默认进「📱 手机版」） */
+@media(max-width:600px){
+  .tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:52vw;}
+  .tabs .tab{flex:0 0 auto;white-space:nowrap;}
+  .appbar .spacer{display:none;}
+}
 </style>
   <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
 </head>
@@ -86,6 +92,7 @@
     <div class="logo"><span class="dot"></span>发货计划系统</div>
     <div class="tabs">
       <button class="tab active" data-page="发货计划系统.html">📋 发货计划</button>
+      <button class="tab" data-page="发货计划系统.html?m=1" title="手机版：完整编辑功能，登录同一账号与电脑版实时同步；双指捏合可放大缩小">📱 手机版</button>
       <button class="tab" data-page="仪表盘.html">📊 仪表盘</button>
       <button class="tab" data-page="订单管理系统.html">🧾 订单管理</button>
       <button class="tab" data-page="物料数据库.html">📦 物料数据库</button>
@@ -129,6 +136,13 @@
   try{
     const last=localStorage.getItem("last_client_tab");
     if(last && PAGES.indexOf(last)>=0) switchTo(last);
+  }catch(e){}
+  /* ★ 手机上第一次打开：默认进「📱 手机版」（用户上次主动选过别的页就不覆盖） */
+  try{
+    var last0 = localStorage.getItem("last_client_tab");
+    if((!last0 || PAGES.indexOf(last0) < 0) && Math.min(innerWidth, innerHeight) <= 480){
+      switchTo("发货计划系统.html?m=1");
+    }
   }catch(e){}
 
   // ===================== 本机存储水位（与发货计划页同一套口径）=====================
