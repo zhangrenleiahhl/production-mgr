@@ -651,6 +651,8 @@ const SL = window.ScanLib;
 const KEY_PLANS = SL.KEY_PLANS, KEY_PROG = SL.KEY_PROG, KEY_DEL = SL.KEY_DEL, KEY_PENDING = SL.KEY_PENDING;
 
 const KEY_PLANS_STAMP = "shipping_plans_stamp_v1";  /* 云端计划数据的 updated_at 戳（弱网免拉全文） */
+
+const KEY_PLANS_APPLIED = "shipping_plans_applied_scan_v1";  /* ★ 2026-11-10：本页私有、和「本机计划内容」绑定的云端版本戳。共享戳会被别的页面提前写掉 */
 const KEY_PROG_STAMP = "shipping_progress_stamp_v1";  /* 云端进度戳（弱网免拉全文） */
 
 const $ = (id) => document.getElementById(id);
@@ -659,7 +661,7 @@ const esc = SL.esc;
 
 const POLL_MS = 2000;    // 2026-11-04：0.5s->2s（用户要求统一刷新频率；render 有指纹守卫，内容没变不重绘，戳没变只查戳不费流量）
 let pullingProg = false;  // ★ 2s 轮询：上一轮拉取没回就先跳过，避免并发戳查询 / 重复渲染
-const APP_VER = "20261104a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 scan 字段同步改
+const APP_VER = "20261110a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 scan 字段同步改
 
 const LITTLE = ["待确认", "货好", "装货中", "已完成"];
 
@@ -927,6 +929,27 @@ async function saveProg(msg){
 
 function withTimeout(p, ms){ return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
 
+let planSeq = 0;                 /* ★ 2026-11-10：全文下载序号，旧响应不许覆盖新响应 */
+
+let pullChain = Promise.resolve();
+
+function kick(force){          /* 所有触发源统一串行，避免并发 pull 互相踩 */
+  /* ★ 25s 硬超时：任何一次请求（含末尾补传 push）挂起，都不能把后面的自动刷新整条链卡死 */
+  const run = () => {
+    let t = 0;
+    const guard = new Promise(res => { t = setTimeout(() => res(), 25000); });
+    /* ★ 兜底 catch：单次拉取抛异常（旧版 cloud-sync 缺方法 / 网络异常）不许把
+       整条自动刷新链断掉，也不许变成 unhandled rejection 打死页面脚本；
+       finally 清计时器，别让 2 秒一轮攒下一堆空 timer。 */
+    return Promise.race([
+      Promise.resolve().then(() => pull(force)),
+      guard
+    ]).catch(() => {}).finally(() => clearTimeout(t));
+  };
+  pullChain = pullChain.then(run, run);
+  return pullChain;
+}
+
 async function pull(force){
 
   const cs = !!(window.CloudSync && CloudSync.ready());
@@ -937,7 +960,7 @@ async function pull(force){
     /* ★ 云端提速（2026-10-03 第三版）：进度并行优先，不等戳查询；戳只管计划大文件 */
     let planStamp = null;
     const stampTasks = [];
-    if (RECORDS.length){
+    if (RECORDS.length && typeof CloudSync.pullStamp === "function"){
       stampTasks.push(withTimeout(CloudSync.pullStamp(KEY_PLANS), 8000).then(s => { planStamp = s; }).catch(() => {}));
     }
 
@@ -945,7 +968,7 @@ async function pull(force){
     (async () => {
       let newPStamp = null;
       try {
-        const pst = await withTimeout(CloudSync.pullStamp(KEY_PROG), 1500);
+        const pst = (typeof CloudSync.pullStamp === "function") ? await withTimeout(CloudSync.pullStamp(KEY_PROG), 1500) : null;
         if (pst){
           if (localStorage.getItem("shipping_progress_stamp_v1") === pst){ okP = true; render(); return; }
           newPStamp = pst;
@@ -964,21 +987,50 @@ async function pull(force){
 
     /* 戳查询（只决定计划大文件是否下载，不挡进度渲染） */
     await Promise.all(stampTasks);
-    let skipA = false, newStamp = null;
-    if (planStamp && !force && localStorage.getItem(KEY_PLANS_STAMP) === planStamp
+    /* 2026-11-10：skipA / applied 在下面统一声明，这里不再重复声明 */
+    /* ★ 2026-11-10 实时协作修复（大屏有、发货进度没有的根因）：
+       ① 不再把「共享戳」当唯一判据。shipping_plans_stamp_v1 是同源多页面共写的，
+          别的页面写了新戳、本页本机计划还是旧的，就会永远跳过下载。
+          改用本页私有、和「本机内容」绑定的 KEY_PLANS_APPLIED。
+       ② 戳和内容是两次独立请求，下载期间云端可能又变：写戳前再查一次，
+          两次一致才落戳；不一致就故意不落，下一轮必重新拉全文（自愈）。
+       ③ 戳命中时也重读 localStorage，同设备别的标签刚发布的新计划立刻生效。 */
+    let applied = null;
+    try{ applied = localStorage.getItem(KEY_PLANS_APPLIED); }catch(e){}
+    let skipA = false;
+    if (planStamp && !force && applied === planStamp
         && !(SL.planCacheSuspect && SL.planCacheSuspect())){
       skipA = true; okA = true;
-    } else if (planStamp){ newStamp = planStamp; }
+      try{
+        const cached = JSON.parse(localStorage.getItem(KEY_PLANS) || "null");
+        if (Array.isArray(cached) && JSON.stringify(cached) !== JSON.stringify(RECORDS)) RECORDS = cached;
+      }catch(e){}
+    }
     render();
 
     /* 计划大文件 → 后台静默下载（不 await），下完再 render；失败不影响已显示进度 */
     if (!skipA){
-      withTimeout(CloudSync.pullResult(KEY_PLANS), 18000).then(ra => {
+      const seq = ++planSeq;
+      withTimeout(CloudSync.pullResult(KEY_PLANS), 18000).then(async ra => {
+        if (seq !== planSeq) return;                 // ★ 旧响应不许覆盖新响应
         if (ra && ra.ok && Array.isArray(ra.value)){
           RECORDS = ra.value;
-          try { localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
-                if (newStamp) localStorage.setItem(KEY_PLANS_STAMP, newStamp); } catch(e){}
-          if (SL.notePlanCloud) SL.notePlanCloud(ra.value.length);
+          try{
+            localStorage.setItem(KEY_PLANS, JSON.stringify(RECORDS));
+            /* 二次戳校验：确认下载期间云端没再变，才把「已应用版本」记下来 */
+            let st2 = null;
+            if (typeof CloudSync.pullStamp === "function"){
+              try{ st2 = await withTimeout(CloudSync.pullStamp(KEY_PLANS), 1500); }catch(e){}
+            }
+            if (st2 && (!planStamp || st2 === planStamp)){
+              localStorage.setItem(KEY_PLANS_STAMP, st2);
+              localStorage.setItem(KEY_PLANS_APPLIED, st2);
+            }else{
+              /* 云端又变了 / 戳查不到：只清私有戳，下一轮自动重拉，绝不永久卡死 */
+              localStorage.removeItem(KEY_PLANS_APPLIED);
+            }
+            if (SL.notePlanCloud) SL.notePlanCloud(RECORDS.length);
+          }catch(e){}
           render();
         }
       }).catch(() => {});
@@ -1685,15 +1737,31 @@ function boot(){
 
   }
 
-  pull();
+  kick(true);   /* ★ 2026-11-10：启动强制拉一次全文，第一屏就是最新 */
 
-  setInterval(() => { if (!document.hidden && !pullingProg) { pullingProg = true; pull().finally(() => { pullingProg = false; }); } }, POLL_MS);
+  setInterval(() => { if (!document.hidden) kick(false); }, POLL_MS);
 
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) kick(false); });
 
-  window.addEventListener("online", () => pull());
-  window.addEventListener("focus", () => pull());        // 窗口重新获得焦点也立刻刷新（2026-10-02）
-  window.addEventListener("pageshow", () => pull());      // 从手机后台/bfcache 回来也立刻刷新（2026-10-02）
+  window.addEventListener("online", () => kick(false));
+  window.addEventListener("focus", () => kick(false));
+  window.addEventListener("pageshow", () => kick(false));
+
+  /* ★ 2026-11-10：同设备别的标签发布/同步了发货计划 → 毫秒级即时生效 */
+  window.addEventListener("storage", (e) => {
+    if (!e) return;
+    if (e.key === KEY_PLANS){
+      try{
+        const v = JSON.parse(localStorage.getItem(KEY_PLANS) || "null");
+        if (Array.isArray(v)) RECORDS = v;
+      }catch(err){}
+      lastFp = ""; render();
+    }
+    if (e.key === KEY_PLANS || e.key === KEY_PROG || e.key === KEY_PLANS_STAMP) kick(false);
+  });
+
+  /* ★ 2026-11-10：10 分钟强制全文兜底。任何戳/缓存错配最迟 10 分钟自愈，不再需要人工反复刷新 */
+  setInterval(() => { if (!document.hidden) kick(true); }, 600000);
   if (SL.verWatch) SL.verWatch({ field: "scan", pageVer: APP_VER, skip: () => isPending() });   // 线上版本自检：scan 字段变则自动重载；有没推上去的待办时不重载（2026-11-03 加页面级版本，根治"改了不生效"）
 
 }
