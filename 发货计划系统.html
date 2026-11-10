@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261110a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261110b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -4543,7 +4543,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
     gCellUndoHook(ta);
 
 
-    ta.addEventListener("input", ()=>{ fitTextarea(ta); scheduleRefresh(recalcLite, mergeCustomerCells, saveDraft); });
+    ta.addEventListener("input", ()=>{ _fitActiveTa=ta; scheduleRefresh(fitActiveTextarea, recalcLite, scheduleMerge, saveDraft); });
 
   });
 
@@ -4551,7 +4551,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     carManualEdit(tr);
 
-    autoFillLogistics(tr); scheduleRefresh(mergeCustomerCells, saveDraft);
+    autoFillLogistics(tr); scheduleRefresh(scheduleMerge, saveDraft);
 
   });
 
@@ -4603,7 +4603,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     }
 
-    scheduleRefresh(mergeCustomerCells, saveDraft);
+    scheduleRefresh(scheduleMerge, saveDraft);
 
   });
 
@@ -5210,7 +5210,11 @@ else if(ta.dataset.f==="model"||ta.dataset.f==="orderno"){   // 型号/订单号
 
 // 把 N 次「强制同步布局」压到 1~2 次，折叠展开后几百行也不卡
 
+let __bootPending=true, __bootSyncDone=false;   /* 只在顶层同步启动阶段跳过全表测高 */
+
 function fitTextareas(force, only){
+
+  if(__bootPending && !__bootSyncDone && !only) return;
 
   // ★ only（2026-11-06）：只测传入的 textarea。撤销/恢复时新行只有几个格，
   //   没必要把整表都扫一遍；更重要的是别把「读 scrollHeight 触发整表重排」放在点击的同步路径里。
@@ -5346,7 +5350,49 @@ function fitTextareas(force, only){
 
 //    用微任务队列合并成一次执行，重复调用只跑一遍。
 
-function recalcLite(){ recalc(true); }   // 具名包装：便于合批调度器按引用去重
+/* ★★ 2026-11-10 输入提速：单格 fitTextarea 要读 scrollHeight（强制重排整张 150 行表），
+
+   原来每敲一个键同步做一次，实测 40ms。挪到 rAF 合批后连续打字只在下一帧量一次，
+
+   同步 input handler 只剩改值；显示结果完全一致（只晚一帧调整框高）。 */
+
+let _fitActiveTa=null;
+
+function fitActiveTextarea(){
+
+  const ta=_fitActiveTa; _fitActiveTa=null;
+
+  if(ta && ta.isConnected) fitTextarea(ta);
+
+}
+
+/* ★ 打字期间不重建合并单元格：mergeCustomerCells 每次把 150 行 × 3 格的
+
+   display / rowSpan / height 全部复位，等于每敲一个字把整张表布局弄脏一次。
+
+   视觉分组晚 120ms 更新看不出来；数值合计 / KPI 仍在 recalc 里即时算。 */
+
+var _mergeT=0, _mergePending=false;
+
+function scheduleMerge(){
+
+  _mergePending=true;
+
+  clearTimeout(_mergeT);
+
+  _mergeT=setTimeout(function(){ _mergeT=0; if(_mergePending){ _mergePending=false; mergeCustomerCells(); } }, 120);
+
+}
+
+function flushMerge(){
+
+  if(_mergeT){ clearTimeout(_mergeT); _mergeT=0; }
+
+  if(_mergePending){ _mergePending=false; mergeCustomerCells(); }
+
+}
+
+function recalcLite(){ recalc(true, true); }   // 具名包装：便于合批调度器按引用去重
 
 // 数量改动 -> 箱数第一时间按「数量÷每箱件数」(保留一位小数) 重算；箱数只读，不手改
 function liveBoxFromQty(tr){
@@ -6378,6 +6424,10 @@ function remarkAdoptNewCar(tr, oldKey, oldVals){
 let __merging = false;
 
 function mergeCustomerCells(){
+
+  if(typeof _mergeT!=="undefined" && _mergeT){ clearTimeout(_mergeT); _mergeT=0; }
+
+  if(typeof _mergePending!=="undefined") _mergePending=false;
 
   if(__merging) return;          // 防止同步 input.value 触发 input 事件导致死循环
 
@@ -7431,7 +7481,7 @@ function rowRefs(tr){
 
 // skipFold=true：本次不重跑折叠（改数量/箱数/吨位不会改变日期分组，省掉一整轮全表折叠+高亮+隔离带重排）
 
-function recalc(skipFold){
+function recalc(skipFold, deferMerge){
 
   let sq=0,st=0,sb=0,scwt=0;
 
@@ -7569,11 +7619,11 @@ function recalc(skipFold){
 
   // 有筛选时不再重新折叠（否则会把刚穿透显示的折叠行又折回去）；改为保持穿透显示并刷新合并/编号
 
-  if(skipFold && !isFilterActive()){ mergeCustomerCells(); }
+  if(skipFold && !isFilterActive()){ if(deferMerge) scheduleMerge(); else mergeCustomerCells(); }
 
   else if(!isFilterActive()){ foldByDate(); }
 
-  else { renumberVisible(); mergeCustomerCells(); markRowStates(); }
+  else { renumberVisible(); if(deferMerge) scheduleMerge(); else mergeCustomerCells(); markRowStates(); }
 
   // 客户吨位合计：只累加当前可见的分组合计单元格（合并后每个组只显示一个）
 
@@ -8134,6 +8184,8 @@ function fingerprintRows(rows){
 async function publish(){
 
   flushRefresh();   // 先把待处理的全表刷新跑完，确保发布读到的是最新值
+
+  flushMerge();     // 打字后 120ms 内直接点发布，也要先把合并单元格/时效组落到最新
 
   syncLogisticsAll();   // ★ 发布前兜底：物流空着但客户能查到的行，此刻补上（手填过的一律不动）
 
@@ -9858,7 +9910,7 @@ function locateShipDay(){
   const rows=[...tb.children].filter(isDataRow);
   if(!rows.length) return;
   const have=new Set();
-  rows.forEach(tr=>{ const v=tr.querySelector('[data-f="shipdate"]'); const d=(v&&v.value)?String(v.value).trim():""; if(d) have.add(d); });
+  rows.forEach(tr=>{ const v=rowRefs(tr).shipdate; const d=(v&&v.value)?String(v.value).trim():""; if(d) have.add(d); });
   if(!have.size) return;
   const fmt=d=>(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"));
   const today=realTodayStr(), tmr=todayStr();
@@ -9868,7 +9920,7 @@ function locateShipDay(){
   let target=null;
   for(const d of cand){ if(have.has(d)){ target=d; break; } }
   if(!target) return;                            // 未来方向都没命中则不强行跳（停留在顶部）
-  const first=rows.find(tr=>{ const v=tr.querySelector('[data-f="shipdate"]'); return !!(v&&v.value&&String(v.value).trim()===target); });
+  const first=rows.find(tr=>{ const v=rowRefs(tr).shipdate; return !!(v&&v.value&&String(v.value).trim()===target); });
   if(first) first.scrollIntoView({block:"center"});
 }
 
@@ -9926,7 +9978,43 @@ reindex(); recalc(); updateCheckAll(); styleShipdate(); markRowStates();   // �
 
 //   用「有 rAF 就 rAF、没有就 setTimeout」的兜底写法（jsdom 里没有 rAF，不能直接调）。
 
-(window.requestAnimationFrame||function(fn){return setTimeout(fn,16);})(function(){ try{ fitTextareas(); }catch(e){} try{ locateShipDay(); }catch(e){} });
+__bootSyncDone=true;   /* 顶层同步启动流程结束：此后任何 fitTextareas 调用都照常执行 */
+
+(window.requestAnimationFrame||function(fn){return setTimeout(fn,16);})(function(){
+
+  __bootPending=false;
+
+  /* ★ 900 个格子一次性量完要 1.7s，会把首屏交互整个卡住。放到浏览器空闲时段
+
+     分块测（每块 30 格），用户打开就能点、就能输入；每格最终高度与一次性测完
+
+     完全一致。用户抢先编辑过的格子已带 _fitVal，轮到它时会自动跳过。 */
+
+  const _bootTas=[...$("tbody").querySelectorAll("textarea")];
+
+  let _bootI=0;
+
+  window.__bootFitPending=true;
+
+  const RIC=window.requestIdleCallback||function(fn){ return setTimeout(function(){ fn({timeRemaining:function(){return 8;},didTimeout:true}); },16); };
+
+  function bootFitStep(){
+
+    const _end=Math.min(_bootI+30,_bootTas.length);
+
+    try{ fitTextareas(false, _bootTas.slice(_bootI,_end)); }catch(e){}
+
+    _bootI=_end;
+
+    if(_bootI<_bootTas.length) RIC(bootFitStep,{timeout:200});
+
+    else { window.__bootFitPending=false; try{ locateShipDay(); }catch(e){} }
+
+  }
+
+  RIC(bootFitStep,{timeout:200});
+
+});
 
 // 计划员：首次设置无需密码，设置后自动锁定；再次修改需输入密码 123456
 
