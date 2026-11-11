@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261110b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261111a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -1430,6 +1430,22 @@ html.shipm .tbl thead th{top:28px;}
 /* 发布记录卡片：手机版默认收起，点「⋯」再看（避免下方一大块空白） */
 html.shipm [data-mm-rec="1"]{display:none!important;}
 html.shipm.showmore [data-mm-rec="1"]{display:block!important;}
+</style>
+
+<style>
+/* ★ 2026-11-11 客户禁发日提示：手机横屏 / 矮视口下收紧公共弹窗。
+   公共库 .smkcf-box 的图标 52px + 内边距 22px + 52vh 正文区，在 390px 高的屏上
+   会把「怎么改」挤到需要滚动；这里只在 max-height<=520px 生效，电脑版零影响。
+   选择器带 .smkcf-mask 前缀（特异性 0,2,0 > 公共库 0,1,0），
+   即使公共库运行时才把 <style> 追加到 head 末尾也压得住。 */
+@media (max-height:520px){
+  .smkcf-mask .smkcf-box{padding:12px 16px 12px;}
+  .smkcf-mask .smkcf-ico{width:34px;height:34px;border-radius:12px;font-size:18px;margin-bottom:4px;}
+  .smkcf-mask .smkcf-ttl{font-size:14px;}
+  .smkcf-mask .smkcf-msg{font-size:12.5px;line-height:1.55;padding-top:6px;max-height:calc(100vh - 170px);}
+  .smkcf-mask .smkcf-act{margin-top:10px;}
+  .smkcf-mask .smkcf-act button{padding:8px 0;font-size:13px;}
+}
 </style>
 </head>
 
@@ -8181,6 +8197,55 @@ function fingerprintRows(rows){
 
 }
 
+/* ★ 客户禁发日（2026-11-11 老板要求）：上海佳喆 每周二、周六没人收货，
+   这两天的发货计划一律不允许发布。判据只认「本次勾选行的发货日期」，
+   命中即整次禁止发布（不是只提示）。将来加客户，只在 NO_RECEIVE_RULES 里加一行。 */
+var NO_RECEIVE_RULES = [
+  { key:"佳喆", name:"上海佳喆", days:[2,6], why:"没人收货" }
+];
+var WEEK_CN = ["周日","周一","周二","周三","周四","周五","周六"];
+
+/* YYYY-MM-DD → 0=周日…6=周六；也兼容 2026/11/10、2026.11.10、2026年11月10日。
+   ★ 必须用本地 new Date(y,mo-1,d) 构造：new Date("2026-11-10") 按 UTC 解析，
+     东八区早上会偏一天，周二能被算成周一。假日期（2/30）返回 -1，不参与拦截。 */
+function weekdayOfYmd(s){
+  const m=/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/.exec(String(s==null?"":s).trim());
+  if(!m) return -1;
+  const y=+m[1], mo=+m[2], d=+m[3];
+  if(!(y>=2000&&y<=2100&&mo>=1&&mo<=12&&d>=1&&d<=31)) return -1;
+  const dt=new Date(y,mo-1,d);
+  if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d) return -1;
+  return dt.getDay();
+}
+
+/* 客户名归一化后按关键字命中规则：带「（第二车）」、带空格、带其它括号备注都算同一家。
+   ★ 不用精确相等：现场客户名带车次后缀 / 备注是常态，漏一个就等于规则失效。 */
+function noReceiveRuleOf(cust){
+  const s=String(cust==null?"":cust).replace(/[\s\u3000]+/g,"");
+  if(!s) return null;
+  for(let i=0;i<NO_RECEIVE_RULES.length;i++) if(s.indexOf(NO_RECEIVE_RULES[i].key)>=0) return NO_RECEIVE_RULES[i];
+  return null;
+}
+
+/* rows 只传「本次勾选、要发布的行」（未勾选的行不参与判断）。
+   返回 {rule,date,week,cust,count} 或 null。 */
+function noReceiveHit(rows){
+  const hit={rule:null,date:"",week:"",cust:"",count:0};
+  const list=rows||[];
+  for(let i=0;i<list.length;i++){
+    const tr=list[i];
+    const cust=(tr.querySelector('[data-f="customer"]')?.value||"").trim();
+    const rule=noReceiveRuleOf(cust);
+    if(!rule) continue;
+    const date=(tr.querySelector('[data-f="shipdate"]')?.value||"").trim();
+    const wd=weekdayOfYmd(date);
+    if(wd<0||rule.days.indexOf(wd)<0) continue;
+    if(!hit.rule){ hit.rule=rule; hit.date=date; hit.week=WEEK_CN[wd]; hit.cust=cust; }
+    hit.count++;
+  }
+  return hit.rule?hit:null;
+}
+
 async function publish(){
 
   flushRefresh();   // 先把待处理的全表刷新跑完，确保发布读到的是最新值
@@ -8211,6 +8276,24 @@ async function publish(){
       const _SL=window.ScanLib;
       if(_SL && _SL.uiAlert) _SL.uiAlert(_msg, { title:"不能发布：日期不一致", icon:"🚫", okText:"知道了" });
       else askAlert(_msg, { title:"不能发布：日期不一致", icon:"🚫", okText:"知道了" });
+      return;
+    }
+  }
+
+  // ★ 客户禁发日：上海佳喆 周二 / 周六没人收货 → 整次禁止发布（2026-11-11 老板要求）
+  {
+    const _nr=noReceiveHit(checkedTrs);
+    if(_nr){
+      const _ttl="不能发布：" + _nr.rule.name + " " + _nr.week + _nr.rule.why;
+      /* 文案压成 4 行：手机横屏 390px 高时公共弹窗正文区只有 ~200px，
+         排太开会让「怎么改」和「本次发布没有执行」要滚动才看得到（2026-11-11 真 Edge 实测）。 */
+      const _msg="【" + _nr.rule.name + "】每周二、周六" + _nr.rule.why + "，不允许发布发货计划。\n"
+        + "本次勾选了 " + checkedTrs.length + " 行，其中有 " + _nr.count + " 行是【" + _nr.cust + "】，发货日期 " + _nr.date + "（" + _nr.week + "）。\n"
+        + "怎么改：① 把发货日期改到周一 / 三 / 四 / 五 / 日；② 或取消勾选这些行，先发布其他客户的计划。\n"
+        + "本次发布没有执行，表格数据没有改动。";
+      const _SLN=window.ScanLib;
+      if(_SLN && _SLN.uiAlert) _SLN.uiAlert(_msg, { title:_ttl, icon:"🚫", okText:"知道了" });
+      else askAlert(_msg, { title:_ttl, icon:"🚫", okText:"知道了" });
       return;
     }
   }
