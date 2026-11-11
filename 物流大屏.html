@@ -2547,7 +2547,38 @@ const SCROLL_BACK  = 170;       // 回顶：快一些，别浪费时间
 
 const WAIT_TOP_MS = 2200, WAIT_BOTTOM_MS = 3800, MANUAL_PAUSE_MS = 10000;
 
-let sc = { on: false, raf: 0, last: 0, phase: "top", until: 0, manual: 0 };
+let sc = { on: false, raf: 0, last: 0, phase: "top", until: 0, manual: 0, pos: 0, wrote: 0 };
+
+/* ★ 2026-11-10 刷新率自适应（大屏自动滚动丝滑化）
+   ① rAF 的真实帧间隔测出本机刷新率（60/75/120/144/165Hz…），取中位数抗掉帧，夹在 50~240Hz。
+   ② 按刷新率决定「单帧最多走多少时间」：偶发长帧不再一次跳 2~3px（原来固定 0.1s 上限）。
+   ③ 位置改用浮点时间轴 sc.pos 累加，绝不「读回 scrollTop 再累加」——
+      Windows 缩放 / 部分设备会把 scrollTop 量化成整像素，高刷下每帧 0.18px 会被吃成 0，实测 144Hz 只剩半速。
+   滚动速度口径不变（26px/秒），FLIP / 卡片 / 定位滚动的坐标语义一律不动。 */
+const FR = (function(){
+  var gaps = [], last = 0, hz = 60, tick = 0;
+  function note(ts){
+    if (last){ var g = ts - last; if (g > 2 && g < 250) gaps.push(g); }
+    last = ts;
+    if (gaps.length > 60) gaps = gaps.slice(-40);
+    if (gaps.length >= 24 && (++tick % 30 === 0 || tick === 1)){
+      var a = gaps.slice(-40).sort(function(x, y){ return x - y; });
+      var med = a[Math.floor(a.length / 2)];
+      if (med > 0) hz = Math.max(50, Math.min(240, Math.round(1000 / med)));
+    }
+    return hz;
+  }
+  return { note: note, hz: function(){ return hz; },
+           maxDt: function(){ return Math.min(0.1, 2.5 / hz); } };
+})();
+function frameHz(){ return FR.hz(); }        /* 现场排查 / 探针可读 */
+
+/* 唯一写出口：写浮点位置，并记住「我们写进去的值」（不是浏览器读回的值） */
+function writeScroll(p){
+  if (Math.abs(p - sc.wrote) < 0.02) return;
+  try { boxEl.scrollTop = p; } catch(e){}
+  sc.wrote = p;
+}
 
 
 
@@ -2555,11 +2586,20 @@ function scrollStep(ts){
 
   if (!sc.on) return;
 
+  FR.note(ts);                                    // 采样真实帧间隔 → 本机刷新率
+
   const max = boxEl.scrollHeight - boxEl.clientHeight;
 
   if (max <= 4){ stopScroll(); return; }
 
-  if (ts < sc.manual){ sc.last = ts; sc.raf = requestAnimationFrame(scrollStep); return; }
+  /* 人工滚轮 / 卡片定位 / 其它代码动过滚动条 → 浮点位置重新锚到真实位置，不会弹回旧坐标 */
+  const cur = boxEl.scrollTop;
+
+  if (Math.abs(cur - sc.wrote) > 1){ sc.pos = cur; sc.wrote = cur; }
+
+  if (ts < sc.manual){ sc.last = ts; sc.pos = boxEl.scrollTop; sc.raf = requestAnimationFrame(scrollStep); return; }
+
+  const dtCap = FR.maxDt();                      // 高刷屏上限更小，长帧不许一次跳好几像素
 
   if (sc.phase === "top"){
 
@@ -2567,11 +2607,13 @@ function scrollStep(ts){
 
   } else if (sc.phase === "down"){
 
-    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
+    const dt = Math.max(0, Math.min(dtCap, (ts - sc.last) / 1000)); sc.last = ts;
 
-    boxEl.scrollTop = Math.min(max, boxEl.scrollTop + SCROLL_SPEED * dt);
+    sc.pos = Math.min(max, sc.pos + SCROLL_SPEED * dt);
 
-    if (boxEl.scrollTop >= max - 1){ sc.phase = "bottom"; sc.until = ts + WAIT_BOTTOM_MS; }
+    writeScroll(sc.pos);
+
+    if (sc.pos >= max - 1){ sc.phase = "bottom"; sc.until = ts + WAIT_BOTTOM_MS; }
 
   } else if (sc.phase === "bottom"){
 
@@ -2579,11 +2621,13 @@ function scrollStep(ts){
 
   } else {                                        // back：快速回到顶部
 
-    const dt = Math.min(0.1, (ts - sc.last) / 1000); sc.last = ts;
+    const dt = Math.max(0, Math.min(dtCap, (ts - sc.last) / 1000)); sc.last = ts;
 
-    boxEl.scrollTop = Math.max(0, boxEl.scrollTop - SCROLL_BACK * dt);
+    sc.pos = Math.max(0, sc.pos - SCROLL_BACK * dt);
 
-    if (boxEl.scrollTop <= 0){ sc.phase = "top"; sc.until = ts + WAIT_TOP_MS; }
+    writeScroll(sc.pos);
+
+    if (sc.pos <= 0){ sc.phase = "top"; sc.until = ts + WAIT_TOP_MS; }
 
   }
 
@@ -2601,6 +2645,8 @@ function stopScroll(){
 
   boxEl.scrollTop = 0;
 
+  sc.pos = 0; sc.wrote = 0;
+
 }
 
 function setupScroll(){
@@ -2612,6 +2658,8 @@ function setupScroll(){
   if (max <= 4){ stopScroll(); return; }
 
   if (sc.on) return;                             // 已经在滚就不用重启（避免每次拉取都从头来）
+
+  sc.pos = boxEl.scrollTop; sc.wrote = boxEl.scrollTop;   // 从当前位置接着滚，不弹回
 
   sc.on = true; sc.phase = "top"; sc.until = performance.now() + WAIT_TOP_MS; sc.last = 0;
 
@@ -2964,7 +3012,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261109a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261110a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
