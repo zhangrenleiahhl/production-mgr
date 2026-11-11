@@ -2547,7 +2547,7 @@ const SCROLL_BACK  = 170;       // 回顶：快一些，别浪费时间
 
 const WAIT_TOP_MS = 2200, WAIT_BOTTOM_MS = 3800, MANUAL_PAUSE_MS = 10000;
 
-let sc = { on: false, raf: 0, last: 0, phase: "top", until: 0, manual: 0, pos: 0, wrote: 0 };
+let sc = { on: false, raf: 0, last: 0, phase: "top", until: 0, manual: 0, pos: 0, wrote: 0, smoothDt: 0 };
 
 /* ★ 2026-11-10 刷新率自适应（大屏自动滚动丝滑化）
    ① rAF 的真实帧间隔测出本机刷新率（60/75/120/144/165Hz…），取中位数抗掉帧，夹在 50~240Hz。
@@ -2569,7 +2569,9 @@ const FR = (function(){
     return hz;
   }
   return { note: note, hz: function(){ return hz; },
-           maxDt: function(){ return Math.min(0.1, 2.5 / hz); } };
+           frameSec: function(){ return 1 / hz; },
+           smooth: function(){ return Math.exp(-(1000 / hz) / 60); },  /* 60ms 时间常数：高刷每帧更细腻 */
+           maxDt: function(){ return Math.min(0.25, 12 / hz); } };      /* 后台切回来的硬上限 */
 })();
 function frameHz(){ return FR.hz(); }        /* 现场排查 / 探针可读 */
 
@@ -2599,7 +2601,9 @@ function scrollStep(ts){
 
   if (ts < sc.manual){ sc.last = ts; sc.pos = boxEl.scrollTop; sc.raf = requestAnimationFrame(scrollStep); return; }
 
-  const dtCap = FR.maxDt();                      // 高刷屏上限更小，长帧不许一次跳好几像素
+  const a = FR.smooth();                         // 按实测刷新率取平滑系数（60ms 时间常数）
+
+  const dtCap = FR.maxDt();                      // 后台 / 切标签回来的硬上限，不补几十秒
 
   if (sc.phase === "top"){
 
@@ -2607,7 +2611,11 @@ function scrollStep(ts){
 
   } else if (sc.phase === "down"){
 
-    const dt = Math.max(0, Math.min(dtCap, (ts - sc.last) / 1000)); sc.last = ts;
+    const raw = Math.max(0, Math.min(dtCap, (ts - sc.last) / 1000)); sc.last = ts;
+
+    sc.smoothDt = sc.smoothDt * a + raw * (1 - a);   // 一阶低通：总时间守恒，不丢掉帧
+
+    const dt = sc.smoothDt;
 
     sc.pos = Math.min(max, sc.pos + SCROLL_SPEED * dt);
 
@@ -2621,7 +2629,11 @@ function scrollStep(ts){
 
   } else {                                        // back：快速回到顶部
 
-    const dt = Math.max(0, Math.min(dtCap, (ts - sc.last) / 1000)); sc.last = ts;
+    const raw = Math.max(0, Math.min(dtCap, (ts - sc.last) / 1000)); sc.last = ts;
+
+    sc.smoothDt = sc.smoothDt * a + raw * (1 - a);
+
+    const dt = sc.smoothDt;
 
     sc.pos = Math.max(0, sc.pos - SCROLL_BACK * dt);
 
@@ -2645,7 +2657,7 @@ function stopScroll(){
 
   boxEl.scrollTop = 0;
 
-  sc.pos = 0; sc.wrote = 0;
+  sc.pos = 0; sc.wrote = 0; sc.smoothDt = 0;
 
 }
 
@@ -2659,7 +2671,7 @@ function setupScroll(){
 
   if (sc.on) return;                             // 已经在滚就不用重启（避免每次拉取都从头来）
 
-  sc.pos = boxEl.scrollTop; sc.wrote = boxEl.scrollTop;   // 从当前位置接着滚，不弹回
+  sc.pos = boxEl.scrollTop; sc.wrote = boxEl.scrollTop; sc.smoothDt = FR.frameSec();   // 从当前位置接着滚，不弹回
 
   sc.on = true; sc.phase = "top"; sc.until = performance.now() + WAIT_TOP_MS; sc.last = 0;
 
@@ -3012,7 +3024,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261110a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261110b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
