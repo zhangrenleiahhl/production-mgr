@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261111b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261111c";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -10077,15 +10077,40 @@ document.addEventListener("paste", onDocPaste);
 
 // ===================== 启动 =====================
 
-// ★ 自动定位发货计划区域（2026-10-10）：打开页面时滚动到「明天」分组；没明天则今天；再没有则往后逐天（后天/大后天…）找第一个有计划的日期。
-//   只定位一次（首帧布局稳定后），不干扰手动滚动与编辑。
-function locateShipDay(){
-  const tb=$("tbody"); if(!tb) return;
+// ★ 自动定位发货计划区域（2026-10-10，2026-11-11 重做）：打开页面时滚动到「明天」分组；没明天则今天；再没有则往后逐天找第一个有计划的日期。
+//   ★ 2026-11-11 修复「刷新后不定位」：旧版只在开机跑一次，而且挂在 requestIdleCallback 分块测高长链的末尾。
+//     ① 页面藏在首页 display:none 的 iframe 里时，表格没有布局尺寸，scrollIntoView 是空操作，唯一一次机会被白耗掉；
+//        首页切回标签只切 display、派发 focus，不重载页面，于是永远停在顶部。
+//     ② 明天分组被折叠时目标行是 display:none，scrollIntoView 同样无效（折叠状态跨刷新保留 → 每次刷新都失效）。
+//     ③ 大表 150 行要分 30 块测高，定位被拖到 1.5s 之后；后台/隐藏标签里 RIC 甚至不触发。
+//   现在：布局可见性守卫 + 可重入短轮询（成功即停）+ focus/可见性/尺寸变化补触发；用户一旦自己滚过就不再自动拉回。
+var __locDone=false, __locUserMoved=false, __locTimer=0, __locTries=0;
+function shipLocHidden(tr){ return !!(tr && tr.classList && (tr.classList.contains("date-fold-hidden")||tr.classList.contains("filter-hidden"))); }
+function shipLocLayoutOk(){
+  try{
+    if(typeof window.__locLayoutOverride==="boolean") return window.__locLayoutOverride;   // 守护测试打桩：模拟藏在 iframe 里
+    if(document.visibilityState==="hidden") return false;
+    if(/jsdom/i.test(navigator.userAgent||"")) return true;      // jsdom 无排版引擎，只验调度逻辑
+    const r=$("tbody") && $("tbody").getBoundingClientRect();
+    return !!(r && r.width>0 && r.height>0);                      // 隐藏 iframe 里表格尺寸为 0 → 不许消耗这次机会
+  }catch(e){ return true; }
+}
+function shipLocInView(first){
+  if(typeof window.__locInViewOverride==="boolean") return window.__locInViewOverride;    // 守护测试打桩：模拟「没真滚到」
+  if(/jsdom/i.test(navigator.userAgent||"")) return true;
+  const r=first.getBoundingClientRect&&first.getBoundingClientRect();
+  return !!(r && r.height>0 && r.top>-r.height && r.top<(window.innerHeight||900));
+}
+function locateShipDay(force){
+  if(__locDone && !force) return false;
+  if(__locUserMoved && !force) return false;
+  if(!shipLocLayoutOk()) return false;
+  const tb=$("tbody"); if(!tb) return false;
   const rows=[...tb.children].filter(isDataRow);
-  if(!rows.length) return;
+  if(!rows.length) return false;
   const have=new Set();
   rows.forEach(tr=>{ const v=rowRefs(tr).shipdate; const d=(v&&v.value)?String(v.value).trim():""; if(d) have.add(d); });
-  if(!have.size) return;
+  if(!have.size) return false;
   const fmt=d=>(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"));
   const today=realTodayStr(), tmr=todayStr();
   const cand=[tmr, today];                       // 优先：明天 → 今天
@@ -10093,10 +10118,41 @@ function locateShipDay(){
   for(let off=1; off<=60; off++){ const d=new Date(base); d.setDate(d.getDate()+off); cand.push(fmt(d)); } // 往后逐天：后天、大后天…
   let target=null;
   for(const d of cand){ if(have.has(d)){ target=d; break; } }
-  if(!target) return;                            // 未来方向都没命中则不强行跳（停留在顶部）
-  const first=rows.find(tr=>{ const v=rowRefs(tr).shipdate; return !!(v&&v.value&&String(v.value).trim()===target); });
-  if(first) first.scrollIntoView({block:"center"});
+  if(!target){ __locDone=true; return false; }   // 未来方向都没命中则不强行跳（停留在顶部）
+  // ★ 目标日期整组被折叠/筛选藏住 → 只展开这一天，再定位到第一条可见行
+  const anyVisible=rows.some(tr=>{ const v=rowRefs(tr).shipdate; return !!(v&&v.value&&String(v.value).trim()===target) && !shipLocHidden(tr); });
+  if(!anyVisible){ try{ setFoldState(target,0); foldByDate(); }catch(e){} }
+  const first=rows.find(tr=>{ const v=rowRefs(tr).shipdate; return !!(v&&v.value&&String(v.value).trim()===target) && !shipLocHidden(tr); });
+  if(!first) return false;
+  try{ first.scrollIntoView({block:"center"}); }catch(e){ return false; }
+  /* ★ 判成功只认「目标行真的进了视口」：隐藏 iframe 里 scrollIntoView 会把滚动条挪几十像素，
+     但表格还没布局、目标行仍在两千像素开外；拿 scrollY 变了当成功会白耗掉唯一一次机会。 */
+  if(!shipLocInView(first)) return false;
+  __locDone=true; return true;
 }
+function scheduleLocateShipDay(){
+  clearTimeout(__locTimer);
+  if(__locDone || __locUserMoved || __locTries>100) return;   // 20 秒窗口；首页 focus 事件会 rearm 重置计数
+  __locTries++;
+  __locTimer=setTimeout(function(){
+    if(__locDone || __locUserMoved) return;
+    try{ if(locateShipDay()) return; }catch(e){}
+    scheduleLocateShipDay();
+  }, 200);
+}
+function rearmLocateShipDay(){
+  if(__locDone || __locUserMoved) return;
+  __locTries=0;                     // 切回标签重新给足重试机会
+  scheduleLocateShipDay();
+}
+// 用户一旦自己滚过/按了滚动键，就不再自动把页面拉回去
+["wheel","touchstart"].forEach(function(ev){ try{ window.addEventListener(ev,function(){ __locUserMoved=true; },{passive:true,capture:true}); }catch(e){} });
+try{ window.addEventListener("keydown",function(e){ if(/^(ArrowUp|ArrowDown|PageUp|PageDown|Home|End)$/.test(e.key||"")) __locUserMoved=true; },{passive:true,capture:true}); }catch(e){}
+// 首页双 iframe 常驻复用：切回只派发 focus、不重载 → 在这里补一次定位
+try{ window.addEventListener("focus",rearmLocateShipDay); }catch(e){}
+try{ document.addEventListener("visibilitychange",function(){ if(document.visibilityState!=="hidden") rearmLocateShipDay(); }); }catch(e){}
+try{ window.addEventListener("resize",rearmLocateShipDay); }catch(e){}
+try{ window.addEventListener("pageshow",rearmLocateShipDay); }catch(e){}
 
 syncDocHead();
 
@@ -10157,6 +10213,8 @@ __bootSyncDone=true;   /* 顶层同步启动流程结束：此后任何 fitTexta
 (window.requestAnimationFrame||function(fn){return setTimeout(fn,16);})(function(){
 
   __bootPending=false;
+
+  scheduleLocateShipDay();   /* ★ 2026-11-11：首帧就开始尝试定位，成功即停；藏在 iframe 里会自己重试 */
 
   /* ★ 900 个格子一次性量完要 1.7s，会把首屏交互整个卡住。放到浏览器空闲时段
 
