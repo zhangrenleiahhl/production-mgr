@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261111a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261111b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -8246,6 +8246,90 @@ function noReceiveHit(rows){
   return hit.rule?hit:null;
 }
 
+/* ★ 节假日前置确认（2026-11-11 老板要求）：每周五、周六，以及法定节假日前一天
+   发布发货计划时，发布弹窗要问一句「明天是节假日，是否确定发布」。
+   口径（已用 AskUserQuestion 确认）：
+     ① 按「本次勾选行的发货日期」判断，不看发布当天；
+     ② 所有客户都生效（上海佳喆周二/周六的禁发规则仍优先硬拦）；
+     ③ 明天是国务院安排的调休补班日 → 不提醒（要上班，有人收货）。
+   假期表直接复用全站 FestivalSkin.holidays（国办放假通知，2026 / 2027），
+   ★ 不在这里另抄一份：每年 11 月国务院公布次年安排后，只补 festival-skin.js 一处。
+   点「确定发布」＝照常发布，点「取消」＝本次不发布、表格数据不动。 */
+var HOLIDAY_NAMES = { yuandan:"元旦", chunjie:"春节", qingming:"清明", laodong:"劳动节", duanwu:"端午", zhongqiu:"中秋", guoqing:"国庆" };
+var HOLIDAY_EVE_DAYS = [5,6];   // 周五、周六（周日的明天是周一，不提醒）
+
+/* 假期表可能还没加载（festival-skin.js 是 defer）；取不到时周五/周六规则照常生效，
+   只是少了「法定假期前一天」这一半 —— 绝不因为取不到就抛错把发布打断。 */
+function holidayTable(){
+  try{ return (window.FestivalSkin && window.FestivalSkin.holidays) || {}; }catch(e){ return {}; }
+}
+
+/* YYYY-MM-DD → 次日 YYYY-MM-DD；本地构造，避开 new Date("...") 的 UTC 偏移；跨月跨年自动进位。 */
+function nextYmd(s){
+  const m=/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/.exec(String(s==null?"":s).trim());
+  if(!m) return "";
+  const y=+m[1], mo=+m[2], d=+m[3];
+  const dt=new Date(y,mo-1,d);
+  if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d) return "";
+  dt.setDate(dt.getDate()+1);
+  const p=n=>String(n).padStart(2,"0");
+  return dt.getFullYear()+"-"+p(dt.getMonth()+1)+"-"+p(dt.getDate());
+}
+
+/* 查某天在放假表里的身份：{ workday, holiday:{name,from,to} }。
+   一段假期 = [节日id, 放假起, 放假止, 调休上班日数组]；
+   调休日可能挂在别的节日条目下，所以全表扫完再返回。 */
+function dayCalendar(ymd){
+  const k=String(ymd||""), y=k.slice(0,4), md=k.slice(5);
+  const list=holidayTable()[+y]||[];
+  let hol=null, work=false;
+  for(let i=0;i<list.length;i++){
+    const it=list[i];
+    if(md>=it[1]&&md<=it[2]) hol={ name:HOLIDAY_NAMES[it[0]]||it[0], from:y+"-"+it[1], to:y+"-"+it[2] };
+    const wd=it[3]||[];
+    for(let j=0;j<wd.length;j++) if(md===wd[j]) work=true;
+  }
+  return { workday:work, holiday:hol };
+}
+
+/* rows = 本次勾选、要发布的行。返回 {date,week,next,nextWeek,reason,kind} 或 null。 */
+function holidayEveHit(rows){
+  const list=rows||[];
+  for(let i=0;i<list.length;i++){
+    const date=(list[i].querySelector('[data-f="shipdate"]')?.value||"").trim();
+    const wd=weekdayOfYmd(date);
+    const next=nextYmd(date);
+    if(wd<0||!next) continue;
+    const cal=dayCalendar(next);
+    const first=!!(cal.holiday && cal.holiday.from===next);   // 明天 = 某个法定假期第 1 天
+    if(!first && cal.workday) continue;                       // 明天调休补班 → 不提醒
+    const weekend=HOLIDAY_EVE_DAYS.indexOf(wd)>=0;            // 发货日是周五 / 周六
+    if(!weekend && !first) continue;
+    const nw=weekdayOfYmd(next);
+    const nextWeek=WEEK_CN[nw<0?0:nw];
+    let reason="", kind="";
+    if(cal.holiday && (first || weekend)){
+      kind="holiday";
+      const span=first
+        ? "【"+cal.holiday.name+"】假期第 1 天（"+cal.holiday.from.slice(5)+" ~ "+cal.holiday.to.slice(5)+"）"
+        : "【"+cal.holiday.name+"】假期内（"+cal.holiday.from.slice(5)+" ~ "+cal.holiday.to.slice(5)+"）";
+      reason=weekend ? "是"+nextWeek+"，也是"+span : "是"+span;
+    } else {
+      kind="weekend";
+      reason="是"+nextWeek+"（周末休息日）";
+    }
+    return { date:date, week:WEEK_CN[wd], next:next, nextWeek:nextWeek, reason:reason, kind:kind };
+  }
+  return null;
+}
+
+/* 文案压成 3 行：手机横屏 844×390 下公共弹窗正文区偏矮（2026-11-11 真 Edge 实测）。 */
+function holidayEveMessage(hit, rowCount){
+  return "本次勾选 "+rowCount+" 行，发货日期 "+hit.date+"（"+hit.week+"）。\n"
+    + "明天 "+hit.next+" "+hit.reason+"，收货方可能不上班，请确认这批货是否照常发。\n"
+    + "【确定发布】＝照常发布　【取消】＝不发布，表格数据不变。";
+}
+
 async function publish(){
 
   flushRefresh();   // 先把待处理的全表刷新跑完，确保发布读到的是最新值
@@ -8578,7 +8662,14 @@ async function publish(){
 
   if(rows.some(r=>!r.model || !r.qty) && !await askConfirm("存在「型号」或「数量」为空行，仍要发布？", { title:"有型号或数量为空的行", okText:"仍然发布", cancelText:"取消" })) return;
 
-  if(!await askConfirm("确认发布已勾选的 "+rows.length+" 行？", { title:"确认发布", okText:"发布", cancelText:"取消" })) return;
+  /* ★ 节假日前置确认（2026-11-11 老板要求）：命中周五/周六/法定假期前一天时，
+     把这道「最后确认」换成「明天是节假日」提醒；仍只弹一次窗 ——
+     点「确定发布」照常发布，点「取消」本次不发布、表格数据不变。 */
+  const _he=holidayEveHit(checkedTrs);
+  const _pubMsg=_he ? holidayEveMessage(_he, rows.length) : "确认发布已勾选的 "+rows.length+" 行？";
+  const _pubOpt=_he ? { title:"明天是节假日，确定发布吗？", icon:"📅", okText:"确定发布", cancelText:"取消" }
+                    : { title:"确认发布", okText:"发布", cancelText:"取消" };
+  if(!await askConfirm(_pubMsg, _pubOpt)) return;
 
   // ===== 内容防重（第二道）：同日同计划员、内容与已有单基本相同 → 提供「替换旧单」 =====
 
