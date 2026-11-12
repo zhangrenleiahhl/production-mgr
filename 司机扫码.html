@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
-<title>司机到车登记</title>
+<title>铸运通发货协作系统 · 司机到车登记</title>
 <script src="supabase.min.js"></script>
 <script src="cloud-config.js"></script>
 <script src="cloud-sync.js?v=20261026a"></script>
@@ -109,8 +109,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="发货计划">
-  <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
+<meta name="apple-mobile-web-app-title" content="铸运通协作">
+  <script src="festival-skin.js?v=20261106a&h=6fd877b2" defer></script>
 </head>
 <body>
 
@@ -146,7 +146,7 @@ const $ = (id) => document.getElementById(id);
 const esc = SL.esc;
 const POLL_MS = 2000;    // 2026-11-04：0.5s->2s（用户要求统一刷新频率；加 pullingProg 重叠守卫防堆叠）
 let pullingProg = false;  // 2026-11-04：2s 高频轮询重叠守卫（上一轮没回就跳过本轮），避免并发戳查询/重复渲染
-const APP_VER = "20261104a";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 drv 字段同步改
+const APP_VER = "20261112b";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 drv 字段同步改
 
 let RECORDS = [], PROG = {}, ROWS = [], SEARCH = "", lastFp = "";
 let DB = [], IDX = { byPair: {}, byCust: {}, byModel: {} };   // 物料库 + 送达方代码索引（保密用）
@@ -443,6 +443,6 @@ function boot(){
 }
 boot();
 </script>
-<script src="brand.js?v=3"></script>
+<script src="brand.js?v=4"></script>
 </body>
 </html>
