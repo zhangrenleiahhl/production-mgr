@@ -8,7 +8,7 @@
 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>物流进度大屏（内部看板）</title>
+<title>铸运通发货协作系统 · 物流进度大屏（内部看板）</title>
 
 <script src="supabase.min.js?v=lib"></script>
 
@@ -932,7 +932,7 @@ thead th{font-size:calc(12.5px * var(--z,1));}
 body.mb thead th{font-size:calc(9px * var(--z,1));}
 </style>
 
-  <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=6fd877b2" defer></script>
 </head>
 
 <body>
@@ -3024,7 +3024,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261110b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261112b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
@@ -3051,7 +3051,7 @@ boot();
 
   <script src="staff-admin.js?v=20260924a"></script>
 
-<script src="brand.js?v=3"></script>
+<script src="brand.js?v=4"></script>
 
 </body>
 
