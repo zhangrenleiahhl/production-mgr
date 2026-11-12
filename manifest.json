@@ -1,7 +1,7 @@
 {
-  "name": "发货计划系统",
-  "short_name": "发货计划",
-  "description": "生产发货进度 · 扫码操作 · 物流大屏",
+  "name": "铸运通发货协作系统",
+  "short_name": "铸运通协作",
+  "description": "发货协作 · 扫码操作 · 物流大屏",
   "start_url": "./发货计划系统.html",
   "scope": "./",
   "display": "standalone",
