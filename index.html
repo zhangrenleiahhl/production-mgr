@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>发货计划系统</title>
+<title>铸运通发货协作系统</title>
 <style>
   :root{
     --bg:#f5f7fa; --brand:#2563eb; --brand-d:#1e4fb0; --line:#e3e8ef; --txt:#1f2733; --muted:#7a8699; --soft:#eef4ff;
@@ -12,7 +12,7 @@
   html,body{height:100%;margin:0;}
   body{font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;overflow:hidden;}
   .appbar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:4px 12px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 4px 14px rgba(31,45,77,.05);position:relative;}
-  .logo{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:800;}
+  .logo{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:800;white-space:nowrap;flex:0 0 auto;}
   .logo .dot{width:9px;height:16px;background:var(--brand);border-radius:3px;display:inline-block;}
   .tabs{display:flex;gap:5px;flex-wrap:wrap;margin-left:4px;}
   .tab{border:none;border-radius:8px;padding:4px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--soft);color:var(--brand);transition:.15s;}
@@ -85,11 +85,11 @@
   .appbar .spacer{display:none;}
 }
 </style>
-  <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=6fd877b2" defer></script>
 </head>
 <body>
   <div class="appbar">
-    <div class="logo"><span class="dot"></span>发货计划系统</div>
+    <div class="logo"><span class="dot"></span>铸运通发货协作系统</div>
     <div class="tabs">
       <button class="tab active" data-page="发货计划系统.html">📋 发货计划</button>
       <button class="tab" data-page="发货计划系统.html?m=1" title="手机版：完整编辑功能，登录同一账号与电脑版实时同步；双指捏合可放大缩小">📱 手机版</button>
@@ -452,6 +452,6 @@
 <script src="auth.js?v=20260930a"></script>
 <script>if(window.Auth)Auth.guard();</script>
   <script src="staff-admin.js?v=20260924a"></script>
-<script src="brand.js?v=3"></script>
+<script src="brand.js?v=4"></script>
 </body>
 </html>
