@@ -8,7 +8,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover" data-page-node-id="HKoTCyrOsDYJJS5jftuh1D">
 
-<title>发货计划系统</title>
+<title>铸运通发货协作系统</title>
 
 <!-- 性能（2026-10-19）：提前与云端建立连接（DNS+TCP+TLS 握手），页面脚本就绪后发数据请求时不用再等握手（弱网下尤其明显） -->
 <link rel="preconnect" href="https://zxnxvbghsfwsikyncbus.supabase.co" crossorigin>
@@ -24,7 +24,7 @@
 <link rel="preload" as="script" href="auth.js?v=20260930a&amp;h=9d9fdae3">
 <link rel="preload" as="script" href="staff-config.js?v=20260924c&amp;h=3f18049c">
 <link rel="preload" as="script" href="staff-admin.js?v=20260924a&amp;h=9326b285">
-<link rel="preload" as="script" href="brand.js?v=3&amp;h=97e1b625">
+<link rel="preload" as="script" href="brand.js?v=4&amp;h=97e1b625">
 <!-- scan-lib.js 故意不 preload：全站契约要求它在本页只被引用一次（?v= 整串唯一，手机缓存按整串命中），见 test_page_syntax 的版本一致性断言 -->
 
 <script src="supabase.min.js?v=lib&h=8c36ed69"></script>
@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261112a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261112b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -174,7 +174,7 @@ setTimeout(function(){
 
     box-shadow:0 2px 8px rgba(15,23,42,.06);}
 
-  .appbar .logo{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:800;color:#1f2328;}
+  .appbar .logo{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:800;color:#1f2328;white-space:nowrap;flex:0 0 auto;}
 
   .appbar .logo .dot{width:9px;height:16px;background:#2563eb;border-radius:2px;display:inline-block;}
 
@@ -1345,9 +1345,9 @@ setTimeout(function(){
 
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-<meta name="apple-mobile-web-app-title" content="发货计划">
+<meta name="apple-mobile-web-app-title" content="铸运通协作">
 
-  <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=6fd877b2" defer></script>
 
 <!-- ★ 2026-11-09 手机版：不复制 385KB 页面，同一套「加行/复制/发布/撤销/云端同步」代码只切布局。
      数据仍是 shipping_plans_v1 等键 + CloudSync，登录同一账号即与电脑版同一份数据。
@@ -1466,7 +1466,7 @@ html.shipm.showmore [data-mm-rec="1"]{display:block!important;}
 
   <div class="appbar" id="appbar">
 
-    <a class="logo" href="index.html"><span class="dot"></span>发货计划系统</a>
+    <a class="logo" href="index.html"><span class="dot"></span>铸运通发货协作系统</a>
 
     <div class="tabs">
 
@@ -11670,7 +11670,7 @@ else updateOpStatus();
   }, { passive: false });
 })();
 </script>
-<script src="brand.js?v=3&h=97e1b625"></script>
+<script src="brand.js?v=4&h=97e1b625"></script>
 
 </body>
 
