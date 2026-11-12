@@ -1,4 +1,4 @@
-/* brand.js — 全站品牌角标（HIGHLY 海立 logo）统一注入
+/* brand.js — 全站品牌角标（公司 logo）统一注入
  * 放置策略（按页面布局自动选择，绝不压住按钮/数据）：
  *  - 物流大屏 / 物流门口大屏 / 仪表盘：logo 进顶部 HUD 最右角，HUD 原内容整体左移让位
  *  - 发货计划系统 / index / 生产管理客户端：放进顶部导航栏最右侧
@@ -35,7 +35,7 @@
       "padding:4px 9px;box-shadow:0 2px 8px rgba(15,23,42,.18);");
     var img = document.createElement("img");
     img.src = SRC;
-    img.alt = "HIGHLY 海立";
+    img.alt = "铸运通发货协作系统";
     img.setAttribute("style", "height:" + H + "px;width:auto;display:block;");
     d.appendChild(img);
     return d;
