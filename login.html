@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>海立铸运通 · 登录</title>
+<title>铸运通发货协作系统 · 登录</title>
 <link rel="manifest" href="manifest.json">
 <style>
   :root{ --brand:#2563eb; --brand-d:#1e4fb0; --bg:#0b1220; --txt:#1f2733; --muted:#7a8699; }
@@ -38,15 +38,21 @@
   .wx-tip{display:none;margin-bottom:16px;padding:12px 14px;border-radius:12px;
     background:rgba(255,193,7,.14);border:1px solid rgba(255,193,7,.4);color:#ffd66b;font-size:13px;line-height:1.6;}
   .wx-tip b{color:#ffe9a8;}
+  /* ★ 2026-11-12：矮屏（手机横屏 844×390）登录卡片比视口还高，
+     flex 居中会把品牌标题上下各裁一半 → 改成顶部对齐 + 页面可滚动 */
+  @media (max-height:520px){
+    body{align-items:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .card{margin:0 auto 12px;}
+  }
 </style>
-  <script src="festival-skin.js?v=20261106a&h=8bf9ec1a" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=6fd877b2" defer></script>
 </head>
 <body>
   <div class="card">
     <div class="wx-tip" id="wxTip"></div>
     <div class="brand">
-      <img src="icon.svg" alt="海立铸运通">
-      <div><div class="t1">海立铸运通</div><div class="t2">发货管理平台 · 账号登录</div></div>
+      <img src="icon.svg" alt="铸运通发货协作系统">
+      <div><div class="t1">铸运通发货协作系统</div><div class="t2">发货协作 · 账号登录</div></div>
     </div>
 
     <div id="whoBox"></div>
@@ -112,6 +118,6 @@
   $("pw").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
   $("ac").addEventListener("keydown", e => { if (e.key === "Enter") $("pw").focus(); });
 </script>
-<script src="brand.js?v=3"></script>
+<script src="brand.js?v=4"></script>
 </body>
 </html>
