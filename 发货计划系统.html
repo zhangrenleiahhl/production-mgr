@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261111c";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261112a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -501,7 +501,7 @@ setTimeout(function(){
 
   .tbl td{padding:0;border:1px solid #000;text-align:center;vertical-align:middle;min-height:26px;}
 
-  .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:14px;font-weight:600;color:#1f2328;outline:none;transition:.15s;box-sizing:border-box;min-height:26px;line-height:1.35;}
+  .tbl td input,.tbl td textarea{border:1px solid transparent;background:#fff;width:100%;text-align:center;border-radius:0;font-size:14px;font-weight:600;color:#1f2328;outline:none;transition:border-color .15s,background-color .15s,box-shadow .15s;box-sizing:border-box;min-height:26px;line-height:1.35;}/* ★ 2026-11-12：transition 只留给 focus 的边框/底色/阴影；★ font-size 与 height 绝不能参与过渡 —— custFontFor 逐档试字号后 fitTextarea 立刻读 scrollHeight，若字号还在 150ms 动画中间态，量出的高度会偏小，长客户名（含合并单元格）第二行下半截被裁掉 */
 
   .tbl td input{padding:2px 3px;height:26px;text-align:center;}
 
@@ -5210,7 +5210,7 @@ else if(ta.dataset.f==="model"||ta.dataset.f==="orderno"){   // 型号/订单号
 
   ta._fitVal=ta.value;                 // 与全量版共享缓存，避免下次全量测量时又白测一遍
 
-  const h=Math.max(26,raw);
+  const h=Math.max(26,raw+2);   /* ★ 2026-11-12：border-box 下 clientHeight=height-2（上下各 1px 边框），故统一 +2 保证 scrollHeight<=clientHeight；桌面单行 raw=24 → 仍是 26px，视觉零变化 */
 
   ta.style.height=h+"px";
 
@@ -5348,7 +5348,7 @@ function fitTextareas(force, only){
 
     if(raw[i]===0){ ta._fitVal=undefined; if(ta.style.height!=="26px") ta.style.height="26px"; continue; }
 
-    const h=Math.max(26, raw[i]);
+    const h=Math.max(26, raw[i]+2);   /* ★ 2026-11-12：同上，批量版保持一致 */
 
     const v=h+"px";
 
