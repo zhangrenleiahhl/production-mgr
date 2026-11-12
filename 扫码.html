@@ -72,7 +72,22 @@
 
     box-shadow:0 0 10px rgba(56,189,248,.85);}
 
-  .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;}
+  .hd h1{font-size:16px;font-weight:800;margin:0;letter-spacing:.5px;display:flex;align-items:baseline;gap:8px;min-width:0;flex:0 1 auto;}
+  .hd h1 .sys{font-size:16px;font-weight:800;color:#fff;white-space:nowrap;flex:0 0 auto;}
+  .hd h1 .fn{font-size:12px;font-weight:600;color:#94a3b8;white-space:nowrap;flex:0 0 auto;}
+  /* ★ 2026-11-12 全站改名：顶栏主标题＝系统名，原功能名降为小字副标题。
+     窄屏收紧/改两行，绝不挤掉「操作人 / 退出」和右上角公司 logo 图片。 */
+  @media (max-width:700px){
+    .hd h1{gap:6px;} .hd h1 .sys{font-size:14px;} .hd h1 .fn{font-size:11px;}
+  }
+  @media (max-width:480px){
+    .hd h1{flex-direction:column;align-items:flex-start;gap:0;}
+    .hd h1 .sys{font-size:13px;line-height:1.2;}
+    .hd h1 .fn{font-size:11px;line-height:1.25;}
+    .hd .r1{gap:5px;}
+    .hd .brandLogo img{height:15px!important;}
+    .hd .who .nm{max-width:78px;}
+  }
 
   .hd .who{margin-left:auto;display:none;align-items:center;gap:6px;font-size:12px;color:#cbd5e1;min-width:0;}
 
@@ -408,7 +423,7 @@
 
     <span class="dot"></span>
 
-    <h1>发货进度</h1>
+    <h1><span class="sys">铸运通发货协作系统</span><span class="fn">发货进度</span></h1>
 
     <div class="who" id="who"><span class="nm">操作人 <b id="whoName">—</b></span><button type="button" id="logout">退出</button></div>
 
@@ -661,7 +676,7 @@ const esc = SL.esc;
 
 const POLL_MS = 2000;    // 2026-11-04：0.5s->2s（用户要求统一刷新频率；render 有指纹守卫，内容没变不重绘，戳没变只查戳不费流量）
 let pullingProg = false;  // ★ 2s 轮询：上一轮拉取没回就先跳过，避免并发戳查询 / 重复渲染
-const APP_VER = "20261112b";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 scan 字段同步改
+const APP_VER = "20261112c";   // ★ 本页版本：改动本页内联逻辑必须 bump；ver.json 的 scan 字段同步改
 
 const LITTLE = ["待确认", "货好", "装货中", "已完成"];
 
