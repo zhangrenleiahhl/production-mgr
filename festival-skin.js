@@ -1,5 +1,5 @@
 /* ==========================================================================
- * festival-skin.js  —  海立铸运通生产管理系统 · 中国传统节日皮肤
+ * festival-skin.js  —  铸运通发货协作系统 · 中国传统节日皮肤
  * --------------------------------------------------------------------------
  * 设计口径（2026-11-06）
  *  ① 法定节假日：按国务院办公厅公布的【放假起止日】，假期里【每天】都显示
@@ -956,7 +956,7 @@
             ctx.fillStyle = dark ? 'rgba(238,244,255,.85)' : 'rgba(35,48,71,.75)';   /* ⑤ 落款 */
             ctx.font = Math.max(9, 11*u) + 'px "Microsoft YaHei","PingFang SC",sans-serif';
             ctx.textAlign = 'right';
-            ctx.fillText('海立铸运通 · ' + p.t.n + ' · ' + todayK(), W-16*u, H-14*u);
+            ctx.fillText('铸运通发货协作系统 · ' + p.t.n + ' · ' + todayK(), W-16*u, H-14*u);
             ctx.textAlign = 'left';
             try { ctx.restore(); } catch (e2) {}
             resolve(true);
