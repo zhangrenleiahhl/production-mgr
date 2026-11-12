@@ -1,4 +1,4 @@
-// 铸运通 PWA Service Worker
+// 铸运通发货协作系统 PWA Service Worker
 // 策略：全站 network-first（页面和 JS 都拿最新 —— 2026-09-24 取证：手机端 cache-first 的旧
 //      scan-lib.js 让「质保书/车到」门禁失效，出现没有质保书却点成已完成的单子）；
 //      断网时才回退缓存。跨域（supabase.co 等）一律直接走网络，绝不拦截云同步。
