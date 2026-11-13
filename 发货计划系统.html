@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261112d";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261113a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -5034,7 +5034,7 @@ function sortRowsByDate(){   // 按发货日期升序重新排列数据行（客
 let __fitEpoch=1, __fitSeen=0;
 let _fitDefer=0, _fitSoonPend=0, _fitSoonTas=[];
 
-function invalidateFitCache(){ __fitEpoch++; }
+function invalidateFitCache(){ __fitEpoch++; __fontFitCache.clear(); }
 
 // 「（第二车）」后缀会让客户名一下子长一截：固定宽的格子里放不下就折行，
 
@@ -5044,7 +5044,10 @@ function invalidateFitCache(){ __fitEpoch++; }
 
 // 照旧交给 fitTextarea 折行 —— 宁可折行，绝不裁字。
 
-let __custFsCache=new WeakMap();
+// 字号自适应是 (val, box) 的纯函数（同列 CSS 完全一致，仅依赖文字与可用宽度）。
+// 全局缓存：重复的客户名/型号只测量一次，省掉大量强制重排；视觉等价不受影响。
+const __fontFitCache = new Map();
+const __fontFitKey = (t, box, val) => t + " " + box + " " + val;
 
 const CUST_FS_BASE=14;          // ★ 跟 .tbl td textarea 的 font-size 保持一致
 
@@ -5070,9 +5073,9 @@ function custFontFor(ta){
 
   if(!val || box<=10) return 0;
 
-  const hit=__custFsCache.get(ta);
-
-  if(hit && hit.val===val && hit.box===box) return hit.fs;
+  const __k=__fontFitKey('c', box, val);
+  const __c=__fontFitCache.get(__k);
+  if(__c!==undefined) return __c;
 
   // ★ 先关掉过渡再量：`.tbl td textarea` 上有 `transition:.15s`（focus 边框渐变用的），
 
@@ -5106,7 +5109,7 @@ function custFontFor(ta){
 
   ta.style.transition="";
 
-  __custFsCache.set(ta, { val:val, box:box, fs:out });
+  __fontFitCache.set(__k, out);
 
   return out;
 
@@ -5118,7 +5121,7 @@ function custFontFor(ta){
 
    缩到 ONE_FS_MIN 仍放不下 → 回原字号折行（绝不裁字）。 */
 
-let __oneFsCache=new WeakMap();
+/* 型号/订单号字号缓存已并入 __fontFitCache（按 类型+列宽+文字） */
 
 const ONE_FS_MIN=9;             // 缩到 9px 仍放不下 → 回原字号折行
 
@@ -5130,9 +5133,9 @@ function oneLineFontFor(ta){
 
   if(!val || box<=10) return 0;
 
-  const hit=__oneFsCache.get(ta);
-
-  if(hit && hit.val===val && hit.box===box) return hit.fs;
+  const __k=__fontFitKey('o', box, val);
+  const __c=__fontFitCache.get(__k);
+  if(__c!==undefined) return __c;
 
   ta.style.transition="none";                   // 先关过渡再量（同 custFontFor 的教训）
 
@@ -5160,14 +5163,13 @@ function oneLineFontFor(ta){
 
   ta.style.transition="";
 
-  __oneFsCache.set(ta, { val:val, box:box, fs:out });
+  __fontFitCache.set(__k, out);
 
   return out;
 
 }
 
 function applyOneLineFont(ta){
-
   const fs=oneLineFontFor(ta), v=fs?fs+"px":"";
 
   if(ta.style.fontSize!==v) ta.style.fontSize=v;
