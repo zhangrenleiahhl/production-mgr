@@ -145,13 +145,13 @@
 
   @keyframes sweep{0%{left:-20%}100%{left:120%}}
 
-  .logo{width:clamp(22px,1.9vw,32px);height:clamp(22px,1.9vw,32px);flex:0 0 auto;
+  .logo{width:clamp(20px,1.55vw,28px);height:clamp(20px,1.55vw,28px);flex:0 0 auto;
 
-    border-radius:clamp(6px,.55vw,9px);display:flex;align-items:center;justify-content:center;
+    border-radius:clamp(5px,.5vw,8px);display:flex;align-items:center;justify-content:center;
 
-    font-size:clamp(11px,.95vw,16px);background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
+    font-size:clamp(10px,.82vw,14px);background:linear-gradient(140deg,#38c8d8,#5b8def);color:#04101c;
 
-    box-shadow:0 0 18px rgba(56,200,216,.35);}
+    box-shadow:0 0 14px rgba(56,200,216,.3);}
 
   /* 标题块压成一行：原来标题下面还有一行灰色小字说明 —— 那些话页脚已经全说了，
 
@@ -159,7 +159,7 @@
 
   .tt{flex:0 0 auto;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap;}
 
-  .tt .t{font-size:clamp(12.5px,1vw,17px);font-weight:800;letter-spacing:.6px;white-space:nowrap;}
+  .tt .t{font-size:clamp(12px,.92vw,16px);font-weight:800;letter-spacing:.6px;white-space:nowrap;}
 
   .tt .tag{font-size:clamp(8.5px,.6vw,10.5px);font-weight:800;letter-spacing:.5px;color:#9fe8ff;
 
@@ -169,9 +169,9 @@
 
   /* 醒目提醒：这一屏带送达方名称，只能内部看，别摆到物流门口 */
 
-  .warnbadge{display:flex;flex:0 1 auto;min-width:0;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
+  .warnbadge{display:flex;flex:0 1 auto;min-width:0;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
 
-    font-size:11.5px;font-weight:800;letter-spacing:.6px;white-space:nowrap;overflow:hidden;
+    font-size:10.5px;font-weight:800;letter-spacing:.6px;white-space:nowrap;overflow:hidden;
 
     background:rgba(255,180,84,.14);color:#ffd9a0;border:1px solid rgba(255,180,84,.42);}
 
@@ -179,17 +179,17 @@
 
 
 
-  .kpis{display:flex;gap:clamp(4px,.45vw,9px);flex-wrap:nowrap;margin-left:2px;min-width:0;}
+  .kpis{display:flex;gap:clamp(3px,.38vw,7px);flex-wrap:nowrap;margin-left:2px;min-width:0;}
 
-  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:9px;flex:0 0 auto;
+  .kpi{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;flex:0 0 auto;
 
-    padding:2px clamp(6px,.6vw,12px);min-width:0;position:relative;overflow:hidden;}
+    padding:2px clamp(5px,.5vw,9px);min-width:0;position:relative;overflow:hidden;}
 
   .kpi i{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:.85;}
 
-  .kpi b{display:block;font-size:clamp(14px,1.3vw,22px);font-weight:800;line-height:1.12;white-space:nowrap;}
+  .kpi b{display:block;font-size:clamp(12px,1.02vw,18px);font-weight:800;line-height:1.1;white-space:nowrap;}
 
-  .kpi span{display:block;font-size:clamp(8.5px,.6vw,11px);color:var(--muted);letter-spacing:.4px;white-space:nowrap;}
+  .kpi span{display:block;font-size:clamp(8.5px,.54vw,10px);color:var(--muted);letter-spacing:.4px;white-space:nowrap;}
 
   .kpi.red i{background:var(--red);} .kpi.red b{color:var(--red);}
 
@@ -205,7 +205,7 @@
 
   .ctrl button{background:rgba(34,211,238,.13);border:1px solid rgba(34,211,238,.42);color:var(--txt);
 
-    padding:3px clamp(6px,.7vw,12px);border-radius:8px;font-size:clamp(9.5px,.72vw,12.5px);font-weight:700;
+    padding:2px clamp(5px,.6vw,10px);border-radius:7px;font-size:clamp(9px,.6vw,11px);font-weight:700;
 
     cursor:pointer;font-family:inherit;letter-spacing:.4px;white-space:nowrap;}
 
@@ -215,9 +215,9 @@
 
   .clock{display:flex;flex:0 0 auto;align-items:baseline;gap:clamp(6px,.6vw,11px);white-space:nowrap;}
 
-  .clock b{font-size:clamp(15px,1.42vw,23px);font-weight:800;letter-spacing:1px;line-height:1;}
+  .clock b{font-size:clamp(13px,1.2vw,19px);font-weight:800;letter-spacing:1px;line-height:1;}
 
-  .clock span{font-size:clamp(9px,.62vw,11px);color:var(--dim);letter-spacing:.6px;}
+  .clock span{font-size:clamp(8.5px,.58vw,10px);color:var(--dim);letter-spacing:.6px;}
 
   .sync{letter-spacing:.4px;}
 
@@ -3024,7 +3024,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261113a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261113b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
