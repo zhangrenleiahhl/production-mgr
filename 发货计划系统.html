@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261112b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261112d";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -10618,7 +10618,7 @@ async function pullProg(){
 
 // 推上去后，内部大屏 / 司机页的下一轮拉取就会带上最新状态。
 
-function pushProg(){
+function pushProg(skipRender){
 
   try{ localStorage.setItem(SLB.KEY_PROG, JSON.stringify(PROG)); }catch(e){}
 
@@ -10634,7 +10634,7 @@ function pushProg(){
 
   updateRecProg();
 
-  if (progOpen) renderBoard();
+  if (progOpen && !skipRender) renderBoard();
 
 }
 
@@ -10843,6 +10843,41 @@ function inputToTs(v){
 
 let pbrtTimer = null;
 
+/* ===== 2026-11-12：刷新别把「预约货好时间」的日期选项刷没 =====
+   看板每 5 秒（手动「刷新」、云端回调也一样）会重建整张表；原生日历是绑在
+   input 节点上的，节点一被 innerHTML 冲掉日历立刻关闭，刚选好、还压在 1.2 秒
+   防抖里没落盘的日期也会跟着变回旧值。
+   定稿：① 这个输入框还聚焦着就先不重建 DOM（数据照拉、进度照存）；
+        ② 离开输入框 / 点刷新时先把当前值立即落盘，再补上推迟的那次重建；
+        ③ 焦点真丢了或超时，守卫自动解除，绝不把看板卡死。 */
+let pbDateEdit = null;         // 正在编辑（日历可能开着）的预约时间输入框
+let pbRenderPending = false;   // 编辑期间被推迟的重建
+let pbDateEditAt = 0;          // 兜底：90 秒后自动解除守卫
+
+function pbIsReadyInput(el){
+  return !!(el && el.classList && el.classList.contains("pbrt"));
+}
+function pbEnterDateEdit(inp){
+  if(!pbIsReadyInput(inp)) return;
+  pbDateEdit = inp; pbDateEditAt = Date.now();
+}
+/* 把「当前还没落盘的那半截日期」立刻写进 PROG，不等防抖。
+   skipRender=true 时只落库不重建，避免 renderBoard → commit → pushProg → renderBoard 递归。 */
+function flushReadyCommit(inp, skipRender){
+  clearTimeout(pbrtTimer); pbrtTimer = null;
+  const el = inp || pbDateEdit || (pbIsReadyInput(document.activeElement) ? document.activeElement : null);
+  if(!el || !el.isConnected) return;
+  const v = String(el.value || "");
+  if(v && !/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(v)) return;   // 半截值不落盘
+  commitReadyTime(el, skipRender);
+}
+function pbLeaveDateEdit(inp){
+  if(pbDateEdit && pbDateEdit !== inp) return;
+  flushReadyCommit(inp || pbDateEdit, true);
+  pbDateEdit = null; pbDateEditAt = 0;
+  if(pbRenderPending){ pbRenderPending = false; renderBoard(); }
+}
+
 function findReadyInp(rk, ck){
   const body = $("pbBody"); if(!body) return null;
   return Array.prototype.filter.call(body.querySelectorAll("input.pbrt"), function(x){
@@ -10850,20 +10885,20 @@ function findReadyInp(rk, ck){
   })[0] || null;
 }
 
-function commitReadyTime(inp){
+function commitReadyTime(inp, skipRender){
   if(!inp || !SLB) return;
   const rk = inp.getAttribute("data-rk"), ck = inp.getAttribute("data-ck");
   const cust = inp.getAttribute("data-cust") || "该客户";
   const ts = inputToTs(inp.value);
   if (!ts){
     const r0 = SLB.applyReadyAt(PROG, rk, ck, 0, "");
-    pushProg();
+    pushProg(skipRender);
     if(!r0 || r0.changed !== false) toast("已清空【" + cust + "】的预约货好时间");
     return;
   }
   const r = SLB.applyReadyAt(PROG, rk, ck, ts, "");
   if (r && r.changed === false) return;   // 值没变：不重复推、不重复弹（input 防抖路径靠它去重）
-  pushProg();
+  pushProg(skipRender);
   toast("【" + cust + "】预约货好时间 " + SLB.fmtHM(ts) +
     (ts <= Date.now() ? "（时间已过，直接算货已好）" : "（到点自动变成货已好）"));
 }
@@ -10964,9 +10999,21 @@ function renderBoard(){
 
   if(!body) return;
 
+  /* ★ 2026-11-12：日历开着时绝不重建整张表（详见上方「刷新别把日期选项刷没」）。
+     焦点还在这个输入框上 → 只记一次「待补渲染」，本次直接返回；数据仍由 pullProg
+     拉回来并写进 PROG，等输入框失焦 / 点刷新时会先落盘再补渲染。 */
+  if(pbDateEdit){
+    if(!pbDateEdit.isConnected || document.activeElement !== pbDateEdit || Date.now() - pbDateEditAt >= 90000){
+      flushReadyCommit(pbDateEdit, true);      // 焦点已丢 / 超时：先保住刚选的日期
+      pbDateEdit = null; pbDateEditAt = 0; pbRenderPending = false;
+    } else {
+      pbRenderPending = true; return;
+    }
+  }
+
   /* 10 秒自动刷新会重建整张表：正在编辑的「预约货好时间」输入框要保住
 
-     （不保的话计划员选到一半就会被刷掉、日历也会被弹关）。 */
+     （守卫失效时的兜底：把值填回重建后的输入框）。 */
 
   const act = document.activeElement;
 
@@ -11222,6 +11269,8 @@ function openBoard(){
 
   m.style.display = "flex";
 
+  pbDateEdit = null; pbRenderPending = false;   // 重新打开：旧弹层的编辑态作废
+
   pbPFTouched = false;   // 重新打开弹窗 → 回到默认（只看自己）
 
   progOpen = true;
@@ -11252,7 +11301,10 @@ function closeBoard(){
 
   const m = $("progBoard");
 
+  flushReadyCommit(null, true);     // 关之前把还没落盘的日期存下来
   if(m) m.style.display = "none";
+
+  pbDateEdit = null; pbRenderPending = false;
 
   progOpen = false;
 
@@ -11284,6 +11336,8 @@ function bootProg(){
   const r = $("pbRefresh");
 
   if(r) r.onclick = function(){
+
+    flushReadyCommit(null, true);   // ★ 点刷新前先把刚选好的日期立即落盘
 
     $("pbSync").textContent = "正在刷新…";
 
@@ -11360,6 +11414,19 @@ function bootProg(){
   // 发货进度看板里的「车辆取消 / 撤销」：点按钮 → 页面自绘确认弹窗 → 确定后写进度并推云端
 
   const pbBody = $("pbBody");
+
+  /* ★ 2026-11-12：记住「正在选预约日期」的那个输入框。
+     原生日历弹层里点日期时焦点可能瞬间离开又回来（relatedTarget=null），
+     所以 focusout 不马上解除，等一拍看焦点是不是还在这个 input 上。 */
+  if (pbBody) pbBody.addEventListener("focusin", function(e){ pbEnterDateEdit(e.target); }, true);
+  if (pbBody) pbBody.addEventListener("focusout", function(e){
+    const inp = e.target;
+    if(!pbIsReadyInput(inp)) return;
+    setTimeout(function(){
+      if(inp.isConnected && document.activeElement === inp) return;
+      pbLeaveDateEdit(inp);
+    }, 0);
+  }, true);
 
   if (pbBody) pbBody.addEventListener("click", function(e){
 
@@ -11491,6 +11558,7 @@ function bootProg(){
 
     if (!inp || !inp.classList || !inp.classList.contains("pbrt")) return;
 
+    pbEnterDateEdit(inp);   // 有些浏览器点日历图标不一定先触发 focusin
     scheduleReadyCommit(inp);
 
   });
