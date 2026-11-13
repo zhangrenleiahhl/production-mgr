@@ -157,11 +157,9 @@
 
      挤在头上只会多占一行（窄屏就更明显）。整句说明挪到 title，鼠标放上去还能看全。 */
 
-  .tt{flex:0 1 auto;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap;}
+  .tt{flex:0 0 auto;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap;}
 
-  .tt .t{font-size:clamp(12.5px,1vw,17px);font-weight:800;letter-spacing:.6px;white-space:nowrap;
-
-    overflow:hidden;text-overflow:ellipsis;}
+  .tt .t{font-size:clamp(12.5px,1vw,17px);font-weight:800;letter-spacing:.6px;white-space:nowrap;}
 
   .tt .tag{font-size:clamp(8.5px,.6vw,10.5px);font-weight:800;letter-spacing:.5px;color:#9fe8ff;
 
@@ -171,11 +169,13 @@
 
   /* 醒目提醒：这一屏带送达方名称，只能内部看，别摆到物流门口 */
 
-  .warnbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
+  .warnbadge{display:flex;flex:0 1 auto;min-width:0;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
 
-    font-size:11.5px;font-weight:800;letter-spacing:.6px;white-space:nowrap;
+    font-size:11.5px;font-weight:800;letter-spacing:.6px;white-space:nowrap;overflow:hidden;
 
     background:rgba(255,180,84,.14);color:#ffd9a0;border:1px solid rgba(255,180,84,.42);}
+
+  .warnbadge .wb-text{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 
 
@@ -953,7 +953,7 @@ body.mb thead th{font-size:calc(9px * var(--z,1));}
 
     </div>
 
-    <div class="warnbadge" title="本屏含送达方名称与物流，只给内部看，请勿摆到物流门口（物流门口请用「物流门口大屏.html」保密版）">⚠ 含送达方名称 · 勿摆门口</div>
+    <div class="warnbadge" title="本屏含送达方名称与物流，只给内部看，请勿摆到物流门口（物流门口请用「物流门口大屏.html」保密版）">⚠ <span class="wb-text">含送达方名称 · 勿摆门口</span></div>
 
     <div class="kpis" id="kpis"></div>
 
@@ -3024,7 +3024,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261112b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261113a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
