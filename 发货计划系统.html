@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261113a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261115a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -3441,7 +3441,7 @@ function applyDb(row, r){
 
   ensureLogistics(row);                                                          // 该条物料本身没写物流 → 按客户兜底再带一次
 
-  recalc(); mergeCustomerCells(); fitTextareas(); toast("已带出："+(r.model||r.code));
+  recalc(); mergeCustomerCells(); toast("已带出："+(r.model||r.code));  /* ★ 2026-11-14：mergeCustomerCells 内部已做全表 fitTextareas，删掉紧随的重复测高 */
 
   // 一个型号发多个客户：带出后提示用户确认/修改
 
@@ -4631,7 +4631,7 @@ function addRow(data={}, refRow=null, beforeRow=null, skipRefresh=false){
 
     inp.addEventListener("input", ()=>showAC(inp, tr, true));                       // 主动输入：允许 Enter/Tab 填入选中项
 
-    inp.addEventListener("change", ()=>{ fillDbFieldsForRow(tr); scheduleRefresh(recalc, mergeCustomerCells, saveDraft); autoFillCustomerByModel(tr); });   // ★ 失焦先按物料库刷新单重/编码/物流（查不到则清残留单重）→ 立即重算 → 再带送达方
+    inp.addEventListener("change", ()=>{ fillDbFieldsForRow(tr); scheduleRefresh(recalcLite, scheduleMerge, saveDraft); autoFillCustomerByModel(tr); });  /* ★ 2026-11-14 编辑提速：型号变化不改发货日期分组，无需全量 foldByDate；客户合并交给 120ms 防抖（与 input 路径口径一致），避免回车确认连锁跑 2 轮全表折叠+合并+测高 */   // ★ 失焦先按物料库刷新单重/编码/物流（查不到则清残留单重）→ 立即重算 → 再带送达方
 
   });
 
