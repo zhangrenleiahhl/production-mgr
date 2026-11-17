@@ -695,7 +695,7 @@ var ALMANAC = {
     var _p = ALM_CODE[_ai].split('|'); ALM_MAP[_p[0]] = _p[1];
   }
 
-  /* ---------- 顶栏每日语录：节日/节气祝语优先，平日显示农历宜忌 ----------
+  /* ---------- 顶栏每日语录：节日/节气祝语优先，平日显示农历日期 ----------
    * ★ 由 apply() 调用，页面只要放一个 <div class="fs-note"></div> 即可自动填充；
    *   没有这个元素时零开销、零副作用（其它 16 个页面完全不受影响）。
    * ★ 返回结构 { kind:'festive'|'plain', name, text }，外部也可直接调 dailyNote() 取用。
@@ -724,16 +724,9 @@ var ALMANAC = {
     if (p && p.t) {
       return { kind: 'festive', name: p.t.n || '', text: p.t.w || '' };
     }
-    /* 平日：当天农历宜忌 */
-    var mm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k);
-    if (mm) {
-      var a = almanacOf(+mm[1], +mm[2], +mm[3]);
-      if (a && (a.yi.length || a.ji.length)) {
-        return { kind: 'plain', name: '', text:
-          '宜 ' + (a.yi.slice(0, 2).join(' ') || '—') + '　忌 ' + (a.ji.slice(0, 2).join(' ') || '—') };
-      }
-    }
-    return { kind: 'plain', name: '', text: '' };
+    /* 平日：当天农历日期（如「农历十月初一」）——短，不挤压 KPI 数字 */
+    var lt = lunarText(k);
+    return { kind: 'plain', name: '', text: lt ? ('农历' + lt) : '' };
   }
   function syncNote(p, k) {
     try {
