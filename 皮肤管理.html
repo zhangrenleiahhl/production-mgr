@@ -22,6 +22,9 @@
   .strength{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#64748b;margin-left:2px}
   .sbtn{height:28px;padding:0 10px;font-size:12px}
   .sbtn.on{background:#1f6feb;color:#fff;border-color:#1f6feb;font-weight:700;box-shadow:0 3px 10px rgba(31,111,235,.25)}
+  .alpha{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#64748b;margin-left:2px}
+  .alpha input[type=range]{width:112px;height:22px;accent-color:#1f6feb;cursor:pointer}
+  .alpha b{min-width:34px;color:#1f6feb;font-variant-numeric:tabular-nums}
   .msg{min-height:18px;font-size:12px;color:#0f7b4f;margin-bottom:4px}
   .msg.warn{color:#b45309}.msg.err{color:#dc2626}
   h2{font-size:13px;color:#64748b;margin:18px 0 8px;letter-spacing:.3px}
@@ -43,7 +46,7 @@
   .deny{padding:56px 20px;text-align:center;color:#94a3b8;background:#fff;border:1px solid #e6eaf0;border-radius:14px;line-height:2}
   .deny b{color:#dc2626}
 </style>
-<script src="festival-skin.js?v=20261106a&h=6fd877b2" defer></script>
+<script src="festival-skin.js?v=20261106a&h=3c135f7f" defer></script>
 </head>
 <body>
 
@@ -70,6 +73,11 @@
     <button class="sbtn" data-s="normal">标准</button>
     <button class="sbtn" data-s="strong">醒目</button>
   </span>
+  <span class="alpha" id="alphaBox">透明度：
+    <input type="range" id="alphaRange" min="10" max="100" step="5" value="100" title="往左拖更淡，100% 是原来的样子">
+    <b id="alphaVal">100%</b>
+    <button class="sbtn" id="alphaApply" title="把当前透明度应用到全站所有电脑与大屏">☁ 应用全站</button>
+  </span>
   <span class="me" id="me"></span>
 </div>
 <div id="msg" class="msg"></div>
@@ -87,6 +95,10 @@
     ③ <b>全站指定</b>：点「应用到全站」后保存到云端，公司所有电脑与大屏都会换上，页面开着时最多 5 分钟自动生效，也可在别的电脑点「重新读取云端」立刻生效。<br>
     <b>恢复自动</b>会同时取消全站指定和本机试穿，回到 ①。所有页面右下角的皮肤徽章里也有本页入口（仅管理员看得到）。<br>
     <b>浓度</b>：默认「标准」会让节日配色明显上到页面四边与顶栏；嫌淡选「醒目」，嫌花选「淡雅」，本机所有页面同步。<br>
+    <b>透明度</b>（2026-11-17 新增）：拖滑块把<b>整套节日装饰</b>（彩条、四边柔光、底色、线稿、插画背景）一起调淡，
+    <b>100% 就是原来的样子</b>，往左拖更淡；右下角小徽章、左下角贺卡、预览面板始终清晰，不影响点按。
+    拖动只在这台电脑立即生效；点旁边的「☁ 应用全站」才推给所有电脑与大屏（最多 5 分钟自动生效）。
+    大屏「📷 截图」导出的 PNG 也会跟着同样的透明度。<br>
     <b>插画背景</b>：当天那张<b>高清国风插画</b>以接近原生尺寸落在页面右下，画面清楚精致；★ 2026-11-08 二次反馈「还是挡字了」后，<b>默认关闭</b>——业务页上方约 2/3（顶栏与表格数据区）原本就完全不铺插画，但表格会一直延伸到底部，所以连底部那一条也默认收掉，顶栏与表格数据区自动压淡，保证数字与文字清楚、绝不挡字。想看高清插画：点工具栏「🖼 插画背景」临时打开（本机记忆），或看页面左下角贺卡、本页 37 张插画卡片。<br>
     <b>整页覆盖</b>：插画背景（含<b>左侧镜像淡插画</b>）默认收起后，整页节日感由<b>全页极淡节日底色</b>＋顶部彩条＋专属线稿＋右下角小圆章承载，应用到全站后整页（含左边与上半部）都有皮肤；中央表格数据区不铺任何插画线条，只留极淡底色。右下角节日徽章也已收成 30px 小圆章，鼠标移上或点开才展开，不再压住最后几行数据。<br>
     <b>图案与插画</b>：37 个节日/节气各有<b>一套专属线稿图案</b>和<b>一张国风插画</b>；其它页面左下角放大版贺卡与页面背景共用同一张高清插画，点它可看大图，点 × 可隐藏（本机记忆）。本页 37 张缩略图走小图省流量，会自动收起贺卡以免盖住卡片；大屏「📷 截图」导出的 PNG 也用同一套高清图与透明度。<br>
@@ -161,9 +173,14 @@
 
   function syncStrength() {
     var cur = (F && F.strength && F.strength()) || 'normal';
-    var list = document.querySelectorAll('.sbtn');
+    var list = document.querySelectorAll('.sbtn[data-s]');
     for (var i = 0; i < list.length; i++)
       list[i].className = 'sbtn' + (list[i].getAttribute('data-s') === cur ? ' on' : '');
+  }
+  function alphaOf() { return (F && F.alpha && F.alpha()) || 100; }
+  function syncAlpha() {
+    var r = $('alphaRange'), v = $('alphaVal'); if (!r || !v) return;
+    r.value = alphaOf(); v.textContent = alphaOf() + '%';
   }
 
   function status() {
@@ -252,6 +269,25 @@
       syncStrength();
       show('🎨 皮肤浓度已设为「' + b.textContent + '」，这台电脑的所有页面同步生效。');
     });
+    $('alphaRange').addEventListener('input', function () {
+      var v = parseInt(this.value, 10); if (isNaN(v)) return;
+      if (F.setAlpha) F.setAlpha(v);
+      $('alphaVal').textContent = v + '%';
+      show('🔧 透明度已调到 ' + v + '%（仅这台电脑立即生效；要全站请点旁边的「☁ 应用全站」）。');
+    });
+    $('alphaApply').onclick = function () {
+      var v = alphaOf(), CS = cloudReady();
+      if (!CS) { show('⚠ 云端暂时连不上，透明度已在这台电脑生效；联网后再点一次「☁ 应用全站」。', 'warn'); return; }
+      try {
+        var r = CS.push(F.cloudAlphaKey, v);
+        var done = function (ok) {
+          show(ok ? ('☁ 透明度 ' + v + '% 已应用到全站，所有电脑与大屏最多 5 分钟生效。')
+                  : ('⚠ 云端暂时没写入，透明度已在这台电脑生效；联网后再点一次。'), ok ? '' : 'warn');
+        };
+        if (r && typeof r.then === 'function') r.then(function (x) { done(!!x); }, function () { done(false); });
+        else done(!!r);
+      } catch (e) { show('⚠ 云端暂时不可用，透明度已在这台电脑生效。', 'warn'); }
+    };
     $('cardBtn').onclick = function () {
       if (!F.setCardVisible) return;
       F.setCardVisible(!F.cardVisible());
@@ -283,9 +319,9 @@
     };
 
     /* 徽章 × / 一键开启等状态变化，立即重算状态栏 */
-    document.addEventListener('fschange', function () { status(); mark(); syncStrength(); syncCardBtn(); syncBgBtn(); });
+    document.addEventListener('fschange', function () { status(); mark(); syncStrength(); syncAlpha(); syncCardBtn(); syncBgBtn(); });
     /* 打开页面时先按本机缓存显示，再悄悄校对一次云端 */
-    status(); mark(); syncStrength(); syncCardBtn(); syncBgBtn();
+    status(); mark(); syncStrength(); syncAlpha(); syncCardBtn(); syncBgBtn();
     F.syncCloud(function () { status(); mark(); });
   }
 
