@@ -18,6 +18,7 @@
  *  ?festival=chunjie   强制预览某个皮肤（id 见 THEMES）；?festival=auto 取消
  *  ?fs=off / on        关闭 / 重新打开皮肤（记忆在 localStorage）
  *  ?fs=soft/normal/strong   皮肤浓度（默认 normal；皮肤管理页可切换并记忆）
+ *  ?fsa=0-100              装饰层透明度（默认 100＝现状；临时预览，不写盘）
  *  点击徽章文字       展开「节日/节气预览面板」，点任一格立即试穿
  * ========================================================================== */
 (function () {
@@ -30,6 +31,8 @@
   var KEY_CARD = 'festival_skin_card_off_v1';        // 左下角节日插画贺卡是否隐藏
   var KEY_BG = 'festival_skin_bg_off_v1';            // 旧键：历史「隐藏」标记（兼容）
   var KEY_BG_ON = 'festival_skin_bg_on_v1';          // ★ 默认关闭插画背景，只有显式打开才铺
+  var KEY_ALPHA = 'festival_skin_alpha_v1';          // 装饰层透明度 0-100（默认 100＝现状，本机记忆）
+  var CLOUD_ALPHA_KEY = 'festival_skin_alpha_v1';    // 全站透明度独立键（与皮肤 override 解耦）
   var KEY_OVR = 'festival_skin_override_local_v1';   // 本机缓存（同源所有标签页共享）
   var CLOUD_KEY = 'festival_skin_override_v1';        // 云端 app_data 键（全站统一皮肤）
 
@@ -446,7 +449,14 @@
     '  .fs-root{position:absolute;}.fs-bar{height:6px;opacity:1;box-shadow:none;}',
     '  .fs-card{opacity:1;box-shadow:none;border:1px solid #ccc;pointer-events:none;}',
     '}',
-    '@media (prefers-reduced-motion:reduce){.fs-bar{animation:none;}}'
+    '@media (prefers-reduced-motion:reduce){.fs-bar{animation:none;}}',
+    /* ★ 2026-11-17 透明度：只在非 100% 时由 apply() 给 html 加 data-fs-alpha；
+       filter:opacity 是乘性的，与上面各档 opacity 声明叠加，无需改动任何既有规则。
+       默认 100% 时本规则完全不生效＝视觉逐像素等价；
+       徽章/贺卡/面板/恢复按钮/灯箱不在列表内，保持清晰不影响操作。 */
+    'html[data-fs-alpha] .fs-wash,html[data-fs-alpha] .fs-bg,html[data-fs-alpha] .fs-bg2,',
+    'html[data-fs-alpha] .fs-bar,html[data-fs-alpha] .fs-tint,html[data-fs-alpha] .fs-deco,',
+    'html[data-fs-alpha] .fs-wm{filter:opacity(var(--fs-a,1));}'
   ].join('\n');
 
   var CLOUD_SVG = '<svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg">' +
@@ -555,6 +565,15 @@
       var wanted = (o && o.id && o.id !== 'auto' && THEMES[o.id]) ? JSON.stringify(o) : '';
       var changed = wanted !== (lsGet(KEY_OVR) || '');
       if (changed) writeOverride(o);      /* 不清会话预览：管理员试穿时不被云端打断 */
+      /* ★ 2026-11-17 透明度独立键：自动模式下也能单独跟随全站；失败静默，不影响皮肤同步 */
+      try {
+        var pa = CS.pullResult(CLOUD_ALPHA_KEY);
+        if (pa && typeof pa.then === 'function') pa.then(function (ra) {
+          if (!ra || !ra.ok || ra.value == null) return;
+          var av = typeof ra.value === 'string' ? parseInt(ra.value, 10) : ra.value;
+          if (typeof av === 'number' && av >= 0 && av <= 100 && av !== alpha()) setAlpha(av, true);
+        }, function () {});
+      } catch (e) {}
       if (done) done(changed);
     }, function () { if (done) done(false); });
   }
@@ -652,6 +671,10 @@
     h.setAttribute('data-fs-level', p ? p.level : 'calm');
     h.setAttribute('data-fs-dark', isDark() ? '1' : '0');
     h.setAttribute('data-fs-strength', strength());
+    /* ★ 透明度：100% 时两个都不设，装饰层走原规则零差异 */
+    var av = alpha();
+    if (av < 100) { h.setAttribute('data-fs-alpha', '1'); h.style.setProperty('--fs-a', String(av / 100)); }
+    else { try { h.removeAttribute('data-fs-alpha'); h.style.removeProperty('--fs-a'); } catch (e) {} }
     root.style.display = '';   /* 关闭态也留着 root：里面藏着「开启皮肤」按钮 */
     if (!p) {
       /* 非节日：撤掉全部节日装饰，只留一枚低调的中性徽章当试穿入口，
@@ -728,6 +751,20 @@
     if (v === 'soft' || v === 'strong') lsSet(KEY_STRENGTH, v);
     else lsDel(KEY_STRENGTH);
     lastKey = ''; refresh(true); notify();
+  }
+  /* ---------- 装饰层透明度（2026-11-17，100＝现状） ---------- */
+  function alpha() {
+    var q = parseInt(qs('fsa'), 10);                       /* ?fsa=60 临时预览，不写盘 */
+    if (!isNaN(q) && q >= 0 && q <= 100) return q;
+    var v = parseInt(lsGet(KEY_ALPHA), 10);
+    return (isNaN(v) || v < 0 || v > 100) ? 100 : v;
+  }
+  function setAlpha(v, quiet) {
+    var n = parseInt(v, 10);
+    /* 非法值直接忽略（保持原值），不把 -5 夹成 0——0% 等于关掉整套皮肤，不是「调淡」 */
+    if (isNaN(n) || n < 0 || n > 100) return;
+    if (n === 100) lsDel(KEY_ALPHA); else lsSet(KEY_ALPHA, String(n));
+    lastKey = ''; refresh(true); if (!quiet) notify();
   }
 
   /* ---------- 节日插画贺卡（按需只加载当天那一张） ---------- */
@@ -869,6 +906,7 @@
            否则四边柔光会把整张图染成一块色、图案与落款溢出画布。 */
         var u = s * Math.min(1, H / (360 * s));
         var dark = !!opts.dark, c1 = p.t.c1, c2 = p.t.c2;
+        var aMul = alpha() / 100;   /* ★ 与页面 filter:opacity 同倍数，导出图装饰同步淡化 */
         var topGlow = Math.min(130*u, H*0.18), botGlow = Math.min(100*u, H*0.14);
         var svg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(patternSVG(p.id, c1));
         /* 初始化失败也要把最外层 save 还回去 */
@@ -881,7 +919,7 @@
                              : (stgW === 'strong' ? .09 : stgW === 'soft' ? .03 : .055);
             var wg = ctx.createLinearGradient(0, 0, W, H);
             wg.addColorStop(0, c1); wg.addColorStop(.55, c2); wg.addColorStop(1, c1);
-            ctx.save(); ctx.globalAlpha = washA; ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H); ctx.restore();
+            ctx.save(); ctx.globalAlpha = washA * aMul; ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H); ctx.restore();
             /* ⓪ 插画背景：★ 与页面 .fs-bg 用同一套参数（同一张高清图、右下原生
                尺寸、同一档透明度、同一条「底部渐入」遮罩），导出 PNG 才和页面一致，
                且同样不会压住表格数据区。 */
@@ -907,7 +945,7 @@
                 tc.globalCompositeOperation = 'destination-in';
                 tc.fillStyle = vg;
                 tc.fillRect(0, 0, W, H);
-                ctx.save(); ctx.globalAlpha = bgA; ctx.drawImage(tmp, 0, 0); ctx.restore();
+                ctx.save(); ctx.globalAlpha = bgA * aMul; ctx.drawImage(tmp, 0, 0); ctx.restore();
                 /* ⓪-b 左侧镜像淡插画：与页面 .fs-bg2 同参数（scaleX(-1) → 左下） */
                 var tmp2 = document.createElement('canvas');
                 tmp2.width = W; tmp2.height = H;
@@ -924,16 +962,17 @@
                   t2.fillStyle = vg2;
                   t2.fillRect(0, 0, W, H);
                   ctx.save();
-                  ctx.globalAlpha = dark ? (stg === 'strong' ? .14 : stg === 'soft' ? .05 : .09)
-                                         : (stg === 'strong' ? .22 : stg === 'soft' ? .075 : .14);
+                  ctx.globalAlpha = (dark ? (stg === 'strong' ? .14 : stg === 'soft' ? .05 : .09)
+                                         : (stg === 'strong' ? .22 : stg === 'soft' ? .075 : .14)) * aMul;
                   ctx.drawImage(tmp2, 0, 0); ctx.restore();
                 }
               }
             }
             var g = ctx.createLinearGradient(0, 0, W, 0);
             g.addColorStop(0, c1); g.addColorStop(.5, c2); g.addColorStop(1, c1);
-            ctx.fillStyle = g; ctx.fillRect(0, 0, W, 9*u);              /* ① 顶部彩条 */
-            var al = dark ? .11 : .16;                                    /* ② 四边柔光 */
+            ctx.save(); ctx.globalAlpha = aMul;                            /* ① 顶部彩条：随透明度淡化 */
+            ctx.fillStyle = g; ctx.fillRect(0, 0, W, 9*u); ctx.restore();
+            var al = (dark ? .11 : .16) * aMul;                            /* ② 四边柔光 */
             var gt = ctx.createLinearGradient(0, 0, 0, topGlow);
             gt.addColorStop(0, rgba(c1, al)); gt.addColorStop(1, rgba(c1, 0));
             ctx.fillStyle = gt; ctx.fillRect(0, 0, W, topGlow);
@@ -947,7 +986,7 @@
             gr.addColorStop(0, rgba(c2, al)); gr.addColorStop(1, rgba(c2, 0));
             ctx.fillStyle = gr; ctx.fillRect(W-28*u, 0, 28*u, H);
             if (pat && H > 150*u) {                                       /* ③ 专属线稿 */
-              ctx.save(); ctx.globalAlpha = dark ? .5 : .34;
+              ctx.save(); ctx.globalAlpha = (dark ? .5 : .34) * aMul;
               ctx.drawImage(pat, W-190*u, 16*u, 170*u, 119*u); ctx.restore();
             }
             /* ④ 左下角插画贺卡：★ 导出 PNG 不再绘制（用户口径 2026-11-08）。
@@ -1006,7 +1045,7 @@
       document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
       window.addEventListener('focus', function () { refresh(false); });
       window.addEventListener('storage', function (ev) {
-        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH || ev.key === KEY_CARD || ev.key === KEY_BG || ev.key === KEY_BG_ON)) { lastKey = ''; refresh(true); }
+        if (ev && (ev.key === KEY_OVR || ev.key === KEY_OFF || ev.key === KEY_STRENGTH || ev.key === KEY_CARD || ev.key === KEY_BG || ev.key === KEY_BG_ON || ev.key === KEY_ALPHA)) { lastKey = ''; refresh(true); }
       });
     } catch (e) {}
   }
@@ -1017,6 +1056,7 @@
     holidays: HOLIDAYS, lunarFest: LUNAR_FEST, termTable: TERM_TABLE,
     pick: pick, apply: apply, refresh: refresh, turnOff: turnOff,
     turnOn: turnOn, isOff: isOff, strength: strength, setStrength: setStrength,
+    alpha: alpha, setAlpha: setAlpha, cloudAlphaKey: CLOUD_ALPHA_KEY,
     motifs: MOTIFS, patternSVG: patternSVG, artUrl: artUrl, artUrlHD: artUrlHD,
     cardVisible: cardVisible, setCardVisible: setCardVisible,
     bgVisible: bgVisible, setBgVisible: setBgVisible,
