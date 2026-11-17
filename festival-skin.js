@@ -461,13 +461,13 @@
        追加高特异性 !important 覆盖既有档位/深浅声明（那些串被守护测试写死，保持不动）；
        data-fs=off/none 与打印的 display:none!important 规则在本组之前声明，优先级相同但先出现，
        由于本组不动 display，隐藏逻辑不受影响。 */
-    '.fs-bg,.fs-bg2{-webkit-mask-image:none!important;mask-image:none!important;background-size:cover!important;background-position:center center!important;}',
+    /* ★ 2026-11-17 去镜像重影：全屏 cover 只作用于主图 .fs-bg；
+       .fs-bg2 原本是 scaleX(-1) 的左下镜像点缀，若一起 cover 会整屏叠出对称重影 → 直接隐藏（元素保留供开关逻辑兼容）。 */
+    '.fs-bg{-webkit-mask-image:none!important;mask-image:none!important;background-size:cover!important;background-position:center center!important;}',
+    '.fs-bg2{display:none!important;}',
     'html[data-fs-strength="soft"] .fs-bg{opacity:.34!important;}',
     'html[data-fs-strength="normal"] .fs-bg{opacity:.48!important;}',
     'html[data-fs-strength="strong"] .fs-bg{opacity:.58!important;}',
-    'html[data-fs-strength="soft"] .fs-bg2{opacity:.18!important;}',
-    'html[data-fs-strength="normal"] .fs-bg2{opacity:.26!important;}',
-    'html[data-fs-strength="strong"] .fs-bg2{opacity:.34!important;}',
     'html[data-fs-strength="soft"] .fs-wash{opacity:.07!important;}',
     'html[data-fs-strength="normal"] .fs-wash{opacity:.11!important;}',
     'html[data-fs-strength="strong"] .fs-wash{opacity:.16!important;}'
@@ -959,25 +959,8 @@
                 tc.fillStyle = vg;
                 tc.fillRect(0, 0, W, H);
                 ctx.save(); ctx.globalAlpha = bgA * aMul; ctx.drawImage(tmp, 0, 0); ctx.restore();
-                /* ⓪-b 左侧镜像淡插画：与页面 .fs-bg2 同参数（scaleX(-1) → 左下） */
-                var tmp2 = document.createElement('canvas');
-                tmp2.width = W; tmp2.height = H;
-                var t2 = tmp2.getContext('2d');
-                if (t2) {
-                  t2.save(); t2.translate(W, 0); t2.scale(-1, 1);
-                  t2.drawImage(art, bx, by, bw, bh); t2.restore();
-                  var vg2 = t2.createLinearGradient(0, 0, 0, H);
-                  vg2.addColorStop(0, 'rgba(0,0,0,1)');
-                  vg2.addColorStop(.70, 'rgba(0,0,0,1)');
-                  vg2.addColorStop(.80, 'rgba(0,0,0,1)');
-                  vg2.addColorStop(1, 'rgba(0,0,0,1)');
-                  t2.globalCompositeOperation = 'destination-in';
-                  t2.fillStyle = vg2;
-                  t2.fillRect(0, 0, W, H);
-                  ctx.save();
-                  ctx.globalAlpha = (stg === 'strong' ? .34 : stg === 'soft' ? .18 : .26) * aMul;   /* ★ 2026-11-17 镜像层提亮 */
-                  ctx.drawImage(tmp2, 0, 0); ctx.restore();
-                }
+                /* ★ 2026-11-17 去镜像重影：不再绘制 scaleX(-1) 镜像层，
+                   导出 PNG 与页面一样只有一张全屏主图，左右不再对称重复。 */
               }
             }
             var g = ctx.createLinearGradient(0, 0, W, 0);
