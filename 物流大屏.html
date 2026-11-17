@@ -200,6 +200,15 @@
 
 
   .spacer{flex:1 1 auto;min-width:0;}
+  /* 顶栏每日语录：节日显示祝福、平日显示当天农历宜忌（2026-11-17） */
+  .fs-note{flex:0 1 auto;min-width:0;max-width:clamp(120px,19vw,340px);
+    padding:3px 9px;border-radius:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-size:clamp(10px,.72vw,13px);line-height:1.25;letter-spacing:.2px;
+    color:var(--amber);background:rgba(255,180,84,.07);border:1px solid rgba(255,180,84,.18);}
+  .fs-note[data-kind="plain"]{color:#c6d4e8;background:rgba(148,163,184,.06);border-color:rgba(148,163,184,.14);}
+  body.fs .fs-note{font-size:clamp(11px,.95vw,17px);}
+  body.mb .fs-note{max-width:22vw;font-size:9px;padding:1px 4px;}
+
 
   .ctrl{display:flex;flex:0 0 auto;align-items:center;gap:6px;}
 
@@ -932,7 +941,7 @@ thead th{font-size:calc(12.5px * var(--z,1));}
 body.mb thead th{font-size:calc(9px * var(--z,1));}
 </style>
 
-  <script src="festival-skin.js?v=20261106a&h=abc356fb" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=8afc4954" defer></script>
 </head>
 
 <body>
@@ -956,6 +965,8 @@ body.mb thead th{font-size:calc(9px * var(--z,1));}
     <div class="warnbadge" title="本屏含送达方名称与物流，只给内部看，请勿摆到物流门口（物流门口请用「物流门口大屏.html」保密版）">⚠ <span class="wb-text">含送达方名称 · 勿摆门口</span></div>
 
     <div class="kpis" id="kpis"></div>
+
+    <div class="fs-note" title="节日显示祝福，平日显示当天农历宜忌"></div>
 
     <div class="spacer"></div>
 
