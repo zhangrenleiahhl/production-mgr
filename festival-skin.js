@@ -456,7 +456,21 @@
        徽章/贺卡/面板/恢复按钮/灯箱不在列表内，保持清晰不影响操作。 */
     'html[data-fs-alpha] .fs-wash,html[data-fs-alpha] .fs-bg,html[data-fs-alpha] .fs-bg2,',
     'html[data-fs-alpha] .fs-bar,html[data-fs-alpha] .fs-tint,html[data-fs-alpha] .fs-deco,',
-    'html[data-fs-alpha] .fs-wm{filter:opacity(var(--fs-a,1));}'
+    'html[data-fs-alpha] .fs-wm{filter:opacity(var(--fs-a,1));}',
+    /* ★ 2026-11-17 用户口径：插画全屏铺开 + 插画与底色一起提亮。
+       追加高特异性 !important 覆盖既有档位/深浅声明（那些串被守护测试写死，保持不动）；
+       data-fs=off/none 与打印的 display:none!important 规则在本组之前声明，优先级相同但先出现，
+       由于本组不动 display，隐藏逻辑不受影响。 */
+    '.fs-bg,.fs-bg2{-webkit-mask-image:none!important;mask-image:none!important;background-size:cover!important;background-position:center center!important;}',
+    'html[data-fs-strength="soft"] .fs-bg{opacity:.34!important;}',
+    'html[data-fs-strength="normal"] .fs-bg{opacity:.48!important;}',
+    'html[data-fs-strength="strong"] .fs-bg{opacity:.58!important;}',
+    'html[data-fs-strength="soft"] .fs-bg2{opacity:.18!important;}',
+    'html[data-fs-strength="normal"] .fs-bg2{opacity:.26!important;}',
+    'html[data-fs-strength="strong"] .fs-bg2{opacity:.34!important;}',
+    'html[data-fs-strength="soft"] .fs-wash{opacity:.07!important;}',
+    'html[data-fs-strength="normal"] .fs-wash{opacity:.11!important;}',
+    'html[data-fs-strength="strong"] .fs-wash{opacity:.16!important;}'
   ].join('\n');
 
   var CLOUD_SVG = '<svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg">' +
@@ -814,7 +828,7 @@
   /* ---------- 全页插画背景（与贺卡共用同一张图、同一份缓存） ---------- */
   /* ★ 2026-11-08 二次反馈「还是挡字了」：哪怕只在底部一条渐入，表格最后几行仍被压。
      所以业务页默认完全不铺插画线条；想看高清插画，用皮肤管理页的开关或左下角贺卡。 */
-  function bgVisible() { return lsGet(KEY_BG_ON) === '1' && lsGet(KEY_BG) !== '1'; }
+  function bgVisible() { return lsGet(KEY_BG) !== '1'; }   /* ★ 2026-11-17 用户口径：全站默认全屏显示插画，只有显式点过「隐藏」才关 */
   /* 皮肤管理页本身是 37 张插画墙，再叠一层背景只会显乱 → 本页不铺 */
   function bgHostVisible() {
     try {
@@ -915,8 +929,7 @@
           try {
             var art = ims[0], pat = ims[1], stgW = strength();
             /* ⓪-a 全页极淡节日底色：与页面 .fs-wash 同档，整页（含左上）都有节日感 */
-            var washA = dark ? (stgW === 'strong' ? .05 : stgW === 'soft' ? .018 : .032)
-                             : (stgW === 'strong' ? .09 : stgW === 'soft' ? .03 : .055);
+            var washA = stgW === 'strong' ? .16 : stgW === 'soft' ? .07 : .11;   /* ★ 2026-11-17 底色提亮，与页面 .fs-wash 全屏档一致 */
             var wg = ctx.createLinearGradient(0, 0, W, H);
             wg.addColorStop(0, c1); wg.addColorStop(.55, c2); wg.addColorStop(1, c1);
             ctx.save(); ctx.globalAlpha = washA * aMul; ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H); ctx.restore();
@@ -925,10 +938,10 @@
                且同样不会压住表格数据区。 */
             if (art && bgHostVisible() && bgVisible()) {
               var stg = strength();
-              var bgA = dark ? (stg === 'strong' ? .28 : stg === 'soft' ? .09 : .18)
-                             : (stg === 'strong' ? .40 : stg === 'soft' ? .14 : .26);
-              var bw = Math.min(1280 * u, W * .74), bh = bw * (art.height / art.width);
-              var bx = W - bw, by = H - bh;
+              var bgA = stg === 'strong' ? .58 : stg === 'soft' ? .34 : .48;   /* ★ 2026-11-17 插画提亮 */
+              var sc = Math.max(W / art.width, H / art.height);                  /* cover 铺满整屏，与页面 background-size:cover 同口径 */
+              var bw = art.width * sc, bh = art.height * sc;
+              var bx = (W - bw) / 2, by = (H - bh) / 2;
               var tmp = document.createElement('canvas');
               tmp.width = W; tmp.height = H;
               var tc = tmp.getContext('2d');
@@ -937,10 +950,10 @@
                 /* 底部一条渐入遮罩：与页面 .fs-bg 的 linear-gradient 完全同档，
                    上方 2/3 透明 → 表格数据区零插画，只有底边显出清晰插画。 */
                 var vg = tc.createLinearGradient(0, 0, 0, H);
-                vg.addColorStop(0, 'rgba(0,0,0,0)');
-                vg.addColorStop(.66, 'rgba(0,0,0,0)');
-                vg.addColorStop(.74, 'rgba(0,0,0,.22)');
-                vg.addColorStop(.88, 'rgba(0,0,0,.72)');
+                vg.addColorStop(0, 'rgba(0,0,0,1)');
+                vg.addColorStop(.66, 'rgba(0,0,0,1)');
+                vg.addColorStop(.74, 'rgba(0,0,0,1)');
+                vg.addColorStop(.88, 'rgba(0,0,0,1)');
                 vg.addColorStop(1, 'rgba(0,0,0,1)');
                 tc.globalCompositeOperation = 'destination-in';
                 tc.fillStyle = vg;
@@ -954,16 +967,15 @@
                   t2.save(); t2.translate(W, 0); t2.scale(-1, 1);
                   t2.drawImage(art, bx, by, bw, bh); t2.restore();
                   var vg2 = t2.createLinearGradient(0, 0, 0, H);
-                  vg2.addColorStop(0, 'rgba(0,0,0,0)');
-                  vg2.addColorStop(.70, 'rgba(0,0,0,0)');
-                  vg2.addColorStop(.80, 'rgba(0,0,0,.18)');
-                  vg2.addColorStop(1, 'rgba(0,0,0,.70)');
+                  vg2.addColorStop(0, 'rgba(0,0,0,1)');
+                  vg2.addColorStop(.70, 'rgba(0,0,0,1)');
+                  vg2.addColorStop(.80, 'rgba(0,0,0,1)');
+                  vg2.addColorStop(1, 'rgba(0,0,0,1)');
                   t2.globalCompositeOperation = 'destination-in';
                   t2.fillStyle = vg2;
                   t2.fillRect(0, 0, W, H);
                   ctx.save();
-                  ctx.globalAlpha = (dark ? (stg === 'strong' ? .14 : stg === 'soft' ? .05 : .09)
-                                         : (stg === 'strong' ? .22 : stg === 'soft' ? .075 : .14)) * aMul;
+                  ctx.globalAlpha = (stg === 'strong' ? .34 : stg === 'soft' ? .18 : .26) * aMul;   /* ★ 2026-11-17 镜像层提亮 */
                   ctx.drawImage(tmp2, 0, 0); ctx.restore();
                 }
               }
