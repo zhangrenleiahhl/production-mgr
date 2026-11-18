@@ -454,7 +454,7 @@ var ALMANAC = {
     'html[data-fs="off"] .fs-onbtn{display:flex!important;}',
     /* ★ 今天没有节日：不带任何节日主题，但留一枚灰色徽章当试穿入口（不误以为皮肤消失） */
     'html[data-fs="none"]{--fs-c1:#64748b;--fs-c2:#94a3b8;}',
-    'html[data-fs="none"] .fs-wash,html[data-fs="none"] .fs-bg2,html[data-fs="none"] .fs-bg,html[data-fs="none"] .fs-bar,html[data-fs="none"] .fs-tint,html[data-fs="none"] .fs-deco,html[data-fs="none"] .fs-wm,html[data-fs="none"] .fs-card,html[data-fs="none"] .fs-lightbox,html[data-fs="none"] .fs-panel{display:none!important;}',
+    'html[data-fs="none"] .fs-wash,html[data-fs="none"] .fs-bg2,html[data-fs="none"] .fs-bg,html[data-fs="none"] .fs-bar,html[data-fs="none"] .fs-tint,html[data-fs="none"] .fs-deco,html[data-fs="none"] .fs-wm,html[data-fs="none"] .fs-card,html[data-fs="none"] .fs-lightbox{display:none!important;}',
     'html[data-fs="none"] .fs-badge{opacity:.58;box-shadow:none;}',
     'html[data-fs="none"] .fs-badge:hover{opacity:1;}',
     /* ★ 打印/导出 PDF 也保留节日主题：只隐藏交互元素，保留彩条与插画贺卡 */
