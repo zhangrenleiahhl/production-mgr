@@ -242,11 +242,9 @@
 
   .sync.ok{color:var(--green);} .sync.warn{color:var(--amber);} .sync.err{color:var(--red);}
 
-  /* 品牌 LOGO：缩小 + 提亮 + 白底更净（2026-11-18，仅大屏，不动全站 brand.js） */
-  .hud .brandLogo{background:rgba(255,255,255,.97)!important;border-color:rgba(15,23,42,.10)!important;
-    box-shadow:0 2px 10px rgba(15,23,42,.16)!important;padding:3px 8px!important;border-radius:8px!important;}
-  .hud .brandLogo img{height:24px!important;width:auto!important;
-    filter:brightness(1.08) contrast(1.05) saturate(1.06);}
+  /* 品牌 LOGO：深蓝科技徽章自带底，容器全透明、尺寸略收紧（2026-11-18） */
+  .hud .brandLogo{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;}
+  .hud .brandLogo img{height:26px!important;width:auto!important;filter:none!important;}
 
 
 
@@ -3122,7 +3120,7 @@ boot();
 
 </script>
 
-<script src="brand.js?v=4"></script>
+<script src="brand.js?v=5"></script>
 
 </body>
 
