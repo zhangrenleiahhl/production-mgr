@@ -13,17 +13,17 @@
   //   外壳自己的顶栏已经插了一个，子页再插就会「重复成两个」
   //   （一个在外壳顶栏，一个固定在右上角叠在下面）。子页单独打开时不受影响，照旧会插。
   try { if (window.self !== window.top) return; } catch (e) { return; }
-  var SRC = "logo.png?v=2";
+  var SRC = "logo.png?v=3";
   var page = "";
   try { page = decodeURIComponent(location.pathname.split("/").pop() || ""); }
   catch (e) { page = location.pathname.split("/").pop() || ""; }
 
   // 各模块 logo 高度（px），按页面范围挑最合适的
   var SIZE = {
-    "物流大屏.html": 30, "物流门口大屏.html": 30, "仪表盘.html": 30,
-    "发货计划系统.html": 22, "index.html": 22, "生产管理客户端.html": 22,
-    "扫码.html": 20, "司机扫码.html": 20, "viewer.html": 20,
-    "_default": 22
+    "物流大屏.html": 34, "物流门口大屏.html": 34, "仪表盘.html": 34,
+    "发货计划系统.html": 26, "index.html": 26, "生产管理客户端.html": 26,
+    "扫码.html": 20, "司机扫码.html": 20, "viewer.html": 24,
+    "_default": 26
   };
   var H = SIZE[page] || SIZE._default;
 
