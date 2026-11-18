@@ -13,7 +13,7 @@
   //   外壳自己的顶栏已经插了一个，子页再插就会「重复成两个」
   //   （一个在外壳顶栏，一个固定在右上角叠在下面）。子页单独打开时不受影响，照旧会插。
   try { if (window.self !== window.top) return; } catch (e) { return; }
-  var SRC = "logo.png?v=4";
+  var SRC = "logo.png?v=5";
   var page = "";
   try { page = decodeURIComponent(location.pathname.split("/").pop() || ""); }
   catch (e) { page = location.pathname.split("/").pop() || ""; }
