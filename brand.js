@@ -13,7 +13,7 @@
   //   外壳自己的顶栏已经插了一个，子页再插就会「重复成两个」
   //   （一个在外壳顶栏，一个固定在右上角叠在下面）。子页单独打开时不受影响，照旧会插。
   try { if (window.self !== window.top) return; } catch (e) { return; }
-  var SRC = "logo.png?v=1";
+  var SRC = "logo.png?v=2";
   var page = "";
   try { page = decodeURIComponent(location.pathname.split("/").pop() || ""); }
   catch (e) { page = location.pathname.split("/").pop() || ""; }
@@ -31,8 +31,9 @@
     var d = document.createElement("div");
     d.className = "brandLogo";
     d.setAttribute("style", "display:inline-flex;align-items:center;flex:0 0 auto;pointer-events:none;" +
-      "background:rgba(255,255,255,.93);border:1px solid rgba(15,23,42,.12);border-radius:8px;" +
-      "padding:4px 9px;box-shadow:0 2px 8px rgba(15,23,42,.18);");
+      /* 2026-11-18 深蓝科技徽章 logo 自带圆角底：容器转透明，不再套白底片 */
+      "background:transparent;border:0;border-radius:0;" +
+      "padding:0;box-shadow:none;");
     var img = document.createElement("img");
     img.src = SRC;
     img.alt = "铸运通发货协作系统";
