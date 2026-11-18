@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261115a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261118a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -174,9 +174,42 @@ setTimeout(function(){
 
     box-shadow:0 2px 8px rgba(15,23,42,.06);}
 
-  .appbar .logo{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:800;color:#1f2328;white-space:nowrap;flex:0 0 auto;}
+  /* ★ 系统名高科技感（2026-11-18）：深蓝渐变底 + 青色发光边 + 青蓝渐变发光字 + 扫描光，呼应 .clock 科技风 */
+  .appbar .logo{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;flex:0 0 auto;
 
-  .appbar .logo .dot{width:9px;height:16px;background:#2563eb;border-radius:2px;display:inline-block;}
+    padding:2px 11px;border-radius:8px;position:relative;overflow:hidden;
+
+    background:linear-gradient(135deg,#0b1220 0%,#1e293b 100%);
+
+    border:1px solid rgba(56,189,248,.38);
+
+    box-shadow:0 0 10px rgba(56,189,248,.20), inset 0 0 8px rgba(56,189,248,.10);
+
+    font-family:"SF Mono","Consolas","Monaco","Microsoft YaHei",monospace;
+
+    font-size:15px;font-weight:800;letter-spacing:.5px;
+
+    color:#7dd3fc;text-shadow:0 0 8px rgba(56,189,248,.55);text-decoration:none;}
+
+  .appbar .logo::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+
+    background:linear-gradient(90deg,transparent,rgba(56,189,248,.20),transparent);
+
+    animation:scan 3.2s linear infinite;pointer-events:none;}
+
+  .appbar .logo:hover{border-color:rgba(56,189,248,.7);box-shadow:0 0 14px rgba(56,189,248,.34), inset 0 0 10px rgba(56,189,248,.14);}
+
+  .appbar .logo .dot{width:8px;height:15px;border-radius:2px;display:inline-block;flex:0 0 auto;
+
+    background:linear-gradient(180deg,#7dd3fc,#38bdf8 55%,#0284c7);
+
+    box-shadow:0 0 7px rgba(56,189,248,.9),0 0 2px rgba(125,211,252,.9) inset;
+
+    animation:logoPulse 2.4s ease-in-out infinite;}
+
+  @keyframes logoPulse{0%,100%{opacity:.75;box-shadow:0 0 5px rgba(56,189,248,.7)}50%{opacity:1;box-shadow:0 0 11px rgba(56,189,248,1)}}
+
+  @media (prefers-reduced-motion:reduce){.appbar .logo::before,.appbar .logo .dot{animation:none;}}
 
   .appbar .tabs{display:flex;gap:7px;flex-wrap:wrap;margin-left:8px;}
 
