@@ -2786,12 +2786,13 @@ function applyFoldCols(silent){
     cols.forEach(c => c.setAttribute("data-base", c.style.width || ""));
   }
   if (colsFolded){
-    const keep = cols.length - 2;
-    let sum = 0;
-    for (let i = 0; i < keep; i++) sum += parseFloat(cols[i].getAttribute("data-base")) || 0;
+    /* ★ 2026-11-19 间距调整：折叠后字号放大 8/3，列宽不能再按原比例等比放大
+       （代码列仅 9.7% / 吨位 8.4%，放不下放大后的字 → 代码贴吨位、吨位被截成"30...."）。
+       改用折叠专用宽度：加宽代码/吨位/质保书列，从客户/工序的富余匀出空间；
+       客户名、单号本就有逐格缩字兜底，窄一点仍能完整显示。展开时仍还原 data-base 原比例。 */
+    const FOLD_W = [5, 15, 14, 13, 16, 17, 10, 10];   /* 序号/客户/送达方代码/吨位/单号/工序/车辆/质保书 */
     for (let i = 0; i < cols.length; i++){
-      const base = parseFloat(cols[i].getAttribute("data-base")) || 0;
-      cols[i].style.width = i < keep ? (sum ? (base / sum * 100).toFixed(2) : "10") + "%" : "0%";
+      cols[i].style.width = i < FOLD_W.length ? FOLD_W[i] + "%" : "0%";
     }
   } else {
     cols.forEach(c => c.style.width = c.getAttribute("data-base") || "");
@@ -3114,7 +3115,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261119d";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261119e";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER, skip: () => !!(document.fullscreenElement || document.body.classList.contains("fs")) });   // 版本自检：变了重载；★全屏时跳过，避免大屏自动退出全屏（2026-11-19）
 
