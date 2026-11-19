@@ -948,9 +948,32 @@
    放大只作用于表格主体：表头字号 + 行字号 --rowfs + 行距 --rowpad。 */
 thead th{font-size:calc(12.5px * var(--z,1));}
 body.mb thead th{font-size:calc(9px * var(--z,1));}
+
+/* ===== 全屏纯净模式（2026-11-19）=====
+   全屏后隐藏右下角账号浮动条（退出登录/账号管理）和节日皮肤入口图标；
+   顶栏三个按钮保留，按 Esc 或点「退出全屏」仍可正常退出。 */
+body.fs #staffAdminBar,
+body.fs .fs-root .fs-badge,
+body.fs .fs-root .fs-onbtn,
+body.fs .fs-root .fs-card,
+body.fs .fs-root .fs-panel{display:none!important;}
+
+/* ===== 右两列折叠 / 展开（2026-11-19）=====
+   按钮浮在表格右上角，不进 .ctrl（顶栏三个只读按钮保持不变）。
+   折叠后隐藏「工序更新」「车辆更新」两列，其余列自动铺满屏幕。 */
+.fold-cols{position:absolute;top:5px;right:8px;z-index:6;
+  padding:3px 9px;border:1px solid rgba(80,215,230,.44);border-radius:999px;
+  background:rgba(9,20,34,.88);color:#8fe6ef;font-size:11px;font-weight:700;
+  letter-spacing:.4px;cursor:pointer;white-space:nowrap;
+  box-shadow:0 2px 12px rgba(0,0,0,.32);transition:background .18s,border-color .18s;}
+.fold-cols:hover{background:rgba(20,52,72,.96);border-color:#5ee6f0;color:#d6fbff;}
+body.foldcols #tbl col:nth-child(9),body.foldcols #tbl col:nth-child(10),
+body.foldcols #tbl th:nth-child(9),body.foldcols #tbl th:nth-child(10),
+body.foldcols #tbl td:nth-child(9),body.foldcols #tbl td:nth-child(10){display:none;}
+body.mb .fold-cols{top:2px;right:4px;font-size:9px;padding:1px 6px;}
 </style>
 
-  <script src="festival-skin.js?v=20261106a&h=b0d0cc63" defer></script>
+  <script src="festival-skin.js?v=20261106a&h=c1c6acc0" defer></script>
 </head>
 
 <body>
@@ -1003,6 +1026,8 @@ body.mb thead th{font-size:calc(9px * var(--z,1));}
 
 
   <div class="box">
+
+    <button type="button" class="fold-cols" id="foldColsBtn" title="折叠/展开最右两列（工序更新、车辆更新）；折叠后其余列自动放大铺满屏幕">◀ 折叠右2列</button>
 
     <table id="tbl">
 
@@ -2740,6 +2765,43 @@ function pokeCursor(){
 
 
 
+/* ===== 右两列折叠 / 展开（2026-11-19）=====
+   折叠「工序更新」「车辆更新」两列，其余列按比例铺满整屏、字号重算放大。
+   状态记到 localStorage，大屏刷新/自动重载后仍保持。 */
+const FOLD_KEY = "board_foldcols_v1";
+let colsFolded = (() => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch(e){ return false; } })();
+
+function applyFoldCols(silent){
+  const tbl = $("tbl"); if (!tbl) return;
+  const cols = tbl.querySelectorAll("colgroup col");
+  if (!cols.length) return;
+  // 记住原始列宽（第一次调用时抓）
+  if (!cols[0].getAttribute("data-base")) {
+    cols.forEach(c => c.setAttribute("data-base", c.style.width || ""));
+  }
+  if (colsFolded){
+    const keep = cols.length - 2;
+    let sum = 0;
+    for (let i = 0; i < keep; i++) sum += parseFloat(cols[i].getAttribute("data-base")) || 0;
+    for (let i = 0; i < cols.length; i++){
+      const base = parseFloat(cols[i].getAttribute("data-base")) || 0;
+      cols[i].style.width = i < keep ? (sum ? (base / sum * 100).toFixed(2) : "10") + "%" : "0%";
+    }
+  } else {
+    cols.forEach(c => c.style.width = c.getAttribute("data-base") || "");
+  }
+  document.body.classList.toggle("foldcols", colsFolded);
+  const btn = $("foldColsBtn");
+  if (btn) btn.textContent = colsFolded ? "▶ 展开右2列" : "◀ 折叠右2列";
+  try { localStorage.setItem(FOLD_KEY, colsFolded ? "1" : "0"); } catch(e){}
+  if (!silent){
+    stopScroll(); fitRows(rows.length); fitCustNames(); fitNoFont(); fitUpdFont(); setupScroll();
+  }
+}
+
+function toggleFoldCols(){ colsFolded = !colsFolded; applyFoldCols(false); }
+
+
 function toggleFs(){
 
   const el = document.documentElement;
@@ -3003,6 +3065,9 @@ function boot(){
 
   $("shotBtn").onclick = () => captureScreen($("shotBtn"));
 
+  $("foldColsBtn").onclick = toggleFoldCols;
+  applyFoldCols(true);   // 恢复上次折叠状态（此时 tbody 还没渲染，只调列宽不重量字号）
+
   document.addEventListener("fullscreenchange", onFsChange);
 
   document.addEventListener("webkitfullscreenchange", onFsChange);
@@ -3043,7 +3108,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261118b";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261119a";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER });   // 线上版本自检：scan-lib + 本页版本，变了自动重载（2026-10-30 加固）
 
