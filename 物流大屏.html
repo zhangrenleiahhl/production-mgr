@@ -946,8 +946,8 @@
       工序动画与送回会错位。这里只放大「字号 + 顶栏/页脚」，几何与 transform 保持 1:1。 */
 /* 顶栏/页脚**不** zoom：flex 一行放大后 KPI/按钮/时钟会互相重叠（真 Edge 截图实测）。
    放大只作用于表格主体：表头字号 + 行字号 --rowfs + 行距 --rowpad。 */
-thead th{font-size:calc(12.5px * var(--z,1));}
-body.mb thead th{font-size:calc(9px * var(--z,1));}
+thead th{font-size:calc(12.5px * var(--z,1) * var(--foldk,1));}
+body.mb thead th{font-size:calc(9px * var(--z,1) * var(--foldk,1));}
 
 /* ===== 全屏纯净模式（2026-11-19）=====
    全屏后隐藏右下角账号浮动条（退出登录/账号管理）和节日皮肤入口图标；
@@ -1504,12 +1504,13 @@ function fitRows(n){
   const fs = (mb ? Math.max(10, Math.min(14, Math.floor(per * 0.52)))
                 : Math.max(15, Math.min(26, Math.floor(per * 0.52)))) * z0;
 
-  /* 2026-11-19 fold right 2 cols: row height doubled again (x8/3 from base), restore on expand. */
+  /* 2026-11-19 折叠：文字随行同步放大 —— 字号×foldK、行距还原1.2（行盒 fs×1.2×foldK 数学不变，行高不变、字填满），展开自动恢复。 */
   const foldK = document.body.classList.contains("foldcols") ? (8/3) : 1;
 
-  document.documentElement.style.setProperty("--rowfs", fs + "px");
+  document.documentElement.style.setProperty("--rowfs", (fs * foldK).toFixed(1) + "px");
+  document.documentElement.style.setProperty("--foldk", foldK.toFixed(4));   /* 表头字号同步放大 */
 
-  document.documentElement.style.setProperty("--rowlh", (1.2 * foldK).toFixed(3));
+  document.documentElement.style.setProperty("--rowlh", "1.2");
 
   document.documentElement.style.setProperty("--rowpad", (Math.max(mb ? 1 : 3, Math.floor(fs * (mb ? 0.28 : 0.42))) * foldK).toFixed(1) + "px");
 
@@ -3113,7 +3114,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261119c";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
+const APP_VER = "20261119d";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 innr 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "innr", pageVer: APP_VER, skip: () => !!(document.fullscreenElement || document.body.classList.contains("fs")) });   // 版本自检：变了重载；★全屏时跳过，避免大屏自动退出全屏（2026-11-19）
 
