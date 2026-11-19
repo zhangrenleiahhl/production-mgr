@@ -457,6 +457,12 @@ var ALMANAC = {
     'html[data-fs="none"] .fs-wash,html[data-fs="none"] .fs-bg2,html[data-fs="none"] .fs-bg,html[data-fs="none"] .fs-bar,html[data-fs="none"] .fs-tint,html[data-fs="none"] .fs-deco,html[data-fs="none"] .fs-wm,html[data-fs="none"] .fs-card,html[data-fs="none"] .fs-lightbox{display:none!important;}',
     'html[data-fs="none"] .fs-badge{opacity:.58;box-shadow:none;}',
     'html[data-fs="none"] .fs-badge:hover{opacity:1;}',
+    /* ★ 2026-11-19 用户要求：非管理员禁止试穿皮肤，连入口图标都不要有。
+       data-try="guest" 由 applyGuestGate() 按当前登录人写入：管理员/未加载登录态时行为不变。 */
+    '.fs-root[data-try="guest"] .fs-badge,.fs-root[data-try="guest"] .fs-panel,',
+    '.fs-root[data-try="guest"] .fs-onbtn,.fs-root[data-try="guest"] .fs-card,',
+    '.fs-root[data-try="guest"] .fs-x,.fs-root[data-try="guest"] .fs-card-x,',
+    '.fs-root[data-try="guest"] .fs-lightbox{display:none!important;}',
     /* ★ 打印/导出 PDF 也保留节日主题：只隐藏交互元素，保留彩条与插画贺卡 */
     '@media print{',
     '  .fs-wash,.fs-bg2,.fs-bg,.fs-badge,.fs-panel,.fs-onbtn,.fs-x,.fs-card-x,.fs-lightbox,.fs-wm,.fs-deco,.fs-tint{display:none!important;}',
@@ -606,6 +612,24 @@ var ALMANAC = {
     }, function () { if (done) done(false); });
   }
 
+  /* ---------- 试穿权限（2026-11-19 用户要求）----------
+   * 只有管理员（staff-config.js 的 adminPhone）可以试穿/切换皮肤。
+   * 非管理员：连入口图标（徽章、贺卡放大、重新开启按钮）都不显示，
+   * 面板也不给打开；但管理员全站指定的节日皮肤照样正常显示（只是不能自己换）。
+   * 未登录（登录页）同样不显示入口图标，避免把试穿面板暴露给外人。 */
+  function canTry() { return isAdmin(); }
+  function applyGuestGate() {
+    try {
+      var r = document.getElementById('fsRoot');
+      if (!r) return;
+      if (canTry()) r.removeAttribute('data-try'); else r.setAttribute('data-try', 'guest');
+      var p = document.getElementById('fsPanel');
+      if (p && !canTry()) { p.style.display = 'none'; panelOpen = false; }
+      var b = document.getElementById('fsBadge');
+      if (b) b.className = 'fs-badge';
+    } catch (e) {}
+  }
+
   /* ---------- 渲染 ---------- */
   var root = null, lastKey = '', panelOpen = false;
 
@@ -652,6 +676,7 @@ var ALMANAC = {
     document.getElementById('fsCardX').onclick = function (ev) { ev.stopPropagation(); setCardVisible(false); };
     document.getElementById('fsLight').onclick = function () { this.className = 'fs-lightbox'; };
     root.addEventListener('click', function (ev) {
+      if (!canTry()) return;   /* ★ 非管理员：面板/格子一律不响应试穿 */
       var c = ev.target;
       while (c && c !== root && (!c.getAttribute || !c.getAttribute('data-fs-id'))) c = c.parentNode;
       if (c && c !== root && c.getAttribute) {
@@ -681,6 +706,7 @@ var ALMANAC = {
     return s;
   }
   function togglePanel() {
+    if (!canTry()) return;   /* ★ 非管理员/未登录：不给打开试穿面板 */
     panelOpen = !panelOpen;
     var bgB = document.getElementById('fsBadge');
     if (bgB) bgB.className = panelOpen ? 'fs-badge on' : 'fs-badge';
@@ -742,6 +768,7 @@ var ALMANAC = {
 
   function apply(p) {
     ensureRoot();
+    applyGuestGate();   /* ★ 2026-11-19：非管理员不显示试穿入口，管理员显示 */
     var bSync = document.getElementById('fsBadge');
     if (bSync) bSync.className = panelOpen ? 'fs-badge on' : 'fs-badge';
     var h = document.documentElement;
