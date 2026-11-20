@@ -1540,7 +1540,7 @@ function fitRows(n){
                 : Math.max(15, Math.min(26, Math.floor(per * 0.40)))) * z0;
 
   /* 2026-11-19 折叠：文字随行同步放大 —— 字号×foldK、行距还原1.2（行盒数学不变、字填满），展开自动恢复。 */
-  const foldK = document.body.classList.contains("foldcols") ? (8/3) : 1;
+  const foldK = document.body.classList.contains("foldcols") ? 1.6 : 1;
 
   const root = document.documentElement.style;
 
@@ -3168,7 +3168,7 @@ function boot(){
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !nightPaused()) pull(); });
   window.addEventListener("focus", () => { if (!document.hidden && !nightPaused()) pull(); });      // 窗口重新获得焦点也立刻刷新（2026-10-15，对齐扫码页）
   window.addEventListener("pageshow", () => { if (!document.hidden && !nightPaused()) pull(); });    // 从后台/bfcache 回来也立刻刷新
-const APP_VER = "20261119e";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
+const APP_VER = "20261119f";   // ★ 本页版本：改动本页内联逻辑必须 bump，ver.json 的 door 字段同步改
 
 if (SL.verWatch) SL.verWatch({ field: "door", pageVer: APP_VER, skip: () => !!(document.fullscreenElement || document.body.classList.contains("fs")) });   // 版本自检：变了重载；★全屏时跳过，避免大屏自动退出全屏（2026-11-19）
 
