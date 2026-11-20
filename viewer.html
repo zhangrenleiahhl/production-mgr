@@ -589,9 +589,9 @@ function filterDeleted(list, delIds){
 
 const pad = (s) => { s = String(s == null ? "" : s).trim(); return s === "" ? "/" : s; };
 
-// 发货点四色（与主表 SHIPPT_COLOR 同一套配色）：一眼分清这行从哪个点发
+// 发货点五色（与主表 SHIPPT_COLOR 同一套配色）：一眼分清这行从哪个点发
 
-const PT_COLOR = { "汽零铸造":"#b45309", "汽零机加工":"#0369a1", "北区":"#15803d", "昆山衍咏":"#7c3aed" };
+const PT_COLOR = { "汽零铸造":"#b45309", "汽零机加工":"#0369a1", "北区":"#15803d", "昆山衍咏":"#7c3aed", "南区4号车间":"#be185d" };
 
 const ptCell = (v) => {
 
