@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261118a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261118b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -699,7 +699,7 @@ setTimeout(function(){
 
   .tbl td.col-shippt select option{text-align:center;}
 
-  /* 发货点四色（与 SHIPPT_COLOR 一一对应）：一眼分清这行从哪个点发 */
+  /* 发货点五色（与 SHIPPT_COLOR 一一对应）：一眼分清这行从哪个点发 */
 
   .tbl td.col-shippt select[data-pt="汽零铸造"]{color:#b45309;background:#fffbeb;border-color:rgba(180,83,9,.28);font-weight:700;}
 
@@ -708,6 +708,8 @@ setTimeout(function(){
   .tbl td.col-shippt select[data-pt="北区"]{color:#15803d;background:#f0fdf4;border-color:rgba(21,128,61,.28);font-weight:700;}
 
   .tbl td.col-shippt select[data-pt="昆山衍咏"]{color:#7c3aed;background:#f5f3ff;border-color:rgba(124,58,237,.28);font-weight:700;}
+
+  .tbl td.col-shippt select[data-pt="南区4号车间"]{color:#be185d;background:#fdf2f8;border-color:rgba(190,24,93,.28);font-weight:700;}
 
   .tbl td.col-ton{background:#f6f8fa;vertical-align:middle;font-variant-numeric:tabular-nums;}
 
@@ -3176,7 +3178,7 @@ if(window.ResizeObserver){
 
 }
 
-// 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区 / 昆山衍咏）—— 每个发货点一种颜色（SHIPPT_COLOR 一处定义）
+// 发货点单选下拉选项（汽零铸造 / 汽零机加工 / 北区 / 昆山衍咏 / 南区4号车间）—— 每个发货点一种颜色（SHIPPT_COLOR 一处定义）
 
 const SHIPPT_COLOR={
 
@@ -3186,7 +3188,9 @@ const SHIPPT_COLOR={
 
   "北区":      ["#15803d","#f0fdf4"],   // 绿
 
-  "昆山衍咏":  ["#7c3aed","#f5f3ff"]    // 紫
+  "昆山衍咏":  ["#7c3aed","#f5f3ff"],   // 紫
+
+  "南区4号车间":["#be185d","#fdf2f8"]   // 玫红
 
 };
 
@@ -3194,7 +3198,7 @@ function shipptOptions(val){
 
   const v=(val&&val!=="/")?String(val):"";
 
-  const opts=["汽零铸造","汽零机加工","北区","昆山衍咏"];
+  const opts=["汽零铸造","汽零机加工","北区","昆山衍咏","南区4号车间"];
 
   let html='<option value=""></option>';
 
