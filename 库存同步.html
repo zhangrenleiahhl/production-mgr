@@ -323,6 +323,8 @@
     cloudOK: false,     // 云端中转是否可用
     srcInfo:{},         // key -> {ready, todo, src, mode}
     jobSeq: 0,          // 云端任务序号
+    jobId: "",          // 本次任务的唯一标识（防止命中旧结果）
+    jobAt: "",          // 本次任务下发时刻（老代理无 jobId 时用它兜底）
     lastResSeq: 0,      // 已处理的结果序号
     channel: "直连代理" // 当前通道：直连代理 / 云端中转
   };
@@ -466,29 +468,45 @@
 
   /* ---------- 云端中转通道 ---------- */
   async function cloudJob(key){
-    /* 写一条抓取任务到云端队列 */
+    /* 写一条抓取任务到云端队列。
+       带一个唯一 jobId：代理回传结果时原样带回，页面只认自己的那个任务，
+       避免命中上一次的旧结果（seq 单调递增也不够 —— 页面 seq 从 1 起，
+       云端里还留着别处写入的更大 seq，会被误判成"本次已完成"）。 */
     if(!(window.CloudSync && CloudSync.push)) return false;
     if(CloudSync.ready && !CloudSync.ready()){
       log("云端未就绪，无法下发任务", "er");
       return false;
     }
     state.jobSeq += 1;
-    const job = { seq: state.jobSeq, key: key, ts: nowStr(), by: "web" };
+    const jobId = "web-" + Date.now() + "-" + Math.floor(Math.random()*100000);
+    state.jobId = jobId;
+    state.jobAt = nowStr();               // 下发时刻，用于识别"旧代理没带 jobId"的结果
+    const job = { seq: state.jobSeq, jobId: jobId, key: key, ts: nowStr(), by: "web" };
     const ok = await CloudSync.push(JOB_KEY, job);
     if(!ok) log("云端任务下发失败：" + key, "er");
     return ok;
   }
 
   async function cloudPollResult(key, timeoutMs){
-    /* 轮询云端结果键，直到拿到本次任务（seq 匹配）的结果 */
+    /* 轮询云端结果键，直到拿到「本任务」的结果。
+       判定顺序：① jobId 完全一致 → 一定是我的；
+                 ② 老代理没带 jobId → 用「结果时间 ≥ 下发时刻」兜底，
+                    防止把上一轮的旧结果当成本次（seq 不可靠：云端里可能残留更大的 seq）。 */
     if(!(window.CloudSync && CloudSync.pullResult)) return null;
     const t0 = Date.now();
-    const mySeq = state.jobSeq;
+    const myJob = state.jobId;
+    const myAt = state.jobAt;
     while(Date.now() - t0 < timeoutMs){
       const r = await CloudSync.pullResult(JOB_RES_KEY);
       if(r.ok && r.value && typeof r.value === "object"){
         const v = r.value;
-        if(v.seq >= mySeq && v.key === key){
+        let mine = false;
+        if(v.jobId){
+          mine = (v.jobId === myJob);
+        }else if(v.at && myAt){
+          mine = (String(v.at) >= String(myAt));
+        }
+        if(mine && v.key === key){
           state.lastResSeq = v.seq;
           return v;
         }
