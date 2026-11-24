@@ -153,6 +153,10 @@
   }
   .dsearch:focus{outline:none;border-color:var(--brand);}
   .tblwrap{overflow:auto;max-height:calc(100vh - 420px);min-height:190px;}
+  .dpager{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--line2);font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .dpager button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 11px;font-size:12px;cursor:pointer;color:var(--brand);}
+  .dpager button:disabled{opacity:.4;cursor:default;}
+  .dpager .pnum{font-variant-numeric:tabular-nums;}
   table{width:100%;border-collapse:collapse;font-size:12.5px;}
   thead th{
     position:sticky;top:0;background:#f8fafc;color:#475569;font-weight:700;text-align:left;
@@ -239,6 +243,7 @@
           <span class="cnt" id="detailSub"></span>
           <span class="spacer"></span>
           <span class="cnt">共 <b id="detailRows">0</b> 条</span>
+          <span class="cnt" id="detailStore" title="明细存放位置">明细存本地大仓库</span>
         </div>
         <div class="tblwrap">
           <table>
@@ -253,6 +258,13 @@
             </tr></thead>
             <tbody id="detailBody"></tbody>
           </table>
+        </div>
+        <div class="dpager" id="detailPager">
+          <button type="button" id="dpPrev">上一页</button>
+          <span class="pnum" id="dpInfo">第 1 / 1 页</span>
+          <button type="button" id="dpNext">下一页</button>
+          <span class="spacer"></span>
+          <span>每页 200 条</span>
         </div>
       </div>
 
@@ -326,7 +338,10 @@
     jobId: "",          // 本次任务的唯一标识（防止命中旧结果）
     jobAt: "",          // 本次任务下发时刻（老代理无 jobId 时用它兜底）
     lastResSeq: 0,      // 已处理的结果序号
-    channel: "直连代理" // 当前通道：直连代理 / 云端中转
+    channel: "直连代理", // 当前通道：直连代理 / 云端中转
+    idbOK: false,       // 本地大仓库是否可用
+    detailPage: 1,      // 明细当前页
+    detailTotal: 0,     // 过滤后的总条数
   };
 
   PANELS.forEach(p => { state.panels[p.key] = { status:"idle", at:"", rows:0, err:"", src:"", pending:false }; });
@@ -372,25 +387,108 @@
       return r;
     });
   }
+  /* ---------- 本地大仓库（IndexedDB）：明细不再占浏览器 5MB 配额 ----------
+     设计：localStorage 只留「摘要」（各库条数/时间/自动同步设置，几 KB）；
+           几万条明细存 IndexedDB（容量通常几百 MB ~ 几 GB）；
+           云端 push 仍是完整对象数组（协议不变，多端兼容）。
+     兼容：老数据仍在 localStorage 里 → 首次读取时自动搬进大仓库并精简摘要。 */
+  const IDB_NAME = "inventory_detail_v1";
+  const IDB_STORE = "rows";
+  const IDB_KEY = "all";
+  let _idb = null;
+  function idbOpen(){
+    return new Promise((resolve, reject)=>{
+      if(_idb) return resolve(_idb);
+      if(!window.indexedDB) return reject(new Error("浏览器不支持 IndexedDB"));
+      let req;
+      try{ req = indexedDB.open(IDB_NAME, 1); }catch(e){ return reject(e); }
+      req.onupgradeneeded = function(){
+        const db = req.result;
+        if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+      };
+      req.onsuccess = function(){ _idb = req.result; state.idbOK = true; resolve(_idb); };
+      req.onerror = function(){ reject(req.error || new Error("大仓库打开失败")); };
+      req.onblocked = function(){ reject(new Error("大仓库被其它标签页占用，请关掉本系统的其它窗口")); };
+    });
+  }
+  function idbGetRows(){
+    return idbOpen().then(db=>new Promise((resolve,reject)=>{
+      try{
+        const tx = db.transaction(IDB_STORE, "readonly");
+        const r = tx.objectStore(IDB_STORE).get(IDB_KEY);
+        r.onsuccess = function(){ resolve(Array.isArray(r.result) ? r.result : null); };
+        r.onerror = function(){ reject(r.error || new Error("大仓库读取失败")); };
+      }catch(e){ reject(e); }
+    }));
+  }
+  function idbSetRows(rows){
+    return idbOpen().then(db=>new Promise((resolve,reject)=>{
+      try{
+        const tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(rows, IDB_KEY);
+        tx.oncomplete = function(){ resolve(true); };
+        tx.onerror = function(){ reject(tx.error || new Error("大仓库写入失败")); };
+        tx.onabort = function(){ reject(tx.error || new Error("大仓库写入被中断")); };
+      }catch(e){ reject(e); }
+    }));
+  }
+  function summaryObj(){
+    return { panels:state.panels, auto:state.auto, autoTime:state.autoTime,
+             savedAt:new Date().toISOString(), rowCount:state.rows.length, v:2 };
+  }
   function load(){
     let o = null;
     try{ o = JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){}
     if(o && typeof o==="object"){
       PANELS.forEach(p=>{ if(o.panels && o.panels[p.key]) Object.assign(state.panels[p.key], o.panels[p.key]); });
-      if(Array.isArray(o.rows)) state.rows = unpackInvRows(o, o.rows);
       if(typeof o.auto==="boolean") state.auto = o.auto;
       if(o.autoTime) state.autoTime = o.autoTime;
     }
+    /* 明细异步读：大仓库 -> 老格式 localStorage（自动迁移一次） */
+    return idbGetRows().then(rows=>{
+      if(rows && rows.length){ state.rows = rows; return "idb"; }
+      let legacy = null;
+      if(o && Array.isArray(o.rows)) legacy = unpackInvRows(o, o.rows);
+      if(legacy && legacy.length){
+        state.rows = legacy;
+        return idbSetRows(legacy).then(()=>{
+          /* 迁移成功：把摘要里的明细字段删掉，本机占用立刻从 MB 降到几 KB */
+          try{
+            const sm = summaryObj();
+            localStorage.setItem(LS_KEY, JSON.stringify(sm));
+          }catch(e){}
+          log("已把 "+legacy.length+" 条历史明细搬进本地大仓库，本机占用大幅下降", "ok");
+          return "migrated";
+        }).catch(()=> "legacy");
+      }
+      return "empty";
+    }).catch(e=>{
+      /* 大仓库不可用（旧浏览器 / file:// 受限）：退回老格式，功能不丢 */
+      state.idbOK = false;
+      if(o && Array.isArray(o.rows)) state.rows = unpackInvRows(o, o.rows);
+      log("本地大仓库不可用（"+e.message+"），明细暂存本机普通存储", "wn");
+      return "fallback";
+    });
   }
   function save(){
     const full = { panels:state.panels, rows:state.rows, auto:state.auto, autoTime:state.autoTime, savedAt:new Date().toISOString() };
-    // 本地存紧凑格式（rows 变二维数组 + __cols）；云端推完整格式
-    const compact = Object.assign({}, full);
-    if(Array.isArray(state.rows) && state.rows.length){
-      const pk = packInvRows(state.rows);
-      compact.__cols = pk.__cols; compact.rows = pk.rows;
-    }
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(compact)); }catch(e){ log("本机存储写入失败："+e.message, "er"); }
+    /* ① 本机只写摘要（几 KB），彻底避开 5MB 配额 */
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(summaryObj())); }
+    catch(e){ log("本机摘要写入失败："+e.message, "er"); }
+    /* ② 明细写大仓库；失败则保留老格式明细，绝不静默丢数据 */
+    idbSetRows(state.rows).then(()=>{ state.idbOK = true; }).catch(e=>{
+      state.idbOK = false;
+      try{
+        const compact = Object.assign({}, full);
+        if(state.rows.length){
+          const pk = packInvRows(state.rows);
+          compact.__cols = pk.__cols; compact.rows = pk.rows;
+        }
+        localStorage.setItem(LS_KEY, JSON.stringify(compact));
+        log("大仓库写入失败，明细已暂存本机普通存储："+e.message, "wn");
+      }catch(e2){ log("明细保存失败："+e2.message, "er"); }
+    });
+    /* ③ 云端仍推完整格式（协议不变） */
     if(window.CloudSync && CloudSync.push) CloudSync.push(LS_KEY, full);
   }
 
@@ -445,6 +543,7 @@
     }
   }
 
+  const DETAIL_PAGE = 200;
   function renderDetail(){
     const body = $("detailBody");
     const q = ($("detailSearch").value||"").trim().toLowerCase();
@@ -454,14 +553,27 @@
       String(r.mat||"").toLowerCase().indexOf(q)>=0 ||
       String(r.desc||"").toLowerCase().indexOf(q)>=0 ||
       String(r.loc||"").toLowerCase().indexOf(q)>=0);
+    state.detailTotal = rows.length;
+    const pages = Math.max(1, Math.ceil(rows.length / DETAIL_PAGE));
+    if(state.detailPage > pages) state.detailPage = pages;
+    if(state.detailPage < 1) state.detailPage = 1;
+    const start = (state.detailPage - 1) * DETAIL_PAGE;
+    const pageRows = rows.slice(start, start + DETAIL_PAGE);
     $("detailRows").textContent = rows.length;
     $("detailCnt").textContent = window.__detailPanel ? ("当前库：" + window.__detailPanel) : "（全部库）";
     $("detailTitle").textContent = window.__detailPanel ? window.__detailPanel+" 明细" : "全部库汇总";
-    if(!rows.length){
+    if($("dpInfo")){
+      $("dpInfo").textContent = "第 " + state.detailPage + " / " + pages + " 页" + (rows.length ? ("（" + (start+1) + "–" + Math.min(start+DETAIL_PAGE, rows.length) + "）") : "");
+      $("dpPrev").disabled = state.detailPage <= 1;
+      $("dpNext").disabled = state.detailPage >= pages;
+      $("detailPager").style.display = rows.length ? "flex" : "none";
+    }
+    if($("detailStore")) $("detailStore").textContent = state.idbOK ? "明细存本地大仓库" : "明细存本机普通存储";
+    if(!pageRows.length){
       body.innerHTML = '<tr><td colspan="7"><div class="empty"><span class="big">📭</span>暂无数据。点上面各板块的「立即同步」开始拉取。</div></td></tr>';
       return;
     }
-    body.innerHTML = rows.map(r=>
+    body.innerHTML = pageRows.map(r=>
       '<tr>'
       + '<td class="mat">'+esc(r.mat)+'</td>'
       + '<td>'+esc(r.desc)+'</td>'
@@ -655,6 +767,7 @@
           at:   j.at || nowStr()
         });
       });
+      state.detailPage = 1;
       s.rows = rows.length;
       s.at = j.at || nowStr();
       s.status = (rows.length ? "ok" : "warn");
@@ -762,24 +875,32 @@
   $("expBtn").onclick = exportExcel;
   $("refreshBtn").onclick = ()=>{ renderPanels(); renderDetail(); toast("已刷新"); };
   $("clearLogBtn").onclick = ()=>{ $("logBox").innerHTML=""; log("日志已清空","t"); };
-  $("detailSearch").oninput = renderDetail;
+  $("detailSearch").oninput = function(){ state.detailPage = 1; renderDetail(); };
+  if($("dpPrev")) $("dpPrev").onclick = function(){ if(state.detailPage > 1){ state.detailPage--; renderDetail(); } };
+  if($("dpNext")) $("dpNext").onclick = function(){ state.detailPage++; renderDetail(); };
   $("saveAutoBtn").onclick = saveAuto;
   $("autoChk").onchange = saveAuto;
   $("autoTime").onchange = saveAuto;
 
   /* ---------- 启动 ---------- */
   function boot(){
-    load(); loadAuto();
+    loadAuto();
     /* ★ CloudSync 必须显式 init()，否则 ready=false，所有云端接口都是空转 */
     try{ if(window.CloudSync && CloudSync.init) CloudSync.init(); }catch(e){ log("云端初始化失败：" + e.message, "wn"); }
-    renderPanels(); renderDetail();
-    const meta = (function(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){ return null; } })();
-    if(meta && meta.savedAt){
-      $("lastRefresh").textContent = new Date(meta.savedAt).toLocaleString();
-      log("载入本机已有数据 " + (state.rows.length||0) + " 条", "t");
-    }else{
-      log("尚无历史库存数据，点各板块「立即同步」开始拉取", "t");
-    }
+    renderPanels();
+    /* 明细读完后再渲染（大仓库是异步的）；失败也不挡启动 */
+    load().then(()=>{
+      renderDetail();
+      const meta = (function(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){ return null; } })();
+      if(meta && meta.savedAt){
+        $("lastRefresh").textContent = new Date(meta.savedAt).toLocaleString();
+        log("载入本机已有数据 " + (state.rows.length||0) + " 条" + (state.idbOK ? "（本地大仓库）" : ""), "t");
+      }else{
+        log("尚无历史库存数据，点各板块「立即同步」开始拉取", "t");
+      }
+    }).catch(()=>{ renderDetail(); });
+    const meta0 = (function(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){ return null; } })();
+    if(meta0 && meta0.savedAt) $("lastRefresh").textContent = new Date(meta0.savedAt).toLocaleString();
     /* 通道探测：直连代理 + 云端中转，至少一个能用 */
     (async function(){
       let direct = false;
@@ -817,7 +938,12 @@
         if(r.ok && r.value && typeof r.value==="object"){
           let changed = false;
           PANELS.forEach(p=>{ const v=r.value.panels&&r.value.panels[p.key]; if(v && v.at && v.at > (state.panels[p.key].at||"")){ Object.assign(state.panels[p.key], v); changed=true; } });
-          if(Array.isArray(r.value.rows) && r.value.rows.length > state.rows.length){ state.rows = unpackInvRows(r.value, r.value.rows); changed=true; }
+          if(Array.isArray(r.value.rows) && r.value.rows.length > state.rows.length){
+            state.rows = unpackInvRows(r.value, r.value.rows);
+            state.detailPage = 1;
+            idbSetRows(state.rows).then(()=>{ state.idbOK = true; if($("detailStore")) $("detailStore").textContent = "明细存本地大仓库"; }).catch(()=>{});
+            changed=true;
+          }
           if(changed){ renderPanels(); renderDetail(); log("已从云端同步库存数据", "ok"); }
         }
       }).catch(()=>{});
