@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261118b";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261124a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -1931,7 +1931,48 @@ async function restoreSnapshot(idx){
 
 }
 
-function loadArchive(){ try{ return JSON.parse(localStorage.getItem(LS_ARCHIVE)) || []; }catch(e){ return []; } }
+// ===== 无损瘦身（2026-11-24）=====
+// 归档区每行 20 个字段，大量为空串。存储时省掉空串/null，读取时补回默认值。
+// ★ 关键：对外仍是「裸数组」，所有页面 JSON.parse 后 .length/.map/Array.isArray 全部照常工作，
+//   读取方本就用 (r.f||"") / num(r.f) 兜底缺字段，零感知。云端协议不动（推送完整对象）。
+// ★ pack 幂等：对已精简的数据再 pack 一次结果不变，无需格式标记。
+const ARCH_ROW_FIELDS = ["shipdate","customer","code","model","qty","shippt","unit","perbox",
+  "ton","tonManual","delivery","box","boxManual","cwt","cwtDeleted","remark",
+  "logistics","orderno","logisticsManual","noCar"];
+const ARCH_REC_OPT = ["planner","operator","operatedAt","publishedAt","sumQty","sumTon","sumBox","sumSubTon","custTon","fingerprint"];
+function _archPackObj(o){
+  if(!o || typeof o !== "object") return o;
+  const r = {};
+  for(const k in o){ if(o[k] !== "" && o[k] !== null && o[k] !== undefined) r[k] = o[k]; }
+  return r;
+}
+function packArchive(arr){
+  if(!Array.isArray(arr)) return arr;
+  return arr.map(rec=>{
+    if(!rec || !Array.isArray(rec.rows)) return rec;
+    const out = _archPackObj(rec);
+    out.rows = rec.rows.map(r=>_archPackObj(r));
+    return out;
+  });
+}
+function unpackArchive(arr){
+  if(!Array.isArray(arr)) return arr;
+  return arr.map(rec=>{
+    if(!rec || !Array.isArray(rec.rows)) return rec;
+    const out = {};
+    for(const k of ARCH_REC_OPT) out[k] = (k === "custTon" ? {} : "");
+    for(const k in rec) out[k] = rec[k];
+    out.rows = rec.rows.map(r=>{
+      const row = {};
+      for(const f of ARCH_ROW_FIELDS) row[f] = (f === "noCar" ? false : "");
+      for(const k in r) row[k] = r[k];
+      return row;
+    });
+    return out;
+  });
+}
+function archiveStr(arr){ try{ return JSON.stringify(packArchive(arr)); }catch(e){ return JSON.stringify(arr); } }
+function loadArchive(){ try{ return unpackArchive(JSON.parse(localStorage.getItem(LS_ARCHIVE)) || []); }catch(e){ return []; } }
 
 function archiveRecs(recs){   // 超出上限的老记录转入归档区（归档区最多 500 条），避免"静默丢数据"
 
@@ -1943,7 +1984,7 @@ function archiveRecs(recs){   // 超出上限的老记录转入归档区（归�
 
   //   改走 safeSet（quiet：提示信息自己给，更具体），失败必须让用户看见。
 
-  const ok = safeSet(LS_ARCHIVE, JSON.stringify(a.slice(-500)), true);
+  const ok = safeSet(LS_ARCHIVE, archiveStr(a.slice(-500)), true);
 
   if(!ok){
 
@@ -2127,9 +2168,10 @@ function syncArchive(){
 
     if(out.length > 500) out = out.slice(0, 500);
 
-    const outStr = JSON.stringify(out);
+    const outStr = archiveStr(out);
 
-    if(outStr !== JSON.stringify(mine)) safeSet(LS_ARCHIVE, outStr);
+    let mineStr = ""; try{ mineStr = localStorage.getItem(LS_ARCHIVE) || ""; }catch(e){}
+    if(outStr !== mineStr) safeSet(LS_ARCHIVE, outStr);
 
     if(!got) return false;                        // 没拉到 → 只写本机，不推（避免冲掉云端更全的归档）
 
@@ -2983,6 +3025,21 @@ function updateStorageMeter(){
     window.__slimOnce = true;
 
     if(slimStoreBaks() > 0){ invalidateStoreCache(); r = storageBreakdown(); }
+
+    // ★ 归档区无损瘦身：幂等 pack（省空字段），条数不变 + 确实变小才写回
+    try{
+      const rawArch = localStorage.getItem(LS_ARCHIVE);
+      if(rawArch){
+        const arr = JSON.parse(rawArch);
+        if(Array.isArray(arr)){
+          const slim = archiveStr(arr);
+          if(slim.length < rawArch.length && JSON.parse(slim).length === arr.length){
+            localStorage.setItem(LS_ARCHIVE, slim);
+            invalidateStoreCache(); r = storageBreakdown();
+          }
+        }
+      }
+    }catch(e){}
 
   }
 
