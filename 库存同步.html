@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>铸运通发货协作系统 · 库存同步</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#fff; --line:#e3e8ef; --line2:#eef2f7;
+    --txt:#1f2733; --muted:#7a8699; --soft:#eef4ff;
+    --brand:#2563eb; --brand-d:#1e4fb0;
+    --ok:#16a34a; --err:#dc2626; --warn:#ca8a04; --idle:#94a3b8;
+    --navy:#0b1220; --navy2:#16243b; --cyan:#38bdf8;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.55;overflow:hidden;
+    display:flex;flex-direction:column;
+  }
+  /* ===== 顶部条：与全站同一套深蓝科技感 ===== */
+  .topbar{
+    flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:9px 16px;
+    background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);
+    border-bottom:1px solid rgba(56,189,248,.28);
+    box-shadow:0 4px 18px rgba(11,18,32,.18);position:relative;z-index:10;
+  }
+  .topbar h1{
+    margin:0;font-size:17px;font-weight:800;color:#e0f2fe;letter-spacing:.5px;
+    display:flex;align-items:center;gap:8px;white-space:nowrap;flex:0 0 auto;
+    text-shadow:0 0 10px rgba(56,189,248,.35);
+  }
+  .topbar h1 .ic{
+    width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,#38bdf8,#2563eb);color:#fff;font-size:14px;
+    box-shadow:0 0 12px rgba(56,189,248,.5);
+  }
+  .topbar .sub{font-size:12px;color:#7f93b0;white-space:nowrap;}
+  .topbar .spacer{flex:1;}
+  .topbar .stat{
+    display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;
+    background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.30);
+    color:#7dd3fc;font-size:12px;font-weight:600;white-space:nowrap;
+    font-family:"SF Mono","Consolas","Microsoft YaHei",monospace;
+  }
+  .topbar .stat .dot{width:7px;height:7px;border-radius:50%;background:var(--idle);box-shadow:0 0 8px currentColor;}
+  .topbar .stat.on .dot{background:var(--ok);}
+  .topbar .stat.off .dot{background:var(--err);}
+  .btn{
+    border:1px solid rgba(56,189,248,.32);border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;
+    cursor:pointer;background:rgba(56,189,248,.10);color:#bae6fd;transition:.15s;white-space:nowrap;
+  }
+  .btn:hover{background:rgba(56,189,248,.20);border-color:rgba(56,189,248,.55);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn.primary{
+    background:linear-gradient(135deg,#38bdf8,#2563eb);border-color:transparent;color:#fff;
+    box-shadow:0 4px 14px rgba(37,99,235,.42);
+  }
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.ghost{background:transparent;color:#7f93b0;border-color:rgba(127,147,176,.32);}
+  .btn.ghost:hover{color:#bae6fd;border-color:rgba(56,189,248,.5);background:rgba(56,189,248,.08);}
+
+  /* ===== 主体 ===== */
+  .main{flex:1 1 auto;overflow:auto;padding:14px 16px 26px;}
+  .wrap{max-width:1560px;margin:0 auto;}
+
+  /* 板块卡片 */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:12px;}
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:13px;
+    padding:13px 14px 12px;box-shadow:0 4px 14px rgba(15,23,42,.045);
+    position:relative;overflow:hidden;transition:.18s;
+  }
+  .panel::before{
+    content:"";position:absolute;left:0;top:0;right:0;height:3px;
+    background:linear-gradient(90deg,var(--brand),var(--cyan));opacity:.85;
+  }
+  .panel:hover{box-shadow:0 8px 22px rgba(15,23,42,.09);transform:translateY(-1px);}
+  .panel .ph{display:flex;align-items:flex-start;gap:9px;margin-bottom:9px;}
+  .panel .pico{
+    width:34px;height:34px;border-radius:9px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;font-size:16px;
+    background:linear-gradient(135deg,#e0f2fe,#dbeafe);color:var(--brand);
+    border:1px solid #c7dcfb;
+  }
+  .panel .pt{flex:1 1 auto;min-width:0;}
+  .panel .pt h3{margin:0;font-size:14.5px;font-weight:800;color:#0f172a;line-height:1.25;}
+  .panel .pt .code{font-size:11px;color:var(--muted);font-family:"SF Mono","Consolas",monospace;margin-top:2px;}
+  .badge{
+    flex:0 0 auto;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;
+    border:1px solid transparent;
+  }
+  .badge.idle{background:#f1f5f9;color:#64748b;border-color:#e2e8f0;}
+  .badge.run{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe;}
+  .badge.ok{background:#dcfce7;color:#15803d;border-color:#bbf7d0;}
+  .badge.err{background:#fee2e2;color:#b91c1c;border-color:#fecaca;}
+  .badge.warn{background:#fef3c7;color:#b45309;border-color:#fde68a;}
+  .badge.pending{background:#eef2f7;color:#64748b;border-color:#dbe2ea;border-style:dashed;}
+
+  .panel .meta{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-bottom:9px;}
+  .panel .meta b{color:#334155;font-weight:700;font-variant-numeric:tabular-nums;}
+  .panel .acts{display:flex;gap:6px;flex-wrap:wrap;}
+  .panel .acts .mini{
+    border:1px solid var(--line);background:#fff;color:#475569;border-radius:7px;
+    padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;
+  }
+  .panel .acts .mini:hover{background:var(--soft);border-color:#bfdbfe;color:var(--brand);}
+  .panel .acts .mini.go{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .panel .acts .mini.go:hover{background:var(--brand-d);}
+  .panel .acts .mini:disabled{opacity:.45;cursor:not-allowed;}
+  .panel .errline{
+    margin-top:8px;font-size:11.5px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;
+    border-radius:7px;padding:5px 8px;word-break:break-all;display:none;
+  }
+  .panel .errline.show{display:block;}
+
+  /* 工具条 */
+  .toolbar{
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:10px 13px;margin-bottom:12px;box-shadow:0 3px 12px rgba(15,23,42,.04);
+  }
+  .toolbar .lbl{font-size:12.5px;color:var(--muted);font-weight:600;}
+  .toolbar .spacer{flex:1;}
+  .switch{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#334155;font-weight:600;cursor:pointer;user-select:none;}
+  .switch input{display:none;}
+  .switch .track{
+    width:38px;height:21px;border-radius:999px;background:#cbd5e1;position:relative;transition:.2s;flex:0 0 auto;
+  }
+  .switch .track::after{
+    content:"";position:absolute;left:2px;top:2px;width:17px;height:17px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.28);transition:.2s;
+  }
+  .switch input:checked + .track{background:linear-gradient(135deg,#38bdf8,#2563eb);}
+  .switch input:checked + .track::after{left:19px;}
+  .tinput{
+    border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:12.5px;color:#334155;
+    font-family:"SF Mono","Consolas",monospace;background:#fff;
+  }
+  .tinput:focus{outline:none;border-color:var(--brand);}
+
+  /* 明细区 */
+  .detail{background:var(--card);border:1px solid var(--line);border-radius:13px;box-shadow:0 4px 14px rgba(15,23,42,.045);overflow:hidden;}
+  .dhead{
+    display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap;
+  }
+  .dhead h2{margin:0;font-size:15px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;}
+  .dhead .spacer{flex:1;}
+  .dhead .cnt{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .dsearch{
+    border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:12.5px;width:190px;
+  }
+  .dsearch:focus{outline:none;border-color:var(--brand);}
+  .tblwrap{overflow:auto;max-height:calc(100vh - 420px);min-height:190px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{
+    position:sticky;top:0;background:#f8fafc;color:#475569;font-weight:700;text-align:left;
+    padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap;z-index:2;
+  }
+  tbody td{padding:6px 10px;border-bottom:1px solid var(--line2);white-space:nowrap;}
+  tbody tr:hover{background:#f8fbff;}
+  tbody td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:"SF Mono","Consolas",monospace;}
+  tbody td.mat{font-family:"SF Mono","Consolas",monospace;font-weight:600;color:#1e40af;}
+  .empty{padding:34px 14px;text-align:center;color:#94a3b8;font-size:13px;}
+  .empty .big{font-size:30px;display:block;margin-bottom:8px;opacity:.5;}
+
+  /* 日志 */
+  .logbox{
+    background:var(--navy);color:#cbd5e1;border-radius:11px;padding:11px 13px;
+    font-family:"SF Mono","Consolas","Microsoft YaHei",monospace;font-size:12px;
+    line-height:1.7;max-height:190px;overflow:auto;border:1px solid rgba(56,189,248,.22);
+    box-shadow:inset 0 0 14px rgba(56,189,248,.06);
+  }
+  .logbox .t{color:#64748b;}
+  .logbox .ok{color:#4ade80;}
+  .logbox .er{color:#f87171;}
+  .logbox .wn{color:#fbbf24;}
+  .logbox .in{color:#7dd3fc;}
+  .lgtitle{
+    font-size:12.5px;font-weight:700;color:#334155;margin:14px 0 7px;
+    display:flex;align-items:center;gap:7px;
+  }
+  .lgtitle .spacer{flex:1;}
+
+  /* Toast */
+  .toast{
+    position:fixed;left:50%;top:16px;transform:translateX(-50%);
+    background:#0f172a;color:#e2e8f0;padding:10px 18px;border-radius:10px;font-size:13px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.3);
+  }
+  .toast.show{opacity:1;}
+  @media (max-width:900px){
+    .topbar .sub,.topbar .stat{display:none;}
+    .tblwrap{max-height:none;}
+  }
+</style>
+  <script src="festival-skin.js?v=20261106a&h=c1c6acc0" defer></script>
+</head>
+<body>
+  <div class="topbar">
+    <h1><span class="ic">📦</span>库存同步</h1>
+    <span class="sub">五个库统一拉数 · 自动抓取 · 一键导出</span>
+    <div class="spacer"></div>
+    <span class="stat" id="agentStat"><span class="dot"></span><span id="agentStatTxt">代理未连接</span></span>
+    <button class="btn primary" id="syncAllBtn">🔄 全部同步</button>
+    <button class="btn" id="expBtn">⬇ 导出 Excel</button>
+  </div>
+
+  <div class="main">
+    <div class="wrap">
+
+      <div class="toolbar">
+        <span class="lbl">自动同步</span>
+        <label class="switch">
+          <input type="checkbox" id="autoChk"><span class="track"></span>
+          <span id="autoTxt">每天 08:00 自动拉数</span>
+        </label>
+        <input class="tinput" id="autoTime" type="time" value="08:00">
+        <button class="btn ghost" id="saveAutoBtn">保存</button>
+        <span class="spacer"></span>
+        <span class="lbl">最后刷新</span>
+        <span class="lbl" id="lastRefresh" style="font-family:'SF Mono',Consolas,monospace;color:#475569;">—</span>
+        <button class="btn ghost" id="refreshBtn">⟳ 刷新本页</button>
+      </div>
+
+      <div class="grid" id="grid"></div>
+
+      <div class="lgtitle">
+        <span>📄 库存明细</span>
+        <span class="cnt" id="detailCnt"></span>
+        <span class="spacer"></span>
+        <input class="dsearch" id="detailSearch" placeholder="搜物料号 / 描述…">
+      </div>
+      <div class="detail">
+        <div class="dhead">
+          <h2 id="detailTitle">全部库汇总</h2>
+          <span class="cnt" id="detailSub"></span>
+          <span class="spacer"></span>
+          <span class="cnt">共 <b id="detailRows">0</b> 条</span>
+        </div>
+        <div class="tblwrap">
+          <table>
+            <thead><tr>
+              <th style="width:118px;">物料号</th>
+              <th>物料描述</th>
+              <th style="width:104px;">库位</th>
+              <th style="width:112px;">库存数量</th>
+              <th style="width:70px;">单位</th>
+              <th style="width:120px;">来源库</th>
+              <th style="width:140px;">同步时间</th>
+            </tr></thead>
+            <tbody id="detailBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="lgtitle">
+        <span>📋 运行日志</span>
+        <span class="spacer"></span>
+        <button class="btn ghost" id="clearLogBtn">清空</button>
+      </div>
+      <div class="logbox" id="logBox"></div>
+
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script src="cloud-config.js?v=20240916a"></script>
+<script src="supabase.min.js?v=20240916a"></script>
+<script src="cloud-sync.js?v=20240916a"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     五个库存板块定义
+     - key：存储与云端用的标识
+     - name：页面显示名
+     - src：数据来源说明（点开让人知道去哪儿抓）
+     - mode：抓取通道
+         "sap"  → 复用本机 sap_stock_export.py（MB52 导出 XLSX）
+         "win"  → 由本机代理用 windows-mcp 驱动 Windows 业务软件抓
+     ============================================================ */
+  const PANELS = [
+    { key:"sap",   name:"SAP库存同步",     icon:"🧮", code:"SAP · MB52",
+      src:"SAP 系统 /nMB52 · 工厂 H207~H208 · 仓库库存",
+      mode:"sap", loc:"H207 / H208" },
+    { key:"dali",  name:"大立库库存同步",   icon:"🏭", code:"DALI-WMS",
+      src:"大立库 WMS · 库存查询界面",
+      mode:"win", loc:"大立库" },
+    { key:"hou",   name:"后处理库存同步",   icon:"⚙️", code:"POST-PROC",
+      src:"后处理工序库存 · 现场系统",
+      mode:"win", loc:"后处理" },
+    { key:"nqql",  name:"南区汽零库存同步", icon:"🚗", code:"NANQU-QL",
+      src:"南区汽零 · 备货库系统",
+      mode:"win", loc:"南区汽零" },
+    { key:"nqzz",  name:"南区铸造库存同步", icon:"⚙",  code:"NANQU-ZZ",
+      src:"南区铸造 · 成品库系统",
+      mode:"win", loc:"南区铸造" }
+  ];
+
+  const LS_KEY = "inventory_sync_v1";
+  const AGENT_PORT = 8787;
+  const AGENT = "http://127.0.0.1:" + AGENT_PORT;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+  const pad = n => String(n).padStart(2,"0");
+  const nowStr = () => { const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+" "+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds()); };
+
+  /* ---------- 状态 ---------- */
+  const state = {
+    panels:{},          // key -> {status, at, rows, err, src, pending}
+    rows: [],           // 明细行（全部库汇总）
+    auto: false,
+    autoTime: "08:00",
+    agent: false,
+    srcInfo:{}          // key -> {ready, todo, src, mode}
+  };
+
+  PANELS.forEach(p => { state.panels[p.key] = { status:"idle", at:"", rows:0, err:"", src:"", pending:false }; });
+
+  /* ---------- 日志 ---------- */
+  function log(msg, cls){
+    const box = $("logBox");
+    if(!box) return;
+    const d = new Date();
+    const t = pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds());
+    const line = document.createElement("div");
+    line.innerHTML = '<span class="t">['+t+']</span> <span class="'+(cls||"")+'">'+esc(msg)+"</span>";
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+    while(box.childNodes.length > 400) box.removeChild(box.firstChild);
+  }
+  function toast(msg){
+    const el = $("toast"); el.textContent = msg; el.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove("show"), 2200);
+  }
+
+  /* ---------- 存取 ---------- */
+  function load(){
+    let o = null;
+    try{ o = JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){}
+    if(o && typeof o==="object"){
+      PANELS.forEach(p=>{ if(o.panels && o.panels[p.key]) Object.assign(state.panels[p.key], o.panels[p.key]); });
+      if(Array.isArray(o.rows)) state.rows = o.rows;
+      if(typeof o.auto==="boolean") state.auto = o.auto;
+      if(o.autoTime) state.autoTime = o.autoTime;
+    }
+  }
+  function save(){
+    const o = { panels:state.panels, rows:state.rows, auto:state.auto, autoTime:state.autoTime, savedAt:new Date().toISOString() };
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(o)); }catch(e){ log("本机存储写入失败："+e.message, "er"); }
+    if(window.CloudSync && CloudSync.push) CloudSync.push(LS_KEY, o);
+  }
+
+  /* ---------- 渲染 ---------- */
+  const STATUS_TXT = { idle:"未同步", run:"同步中", ok:"成功", err:"失败", warn:"有警告", pending:"待接入" };
+
+  function renderPanels(){
+    const grid = $("grid");
+    grid.innerHTML = PANELS.map(p=>{
+      const s = state.panels[p.key];
+      const badgeCls = s.status==="ok" ? "ok" : s.status==="err" ? "err" : s.status==="run" ? "run" : s.status==="warn" ? "warn" : (s.pending ? "pending" : "idle");
+      const busy = s.status==="run";
+      const pending = !!s.pending;
+      return '<div class="panel" data-key="'+p.key+'">'
+        + '<div class="ph">'
+        +   '<div class="pico">'+p.icon+'</div>'
+        +   '<div class="pt"><h3>'+esc(p.name)+'</h3><div class="code">'+esc(p.code)+'</div></div>'
+        +   '<span class="badge '+badgeCls+'" data-role="badge">'+esc(STATUS_TXT[s.status]||"未同步")+'</span>'
+        + '</div>'
+        + '<div class="meta">'
+        +   '<span>库位 <b>'+esc(p.loc)+'</b></span>'
+        +   '<span>条数 <b data-role="cnt">'+(s.rows||0)+'</b></span>'
+        +   '<span>更新 <b data-role="at">'+(s.at?esc(s.at.slice(5,16)):"—")+'</b></span>'
+        + '</div>'
+        + '<div class="acts">'
+        +   '<button class="mini go" data-act="sync" '+(busy||pending?"disabled":"")+'>'+(busy?"同步中…":(pending?"待接入":"立即同步"))+'</button>'
+        +   '<button class="mini" data-act="view">查看明细</button>'
+        +   '<button class="mini" data-act="srcinfo" title="'+esc(p.src)+'">来源</button>'
+        + '</div>'
+        + '<div class="errline" data-role="err"></div>'
+        + '</div>';
+    }).join("");
+  }
+
+  function updatePanelUI(key){
+    const p = PANELS.find(x=>x.key===key); if(!p) return;
+    const s = state.panels[key];
+    const el = document.querySelector('.panel[data-key="'+key+'"]'); if(!el) return;
+    const badge = el.querySelector('[data-role="badge"]');
+    const cls = s.status==="ok"?"ok":s.status==="err"?"err":s.status==="run"?"run":s.status==="warn"?"warn":(s.pending?"pending":"idle");
+    badge.className = "badge "+cls;
+    badge.textContent = STATUS_TXT[s.status]||"未同步";
+    el.querySelector('[data-role="cnt"]').textContent = s.rows||0;
+    el.querySelector('[data-role="at"]').textContent = s.at ? s.at.slice(5,16) : "—";
+    const errEl = el.querySelector('[data-role="err"]');
+    if(s.err){ errEl.textContent = s.err; errEl.classList.add("show"); }
+    else errEl.classList.remove("show");
+    const btn = el.querySelector('[data-act="sync"]');
+    if(btn){
+      btn.disabled = (s.status==="run") || !!s.pending;
+      btn.textContent = (s.status==="run")?"同步中…":(s.pending?"待接入":"立即同步");
+    }
+  }
+
+  function renderDetail(){
+    const body = $("detailBody");
+    const q = ($("detailSearch").value||"").trim().toLowerCase();
+    let rows = state.rows;
+    if(window.__detailPanel) rows = rows.filter(r=>r.src===window.__detailPanel);
+    if(q) rows = rows.filter(r=>
+      String(r.mat||"").toLowerCase().indexOf(q)>=0 ||
+      String(r.desc||"").toLowerCase().indexOf(q)>=0 ||
+      String(r.loc||"").toLowerCase().indexOf(q)>=0);
+    $("detailRows").textContent = rows.length;
+    $("detailCnt").textContent = window.__detailPanel ? ("当前库：" + window.__detailPanel) : "（全部库）";
+    $("detailTitle").textContent = window.__detailPanel ? window.__detailPanel+" 明细" : "全部库汇总";
+    if(!rows.length){
+      body.innerHTML = '<tr><td colspan="7"><div class="empty"><span class="big">📭</span>暂无数据。点上面各板块的「立即同步」开始拉取。</div></td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(r=>
+      '<tr>'
+      + '<td class="mat">'+esc(r.mat)+'</td>'
+      + '<td>'+esc(r.desc)+'</td>'
+      + '<td>'+esc(r.loc)+'</td>'
+      + '<td class="num">'+esc(r.qty)+'</td>'
+      + '<td>'+esc(r.unit||"")+'</td>'
+      + '<td>'+esc(r.src)+'</td>'
+      + '<td>'+esc(r.at||"")+'</td>'
+      + '</tr>').join("");
+  }
+
+  /* ---------- 本机代理（HTTP → windows-mcp） ---------- */
+  async function pingAgent(){
+    try{
+      const ctl = new AbortController();
+      const t = setTimeout(()=>ctl.abort(), 2500);
+      const r = await fetch(AGENT+"/ping", {signal:ctl.signal});
+      clearTimeout(t);
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const j = await r.json();
+      state.agent = true;
+      $("agentStat").className = "stat on";
+      $("agentStatTxt").textContent = "代理在线 · " + (j.version||"");
+      return true;
+    }catch(e){
+      state.agent = false;
+      $("agentStat").className = "stat off";
+      $("agentStatTxt").textContent = "代理未连接";
+      return false;
+    }
+  }
+
+  /* 拉取各板块接入状态：已配置=ready，未配置=pending */
+  async function loadSources(){
+    try{
+      const ctl = new AbortController();
+      const t = setTimeout(()=>ctl.abort(), 3000);
+      const r = await fetch(AGENT+"/sources", {signal:ctl.signal});
+      clearTimeout(t);
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const j = await r.json();
+      if(j.panels){
+        Object.assign(state.srcInfo, j.panels);
+        PANELS.forEach(p=>{
+          const info = j.panels[p.key] || {};
+          const s = state.panels[p.key];
+          s.pending = (info.ready === false);
+          if(info.ready === false){
+            s.status = "pending";
+            s.err = info.todo || "尚未配置自动拉数方式";
+          }
+        });
+        renderPanels();
+        const ready = PANELS.filter(p=>!state.panels[p.key].pending).map(p=>p.name).join("、");
+        const pend  = PANELS.filter(p=>state.panels[p.key].pending).map(p=>p.name).join("、");
+        log("取数配置：已就绪 " + (ready||"无") + (pend ? ("；待接入 " + pend) : ""), "t");
+      }
+    }catch(e){
+      log("读取取数配置失败（代理未连接）：" + e.message, "wn");
+    }
+  }
+
+  /* 触发抓取
+     - sap 模式：走本机已装好的 SAP 取数脚本（走的是同一个 agent /run）
+     - win 模式：agent 用 windows-mcp 驱动对应业务软件
+     agent 不可用时降级为「仅本地记录」，页面给出明确提示而不是假装成功。 */
+  async function syncPanel(key){
+    const p = PANELS.find(x=>x.key===key); if(!p) return;
+    const s = state.panels[key];
+    if(s.pending){
+      const info = state.srcInfo[key] || {};
+      toast(p.name + " 尚未接入自动拉数");
+      log("⏸ " + p.name + " 尚未接入自动拉数：" + (info.todo || "待配置取数方式"), "wn");
+      return;
+    }
+    s.status = "run"; s.err = ""; updatePanelUI(key);
+    log("▶ 开始同步：" + p.name + "（" + p.code + "）", "in");
+
+    const t0 = Date.now();
+    try{
+      const ctl = new AbortController();
+      const timer = setTimeout(()=>ctl.abort(), 180000);   // SAP 一次约 2 分钟
+      const r = await fetch(AGENT+"/run", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ key:key, mode:p.mode, src:p.src }),
+        signal:ctl.signal
+      });
+      clearTimeout(timer);
+      if(!r.ok) throw new Error("代理返回 HTTP "+r.status);
+      const j = await r.json();
+      if(j.ok === false) throw new Error(j.error || "代理执行失败");
+
+      const rows = Array.isArray(j.rows) ? j.rows : [];
+      // 替换该库旧明细
+      state.rows = state.rows.filter(x=>x.src!==p.name);
+      rows.forEach(x=>{
+        state.rows.push({
+          mat: x.mat!=null?x.mat:(x.material||""),
+          desc: x.desc!=null?x.desc:(x.text||x.name||""),
+          loc:  x.loc!=null?x.loc:(x.stock||x.place||""),
+          qty:  x.qty!=null?x.qty:(x.qtyl||x.amount||""),
+          unit: x.unit||"",
+          src:  p.name,
+          at:   j.at || nowStr()
+        });
+      });
+      s.rows = rows.length;
+      s.at = j.at || nowStr();
+      s.status = (rows.length ? "ok" : "warn");
+      if(!rows.length) s.err = "抓取完成但没有数据返回（请检查来源系统或代理配置）";
+      log((rows.length?("✔ "+p.name+" 成功，取到 "+rows.length+" 条"):("⚠ "+p.name+" 没有数据"))
+          + "（"+((Date.now()-t0)/1000).toFixed(1)+" 秒）", rows.length?"ok":"wn");
+    }catch(e){
+      s.status = "err";
+      s.err = (e && e.name==="AbortError") ? "超时（180 秒无响应）" : String(e.message||e);
+      s.at = nowStr();
+      log("✘ " + p.name + " 失败：" + s.err, "er");
+    }
+    updatePanelUI(key);
+    renderDetail();
+    save();
+  }
+
+  /* ---------- 导出 Excel ---------- */
+  function exportExcel(){
+    const rows = state.rows;
+    if(!rows.length){ toast("还没有数据，先同步一次"); return; }
+    // CSV（带 BOM，Excel 直接双击能正常显示中文）
+    const head = ["物料号","物料描述","库位","库存数量","单位","来源库","同步时间"];
+    const esc2 = v => {
+      const s = String(v==null?"":v);
+      return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+    };
+    const lines = [head.map(esc2).join(",")];
+    rows.forEach(r=>lines.push([r.mat,r.desc,r.loc,r.qty,r.unit,r.src,r.at].map(esc2).join(",")));
+    const csv = "﻿" + lines.join("\r\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    const d = new Date();
+    a.href = URL.createObjectURL(blob);
+    a.download = "库存同步_" + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + "_" + pad(d.getHours()) + pad(d.getMinutes()) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+    toast("已导出 " + rows.length + " 条库存（CSV，Excel 可直接打开）");
+    log("已导出库存明细 " + rows.length + " 条", "ok");
+  }
+
+  /* ---------- 自动同步 ---------- */
+  function loadAuto(){
+    let cfg = null;
+    try{ cfg = JSON.parse(localStorage.getItem("inventory_sync_auto_v1")||"null"); }catch(e){}
+    if(cfg){ state.auto = !!cfg.on; state.autoTime = cfg.time || "08:00"; }
+    $("autoChk").checked = state.auto;
+    $("autoTime").value = state.autoTime;
+    $("autoTxt").textContent = state.auto ? ("每天 " + state.autoTime + " 自动拉数") : "每天 08:00 自动拉数（当前关闭）";
+  }
+  function saveAuto(){
+    state.auto = $("autoChk").checked;
+    state.autoTime = $("autoTime").value || "08:00";
+    try{ localStorage.setItem("inventory_sync_auto_v1", JSON.stringify({on:state.auto, time:state.autoTime})); }catch(e){}
+    $("autoTxt").textContent = state.auto ? ("每天 " + state.autoTime + " 自动拉数") : "每天 " + state.autoTime + " 自动拉数（当前关闭）";
+    log("自动同步已" + (state.auto?"开启":"关闭") + " · 每天 " + state.autoTime, "in");
+    toast(state.auto ? ("已开启每天 " + state.autoTime + " 自动拉数") : "已关闭自动拉数");
+  }
+  /* 到点自动跑：页面开着时生效（每分钟检查一次） */
+  let lastAutoRun = "";
+  function tickAuto(){
+    if(!state.auto) return;
+    const d = new Date();
+    const nowHM = pad(d.getHours())+":"+pad(d.getMinutes());
+    if(nowHM !== state.autoTime) return;
+    const dayKey = d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+" "+nowHM;
+    if(lastAutoRun === dayKey) return;
+    lastAutoRun = dayKey;
+    log("⏰ 到达定时时间 " + state.autoTime + "，开始自动拉数", "in");
+    syncAll();
+  }
+
+  /* ---------- 事件 ---------- */
+  $("grid").addEventListener("click", e=>{
+    const btn = e.target.closest("[data-act]"); if(!btn) return;
+    const panel = btn.closest(".panel"); if(!panel) return;
+    const key = panel.getAttribute("data-key");
+    const p = PANELS.find(x=>x.key===key); if(!p) return;
+    const act = btn.getAttribute("data-act");
+    if(act==="sync") syncPanel(key);
+    else if(act==="view"){
+      window.__detailPanel = p.name;
+      renderDetail();
+      document.querySelector(".detail").scrollIntoView({behavior:"smooth", block:"center"});
+    }
+    else if(act==="srcinfo"){
+      toast(p.name + "： " + p.src);
+      log("来源 · " + p.name + " → " + p.src, "in");
+    }
+  });
+
+  $("syncAllBtn").onclick = async ()=>{
+    if(state.running){ toast("正在同步中，请稍候"); return; }
+    const todo = PANELS.filter(p=>!state.panels[p.key].pending);
+    if(!todo.length){ toast("五个库都还没接入自动拉数"); return; }
+    state.running = true;
+    $("syncAllBtn").disabled = true;
+    for(const p of todo){
+      await syncPanel(p.key);
+    }
+    state.running = false;
+    $("syncAllBtn").disabled = false;
+    toast(todo.length===PANELS.length ? "五个库同步完成" : ("已同步 "+todo.length+" 个库（其余待接入）"));
+  };
+  $("expBtn").onclick = exportExcel;
+  $("refreshBtn").onclick = ()=>{ renderPanels(); renderDetail(); toast("已刷新"); };
+  $("clearLogBtn").onclick = ()=>{ $("logBox").innerHTML=""; log("日志已清空","t"); };
+  $("detailSearch").oninput = renderDetail;
+  $("saveAutoBtn").onclick = saveAuto;
+  $("autoChk").onchange = saveAuto;
+  $("autoTime").onchange = saveAuto;
+
+  /* ---------- 启动 ---------- */
+  function boot(){
+    load(); loadAuto();
+    renderPanels(); renderDetail();
+    const meta = (function(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){ return null; } })();
+    if(meta && meta.savedAt){
+      $("lastRefresh").textContent = new Date(meta.savedAt).toLocaleString();
+      log("载入本机已有数据 " + (state.rows.length||0) + " 条", "t");
+    }else{
+      log("尚无历史库存数据，点各板块「立即同步」开始拉取", "t");
+    }
+    pingAgent().then(ok=>{
+      if(!ok){
+        log("⚠ 本机代理（127.0.0.1:"+AGENT_PORT+"）未连接：自动抓取不可用。"+
+            "请在本机启动库存同步代理后重试；页面与手动导出不受影响。", "wn");
+        return;
+      }
+      loadSources();
+    });
+    setInterval(tickAuto, 60000);
+    // 云端拉一次（别的机器同步过的数据也能看到）
+    if(window.CloudSync && CloudSync.pullResult){
+      CloudSync.pullResult(LS_KEY).then(r=>{
+        if(r.ok && r.value && typeof r.value==="object"){
+          let changed = false;
+          PANELS.forEach(p=>{ const v=r.value.panels&&r.value.panels[p.key]; if(v && v.at && v.at > (state.panels[p.key].at||"")){ Object.assign(state.panels[p.key], v); changed=true; } });
+          if(Array.isArray(r.value.rows) && r.value.rows.length > state.rows.length){ state.rows = r.value.rows; changed=true; }
+          if(changed){ renderPanels(); renderDetail(); log("已从云端同步库存数据", "ok"); }
+        }
+      }).catch(()=>{});
+    }
+  }
+  boot();
+})();
+</script>
+<script src="auth.js?v=20260930a"></script>
+<script>if(window.Auth)Auth.guard();</script>
+</body>
+</html>
