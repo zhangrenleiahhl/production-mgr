@@ -468,6 +468,10 @@
   async function cloudJob(key){
     /* 写一条抓取任务到云端队列 */
     if(!(window.CloudSync && CloudSync.push)) return false;
+    if(CloudSync.ready && !CloudSync.ready()){
+      log("云端未就绪，无法下发任务", "er");
+      return false;
+    }
     state.jobSeq += 1;
     const job = { seq: state.jobSeq, key: key, ts: nowStr(), by: "web" };
     const ok = await CloudSync.push(JOB_KEY, job);
@@ -512,7 +516,11 @@
       try{
         if(window.CloudSync && CloudSync.pullResult){
           const r = await CloudSync.pullResult("inventory_sources_v1");
-          if(r.ok && r.value && r.value.panels) panels = r.value.panels;
+          if(r.ok && r.value){
+            /* 兼容两种结构：{panels:{...}} 与平铺 {key:{...}} */
+            const v = r.value;
+            panels = (v.panels && typeof v.panels === "object") ? v.panels : v;
+          }
         }
       }catch(e){ log("云端读取取数配置失败：" + e.message, "wn"); }
     }
@@ -715,6 +723,8 @@
   /* ---------- 启动 ---------- */
   function boot(){
     load(); loadAuto();
+    /* ★ CloudSync 必须显式 init()，否则 ready=false，所有云端接口都是空转 */
+    try{ if(window.CloudSync && CloudSync.init) CloudSync.init(); }catch(e){ log("云端初始化失败：" + e.message, "wn"); }
     renderPanels(); renderDetail();
     const meta = (function(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){ return null; } })();
     if(meta && meta.savedAt){
@@ -729,9 +739,12 @@
       try{ direct = await pingAgent(); }catch(e){}
       let cloud = false;
       try{
-        if(window.CloudSync && CloudSync.pullResult){
+        if(window.CloudSync && CloudSync.ready && CloudSync.ready() && CloudSync.pullResult){
           const r = await CloudSync.pullResult(LS_KEY);
           cloud = !!(r && r.ok);      // ok=true 表示云端连得上（value 为 null 也算通）
+          if(!cloud && r && r.reason) log("云端不可用：" + r.reason, "wn");
+        }else{
+          log("云端未就绪（CloudSync 未初始化或未配置）", "wn");
         }
       }catch(e){ log("云端探测失败：" + e.message, "wn"); }
       state.cloudOK = cloud;
