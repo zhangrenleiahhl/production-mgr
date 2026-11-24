@@ -618,7 +618,9 @@
       log("云端未就绪，无法下发任务", "er");
       return false;
     }
-    state.jobSeq += 1;
+    // seq 用毫秒时间戳：单调不回退，且远大于任何历史遗留 seq（含本机代理/旧页面的小序号），
+    // 保证代理的 `seq > last_seq` 判定永远成立，不会因为云端残留更大 seq 而忽略本次任务。
+    state.jobSeq = Math.max(state.jobSeq + 1, Date.now());
     const jobId = "web-" + Date.now() + "-" + Math.floor(Math.random()*100000);
     state.jobId = jobId;
     state.jobAt = nowStr();               // 下发时刻，用于识别"旧代理没带 jobId"的结果
