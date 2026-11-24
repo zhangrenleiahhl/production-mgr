@@ -97,6 +97,7 @@
       <button class="tab" data-page="订单管理系统.html">🧾 订单管理</button>
       <button class="tab" data-page="物料数据库.html">📦 物料数据库</button>
       <button class="tab" data-page="数据急救.html" title="数据急救：找回误删 / 误覆盖的数据（系统自动留的快照）">🚑 数据急救</button>
+      <button class="tab" data-page="库存同步.html" title="库存同步：SAP / 大立库 / 后处理 / 南区汽零 / 南区铸造 五个库统一拉数，一键导出 Excel">📦 库存同步</button>
     </div>
     <button class="btn" id="loginBtn">🔑 登录</button>
     <div class="spacer"></div>
@@ -184,9 +185,11 @@
     "shipping_modelcust_v1":"送达方记忆",
     "shipping_schedule_v1":"旧版排产表残留",
     "auto_sched_v2":"自动排产系统",
-    "order_mgmt_data_v1":"订单管理系统"
+    "order_mgmt_data_v1":"订单管理系统",
+    "inventory_sync_v1":"库存同步数据",
+    "inventory_sync_auto_v1":"库存同步 · 自动拉数设置"
   };
-  const OWN_PREFIX=["shipping_","order_mgmt_"];
+  const OWN_PREFIX=["shipping_","order_mgmt_","inventory_"];
   const OWN_KEYS=["last_client_tab","last_backup","auto_backup"];
   const LEGACY_KEYS={"shipping_schedule_v1":1};
   // ★ 冗余留底的识别口径（2026-10-26）：与发货计划页、数据急救页完全同一套
