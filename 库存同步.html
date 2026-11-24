@@ -202,6 +202,7 @@
     <h1><span class="ic">📦</span>库存同步</h1>
     <span class="sub">五个库统一拉数 · 自动抓取 · 一键导出</span>
     <div class="spacer"></div>
+    <span class="stat" id="chanStat" title="线上 https 页面不能直连本机，改由本机助手经云端中转执行"><span class="dot"></span><span id="chanTxt">通道检测中…</span></span>
     <span class="stat" id="agentStat"><span class="dot"></span><span id="agentStatTxt">代理未连接</span></span>
     <button class="btn primary" id="syncAllBtn">🔄 全部同步</button>
     <button class="btn" id="expBtn">⬇ 导出 Excel</button>
@@ -303,6 +304,9 @@
   const LS_KEY = "inventory_sync_v1";
   const AGENT_PORT = 8787;
   const AGENT = "http://127.0.0.1:" + AGENT_PORT;
+  /* 云端中转（app_data 任务队列）：线上 https 页面不能直连本机 loopback，走这里 */
+  const JOB_KEY = "inventory_job_v1";
+  const JOB_RES_KEY = "inventory_job_result_v1";
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
@@ -316,7 +320,11 @@
     auto: false,
     autoTime: "08:00",
     agent: false,
-    srcInfo:{}          // key -> {ready, todo, src, mode}
+    cloudOK: false,     // 云端中转是否可用
+    srcInfo:{},         // key -> {ready, todo, src, mode}
+    jobSeq: 0,          // 云端任务序号
+    lastResSeq: 0,      // 已处理的结果序号
+    channel: "直连代理" // 当前通道：直连代理 / 云端中转
   };
 
   PANELS.forEach(p => { state.panels[p.key] = { status:"idle", at:"", rows:0, err:"", src:"", pending:false }; });
@@ -444,19 +452,52 @@
       if(!r.ok) throw new Error("HTTP "+r.status);
       const j = await r.json();
       state.agent = true;
+      state.channel = "直连代理";
       $("agentStat").className = "stat on";
       $("agentStatTxt").textContent = "代理在线 · " + (j.version||"");
       return true;
     }catch(e){
       state.agent = false;
       $("agentStat").className = "stat off";
-      $("agentStatTxt").textContent = "代理未连接";
+      $("agentStatTxt").textContent = "本机无代理";
       return false;
     }
   }
 
+  /* ---------- 云端中转通道 ---------- */
+  async function cloudJob(key){
+    /* 写一条抓取任务到云端队列 */
+    if(!(window.CloudSync && CloudSync.push)) return false;
+    state.jobSeq += 1;
+    const job = { seq: state.jobSeq, key: key, ts: nowStr(), by: "web" };
+    const ok = await CloudSync.push(JOB_KEY, job);
+    if(!ok) log("云端任务下发失败：" + key, "er");
+    return ok;
+  }
+
+  async function cloudPollResult(key, timeoutMs){
+    /* 轮询云端结果键，直到拿到本次任务（seq 匹配）的结果 */
+    if(!(window.CloudSync && CloudSync.pullResult)) return null;
+    const t0 = Date.now();
+    const mySeq = state.jobSeq;
+    while(Date.now() - t0 < timeoutMs){
+      const r = await CloudSync.pullResult(JOB_RES_KEY);
+      if(r.ok && r.value && typeof r.value === "object"){
+        const v = r.value;
+        if(v.seq >= mySeq && v.key === key){
+          state.lastResSeq = v.seq;
+          return v;
+        }
+      }
+      await new Promise(r=>setTimeout(r, 2500));
+    }
+    return null;
+  }
+
   /* 拉取各板块接入状态：已配置=ready，未配置=pending */
   async function loadSources(){
+    let panels = null;
+    /* ① 先问本机代理 */
     try{
       const ctl = new AbortController();
       const t = setTimeout(()=>ctl.abort(), 3000);
@@ -464,25 +505,35 @@
       clearTimeout(t);
       if(!r.ok) throw new Error("HTTP "+r.status);
       const j = await r.json();
-      if(j.panels){
-        Object.assign(state.srcInfo, j.panels);
-        PANELS.forEach(p=>{
-          const info = j.panels[p.key] || {};
-          const s = state.panels[p.key];
-          s.pending = (info.ready === false);
-          if(info.ready === false){
-            s.status = "pending";
-            s.err = info.todo || "尚未配置自动拉数方式";
-          }
-        });
-        renderPanels();
-        const ready = PANELS.filter(p=>!state.panels[p.key].pending).map(p=>p.name).join("、");
-        const pend  = PANELS.filter(p=>state.panels[p.key].pending).map(p=>p.name).join("、");
-        log("取数配置：已就绪 " + (ready||"无") + (pend ? ("；待接入 " + pend) : ""), "t");
-      }
-    }catch(e){
-      log("读取取数配置失败（代理未连接）：" + e.message, "wn");
+      if(j.panels) panels = j.panels;
+    }catch(e){ /* 线上页面读不到本机，走云端 */ }
+    /* ② 读不到就从云端取（代理把配置状态同步到了 app_data） */
+    if(!panels){
+      try{
+        if(window.CloudSync && CloudSync.pullResult){
+          const r = await CloudSync.pullResult("inventory_sources_v1");
+          if(r.ok && r.value && r.value.panels) panels = r.value.panels;
+        }
+      }catch(e){ log("云端读取取数配置失败：" + e.message, "wn"); }
     }
+    if(!panels){
+      log("取数配置暂时读不到（本机助手未在线），各库暂按未接入处理", "wn");
+      return;
+    }
+    Object.assign(state.srcInfo, panels);
+    PANELS.forEach(p=>{
+      const info = panels[p.key] || {};
+      const s = state.panels[p.key];
+      s.pending = (info.ready === false);
+      if(info.ready === false){
+        s.status = "pending";
+        s.err = info.todo || "尚未配置自动拉数方式";
+      }
+    });
+    renderPanels();
+    const ready = PANELS.filter(p=>!state.panels[p.key].pending).map(p=>p.name).join("、");
+    const pend  = PANELS.filter(p=>state.panels[p.key].pending).map(p=>p.name).join("、");
+    log("取数配置：已就绪 " + (ready||"无") + (pend ? ("；待接入 " + pend) : ""), "t");
   }
 
   /* 触发抓取
@@ -502,19 +553,38 @@
     log("▶ 开始同步：" + p.name + "（" + p.code + "）", "in");
 
     const t0 = Date.now();
+    let j = null;
     try{
-      const ctl = new AbortController();
-      const timer = setTimeout(()=>ctl.abort(), 180000);   // SAP 一次约 2 分钟
-      const r = await fetch(AGENT+"/run", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ key:key, mode:p.mode, src:p.src }),
-        signal:ctl.signal
-      });
-      clearTimeout(timer);
-      if(!r.ok) throw new Error("代理返回 HTTP "+r.status);
-      const j = await r.json();
-      if(j.ok === false) throw new Error(j.error || "代理执行失败");
+      /* ① 先试直连本机代理（本机打开页面时最快，秒回） */
+      try{
+        const ctl = new AbortController();
+        const timer = setTimeout(()=>ctl.abort(), 6000);   // 本机代理只给 6 秒握手
+        const r = await fetch(AGENT+"/run", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ key:key, mode:p.mode, src:p.src }),
+          signal:ctl.signal
+        });
+        clearTimeout(timer);
+        if(!r.ok) throw new Error("代理返回 HTTP "+r.status);
+        j = await r.json();
+        state.channel = "直连代理";
+        $("agentStat").className = "stat on";
+        $("agentStatTxt").textContent = "代理在线 · 直连";
+      }catch(e1){
+        /* ② 直连不通（线上 https 页面被浏览器策略拦住）→ 走云端中转 */
+        state.channel = "云端中转";
+        log("本机代理直连不可用（" + (e1 && e1.message ? e1.message : e1) + "），改走云端中转", "wn");
+        if(!state.cloudOK){
+          throw new Error("本机代理连不上，且云端中转未启用");
+        }
+        log("⏳ 已下发云端任务，等待本机助手执行…", "in");
+        if(!await cloudJob(key)) throw new Error("云端任务下发失败");
+        const v = await cloudPollResult(key, 300000);
+        if(!v) throw new Error("云端中转等待超时（本机助手未回结果）");
+        j = { ok: v.ok, rows: v.rows, at: v.at, error: v.error };
+      }
+      if(j.ok === false) throw new Error(j.error || "抓取失败");
 
       const rows = Array.isArray(j.rows) ? j.rows : [];
       // 替换该库旧明细
@@ -535,7 +605,7 @@
       s.status = (rows.length ? "ok" : "warn");
       if(!rows.length) s.err = "抓取完成但没有数据返回（请检查来源系统或代理配置）";
       log((rows.length?("✔ "+p.name+" 成功，取到 "+rows.length+" 条"):("⚠ "+p.name+" 没有数据"))
-          + "（"+((Date.now()-t0)/1000).toFixed(1)+" 秒）", rows.length?"ok":"wn");
+          + "（"+((Date.now()-t0)/1000).toFixed(1)+" 秒 · "+state.channel+"）", rows.length?"ok":"wn");
     }catch(e){
       s.status = "err";
       s.err = (e && e.name==="AbortError") ? "超时（180 秒无响应）" : String(e.message||e);
@@ -653,14 +723,33 @@
     }else{
       log("尚无历史库存数据，点各板块「立即同步」开始拉取", "t");
     }
-    pingAgent().then(ok=>{
-      if(!ok){
-        log("⚠ 本机代理（127.0.0.1:"+AGENT_PORT+"）未连接：自动抓取不可用。"+
-            "请在本机启动库存同步代理后重试；页面与手动导出不受影响。", "wn");
-        return;
+    /* 通道探测：直连代理 + 云端中转，至少一个能用 */
+    (async function(){
+      let direct = false;
+      try{ direct = await pingAgent(); }catch(e){}
+      let cloud = false;
+      try{
+        if(window.CloudSync && CloudSync.pullResult){
+          const r = await CloudSync.pullResult(LS_KEY);
+          cloud = !!(r && r.ok);      // ok=true 表示云端连得上（value 为 null 也算通）
+        }
+      }catch(e){ log("云端探测失败：" + e.message, "wn"); }
+      state.cloudOK = cloud;
+      const cs = $("chanStat"), ct = $("chanTxt");
+      if(direct){
+        cs.className = "stat on"; ct.textContent = "通道：直连本机";
+        log("通道：直连本机代理（最快）", "ok");
+        loadSources();
+      }else if(cloud){
+        cs.className = "stat on"; ct.textContent = "通道：云端中转";
+        log("本机不在本浏览器侧，改由本机助手经云端中转执行（需本机助手在线）", "in");
+        loadSources();
+      }else{
+        cs.className = "stat off"; ct.textContent = "通道不可用";
+        log("⚠ 抓取通道都不可用：本机代理连不上，云端也连不上。"+
+            "请在本机启动库存同步助手。页面与手动导出不受影响。", "wn");
       }
-      loadSources();
-    });
+    })();
     setInterval(tickAuto, 60000);
     // 云端拉一次（别的机器同步过的数据也能看到）
     if(window.CloudSync && CloudSync.pullResult){
