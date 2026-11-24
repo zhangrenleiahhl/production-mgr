@@ -749,7 +749,7 @@
         }
         log("⏳ 已下发云端任务，等待本机助手执行…", "in");
         if(!await cloudJob(key)) throw new Error("云端任务下发失败");
-        const v = await cloudPollResult(key, 300000);
+        const v = await cloudPollResult(key, 600000);
         if(!v) throw new Error("云端中转等待超时（本机助手未回结果）");
         j = { ok: v.ok, rows: v.rows, at: v.at, error: v.error };
       }
