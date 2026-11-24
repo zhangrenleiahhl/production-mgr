@@ -349,20 +349,49 @@
   }
 
   /* ---------- 存取 ---------- */
+  // ★ 无损瘦身（2026-11-24）：本地用列式紧凑格式存（省 ~75%），读取时展开成对象。
+  //   云端 push 仍是完整对象数组（协议不变），多端完全兼容。
+  const INV_COLS = ["mat","desc","loc","qty","unit","plant","batch","src","at"];
+  function packInvRows(rows){
+    // 收集实际用到的字段（按固定顺序），只存有值的键
+    const cols = [];
+    INV_COLS.concat(Object.keys(rows[0]||{})).forEach(k=>{ if(cols.indexOf(k)<0 && rows.some(r=>r && r[k]!==undefined)) cols.push(k); });
+    const arr = rows.map(r=>cols.map(k=>{
+      const v = r ? r[k] : undefined;
+      return v === undefined ? null : v;
+    }));
+    return { __cols: cols, rows: arr };
+  }
+  function unpackInvRows(o, rows){
+    if(!Array.isArray(rows)) return rows;
+    if(!o || !Array.isArray(o.__cols)) return rows;   // 老格式：原样
+    const cols = o.__cols;
+    return rows.map(a=>{
+      const r = {};
+      for(let i=0;i<cols.length;i++){ const v = Array.isArray(a)?a[i]:null; if(v!==null && v!==undefined) r[cols[i]] = v; }
+      return r;
+    });
+  }
   function load(){
     let o = null;
     try{ o = JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){}
     if(o && typeof o==="object"){
       PANELS.forEach(p=>{ if(o.panels && o.panels[p.key]) Object.assign(state.panels[p.key], o.panels[p.key]); });
-      if(Array.isArray(o.rows)) state.rows = o.rows;
+      if(Array.isArray(o.rows)) state.rows = unpackInvRows(o, o.rows);
       if(typeof o.auto==="boolean") state.auto = o.auto;
       if(o.autoTime) state.autoTime = o.autoTime;
     }
   }
   function save(){
-    const o = { panels:state.panels, rows:state.rows, auto:state.auto, autoTime:state.autoTime, savedAt:new Date().toISOString() };
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(o)); }catch(e){ log("本机存储写入失败："+e.message, "er"); }
-    if(window.CloudSync && CloudSync.push) CloudSync.push(LS_KEY, o);
+    const full = { panels:state.panels, rows:state.rows, auto:state.auto, autoTime:state.autoTime, savedAt:new Date().toISOString() };
+    // 本地存紧凑格式（rows 变二维数组 + __cols）；云端推完整格式
+    const compact = Object.assign({}, full);
+    if(Array.isArray(state.rows) && state.rows.length){
+      const pk = packInvRows(state.rows);
+      compact.__cols = pk.__cols; compact.rows = pk.rows;
+    }
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(compact)); }catch(e){ log("本机存储写入失败："+e.message, "er"); }
+    if(window.CloudSync && CloudSync.push) CloudSync.push(LS_KEY, full);
   }
 
   /* ---------- 渲染 ---------- */
@@ -788,7 +817,7 @@
         if(r.ok && r.value && typeof r.value==="object"){
           let changed = false;
           PANELS.forEach(p=>{ const v=r.value.panels&&r.value.panels[p.key]; if(v && v.at && v.at > (state.panels[p.key].at||"")){ Object.assign(state.panels[p.key], v); changed=true; } });
-          if(Array.isArray(r.value.rows) && r.value.rows.length > state.rows.length){ state.rows = r.value.rows; changed=true; }
+          if(Array.isArray(r.value.rows) && r.value.rows.length > state.rows.length){ state.rows = unpackInvRows(r.value, r.value.rows); changed=true; }
           if(changed){ renderPanels(); renderDetail(); log("已从云端同步库存数据", "ok"); }
         }
       }).catch(()=>{});
