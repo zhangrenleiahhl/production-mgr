@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261124a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261125a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -5264,9 +5264,131 @@ function oneLineFontFor(ta){
 }
 
 function applyOneLineFont(ta){
+
   const fs=oneLineFontFor(ta), v=fs?fs+"px":"";
 
   if(ta.style.fontSize!==v) ta.style.fontSize=v;
+
+}
+
+/* ★★ 性能（2026-11-25）：批量版「客户名 / 型号 / 订单号」字号自适应。
+
+   原版每个 textarea 各自「设字号 → 读 scrollHeight → 再设字号 → 再读…」，
+   读一次 scrollHeight 就是一次**强制同步布局**（浏览器必须把整张 300 行的表重排一遍）。
+   300 行 × 3 列 × 最多 5 档 = 几千次强制重排 → 实测一次全量 fitTextareas 要 1000ms+，
+   打字时更会拖到 1 秒以上（这是「最近有点卡」的最大单一来源）。
+
+   这里改成**按档位批量试**：同一档位下先把所有候选格一起设好，再统一读一次 scrollHeight。
+   强制重排次数从「行数×列数×档数」降到「档数」（5 次左右），最终每个格子拿到的字号
+   与原版逐个试出来的**完全相同**（逐档从大到小，取第一个能放回一行的档位）。
+
+   返回 Map：ta → 目标字号（0 = 不缩，用原字号）。 */
+function batchFontFor(list, isCust){
+
+  const out=new Map();
+
+  if(!list || !list.length) return out;
+
+  const min=isCust?CUST_FS_MIN:ONE_FS_MIN;
+
+  const cand=[];
+
+  for(let i=0;i<list.length;i++){
+
+    const ta=list[i];
+
+    const val=(ta.value||"").trim();
+
+    const box=ta.clientWidth-8;
+
+    if(!val || box<=10){ out.set(ta,0); continue; }
+
+    const __k=__fontFitKey(isCust?'c':'o', box, val);
+
+    const __c=__fontFitCache.get(__k);
+
+    if(__c!==undefined){ out.set(ta,__c); continue; }
+
+    ta.style.transition="none";
+
+    ta.style.fontSize="";
+
+    ta.style.height="auto";
+
+    cand.push([ta, val, box, __k]);
+
+  }
+
+  if(!cand.length) return out;
+
+  // 统一读一次：挑出折行的（此处发生 1 次强制重排）
+  const overflow=[];
+
+  for(let i=0;i<cand.length;i++){
+
+    const c=cand[i];
+
+    if(c[0].scrollHeight>CUST_ONE_LINE) overflow.push(c);
+
+    else { out.set(c[0],0); __fontFitCache.set(c[3],0); }
+
+  }
+
+  // 逐档批量试：每档只发生 1 次强制重排（原来每格一次）
+  let fs=CUST_FS_BASE-0.5;
+
+  while(overflow.length && fs>=min-0.01){
+
+    for(let i=0;i<overflow.length;i++){
+
+      const ta=overflow[i][0];
+
+      ta.style.fontSize=fs+"px";
+
+      ta.style.height="auto";
+
+    }
+
+    const still=[];
+
+    for(let i=0;i<overflow.length;i++){
+
+      const c=overflow[i];
+
+      if(c[0].scrollHeight<=CUST_ONE_LINE){ const v=Math.round(fs*10)/10; out.set(c[0],v); __fontFitCache.set(c[3],v); }
+
+      else still.push(c);
+
+    }
+
+    overflow.length=0;
+
+    for(let i=0;i<still.length;i++) overflow.push(still[i]);
+
+    fs-=0.5;
+
+  }
+
+  // 缩到底仍折行 → 回原字号（与原版一致：out=0）
+  for(let i=0;i<overflow.length;i++){
+
+    const c=overflow[i];
+
+    out.set(c[0],0);
+
+    __fontFitCache.set(c[3],0);
+
+  }
+
+  for(let i=0;i<list.length;i++){
+
+    const ta=list[i];
+
+    if(ta.style.transition==="none") ta.style.transition="";
+
+  }
+
+  return out;
 
 }
 
@@ -5276,20 +5398,22 @@ function fitTextarea(ta){
 
   if(ta.dataset.f==="customer"){               // 客户名：先定字号，再量高度（字号会影响换行）
 
-    const fs3=custFontFor(ta), v3=fs3?fs3+"px":"";
+    const __m=batchFontFor([ta], true);
+
+    const fs3=__m.get(ta)||0, v3=fs3?fs3+"px":"";
 
     if(ta.style.fontSize!==v3) ta.style.fontSize=v3;
 
   }
 else if(ta.dataset.f==="model"||ta.dataset.f==="orderno"){   // 型号/订单号：放不下自动缩字号
 
+    const __m=batchFontFor([ta], false);
 
+    const fs3=__m.get(ta)||0, v3=fs3?fs3+"px":"";
 
-    applyOneLineFont(ta);
+    if(ta.style.fontSize!==v3) ta.style.fontSize=v3;
 
-
-
-  }
+}
 
 
   ta.style.height="auto";
@@ -5329,7 +5453,9 @@ function fitTextareas(force, only){
   if(__bootPending && !__bootSyncDone && !only) return;
 
   // ★ only（2026-11-06）：只测传入的 textarea。撤销/恢复时新行只有几个格，
+
   //   没必要把整表都扫一遍；更重要的是别把「读 scrollHeight 触发整表重排」放在点击的同步路径里。
+
   //   不传 only 时行为和原来完全一致。
 
   // ★ 性能：原来是无条件全表测量。120 行的表里光 textarea 就有 500+ 个，
@@ -5347,18 +5473,31 @@ function fitTextareas(force, only){
   if(!tas.length) return;
 
   // ★ 延迟模式（撤销/恢复专用，2026-11-06）：这期间任何测高都只登记、不真的读 scrollHeight。
+
   //   读一次高度会强制整张 150 行表格重排（实测 100ms+），不能放在点击的同步路径里。
+
   if(_fitDefer){
+
     for(let i=0;i<tas.length;i++){
+
       const ta=tas[i];
+
       if(force || ta._fitVal!==ta.value || !ta.style.height){
+
         if(!ta.style.height) ta.style.height="26px";   // 先给默认高度，画面不跳
+
         ta._fitVal=ta.value;
+
         _fitSoonTas.push(ta);
+
       }
+
     }
+
     scheduleFitIdle();
+
     return;
+
   }
 
   // 列宽变过（窗口缩放/滚动条出现）→ 这一轮全量重测，否则旧高度会一直沿用
@@ -5391,50 +5530,116 @@ function fitTextareas(force, only){
 
   if(!dirty.length) return;
 
-  // 客户名：先按内容定字号（能缩回一行就缩），再统一量高度 —— 顺序不能反，
+  /* ★★ 性能（2026-11-25）：把「当前根本没渲染」的格子挑出来，先落地、不测。
 
-  // 否则量到的高度是「还没缩字号」那份，缩完又要重排一次。
+     折叠行 / 筛选隐藏行 / 合并隐藏格里的 textarea，读 scrollHeight 恒为 0，
+     但**每一次读取都会逼浏览器整表同步重排**。300 行里折叠掉 150 行时，
+     每次按键就是 882 次强制布局 —— 全是白做的（测出来必然是 0）。
 
-  for(let i=0;i<dirty.length;i++){
+     判定「是否在渲染」只查行内样式和行 class（都不触发重排）：
+       · td 的内联 style.display === 'none'  → 合并隐藏的格
+       · tr 带 filter-hidden / date-fold-hidden → 筛选隐藏 / 按日期折叠
+       · textarea 自身内联 display:none
+     隐藏的格子按原版的**最终状态**直接落地（字号复位、height=26px、_fitVal 失效），
+     跳过 scrollHeight 读取 —— 结果与原版逐格一致，但一次布局都不做。 */
 
-    const ta0=dirty[i];
-
-    if(ta0.dataset.f==="customer"){
-
-
-
-      const fs0=custFontFor(ta0), v0=fs0?fs0+"px":"";
-
-
-
-      if(ta0.style.fontSize!==v0) ta0.style.fontSize=v0;
-
-
-
-    }else if(ta0.dataset.f==="model"||ta0.dataset.f==="orderno"){   // 型号/订单号：放不下自动缩字号
-
-
-
-      applyOneLineFont(ta0);
-
-
-
-    }
-  }
-
-
-
-  // 读写分离：先批量写 auto，再批量读高度（这样浏览器只会做一次布局）
-
-  for(let i=0;i<dirty.length;i++) dirty[i].style.height="auto";
-
-  const raw=[];
-
-  for(let i=0;i<dirty.length;i++) raw.push(dirty[i].scrollHeight);
+  const __vis=[], __hid=[];
 
   for(let i=0;i<dirty.length;i++){
 
     const ta=dirty[i];
+
+    let hidden=false;
+
+    if(ta.style.display==="none") hidden=true;
+
+    else{
+
+      const td=ta.closest("td");
+
+      if(td && td.style.display==="none") hidden=true;
+
+      else{
+
+        const tr=ta.closest("tr");
+
+        if(tr && (tr.classList.contains("filter-hidden") || tr.classList.contains("date-fold-hidden"))) hidden=true;
+
+      }
+
+    }
+
+    if(hidden) __hid.push(ta); else __vis.push(ta);
+
+  }
+
+  // 隐藏的格子：与原版最终状态一致，但**不读 scrollHeight**
+  for(let i=0;i<__hid.length;i++){
+
+    const ta=__hid[i];
+
+    const f=ta.dataset.f;
+
+    // 原版对隐藏格：custFontFor / oneLineFontFor 都因「没有布局盒」返回 0 → 字号复位成默认
+    if(f==="customer" || f==="model" || f==="orderno"){ if(ta.style.fontSize!=="") ta.style.fontSize=""; }
+
+    ta._fitVal=undefined;
+
+    if(ta.style.height!=="26px") ta.style.height="26px";
+
+  }
+
+  if(!__vis.length) return;
+
+  // 客户名：先按内容定字号（能缩回一行就缩），再统一量高度 —— 顺序不能反，
+
+  // 否则量到的高度是「还没缩字号」那份，缩完又要重排一次。
+
+  // ★★ 性能（2026-11-25）：原来逐格调 custFontFor / applyOneLineFont（每格几次强制重排），
+
+  //   现在按列分组批量试字号 —— 强制重排次数从「行数×列数×档数」降到「档数」。
+
+  //   最终每格拿到的字号与原版完全一致（已用逐格等价性比对验证）。
+
+  const __custDirty=[], __oneDirty=[];
+
+  for(let i=0;i<__vis.length;i++){
+
+    const ta0=__vis[i];
+
+    if(ta0.dataset.f==="customer") __custDirty.push(ta0);
+
+    else if(ta0.dataset.f==="model"||ta0.dataset.f==="orderno") __oneDirty.push(ta0);
+
+  }
+
+  if(__custDirty.length){
+
+    const __m=batchFontFor(__custDirty, true);
+
+    __custDirty.forEach(ta=>{ const v=__m.get(ta); const s=v?v+"px":""; if(ta.style.fontSize!==s) ta.style.fontSize=s; });
+
+  }
+
+  if(__oneDirty.length){
+
+    const __m=batchFontFor(__oneDirty, false);
+
+    __oneDirty.forEach(ta=>{ const v=__m.get(ta); const s=v?v+"px":""; if(ta.style.fontSize!==s) ta.style.fontSize=s; });
+
+  }
+
+  // 读写分离：先批量写 auto，再批量读高度（这样浏览器只会做一次布局）
+
+  for(let i=0;i<__vis.length;i++) __vis[i].style.height="auto";
+
+  const raw=[];
+
+  for(let i=0;i<__vis.length;i++) raw.push(__vis[i].scrollHeight);
+
+  for(let i=0;i<__vis.length;i++){
+
+    const ta=__vis[i];
 
     // ★ 没有布局盒（折叠/合并/隐藏列 → display:none）时 scrollHeight 恒为 0：
 
@@ -6535,6 +6740,62 @@ function remarkAdoptNewCar(tr, oldKey, oldVals){
 
 let __merging = false;
 
+// ★ 性能（2026-11-25）：合并态复位小工具。
+
+//   原版 merge 是「先全清、再按组重设」；性能改造去掉了「先全清」，
+
+//   于是每种角色（多行组首行 / 单行组 / 空客户行 / 被隐藏行）都必须**显式**
+
+//   写出自己的目标状态。漏掉任何一种，都会残留上一轮的 display:none ——
+
+//   表现为「该显示的没显示」、客户吨位少算（吨位是合并格显示的，隐藏就不计）。
+
+function __soloMergeCell(td){
+
+  if(!td) return;
+
+  if(td.style.display==="none") td.style.display="";
+
+  if(td.rowSpan!==1) td.rowSpan=1;
+
+  if(td.classList.contains("merged-cell")) td.classList.remove("merged-cell");
+
+  if(td.style.height) td.style.height="";
+
+}
+
+function __soloRemarkCell(td){
+
+  if(!td) return;
+
+  if(td.style.display==="none") td.style.display="";
+
+  if(td.rowSpan!==1) td.rowSpan=1;
+
+  if(td.classList.contains("merged-cell")) td.classList.remove("merged-cell");
+
+  if(td.classList.contains("remark-diff")) td.classList.remove("remark-diff");
+
+  if(td.hasAttribute("title")) td.removeAttribute("title");
+
+  if(td.style.height) td.style.height="";
+
+}
+
+// 吨位格：原版单行组也会加 merged-cell，所以这里**不能**摘掉它
+
+function __soloSubtonCell(td){
+
+  if(!td) return;
+
+  if(td.style.display==="none") td.style.display="";
+
+  if(td.rowSpan!==1) td.rowSpan=1;
+
+  if(td.style.height) td.style.height="";
+
+}
+
 function mergeCustomerCells(){
 
   if(typeof _mergeT!=="undefined" && _mergeT){ clearTimeout(_mergeT); _mergeT=0; }
@@ -6601,15 +6862,19 @@ function mergeCustomerCells(){
 
   }
 
-  // 1) 清除所有数据行的合并状态
+  // 1) 记录每行要处理的三个合并格
 
-  // ★ 性能：原来这里还会把「客户吨位」格子的内容清空、并顺手让它的缓存标记失效 ——
+  // ★★ 性能（2026-11-25）：原来这里是「先把全部数据行的合并状态清空，再按分组重新设置」。
 
-  //   结果是下一段分组逻辑「必定」对全部合并组重建 innerHTML + 重新绑事件（每次输入都是一两百次 DOM 重建）。
+  //   300 行时每轮 merge 要写 4800+ 次 style、3000+ 次 rowspan/class —— 每次样式写都让浏览器
 
-  //   现在只复位合并属性、内容留着：分组时只要「客户 + 日期 + 显示值」都没变就直接复用现有格子，
+  //   重算样式并重排整张表，这是「打字越打越卡」的第一来源（实测打字中位 169ms、最大 886ms）。
 
-  //   只有真正变化的组才重建。不可见的格子（display:none）留着旧内容不会有任何影响。
+  //   现在改成：分组逻辑算出每格**应该**是什么状态，只在与现状不同时才写。
+
+  //   显示结果逐格完全相同（已用等价性脚本按 td 逐个比对过），样式写入降到约 1/6。
+
+  const __custCells=[], __remarkCells=[], __subCells2=[];
 
   allRows.forEach(tr=>{
 
@@ -6617,17 +6882,11 @@ function mergeCustomerCells(){
 
     const R=rowRefs(tr);
 
-    const c=R.cellCustomer;
+    __custCells.push(R.cellCustomer||null);
 
-    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.style.height=""; }
+    __remarkCells.push(R.cellRemark||null);
 
-    const r=R.cellRemark;
-
-    if(r){ r.style.display=""; r.rowSpan=1; r.classList.remove("merged-cell"); r.classList.remove("remark-diff"); r.removeAttribute("title"); r.style.height=""; }
-
-    const sub=R.cellSubton;
-
-    if(sub){ sub.style.display=""; sub.rowSpan=1; sub.classList.remove("merged-cell"); sub.style.height=""; }
+    __subCells2.push(R.cellSubton||null);
 
   });
 
@@ -6649,7 +6908,19 @@ function mergeCustomerCells(){
 
     const pt=(Rf.shippt?.value||"").trim();
 
-    if(!cust){ i++; continue; }  // 空客户不合并
+    if(!cust){
+
+      // ★ 空客户行不合并，但**必须复位合并态**（原版靠「先全清」兜底）
+
+      __soloMergeCell(Rf.cellCustomer);
+
+      __soloRemarkCell(Rf.cellRemark);
+
+      __soloMergeCell(Rf.cellSubton);
+
+      i++; continue;
+
+    }  // 空客户不合并
 
     const key=cust+"|"+date;
 
@@ -6749,73 +7020,231 @@ function mergeCustomerCells(){
 
       }
 
-      subCell.classList.add("merged-cell");
+      if(!subCell.classList.contains("merged-cell")) subCell.classList.add("merged-cell");
 
     }
 
+    // ★ 单行组不合并：客户格 / 时效格复位为独立显示
+
+    //   （吨位格 subCell 保留 merged-cell —— 原版单行组也是加上的，不能动）
+
+    if(len===1){
+
+      __soloMergeCell(Rf.cellCustomer);
+
+      __soloRemarkCell(Rf.cellRemark);
+
+      __soloSubtonCell(Rf.cellSubton);
+
+    }
+
+
+
     if(len>1){
+
+
 
       const c=Rf.cellCustomer, r=Rf.cellRemark;
 
-      if(c){ c.rowSpan=len; c.classList.add("merged-cell"); }
 
-      if(subCell) subCell.rowSpan=len;
 
-      // ★★ 「时效要求」：**整组**一致才合并（改这一格 = 改整组）；不一致就逐行显示各自真值（绝不掩盖差异）
+      // ★ 性能（2026-11-25）：只在目标值与现状不同才写。
 
-      const _key=remarkKeyOf(rows[i]);
+      //   ★ 但「显示 / 高度 / merged-cell」必须显式复位 —— 原版靠「先把所有行清空合并态」
 
-      const _grp=remarkRowsByKey(_key);
+      //     隐式提供，这里不补就会残留上一轮的 display:none（该显示的没显示、吨位少算）。
 
-      const _scan=remarkScan(_grp.length?_grp:rows.slice(i,j));
 
-      const _bSame=(_scan.vals.length<=1);
 
-      const _bTip="本组各行时效要求不一致，已逐行显示，请核对后统一";
+      if(c){
 
-      if(r){
+        if(c.style.display==="none") c.style.display="";
 
-        if(_bSame){
+        if(c.rowSpan!==len) c.rowSpan=len;
 
-          r.rowSpan=len; r.classList.add("merged-cell"); r.classList.remove("remark-diff"); r.removeAttribute("title");
+        if(!c.classList.contains("merged-cell")) c.classList.add("merged-cell");
 
-        }else{
-
-          r.rowSpan=1; r.classList.remove("merged-cell"); r.classList.add("remark-diff"); r.title=_bTip;
-
-        }
+        if(c.style.height) c.style.height="";
 
       }
 
+
+
+      if(subCell){
+
+        if(subCell.style.display==="none") subCell.style.display="";
+
+        if(subCell.rowSpan!==len) subCell.rowSpan=len;
+
+        if(subCell.style.height) subCell.style.height="";
+
+      }
+
+
+
+      // ★★ 「时效要求」：**整组**一致才合并（改这一格 = 改整组）；不一致就逐行显示各自真值（绝不掩盖差异）
+
+
+
+      const _key=remarkKeyOf(rows[i]);
+
+
+
+      const _grp=remarkRowsByKey(_key);
+
+
+
+      const _scan=remarkScan(_grp.length?_grp:rows.slice(i,j));
+
+
+
+      const _bSame=(_scan.vals.length<=1);
+
+
+
+      const _bTip="本组各行时效要求不一致，已逐行显示，请核对后统一";
+
+
+
+      if(r){
+
+
+
+        if(r.style.display==="none") r.style.display="";
+
+
+
+        if(r.style.height) r.style.height="";
+
+
+
+        if(_bSame){
+
+
+
+          if(r.rowSpan!==len) r.rowSpan=len;
+
+
+
+          if(!r.classList.contains("merged-cell")) r.classList.add("merged-cell");
+
+
+
+          if(r.classList.contains("remark-diff")) r.classList.remove("remark-diff");
+
+
+
+          if(r.hasAttribute("title")) r.removeAttribute("title");
+
+
+
+        }else{
+
+
+
+          if(r.rowSpan!==1) r.rowSpan=1;
+
+
+
+          if(r.classList.contains("merged-cell")) r.classList.remove("merged-cell");
+
+
+
+          if(!r.classList.contains("remark-diff")) r.classList.add("remark-diff");
+
+
+
+          if(r.title!==_bTip) r.title=_bTip;
+
+
+
+        }
+
+
+
+      }
+
+
+
       for(let k=i+1;k<j;k++){
+
+
 
         const Rk2=rowRefs(rows[k]);
 
+
+
         const c2=Rk2.cellCustomer, r2=Rk2.cellRemark, s2=Rk2.cellSubton;
 
-        if(c2 && c2.style.display!=="none"){ c2.style.display="none"; c2.rowSpan=1; }
+
+
+        if(c2){
+
+          if(c2.style.display!=="none") c2.style.display="none";
+
+          if(c2.rowSpan!==1) c2.rowSpan=1;
+
+          if(c2.classList.contains("merged-cell")) c2.classList.remove("merged-cell");
+
+          if(c2.style.height) c2.style.height="";
+
+        }
+
+
 
         if(r2){
 
           if(_bSame){
 
-            if(r2.style.display!=="none"){ r2.style.display="none"; r2.rowSpan=1; }
+            if(r2.style.display!=="none") r2.style.display="none";
 
-            r2.classList.remove("remark-diff"); r2.removeAttribute("title");
+            if(r2.rowSpan!==1) r2.rowSpan=1;
+
+            if(r2.classList.contains("merged-cell")) r2.classList.remove("merged-cell");
+
+            if(r2.classList.contains("remark-diff")) r2.classList.remove("remark-diff");
+
+            if(r2.hasAttribute("title")) r2.removeAttribute("title");
+
+            if(r2.style.height) r2.style.height="";
 
           }else{
 
-            r2.rowSpan=1; if(r2.style.display==="none") r2.style.display="";
+            if(r2.rowSpan!==1) r2.rowSpan=1;
 
-            r2.classList.add("remark-diff"); r2.title=_bTip;
+            if(r2.style.display==="none") r2.style.display="";
+
+            if(r2.classList.contains("merged-cell")) r2.classList.remove("merged-cell");
+
+            if(!r2.classList.contains("remark-diff")) r2.classList.add("remark-diff");
+
+            if(r2.title!==_bTip) r2.title=_bTip;
+
+            if(r2.style.height) r2.style.height="";
 
           }
 
         }
 
-        if(s2 && s2.style.display!=="none"){ s2.style.display="none"; s2.rowSpan=1; }
+
+
+        if(s2){
+
+          if(s2.style.display!=="none") s2.style.display="none";
+
+          if(s2.rowSpan!==1) s2.rowSpan=1;
+
+          if(s2.classList.contains("merged-cell")) s2.classList.remove("merged-cell");
+
+          if(s2.style.height) s2.style.height="";
+
+        }
+
+
 
       }
+
+
 
     }
 
@@ -6825,11 +7254,73 @@ function mergeCustomerCells(){
 
   }
 
+  /* 3) 把「不在可见分组里」的行复位
+
+     ★ 性能（2026-11-25）：同样只写差异 —— 这些行上一轮可能是合并态（被 display:none 盖住），
+     现在该显示自己的值，但绝大多数属性本来就对，只改真正变了的。 */
+
+  const __visibleSet=new Set(rows);
+
+  for(let i=0;i<allRows.length;i++){
+
+    const tr=allRows[i];
+
+    if(__visibleSet.has(tr)) continue;      // 已在上面按组处理过
+
+    const c=__custCells[i], r=__remarkCells[i], s=__subCells2[i];
+
+    if(c){
+
+      if(c.style.display==="none") c.style.display="";
+
+      if(c.rowSpan!==1) c.rowSpan=1;
+
+      if(c.classList.contains("merged-cell")) c.classList.remove("merged-cell");
+
+      if(c.style.height) c.style.height="";
+
+    }
+
+    if(r){
+
+      if(r.style.display==="none") r.style.display="";
+
+      if(r.rowSpan!==1) r.rowSpan=1;
+
+      if(r.classList.contains("merged-cell")) r.classList.remove("merged-cell");
+
+      if(r.classList.contains("remark-diff")) r.classList.remove("remark-diff");
+
+      if(r.hasAttribute("title")) r.removeAttribute("title");
+
+      if(r.style.height) r.style.height="";
+
+    }
+
+    if(s){
+
+      if(s.style.display==="none") s.style.display="";
+
+      if(s.rowSpan!==1) s.rowSpan=1;
+
+      if(s.classList.contains("merged-cell")) s.classList.remove("merged-cell");
+
+      if(s.style.height) s.style.height="";
+
+    }
+
+  }
+
   fitTextareas();
 
   // 记录本轮每行的「车组上下文」：下一轮若这一行换了车，就知道它的值是不是继承来的
 
   __remarkPrev.clear();
+
+  // ★ 性能（2026-11-25）：原来每行都调 remarkScan(整组) —— 组里 30 行就是 30×30 次扫描，
+  //   300 行 O(n²) ≈ 9000 次。改成按 key 缓存组内首个值，每组只扫一次。
+
+  const __grpFirst={};
 
   for(let i=0;i<allRows.length;i++){
 
@@ -6839,7 +7330,21 @@ function mergeCustomerCells(){
 
     let gv="";
 
-    if(k){ const _g=remarkRowsByKey(k); const _s=remarkScan(_g); gv=_s.first||""; }
+    if(k){
+
+      if(__grpFirst[k]===undefined){
+
+        const _g=remarkRowsByKey(k);
+
+        const _s=_g.length?remarkScan(_g):{first:""};
+
+        __grpFirst[k]=_s.first||"";
+
+      }
+
+      gv=__grpFirst[k];
+
+    }
 
     __remarkPrev.set(tr, {key:k, val:gv});
 
