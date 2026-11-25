@@ -319,6 +319,8 @@
   /* 云端中转（app_data 任务队列）：线上 https 页面不能直连本机 loopback，走这里 */
   const JOB_KEY = "inventory_job_v1";
   const JOB_RES_KEY = "inventory_job_result_v1";
+  /* 云端明细分片：每库一个键 inventory_rows_<key>，避免单行膨胀 */
+  const ROWS_CLOUD_PREFIX = "inventory_rows_";
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
@@ -488,8 +490,64 @@
         log("大仓库写入失败，明细已暂存本机普通存储："+e.message, "wn");
       }catch(e2){ log("明细保存失败："+e2.message, "er"); }
     });
-    /* ③ 云端仍推完整格式（协议不变） */
-    if(window.CloudSync && CloudSync.push) CloudSync.push(LS_KEY, full);
+    /* ③ 云端：摘要一个键 + 每库明细一个分片键（★ 不再整包推全量）
+       为什么：以前推的是 {panels, rows:全量,...}，五个库齐了单行好几 MB，
+       每次同步/刷新都要整行重传，浏览器内存也跟着翻倍。
+       现在改成按库分片 —— 改哪个库只重传哪个库，总量再大也不影响单次开销。 */
+    if(window.CloudSync && CloudSync.push){
+      const summary = { panels:state.panels, auto:state.auto, autoTime:state.autoTime,
+                        savedAt:new Date().toISOString(), rowCount:state.rows.length,
+                        libs: cloudLibIndex() };
+      CloudSync.push(LS_KEY, summary);
+      pushCloudShards();
+    }
+  }
+
+  /* 云端分片索引：每个库一行，说明它有多少条、更新时间、对应的分片键 */
+  function cloudLibIndex(){
+    const idx = {};
+    PANELS.forEach(p=>{
+      const s = state.panels[p.key] || {};
+      const n = state.rows.filter(r=>r.src===p.name).length;
+      idx[p.key] = { name:p.name, count:n, at:s.at||"", shard:ROWS_CLOUD_PREFIX+p.key };
+    });
+    return idx;
+  }
+
+  /* 把各库明细按库分片推到云端（列式紧凑格式，比对象数组省约 60%） */
+  function pushCloudShards(){
+    if(!(window.CloudSync && CloudSync.push)) return;
+    PANELS.forEach(p=>{
+      const rows = state.rows.filter(r=>r.src===p.name);
+      if(!rows.length) return;
+      const pk = packInvRows(rows);
+      const s = state.panels[p.key] || {};
+      CloudSync.push(ROWS_CLOUD_PREFIX+p.key, {
+        key:p.key, name:p.name, at:s.at||nowStr(), count:rows.length,
+        cols:pk.__cols, rows:pk.rows, updated:nowStr()
+      });
+    });
+  }
+
+  /* 从云端拉某个库的分片明细并合并进 state.rows */
+  async function pullCloudShard(key){
+    if(!(window.CloudSync && CloudSync.pullResult)) return 0;
+    try{
+      const r = await CloudSync.pullResult(ROWS_CLOUD_PREFIX+key);
+      if(!r.ok || !r.value) return 0;
+      const v = r.value;
+      const rows = Array.isArray(v.rows) ? v.rows : [];
+      if(!rows.length) return 0;
+      const objs = (v.cols && Array.isArray(v.cols)) ? rows.map(a=>{
+        const o={};
+        for(let i=0;i<v.cols.length;i++){ const val = Array.isArray(a)?a[i]:null; if(val!==null && val!==undefined && val!=="") o[v.cols[i]]=val; }
+        return o;
+      }) : rows;
+      const name = (PANELS.find(p=>p.key===key)||{}).name || key;
+      state.rows = state.rows.filter(x=>x.src!==name);
+      objs.forEach(x=>{ if(!x.src) x.src=name; if(!x.at) x.at=v.at||""; state.rows.push(x); });
+      return objs.length;
+    }catch(e){ return 0; }
   }
 
   /* ---------- 渲染 ---------- */
@@ -651,6 +709,13 @@
         }
         if(mine && v.key === key){
           state.lastResSeq = v.seq;
+          /* ★ 2026-11-25：代理现在只回摘要，明细在分片键 inventory_rows_<key> 里。
+             这里按需把该库分片拉回来；老代理直接给 rows 时照常用（向后兼容）。 */
+          if(v.shard && (!Array.isArray(v.rows) || !v.rows.length)){
+            const n = await pullCloudShard(key);
+            if(n){ v.rows = state.rows.filter(r=>r.src===(PANELS.find(p=>p.key===key)||{}).name); }
+            else { v.rows = []; }
+          }
           return v;
         }
       }
@@ -935,19 +1000,42 @@
     })();
     setInterval(tickAuto, 60000);
     // 云端拉一次（别的机器同步过的数据也能看到）
+    // ★ 2026-11-25：改成按库分片拉（inventory_rows_<key>）。
+    //   以前是拉一个键、里面塞着所有库的全量明细，几 MB 一次性进内存。
+    //   现在一库一键、按需拉、拿到就并进 IndexedDB，内存占用与总量脱钩。
+    //   同时兼容老格式（云端仍是一个键带 rows 数组）—— 老数据照常能读出来。
     if(window.CloudSync && CloudSync.pullResult){
       CloudSync.pullResult(LS_KEY).then(r=>{
-        if(r.ok && r.value && typeof r.value==="object"){
-          let changed = false;
-          PANELS.forEach(p=>{ const v=r.value.panels&&r.value.panels[p.key]; if(v && v.at && v.at > (state.panels[p.key].at||"")){ Object.assign(state.panels[p.key], v); changed=true; } });
-          if(Array.isArray(r.value.rows) && r.value.rows.length > state.rows.length){
-            state.rows = unpackInvRows(r.value, r.value.rows);
-            state.detailPage = 1;
-            idbSetRows(state.rows).then(()=>{ state.idbOK = true; if($("detailStore")) $("detailStore").textContent = "明细存本地大仓库"; }).catch(()=>{});
-            changed=true;
-          }
-          if(changed){ renderPanels(); renderDetail(); log("已从云端同步库存数据", "ok"); }
+        if(!(r.ok && r.value && typeof r.value==="object")) return;
+        let changed = false;
+        PANELS.forEach(p=>{ const v=r.value.panels&&r.value.panels[p.key]; if(v && v.at && v.at > (state.panels[p.key].at||"")){ Object.assign(state.panels[p.key], v); changed=true; } });
+        /* 老格式兜底：云端还带着整包 rows（升级前推的） */
+        if(Array.isArray(r.value.rows) && r.value.rows.length > state.rows.length){
+          state.rows = unpackInvRows(r.value, r.value.rows);
+          state.detailPage = 1;
+          idbSetRows(state.rows).then(()=>{ state.idbOK = true; if($("detailStore")) $("detailStore").textContent = "明细存本地大仓库"; }).catch(()=>{});
+          changed=true;
         }
+        if(changed){ renderPanels(); renderDetail(); log("已从云端同步库存数据", "ok"); }
+        /* 新格式：按库分片拉。每片拉完立刻合并进本地大仓库，
+           不在内存里长期保留多份副本。 */
+        const libs = r.value.libs || {};
+        const want = PANELS.filter(p=>{
+          const li = libs[p.key];
+          const localAt = state.panels[p.key].at || "";
+          const localN = state.rows.filter(r=>r.src===p.name).length;
+          return li && (li.at > localAt || li.count > localN);
+        });
+        if(!want.length) return;
+        Promise.all(want.map(p=>pullCloudShard(p.key))).then(cnts=>{
+          const got = cnts.reduce((a,b)=>a+(b||0),0);
+          if(got>0){
+            state.detailPage = 1;
+            idbSetRows(state.rows).then(()=>{ state.idbOK=true; if($("detailStore")) $("detailStore").textContent="明细存本地大仓库"; }).catch(()=>{});
+            renderDetail();
+            log("已从云端按库分片同步库存数据（" + got + " 条）", "ok");
+          }
+        }).catch(()=>{});
       }).catch(()=>{});
     }
   }
