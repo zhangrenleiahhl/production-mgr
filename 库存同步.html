@@ -294,17 +294,18 @@
      - mode：抓取通道
          "sap"  → 复用本机 sap_stock_export.py（MB52 导出 XLSX）
          "win"  → 由本机代理用 windows-mcp 驱动 Windows 业务软件抓
+         "http" → 由本机代理直接调业务系统 HTTP 接口取数（不占桌面、不依赖 GUI）
      ============================================================ */
   const PANELS = [
     { key:"sap",   name:"SAP库存同步",     icon:"🧮", code:"SAP · MB52",
       src:"SAP 系统 /nMB52 · 工厂 H207~H208 · 仓库库存",
       mode:"sap", loc:"H207 / H208" },
     { key:"dali",  name:"大立库库存同步",   icon:"🏭", code:"DALI-WMS",
-      src:"大立库 WMS · 库存查询界面",
-      mode:"win", loc:"大立库" },
+      src:"大立库 WMS 4.0 · 货载接口直取 · 逐托展开物料明细",
+      mode:"http", loc:"大立库" },
     { key:"hou",   name:"后处理库存同步",   icon:"⚙️", code:"POST-PROC",
-      src:"后处理工序库存 · 现场系统",
-      mode:"win", loc:"后处理" },
+      src:"后处理库 WMS · 货载接口直取 · 带后处理工艺状态",
+      mode:"http", loc:"后处理" },
     { key:"nqql",  name:"南区汽零库存同步", icon:"🚗", code:"NANQU-QL",
       src:"南区汽零 · 备货库系统",
       mode:"win", loc:"南区汽零" },
