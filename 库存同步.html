@@ -338,8 +338,8 @@
     cloudOK: false,     // 云端中转是否可用
     srcInfo:{},         // key -> {ready, todo, src, mode}
     jobSeq: 0,          // 云端任务序号
-    jobId: "",          // 本次任务的唯一标识（防止命中旧结果）
-    jobAt: "",          // 本次任务下发时刻（老代理无 jobId 时用它兜底）
+    jobIds:{},          // key -> 本次任务唯一标识（五个库同时下发时各认各的）
+    jobAts:{},          // key -> 本次任务下发时刻（老代理无 jobId 时用它兜底）
     lastResSeq: 0,      // 已处理的结果序号
     channel: "直连代理", // 当前通道：直连代理 / 云端中转
     idbOK: false,       // 本地大仓库是否可用
@@ -680,11 +680,12 @@
     // seq 用毫秒时间戳：单调不回退，且远大于任何历史遗留 seq（含本机代理/旧页面的小序号），
     // 保证代理的 `seq > last_seq` 判定永远成立，不会因为云端残留更大 seq 而忽略本次任务。
     state.jobSeq = Math.max(state.jobSeq + 1, Date.now());
-    const jobId = "web-" + Date.now() + "-" + Math.floor(Math.random()*100000);
-    state.jobId = jobId;
-    state.jobAt = nowStr();               // 下发时刻，用于识别"旧代理没带 jobId"的结果
+    const jobId = "web-" + key + "-" + Date.now() + "-" + Math.floor(Math.random()*100000);
+    state.jobIds[key] = jobId;
+    state.jobAts[key] = nowStr();         // 下发时刻，用于识别"旧代理没带 jobId"的结果
     const job = { seq: state.jobSeq, jobId: jobId, key: key, ts: nowStr(), by: "web" };
-    const ok = await CloudSync.push(JOB_KEY, job);
+    /* ★ 分工导入：每库写自己的任务键，五个库同时下发也不会互相覆盖 */
+    const ok = await CloudSync.push(JOB_KEY + "_" + key, job);
     if(!ok) log("云端任务下发失败：" + key, "er");
     return ok;
   }
@@ -696,10 +697,11 @@
                     防止把上一轮的旧结果当成本次（seq 不可靠：云端里可能残留更大的 seq）。 */
     if(!(window.CloudSync && CloudSync.pullResult)) return null;
     const t0 = Date.now();
-    const myJob = state.jobId;
-    const myAt = state.jobAt;
+    const myJob = state.jobIds[key];
+    const myAt = state.jobAts[key];
     while(Date.now() - t0 < timeoutMs){
-      const r = await CloudSync.pullResult(JOB_RES_KEY);
+      /* ★ 只读本库的结果键：哪一库先完成就先显示，不必等最慢的 SAP */
+      const r = await CloudSync.pullResult(JOB_RES_KEY + "_" + key);
       if(r.ok && r.value && typeof r.value === "object"){
         const v = r.value;
         let mine = false;
@@ -817,7 +819,7 @@
         if(!await cloudJob(key)) throw new Error("云端任务下发失败");
         const v = await cloudPollResult(key, 600000);
         if(!v) throw new Error("云端中转等待超时（本机助手未回结果）");
-        j = { ok: v.ok, rows: v.rows, at: v.at, error: v.error };
+        j = { ok: v.ok, rows: v.rows, at: v.at, error: v.error, stale: v.stale };
       }
       if(j.ok === false) throw new Error(j.error || "抓取失败");
 
@@ -840,8 +842,8 @@
       s.at = j.at || nowStr();
       s.status = (rows.length ? "ok" : "warn");
       if(!rows.length) s.err = "抓取完成但没有数据返回（请检查来源系统或代理配置）";
-      log((rows.length?("✔ "+p.name+" 成功，取到 "+rows.length+" 条"):("⚠ "+p.name+" 没有数据"))
-          + "（"+((Date.now()-t0)/1000).toFixed(1)+" 秒 · "+state.channel+"）", rows.length?"ok":"wn");
+      log((rows.length?("✔ "+p.name+(j.stale?"（旧数据）":"")+" 成功，取到 "+rows.length+" 条"):("⚠ "+p.name+" 没有数据"))
+          + "（"+((Date.now()-t0)/1000).toFixed(1)+" 秒 · "+state.channel+"）", rows.length?(j.stale?"wn":"ok"):"wn");
     }catch(e){
       s.status = "err";
       s.err = (e && e.name==="AbortError") ? "超时（180 秒无响应）" : String(e.message||e);
@@ -927,19 +929,23 @@
     }
   });
 
-  $("syncAllBtn").onclick = async ()=>{
+  /* ★ 分工导入：五个库同时下发，各自等各自的云端结果；
+     某一库失败只把那块面板标红，其它库照常完成。 */
+  async function syncAll(){
     if(state.running){ toast("正在同步中，请稍候"); return; }
     const todo = PANELS.filter(p=>!state.panels[p.key].pending);
     if(!todo.length){ toast("五个库都还没接入自动拉数"); return; }
     state.running = true;
     $("syncAllBtn").disabled = true;
-    for(const p of todo){
-      await syncPanel(p.key);
-    }
+    log("分工导入：同时下发 " + todo.length + " 个库，每库独立队列、互不阻塞", "in");
+    await Promise.allSettled(todo.map(p => syncPanel(p.key)));
+    const okN = todo.filter(p=>state.panels[p.key].status==="ok").length;
+    const bad = todo.filter(p=>state.panels[p.key].status==="err" || state.panels[p.key].status==="warn");
     state.running = false;
     $("syncAllBtn").disabled = false;
-    toast(todo.length===PANELS.length ? "五个库同步完成" : ("已同步 "+todo.length+" 个库（其余待接入）"));
-  };
+    toast("同步结束：成功 "+okN+" 库" + (bad.length ? ("；" + bad.map(p=>p.name).join("、") + " 未成功（其它库数据不受影响）") : ""));
+  }
+  $("syncAllBtn").onclick = syncAll;
   $("expBtn").onclick = exportExcel;
   $("refreshBtn").onclick = ()=>{ renderPanels(); renderDetail(); toast("已刷新"); };
   $("clearLogBtn").onclick = ()=>{ $("logBox").innerHTML=""; log("日志已清空","t"); };
