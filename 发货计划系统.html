@@ -97,7 +97,7 @@ setTimeout(function(){
 
   <script src="staff-admin.js?v=20260924a&h=9326b285"></script>
 
-<script>var APP_VER="20261125a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
+<script>var APP_VER="20261127a";(function(){var q=location.search;if(/[?&]_s=/.test(q))return;/* ★ 2026-11-09 性能：外壳已带会话戳，不再 location.replace 二次加载整页 */if(!q.includes("_t="+APP_VER)&&!location.hash.includes("no_reload")){var u=location.href.replace(/[?&]_t=[^&]*/,"");location.replace(u+(u.indexOf("?")>=0?"&":"?")+"_t="+APP_VER);}})();
 /* 白屏自愈（2026-10-19）：网络差时大文件下载中截断 → 头部渲染了、工具栏/表格全丢。
    DOM ready 后 2.5s 查 .topbar / .appbar（静态 HTML，文件完整必在）——缺失＝截断，自动重拉；
    会话内最多自愈 2 次（sessionStorage 防爆），恢复后自动清计数。
@@ -2550,7 +2550,7 @@ async function cleanDupRecs(){
 
 // 让用户一眼看清是谁在占地方。★ 清理永远「先导出备份、再删除」，绝不静默清数据。
 
-const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_"];
+const OWN_KEY_PREFIX = ["shipping_", "order_mgmt_", "omg_"];  // ★ omg_=订单管理系统（含南区库库存），不可当外来清理
 
 const OWN_KEYS = ["last_client_tab", "last_backup", "auto_backup"];
 
@@ -2894,7 +2894,13 @@ const STORE_LABELS = {
 
   "auto_sched_v2":"自动排产系统",
 
-  "order_mgmt_data_v1":"订单管理系统"
+  "order_mgmt_data_v1":"订单管理系统",
+  "omg_bom_v2":"订单管理系统 · 物料数据",
+  "omg_bom_safeline":"订单管理系统 · 安全线",
+  "omg_bom_pwd":"订单管理系统 · 解锁密码",
+  "omg_bom_code_hidden":"订单管理系统 · 编码列状态",
+  "omg_bom_hide_past":"订单管理系统 · 过期显示",
+  "omg_nancloud_last":"订单管理系统 · 云端同步时间"
 
 };
 
@@ -6532,7 +6538,16 @@ function unmergeRow(tr){
 
     const c=cells[i];
 
-    if(c){ c.style.display=""; c.rowSpan=1; c.classList.remove("merged-cell"); c.classList.remove("remark-diff"); c.removeAttribute("title"); c.style.height=""; }
+    // ★ 性能（2026-11-26）：全部加「变化才写」守卫 —— 无谓的 style/rowSpan/class 写
+    //   会让浏览器重算这一格的样式，合并/取消合并时是每格一次。
+    if(c){
+      if(c.style.display==="none") c.style.display="";
+      if(c.rowSpan!==1) c.rowSpan=1;
+      if(c.classList.contains("merged-cell")) c.classList.remove("merged-cell");
+      if(c.classList.contains("remark-diff")) c.classList.remove("remark-diff");
+      if(c.hasAttribute("title")) c.removeAttribute("title");
+      if(c.style.height) c.style.height="";
+    }
 
   }
 
@@ -6876,9 +6891,19 @@ function mergeCustomerCells(){
 
   const __custCells=[], __remarkCells=[], __subCells2=[];
 
+  // ★★ 性能（2026-11-26）：group-end 的「现状集」与「目标集」，用于差异写。
+  //   __geNow = DOM 现状（读，不写）；__geWant = 本轮可见分组的组尾行。
+  const __geNow=new Set(), __geWant=new Set();
+
   allRows.forEach(tr=>{
 
-    tr.classList.remove("group-end");
+    // ★★ 性能（2026-11-26）：这里原来是对每行做 classList.remove("group-end")，
+    //   后面再给组尾行 add 回来 —— **净效果为零**（最终 class 一模一样），
+    //   但 Blink 的 DOMTokenList.add() 即使 token 已存在也会重写 class 属性，
+    //   于是每轮 merge 白写 3646 次 tr[class]，每次把该行 17 个 td 及其全部后代
+    //   标记为「样式需重算」→ 一次 merge 约 6.2 万次元素重算（实测多花约 470ms）。
+    //   改成：这里只**读**现状（contains 不会触发 mutation），把差异写推迟到分组之后统一做。
+    if(tr.classList.contains("group-end")) __geNow.add(tr);
 
     const R=rowRefs(tr);
 
@@ -7248,11 +7273,32 @@ function mergeCustomerCells(){
 
     }
 
-    rows[j-1].classList.add("group-end");
+    __geWant.add(rows[j-1]);   // ★ 差异写：先只记目标，等分组结束后统一比对（见下）
 
     i=j;
 
   }
+
+  /* 2.5) ★★ group-end 差异写（2026-11-26）
+     原版这里是「先把所有行 remove 掉、再给组尾 add 回来」，最终效果 = 只有可见分组的组尾行带 group-end。
+     但 Blink 的 classList.add/remove 都会**真的重写 class 属性**（即使值没变），
+     3644 行时每轮 merge 白写 3646 次 → 约 6.2 万次元素样式重算（实测多花约 470ms）。
+
+     现在改成「只写与现状不同」：
+       · 现状有、本轮不是组尾 → remove（真的会变）
+       · 本轮是组尾、现状没有 → add（真的会变）
+       · 其余（绝大多数行）→ 一个字节都不写
+     稳态下（分组没变）= 0 次 class 写。最终 class 字符串与原版逐行完全一致。 */
+  __geNow.forEach(function(tr){
+    if(__geWant.has(tr)) return;
+    tr.classList.remove("group-end");
+    __geNow.delete(tr);
+  });
+  __geWant.forEach(function(tr){
+    if(__geNow.has(tr)) return;
+    tr.classList.add("group-end");
+    __geNow.add(tr);
+  });
 
   /* 3) 把「不在可见分组里」的行复位
 
@@ -7533,13 +7579,17 @@ function foldByDate(){
 
     if(!isDataRow(tr)) continue;
 
-    tr.classList.remove("date-fold-hidden","has-folded","has-expanded");
+    // ★ 性能（2026-11-26）：同上 —— 一行一次 remove 三个 token = 三次无谓的样式失效。
+    if(tr.classList.contains("date-fold-hidden")) tr.classList.remove("date-fold-hidden");
+    if(tr.classList.contains("has-folded")) tr.classList.remove("has-folded");
+    if(tr.classList.contains("has-expanded")) tr.classList.remove("has-expanded");
 
     const sd=rowRefs(tr).cellShipdate;          // ★ 复用行引用，省掉逐行 querySelector
 
     if(sd){
 
-      sd.classList.remove("date-expanded","date-collapsed");
+      if(sd.classList.contains("date-expanded")) sd.classList.remove("date-expanded");
+      if(sd.classList.contains("date-collapsed")) sd.classList.remove("date-collapsed");
 
       const btn=sd.querySelector(".fold-btn");  // 只在单元格内找，搜索范围比整行小一个数量级
 
